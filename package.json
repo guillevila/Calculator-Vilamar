@@ -1,0 +1,46 @@
+{
+  "name": "calculator-vilamar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Herramienta local para leer una biometría ocular una sola vez y rellenar con ella las calculadoras de lente intraocular",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @vilamar/desktop dev",
+    "build": "pnpm --filter @vilamar/desktop build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "pnpm --filter @vilamar/desktop test:e2e",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "playwright:install": "playwright install chromium",
+    "probe:kane": "node scripts/sondas/probe.mjs kane",
+    "probe:evo": "node scripts/sondas/probe.mjs evo",
+    "probe:barrett": "node scripts/sondas/probe.mjs barrett",
+    "reconocer": "node scripts/sondas/reconocer.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.2",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "playwright": "^1.49.1",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1",
+    "vitest": "^2.1.8"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ]
+  }
+}
