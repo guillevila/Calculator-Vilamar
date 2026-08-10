@@ -162,5 +162,7 @@ export function confirmar(caso: Caso, cuando: string): Caso {
  * podría probar que funciona.
  */
 export function autorizadoACalcular(caso: Caso): boolean {
-  return caso.estado === 'CONFIRMADO' || caso.estado === 'CALCULANDO' || caso.estado === 'COMPLETADO'
+  return (
+    caso.estado === 'CONFIRMADO' || caso.estado === 'CALCULANDO' || caso.estado === 'COMPLETADO'
+  )
 }

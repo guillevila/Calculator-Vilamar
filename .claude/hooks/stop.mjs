@@ -13,7 +13,10 @@ const line = '═'.repeat(63)
 
 function git(args) {
   try {
-    return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+    return execFileSync('git', args, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
   } catch {
     return ''
   }
@@ -26,8 +29,15 @@ const out = ['', line, '  Fin de sesión', line, '', '  Antes de cerrar, comprue
 out.push('  ✓ ¿Hubo correcciones en esta sesión? → regístralas con /nueva-leccion', '')
 
 if (changed.length > 0) {
-  out.push(`  ⚠️  Hay ${changed.length} ${changed.length === 1 ? 'archivo' : 'archivos'} sin commitear:`)
-  out.push(changed.slice(0, 5).map((l) => `      ${l}`).join('\n'))
+  out.push(
+    `  ⚠️  Hay ${changed.length} ${changed.length === 1 ? 'archivo' : 'archivos'} sin commitear:`,
+  )
+  out.push(
+    changed
+      .slice(0, 5)
+      .map((l) => `      ${l}`)
+      .join('\n'),
+  )
   if (changed.length > 5) out.push(`      … y ${changed.length - 5} más`)
 } else {
   out.push('  ✅ No queda nada sin commitear')

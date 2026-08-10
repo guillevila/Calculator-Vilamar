@@ -26,22 +26,22 @@ const ANTERION: readonly ReglaLectura[] = [
     campo: 'ACD',
     nombre: 'ANTERION ACD (epitelio→cristalino)',
     patrones: [
-      /ACD\s*\(?(?:epi|epithelium)[^)]*\)?[^0-9\-]{0,14}(\d+[.,]\d{1,3})/i,
-      /\bACD\b[^0-9\-]{0,14}(\d+[.,]\d{1,3})\s*mm/i,
+      /ACD\s*\(?(?:epi|epithelium)[^)]*\)?[^0-9-]{0,14}(\d+[.,]\d{1,3})/i,
+      /\bACD\b[^0-9-]{0,14}(\d+[.,]\d{1,3})\s*mm/i,
     ],
   },
   {
     campo: 'AQD',
     nombre: 'ANTERION AQD (endotelio→cristalino)',
     patrones: [
-      /AQD\s*\(?(?:endo|endothelium)[^)]*\)?[^0-9\-]{0,14}(\d+[.,]\d{1,3})/i,
-      /\bAQD\b[^0-9\-]{0,14}(\d+[.,]\d{1,3})\s*mm/i,
+      /AQD\s*\(?(?:endo|endothelium)[^)]*\)?[^0-9-]{0,14}(\d+[.,]\d{1,3})/i,
+      /\bAQD\b[^0-9-]{0,14}(\d+[.,]\d{1,3})\s*mm/i,
     ],
   },
   {
     campo: 'CCT',
     nombre: 'ANTERION CCT',
-    patrones: [/\bCCT\b[^0-9\-]{0,14}(\d+)/i, /Corneal\s*Thickness[^0-9\-]{0,14}(\d+)/i],
+    patrones: [/\bCCT\b[^0-9-]{0,14}(\d+)/i, /Corneal\s*Thickness[^0-9-]{0,14}(\d+)/i],
   },
 ]
 
@@ -58,8 +58,8 @@ const IOLMASTER_700: readonly ReglaLectura[] = [
     nombre: 'IOLMaster TK1',
     campoEje: 'TK1_EJE',
     patrones: [
-      /\bTK1\b[^0-9\-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?)\s*(\d{1,3})/i,
-      /\bTK1\b[^0-9\-]{0,14}(\d+[.,]\d{1,2})/i,
+      /\bTK1\b[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?)\s*(\d{1,3})/i,
+      /\bTK1\b[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
     ],
   },
   {
@@ -67,19 +67,22 @@ const IOLMASTER_700: readonly ReglaLectura[] = [
     nombre: 'IOLMaster TK2',
     campoEje: 'TK2_EJE',
     patrones: [
-      /\bTK2\b[^0-9\-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?)\s*(\d{1,3})/i,
-      /\bTK2\b[^0-9\-]{0,14}(\d+[.,]\d{1,2})/i,
+      /\bTK2\b[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?)\s*(\d{1,3})/i,
+      /\bTK2\b[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
     ],
   },
   {
     campo: 'ACD',
     nombre: 'IOLMaster ACD',
-    patrones: [/\bACD\b[^0-9\-]{0,14}(\d+[.,]\d{1,3})/i],
+    patrones: [/\bACD\b[^0-9-]{0,14}(\d+[.,]\d{1,3})/i],
   },
   {
     campo: 'WTW',
     nombre: 'IOLMaster WTW',
-    patrones: [/\bWTW\b[^0-9\-]{0,14}(\d+[.,]\d{1,2})/i, /\bCCT?\s*W?TW\b[^0-9\-]{0,14}(\d+[.,]\d{1,2})/i],
+    patrones: [
+      /\bWTW\b[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
+      /\bCCT?\s*W?TW\b[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
+    ],
   },
 ]
 
@@ -97,8 +100,8 @@ const PENTACAM: readonly ReglaLectura[] = [
     nombre: 'Pentacam K1 (frontal)',
     campoEje: 'K1_EJE',
     patrones: [
-      /K1\s*\(?front\)?[^0-9\-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?)\s*(\d{1,3})/i,
-      /\bK1\b[^0-9\-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?)\s*(\d{1,3})/i,
+      /K1\s*\(?front\)?[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?)\s*(\d{1,3})/i,
+      /\bK1\b[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?)\s*(\d{1,3})/i,
     ],
   },
   {
@@ -106,8 +109,8 @@ const PENTACAM: readonly ReglaLectura[] = [
     nombre: 'Pentacam K2 (frontal)',
     campoEje: 'K2_EJE',
     patrones: [
-      /K2\s*\(?front\)?[^0-9\-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?)\s*(\d{1,3})/i,
-      /\bK2\b[^0-9\-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?)\s*(\d{1,3})/i,
+      /K2\s*\(?front\)?[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?)\s*(\d{1,3})/i,
+      /\bK2\b[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?)\s*(\d{1,3})/i,
     ],
   },
   {
@@ -115,8 +118,8 @@ const PENTACAM: readonly ReglaLectura[] = [
     nombre: 'Pentacam K1 posterior',
     campoEje: 'PK1_EJE',
     patrones: [
-      /K1\s*\(?back\)?[^0-9\-]{0,14}(-?\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?)\s*(\d{1,3})/i,
-      /Posterior[^\n]{0,20}K1[^0-9\-]{0,14}(-?\d+[.,]\d{1,2})/i,
+      /K1\s*\(?back\)?[^0-9-]{0,14}(-?\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?)\s*(\d{1,3})/i,
+      /Posterior[^\n]{0,20}K1[^0-9-]{0,14}(-?\d+[.,]\d{1,2})/i,
     ],
   },
   {
@@ -124,17 +127,17 @@ const PENTACAM: readonly ReglaLectura[] = [
     nombre: 'Pentacam K2 posterior',
     campoEje: 'PK2_EJE',
     patrones: [
-      /K2\s*\(?back\)?[^0-9\-]{0,14}(-?\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?)\s*(\d{1,3})/i,
-      /Posterior[^\n]{0,20}K2[^0-9\-]{0,14}(-?\d+[.,]\d{1,2})/i,
+      /K2\s*\(?back\)?[^0-9-]{0,14}(-?\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?)\s*(\d{1,3})/i,
+      /Posterior[^\n]{0,20}K2[^0-9-]{0,14}(-?\d+[.,]\d{1,2})/i,
     ],
   },
   {
     campo: 'CCT',
     nombre: 'Pentacam paquimetría central',
     patrones: [
-      /Pachy\s*(?:Apex|Center|Centro)[^0-9\-]{0,14}(\d+)/i,
-      /\bCCT\b[^0-9\-]{0,14}(\d+)/i,
-      /Thinnest[^0-9\-]{0,14}(\d+)/i,
+      /Pachy\s*(?:Apex|Center|Centro)[^0-9-]{0,14}(\d+)/i,
+      /\bCCT\b[^0-9-]{0,14}(\d+)/i,
+      /Thinnest[^0-9-]{0,14}(\d+)/i,
     ],
   },
 ]

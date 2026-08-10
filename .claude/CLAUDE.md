@@ -14,6 +14,7 @@ pero no necesariamente conocimientos técnicos. Tú aportas el rigor técnico;
 él aporta el contexto de negocio y la dirección estratégica.
 
 **Este es el principio más importante:**
+
 > El dueño del negocio no tiene por qué entender el código.
 > Claude tiene que entender el negocio.
 
@@ -34,6 +35,7 @@ pero no necesariamente conocimientos técnicos. Tú aportas el rigor técnico;
 ## 🧠 División de roles
 
 ### El dueño del proyecto decide:
+
 - Qué construir y en qué orden
 - La lógica de negocio (cómo funciona su empresa)
 - Las prioridades
@@ -41,6 +43,7 @@ pero no necesariamente conocimientos técnicos. Tú aportas el rigor técnico;
 - Cuándo algo "no está bien" aunque no sepa explicar por qué técnicamente
 
 ### Claude decide:
+
 - Cómo construirlo técnicamente
 - Qué tecnologías usar (dentro del stack acordado en SYSTEM_VISION)
 - La arquitectura del código
@@ -48,6 +51,7 @@ pero no necesariamente conocimientos técnicos. Tú aportas el rigor técnico;
 - Qué librerías y herramientas usar
 
 ### Negociación obligatoria:
+
 Si el dueño pide algo técnicamente incorrecto, arriesgado o que va a crear
 problemas futuros → **Claude DEBE hacer pushback con explicación clara en
 lenguaje no técnico antes de ejecutar**. No es un ejecutor ciego.
@@ -68,6 +72,7 @@ lenguaje no técnico antes de ejecutar**. No es un ejecutor ciego.
 ## ⚙️ Protocolo de trabajo
 
 ### Reglas de Git (detalle en `.claude/skills/git-protocol/SKILL.md`)
+
 - **NUNCA tocar la rama principal directamente (`main` o `master`).** Toda nueva funcionalidad = rama nueva + PR.
 - **Commits semánticos**: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`
 - **Merge solo con aprobación explícita** del dueño del proyecto.
@@ -143,6 +148,7 @@ cerrar una integración, revisar el diff completo buscando **funcionalidad
 perdida**, no solo que compile.
 
 Cuidado especial con:
+
 - `packages/domain/` — el modelo biométrico canónico y sus invariantes clínicas.
   Cambiar un tipo aquí rompe extracción, integraciones, interfaz e informe a la vez.
 - `packages/domain/src/invariantes/` — las diez reglas clínicas. **No se relajan
@@ -159,12 +165,14 @@ Cuidado especial con:
 ---
 
 ### Reglas de código
+
 - Cambios pequeños y reversibles sobre grandes y arriesgados.
 - Siempre comprobar que algo funciona antes de decirle al dueño que está listo.
 - No añadir funcionalidades que no se han pedido.
 - No refactorizar código que funciona salvo que haya una razón clara.
 
 ### Reglas de documentación
+
 - Actualizar `docs/ARQUITECTURA.md` cuando cambie algo técnico relevante.
 - Actualizar `docs/CHANGELOG.md` con cada cambio significativo.
 - Si se toma una decisión importante → añadir a `SYSTEM_VISION.md` sección de
@@ -179,8 +187,9 @@ Para un dueño no técnico, creer que algo está más avanzado de lo que está e
 error más caro posible. Tu trabajo es protegerle de eso.
 
 ### Distinguir siempre tres cosas (no confundirlas nunca):
-- **Documentación** = está *escrito*. No es producto.
-- **Demo** = se puede *enseñar*, pero por dentro no funciona de verdad (datos de pega,
+
+- **Documentación** = está _escrito_. No es producto.
+- **Demo** = se puede _enseñar_, pero por dentro no funciona de verdad (datos de pega,
   sin guardar, sin seguridad). No es producto.
 - **Producción** = funciona de verdad, con datos reales, y alguien depende de ello.
 
@@ -188,6 +197,7 @@ Las 6 etapas (idea → documentación → demo → prototipo → MVP → producc
 definidas en `docs/ESTADOS_DEL_PROYECTO.md`. Ante la duda, elige SIEMPRE la etapa menor.
 
 ### Obligaciones:
+
 - **Actualiza `PROJECT_STATUS.md`** cada vez que cambie qué funciona, qué no, la etapa,
   la última o próxima decisión, o aparezca un riesgo. Hazlo en la misma sesión.
 - **No marques algo como "funciona"** salvo que se haya comprobado de verdad. Si solo
@@ -272,14 +282,14 @@ proceso principal, añadir `pnpm test:e2e`.
 
 ### Dónde está cada cosa
 
-| Si tocas… | Está en… |
-|---|---|
-| Modelo biométrico, invariantes clínicas, validación, comparación | `packages/domain/src/` |
-| Detección de dispositivo y lectura de informes | `packages/extraction/src/` |
-| Automatización de Kane / EVO / Barrett con Playwright | `packages/integrations/src/` |
-| Plantilla e impresión del informe PDF | `packages/report/src/` |
-| Proceso principal de Electron, almacenamiento local, IPC | `apps/desktop/src/main/` |
-| Interfaz (React) | `apps/desktop/src/renderer/` |
+| Si tocas…                                                        | Está en…                     |
+| ---------------------------------------------------------------- | ---------------------------- |
+| Modelo biométrico, invariantes clínicas, validación, comparación | `packages/domain/src/`       |
+| Detección de dispositivo y lectura de informes                   | `packages/extraction/src/`   |
+| Automatización de Kane / EVO / Barrett con Playwright            | `packages/integrations/src/` |
+| Plantilla e impresión del informe PDF                            | `packages/report/src/`       |
+| Proceso principal de Electron, almacenamiento local, IPC         | `apps/desktop/src/main/`     |
+| Interfaz (React)                                                 | `apps/desktop/src/renderer/` |
 
 **Reglas estructurales que no se rompen:**
 

@@ -20,7 +20,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test'
+import {
+  _electron as electron,
+  expect,
+  test,
+  type ElectronApplication,
+  type Page,
+} from '@playwright/test'
 
 const raizApp = join(fileURLToPath(import.meta.url), '..', '..')
 

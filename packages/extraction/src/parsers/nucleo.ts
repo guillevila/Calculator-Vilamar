@@ -74,10 +74,25 @@ export function leerNumeroODescartar(texto: string | undefined): number | null {
   return texto === undefined ? null : leerNumero(texto)
 }
 
+/**
+ * Deja el texto en líneas limpias.
+ *
+ * El espacio duro (U+00A0) se escribe con su escape y no como carácter: los
+ * PDF y el OCR los producen a montones y hay que normalizarlos, pero puesto
+ * tal cual en el código es un carácter invisible que nadie ve al leerlo.
+ *
+ * El doble espacio SÍ se conserva: es lo que separa la columna de un ojo de la
+ * del otro en los informes a dos columnas.
+ */
 export function normalizarLineas(texto: string): readonly string[] {
   return texto
     .split(/\r?\n/)
-    .map((l) => l.replace(/[\t ]+/g, ' ').replace(/ {2,}/g, '  ').trim())
+    .map((l) =>
+      l
+        .replace(/[\t\u00A0 ]+/g, ' ')
+        .replace(/ {2,}/g, '  ')
+        .trim(),
+    )
     .filter((l) => l.length > 0)
 }
 
@@ -157,10 +172,10 @@ export const REGLAS_GENERICAS: readonly ReglaLectura[] = [
     campo: 'AL',
     nombre: 'AL genérico',
     patrones: [
-      /\bAL\b[^0-9\-]{0,18}(-?\d+[.,]\d{1,3})\s*mm/i,
-      /Axial\s*Length[^0-9\-]{0,18}(-?\d+[.,]\d{1,3})/i,
-      /Longitud\s*axial[^0-9\-]{0,18}(-?\d+[.,]\d{1,3})/i,
-      /\bAL\b[^0-9\-]{0,18}(-?\d+[.,]\d{1,3})/i,
+      /\bAL\b[^0-9-]{0,18}(-?\d+[.,]\d{1,3})\s*mm/i,
+      /Axial\s*Length[^0-9-]{0,18}(-?\d+[.,]\d{1,3})/i,
+      /Longitud\s*axial[^0-9-]{0,18}(-?\d+[.,]\d{1,3})/i,
+      /\bAL\b[^0-9-]{0,18}(-?\d+[.,]\d{1,3})/i,
     ],
   },
   {
@@ -168,10 +183,10 @@ export const REGLAS_GENERICAS: readonly ReglaLectura[] = [
     nombre: 'K1 con eje',
     campoEje: 'K1_EJE',
     patrones: [
-      /\bK1\b[^0-9\-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis|eje)\s*(\d{1,3})/i,
-      /Flat\s*K[^0-9\-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
-      /\bK1\b[^0-9\-]{0,14}(\d+[.,]\d{1,2})/i,
-      /Flat\s*K[^0-9\-]{0,14}(\d+[.,]\d{1,2})/i,
+      /\bK1\b[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis|eje)\s*(\d{1,3})/i,
+      /Flat\s*K[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
+      /\bK1\b[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
+      /Flat\s*K[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
     ],
   },
   {
@@ -179,57 +194,57 @@ export const REGLAS_GENERICAS: readonly ReglaLectura[] = [
     nombre: 'K2 con eje',
     campoEje: 'K2_EJE',
     patrones: [
-      /\bK2\b[^0-9\-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis|eje)\s*(\d{1,3})/i,
-      /Steep\s*K[^0-9\-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
-      /\bK2\b[^0-9\-]{0,14}(\d+[.,]\d{1,2})/i,
-      /Steep\s*K[^0-9\-]{0,14}(\d+[.,]\d{1,2})/i,
+      /\bK2\b[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis|eje)\s*(\d{1,3})/i,
+      /Steep\s*K[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
+      /\bK2\b[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
+      /Steep\s*K[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
     ],
   },
   {
     campo: 'ACD',
     nombre: 'ACD',
     patrones: [
-      /\bACD\b[^0-9\-]{0,18}(\d+[.,]\d{1,3})\s*mm/i,
-      /Anterior\s*Chamber\s*Depth[^0-9\-]{0,18}(\d+[.,]\d{1,3})/i,
-      /\bACD\b[^0-9\-]{0,18}(\d+[.,]\d{1,3})/i,
+      /\bACD\b[^0-9-]{0,18}(\d+[.,]\d{1,3})\s*mm/i,
+      /Anterior\s*Chamber\s*Depth[^0-9-]{0,18}(\d+[.,]\d{1,3})/i,
+      /\bACD\b[^0-9-]{0,18}(\d+[.,]\d{1,3})/i,
     ],
   },
   {
     campo: 'AQD',
     nombre: 'AQD',
     patrones: [
-      /\bAQD\b[^0-9\-]{0,18}(\d+[.,]\d{1,3})\s*mm/i,
-      /Aqueous\s*Depth[^0-9\-]{0,18}(\d+[.,]\d{1,3})/i,
-      /\bAQD\b[^0-9\-]{0,18}(\d+[.,]\d{1,3})/i,
+      /\bAQD\b[^0-9-]{0,18}(\d+[.,]\d{1,3})\s*mm/i,
+      /Aqueous\s*Depth[^0-9-]{0,18}(\d+[.,]\d{1,3})/i,
+      /\bAQD\b[^0-9-]{0,18}(\d+[.,]\d{1,3})/i,
     ],
   },
   {
     campo: 'LT',
     nombre: 'LT',
     patrones: [
-      /\bLT\b[^0-9\-]{0,18}(\d+[.,]\d{1,3})\s*mm/i,
-      /Lens\s*Thickness[^0-9\-]{0,18}(\d+[.,]\d{1,3})/i,
-      /Grosor\s*(?:del\s*)?cristalino[^0-9\-]{0,18}(\d+[.,]\d{1,3})/i,
-      /\bLT\b[^0-9\-]{0,18}(\d+[.,]\d{1,3})/i,
+      /\bLT\b[^0-9-]{0,18}(\d+[.,]\d{1,3})\s*mm/i,
+      /Lens\s*Thickness[^0-9-]{0,18}(\d+[.,]\d{1,3})/i,
+      /Grosor\s*(?:del\s*)?cristalino[^0-9-]{0,18}(\d+[.,]\d{1,3})/i,
+      /\bLT\b[^0-9-]{0,18}(\d+[.,]\d{1,3})/i,
     ],
   },
   {
     campo: 'CCT',
     nombre: 'CCT',
     patrones: [
-      /\bCCT\b[^0-9\-]{0,18}(\d+)\s*(?:µm|um|μm)/i,
-      /Central\s*Corneal\s*Thickness[^0-9\-]{0,18}(\d+)/i,
-      /\bCCT\b[^0-9\-]{0,18}(\d+)/i,
-      /\bPachy\b[^0-9\-]{0,18}(\d+)/i,
+      /\bCCT\b[^0-9-]{0,18}(\d+)\s*(?:µm|um|μm)/i,
+      /Central\s*Corneal\s*Thickness[^0-9-]{0,18}(\d+)/i,
+      /\bCCT\b[^0-9-]{0,18}(\d+)/i,
+      /\bPachy\b[^0-9-]{0,18}(\d+)/i,
     ],
   },
   {
     campo: 'WTW',
     nombre: 'WTW',
     patrones: [
-      /\bWTW\b[^0-9\-]{0,18}(\d+[.,]\d{1,2})\s*mm/i,
-      /White[\s-]*to[\s-]*White[^0-9\-]{0,18}(\d+[.,]\d{1,2})/i,
-      /\bWTW\b[^0-9\-]{0,18}(\d+[.,]\d{1,2})/i,
+      /\bWTW\b[^0-9-]{0,18}(\d+[.,]\d{1,2})\s*mm/i,
+      /White[\s-]*to[\s-]*White[^0-9-]{0,18}(\d+[.,]\d{1,2})/i,
+      /\bWTW\b[^0-9-]{0,18}(\d+[.,]\d{1,2})/i,
     ],
   },
   {
@@ -237,8 +252,8 @@ export const REGLAS_GENERICAS: readonly ReglaLectura[] = [
     nombre: 'TK1 con eje',
     campoEje: 'TK1_EJE',
     patrones: [
-      /\bTK1\b[^0-9\-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
-      /\bTK1\b[^0-9\-]{0,14}(\d+[.,]\d{1,2})/i,
+      /\bTK1\b[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
+      /\bTK1\b[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
     ],
   },
   {
@@ -246,8 +261,8 @@ export const REGLAS_GENERICAS: readonly ReglaLectura[] = [
     nombre: 'TK2 con eje',
     campoEje: 'TK2_EJE',
     patrones: [
-      /\bTK2\b[^0-9\-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
-      /\bTK2\b[^0-9\-]{0,14}(\d+[.,]\d{1,2})/i,
+      /\bTK2\b[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
+      /\bTK2\b[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
     ],
   },
   {
@@ -255,8 +270,8 @@ export const REGLAS_GENERICAS: readonly ReglaLectura[] = [
     nombre: 'PK1 (córnea posterior)',
     campoEje: 'PK1_EJE',
     patrones: [
-      /\b(?:PK1|Post(?:erior)?\.?\s*K1)\b[^0-9\-]{0,14}(-?\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
-      /\b(?:PK1|Post(?:erior)?\.?\s*K1)\b[^0-9\-]{0,14}(-?\d+[.,]\d{1,2})/i,
+      /\b(?:PK1|Post(?:erior)?\.?\s*K1)\b[^0-9-]{0,14}(-?\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
+      /\b(?:PK1|Post(?:erior)?\.?\s*K1)\b[^0-9-]{0,14}(-?\d+[.,]\d{1,2})/i,
     ],
   },
   {
@@ -264,8 +279,8 @@ export const REGLAS_GENERICAS: readonly ReglaLectura[] = [
     nombre: 'PK2 (córnea posterior)',
     campoEje: 'PK2_EJE',
     patrones: [
-      /\b(?:PK2|Post(?:erior)?\.?\s*K2)\b[^0-9\-]{0,14}(-?\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
-      /\b(?:PK2|Post(?:erior)?\.?\s*K2)\b[^0-9\-]{0,14}(-?\d+[.,]\d{1,2})/i,
+      /\b(?:PK2|Post(?:erior)?\.?\s*K2)\b[^0-9-]{0,14}(-?\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
+      /\b(?:PK2|Post(?:erior)?\.?\s*K2)\b[^0-9-]{0,14}(-?\d+[.,]\d{1,2})/i,
     ],
   },
 ]

@@ -47,7 +47,10 @@ function casoListo(quitar: readonly Parameters<typeof crearMedida>[0][] = []): C
     ['CONSTANTE_A', 119],
   ]
   for (const [campo, valor] of datos) {
-    ojo = conMedida(ojo, crearMedida(campo, 'OD', valor, { metodo: 'MANUAL', registradoEn: CUANDO }))
+    ojo = conMedida(
+      ojo,
+      crearMedida(campo, 'OD', valor, { metodo: 'MANUAL', registradoEn: CUANDO }),
+    )
   }
   for (const campo of quitar) ojo = sinMedida(ojo, campo)
   ojo = confirmarTodas(ojo)
@@ -264,7 +267,11 @@ describe('faltar un dato bloquea solo a quien lo necesita', () => {
     // Caso con datos, pero SIN el acto de confirmar.
     let ojo = ojoVacio('OD')
     ojo = conMedida(ojo, crearMedida('AL', 'OD', 24.07, { metodo: 'MANUAL', registradoEn: CUANDO }))
-    const sinConfirmar = conOjo(casoNuevo('c2', 'CV-2026-0002', CUANDO), confirmarTodas(ojo), CUANDO)
+    const sinConfirmar = conOjo(
+      casoNuevo('c2', 'CV-2026-0002', CUANDO),
+      confirmarTodas(ojo),
+      CUANDO,
+    )
 
     const espia = vi.fn()
     const adaptadorEspia: AdaptadorCalculadora = {

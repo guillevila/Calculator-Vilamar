@@ -71,7 +71,14 @@ export function crearMedida(
         'Un dato desconocido se representa no creando la medida, nunca con un número inventado.',
     )
   }
-  return { campo, ojo, valor, unidad: definicionDe(campo).unidad, procedencia, confirmadoPorUsuario }
+  return {
+    campo,
+    ojo,
+    valor,
+    unidad: definicionDe(campo).unidad,
+    procedencia,
+    confirmadoPorUsuario,
+  }
 }
 
 /** ¿Está el dato? `false` significa NO ENCONTRADO. */

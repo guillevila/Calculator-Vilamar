@@ -74,7 +74,10 @@ function casoDePrueba(): Caso {
     ['EJE_INCISION', 0],
     ['CONSTANTE_A', 119.0],
   ] as const) {
-    ojo = conMedida(ojo, crearMedida(campo, 'OD', valor, { metodo: 'MANUAL', registradoEn: CUANDO }))
+    ojo = conMedida(
+      ojo,
+      crearMedida(campo, 'OD', valor, { metodo: 'MANUAL', registradoEn: CUANDO }),
+    )
   }
   ojo = confirmarTodas(ojo)
   const base: Caso = {
@@ -108,7 +111,9 @@ const resultados = await ejecutarCalculadoras({
   },
   alTerminarUna: (r) => {
     const icono = r.estado === 'SUCCESS' ? '✓' : r.estado === 'PARTIAL' ? '~' : '✕'
-    console.log(`  ${icono} ${fichaDe(r.calculadora).nombre}: ${r.estado} (${r.duracionMs ?? '?'} ms)`)
+    console.log(
+      `  ${icono} ${fichaDe(r.calculadora).nombre}: ${r.estado} (${r.duracionMs ?? '?'} ms)`,
+    )
   },
   ahora: () => new Date().toISOString(),
   guardarDiagnostico: async (d) => {
@@ -150,7 +155,9 @@ for (const r of resultados) {
   }
   if (r.opciones.length > 0) console.log(`  Opciones leídas: ${r.opciones.length}`)
   if (r.astigmatismoNeto) {
-    console.log(`  Astigmatismo neto: ${r.astigmatismoNeto.magnitud} D @ ${r.astigmatismoNeto.eje}°`)
+    console.log(
+      `  Astigmatismo neto: ${r.astigmatismoNeto.magnitud} D @ ${r.astigmatismoNeto.eje}°`,
+    )
   }
   if (r.entradasSegunLaWeb) {
     for (const [k, v] of Object.entries(r.entradasSegunLaWeb)) console.log(`  [web] ${k}: ${v}`)

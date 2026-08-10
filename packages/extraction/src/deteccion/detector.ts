@@ -50,7 +50,11 @@ const HUELLAS: readonly HuellaDispositivo[] = [
       { patron: /IOLMaster\s*700/i, peso: 10, descripcion: 'Nombre del aparato: IOLMaster 700' },
       { patron: /\bIOLMaster\b/i, peso: 6, descripcion: 'Familia IOLMaster' },
       { patron: /\bZEISS\b/i, peso: 5, descripcion: 'Fabricante: Carl Zeiss' },
-      { patron: /\bTK\d?\b|Total\s*Keratometry/i, peso: 4, descripcion: 'Queratometría total (TK)' },
+      {
+        patron: /\bTK\d?\b|Total\s*Keratometry/i,
+        peso: 4,
+        descripcion: 'Queratometría total (TK)',
+      },
       { patron: /\bSWEPT\s*SOURCE\b/i, peso: 2, descripcion: 'Tecnología swept-source' },
     ],
   },

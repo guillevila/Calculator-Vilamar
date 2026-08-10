@@ -5,6 +5,7 @@
 Lee `.claude/CLAUDE.md` para la constitución completa del agente.
 
 El orden de lectura al iniciar una sesión es:
+
 1. Este archivo (puntero)
 2. `.claude/CLAUDE.md` — constitución completa
 3. `SYSTEM_VISION.md` — visión y contexto del proyecto

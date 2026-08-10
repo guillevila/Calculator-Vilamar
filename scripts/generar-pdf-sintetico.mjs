@@ -3,7 +3,7 @@
  * arranca. Antes de escribir código que dependa de ellos.
  */
 import { chromium } from 'playwright'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 const SALIDA = process.argv[2] ?? '.'

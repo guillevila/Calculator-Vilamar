@@ -76,7 +76,7 @@ guardados**.]
 - [ ] `pnpm typecheck` en verde
 - [ ] `pnpm test` en verde
 - [ ] `pnpm build` en verde
-- [ ] `pnpm test:e2e` en verde *(si se tocó interfaz o proceso principal)*
+- [ ] `pnpm test:e2e` en verde _(si se tocó interfaz o proceso principal)_
 - [ ] Lint — **este proyecto no tiene lint**, no aplica
 - [ ] Lo he probado en local y funciona
 - [ ] No hay credenciales ni datos sensibles en los cambios

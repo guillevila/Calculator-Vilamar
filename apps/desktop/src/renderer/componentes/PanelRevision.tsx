@@ -253,9 +253,7 @@ function FilaCampo({ campo, caso, ojoActivo, avisos, onCambio }: PropsFila): JSX
         <td className="unidad">{def.unidad === 'ninguna' ? '' : def.unidad}</td>
         <td>
           {!medida && <span className="origen ausente">no encontrado</span>}
-          {medida && esManual(medida.procedencia) && (
-            <span className="origen manual">a mano</span>
-          )}
+          {medida && esManual(medida.procedencia) && <span className="origen manual">a mano</span>}
           {medida && esDerivado(medida.procedencia) && (
             <span className="origen derivado">derivado</span>
           )}

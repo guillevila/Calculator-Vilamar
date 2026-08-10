@@ -22,17 +22,19 @@
 ## Las 6 etapas
 
 ### 💡 1. Idea
+
 **Qué es:** la idea existe en tu cabeza, en notas o en una conversación. Nada más.
 
 **Qué hay:** nada construido, nada escrito de forma estructurada.
 
-**Lo que NO puedes decir todavía:** "estamos construyendo X". Todavía estás *pensando* X.
+**Lo que NO puedes decir todavía:** "estamos construyendo X". Todavía estás _pensando_ X.
 
 **Cómo se sale de aquí:** rellenando `SYSTEM_VISION.md`.
 
 ---
 
 ### 📄 2. Documentación
+
 **Qué es:** está escrito qué se quiere hacer, para quién y por qué. Hay un plan.
 
 **Qué hay:** `SYSTEM_VISION.md` relleno, quizá un roadmap. **Cero código que funcione.**
@@ -40,13 +42,14 @@
 **El peligro:** sentir que "ya casi está" porque hay muchos documentos bonitos.
 Documentar es el 5% del trabajo, no el 80%. Un documento no atiende a un cliente.
 
-**Lo que NO puedes decir:** "tenemos un producto". Tienes un *plan*.
+**Lo que NO puedes decir:** "tenemos un producto". Tienes un _plan_.
 
 **Cómo se sale de aquí:** construyendo la primera pieza que se pueda enseñar.
 
 ---
 
 ### 🎬 3. Demo
+
 **Qué es:** algo que se puede **enseñar** en una pantalla. Sirve para explicar la idea.
 
 **Qué hay:** pantallas, botones, quizá datos de mentira ("de pega"). Se ve bonito.
@@ -55,13 +58,14 @@ Documentar es el 5% del trabajo, no el 80%. Un documento no atiende a un cliente
 Pero por dentro: los datos no se guardan de verdad, no hay usuarios, no hay seguridad,
 si pulsas el botón equivocado se rompe. **Una demo es teatro, no producto.**
 
-**Lo que NO puedes decir:** "ya funciona". Funciona *para enseñarlo*, no *para usarlo*.
+**Lo que NO puedes decir:** "ya funciona". Funciona _para enseñarlo_, no _para usarlo_.
 
 **Cómo se sale de aquí:** haciendo que las cosas funcionen de verdad por dentro, una a una.
 
 ---
 
 ### 🛠️ 4. Prototipo funcional
+
 **Qué es:** funciona de verdad en algunas partes. Los datos se guardan, algo real ocurre.
 
 **Qué hay:** flujos reales que funcionan, pero incompletos, frágiles o sin pulir.
@@ -74,6 +78,7 @@ Se cae con facilidad. No está listo para gente ajena al proyecto.
 ---
 
 ### 🚀 5. MVP (Producto Mínimo Viable)
+
 **Qué es:** la versión más pequeña que un usuario real puede usar y obtener valor.
 
 **Qué hay:** el flujo principal funciona de extremo a extremo, de forma fiable,
@@ -86,6 +91,7 @@ con datos reales. Le faltan funciones, pero lo que hay **funciona y aporta valor
 ---
 
 ### 🏭 6. Producción
+
 **Qué es:** está en uso real. Hay gente que depende de ello para su trabajo o negocio.
 
 **Qué hay:** datos reales, usuarios reales, copias de seguridad, seguridad,
@@ -98,14 +104,14 @@ Todo cambio se prueba antes. Nada se toca a la ligera.
 
 ## Tabla rápida
 
-| Etapa | ¿Hay código que funciona? | ¿Se puede enseñar? | ¿Lo puede USAR un tercero? | ¿Datos reales? |
-|-------|:---:|:---:|:---:|:---:|
-| 💡 Idea | No | No | No | No |
-| 📄 Documentación | No | Solo el plan | No | No |
-| 🎬 Demo | Por fuera sí, por dentro no | Sí | **No** | No (de pega) |
-| 🛠️ Prototipo | A medias | Sí | Con cuidado | A veces |
-| 🚀 MVP | Sí (lo esencial) | Sí | Sí | Sí |
-| 🏭 Producción | Sí (completo y fiable) | Sí | Sí, depende de ello | Sí |
+| Etapa            |  ¿Hay código que funciona?  | ¿Se puede enseñar? | ¿Lo puede USAR un tercero? | ¿Datos reales? |
+| ---------------- | :-------------------------: | :----------------: | :------------------------: | :------------: |
+| 💡 Idea          |             No              |         No         |             No             |       No       |
+| 📄 Documentación |             No              |    Solo el plan    |             No             |       No       |
+| 🎬 Demo          | Por fuera sí, por dentro no |         Sí         |           **No**           |  No (de pega)  |
+| 🛠️ Prototipo     |          A medias           |         Sí         |        Con cuidado         |    A veces     |
+| 🚀 MVP           |      Sí (lo esencial)       |         Sí         |             Sí             |       Sí       |
+| 🏭 Producción    |   Sí (completo y fiable)    |         Sí         |    Sí, depende de ello     |       Sí       |
 
 ---
 
@@ -115,4 +121,4 @@ Todo cambio se prueba antes. Nada se toca a la ligera.
 2. Refleja siempre la etapa real en [PROJECT_STATUS.md](../PROJECT_STATUS.md).
 3. Antes de enseñar el proyecto a alguien, di SIEMPRE en qué etapa está.
    Decir "es una demo" no resta: genera confianza. Vender una demo como producto, la destruye.
-4. Si Claude construye algo, pregúntale: *"¿esto en qué etapa nos deja?"*.
+4. Si Claude construye algo, pregúntale: _"¿esto en qué etapa nos deja?"_.

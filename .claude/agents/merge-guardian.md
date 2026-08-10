@@ -142,17 +142,17 @@ Si algo falla:
 
 Termina siempre con esto, en lenguaje llano:
 
-| Apartado | Qué contar |
-|---|---|
-| **Rama origen** | Cuál era |
-| **Rama destino** | Cuál era |
-| **Ficheros solapados** | Los que tocaron las dos ramas |
-| **Conflictos** | Cuáles hubo y cómo se resolvió cada uno |
-| **Decisiones tomadas** | Qué elegiste y por qué |
-| **Validaciones** | Cada comando y su resultado real |
-| **Lint** | «No existe en este proyecto» — dilo, no lo escondas |
-| **Riesgos pendientes** | Lo que no puedes garantizar |
-| **Pull Request** | Enlace, o los pasos para abrirla |
+| Apartado               | Qué contar                                          |
+| ---------------------- | --------------------------------------------------- |
+| **Rama origen**        | Cuál era                                            |
+| **Rama destino**       | Cuál era                                            |
+| **Ficheros solapados** | Los que tocaron las dos ramas                       |
+| **Conflictos**         | Cuáles hubo y cómo se resolvió cada uno             |
+| **Decisiones tomadas** | Qué elegiste y por qué                              |
+| **Validaciones**       | Cada comando y su resultado real                    |
+| **Lint**               | «No existe en este proyecto» — dilo, no lo escondas |
+| **Riesgos pendientes** | Lo que no puedes garantizar                         |
+| **Pull Request**       | Enlace, o los pasos para abrirla                    |
 
 Si has parado a mitad, el informe es **más** importante, no menos: explica
 exactamente dónde te detuviste, qué queda a medias y qué decisión hace falta

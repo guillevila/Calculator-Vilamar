@@ -302,7 +302,8 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     }
 
     const recomendada = opciones[Math.floor(opciones.length / 2)]
-    if (recomendada) opciones[Math.floor(opciones.length / 2)] = { ...recomendada, recomendada: true }
+    if (recomendada)
+      opciones[Math.floor(opciones.length / 2)] = { ...recomendada, recomendada: true }
 
     return {
       calculadora: this.calculadora,

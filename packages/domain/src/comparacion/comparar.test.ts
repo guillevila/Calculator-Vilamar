@@ -113,7 +113,9 @@ describe('comparativa de un ojo', () => {
 
   it('avisa cuando solo hay un resultado y no hay nada que comparar', () => {
     const c = compararOjo('OD', { EVO_TORIC: resultado('EVO_TORIC', 21) })
-    expect(c.observaciones.some((o) => /No hay nada con lo que compararlo/.test(o.texto))).toBe(true)
+    expect(c.observaciones.some((o) => /No hay nada con lo que compararlo/.test(o.texto))).toBe(
+      true,
+    )
   })
 
   it('un campo que la calculadora no da se queda vacío, no se infiere', () => {

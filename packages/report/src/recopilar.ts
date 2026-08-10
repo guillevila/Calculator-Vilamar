@@ -5,7 +5,14 @@
  * esto solo se ocupe de decidir qué se cuenta. Es función pura.
  */
 
-import type { Calculadora, CampoBiometrico, Caso, Comparativa, Lateralidad, Aviso } from '@vilamar/domain'
+import type {
+  Calculadora,
+  CampoBiometrico,
+  Caso,
+  Comparativa,
+  Lateralidad,
+  Aviso,
+} from '@vilamar/domain'
 import {
   camposQueFaltan,
   CALCULADORAS,

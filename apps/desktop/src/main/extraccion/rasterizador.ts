@@ -67,11 +67,13 @@ export function crearRasterizador(): Rasterizador {
       try {
         // Una página en blanco con origen de fichero, para poder importar
         // pdf.js desde el disco. No se carga nada de internet.
-        await p.goto(pathToFileURL(visor).href.replace(/pdf\.mjs$/, 'about-blank.html'), {
-          waitUntil: 'domcontentloaded',
-        }).catch(async () => {
-          await p.setContent('<!doctype html><html><body></body></html>')
-        })
+        await p
+          .goto(pathToFileURL(visor).href.replace(/pdf\.mjs$/, 'about-blank.html'), {
+            waitUntil: 'domcontentloaded',
+          })
+          .catch(async () => {
+            await p.setContent('<!doctype html><html><body></body></html>')
+          })
 
         const medidas = await p.evaluate(
           async ({ urlVisor, urlTrabajador, base64, numero, factor }) => {

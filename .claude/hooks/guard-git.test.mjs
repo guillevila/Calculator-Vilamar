@@ -159,7 +159,9 @@ describe('cambiar de rama dentro de la misma línea cuenta', () => {
   })
 
   it('pero volver a una rama de trabajo lo permite otra vez', () => {
-    expect(bloquea('git checkout master && git checkout feature/x && git merge y', 'feature/x')).toBe(false)
+    expect(
+      bloquea('git checkout master && git checkout feature/x && git merge y', 'feature/x'),
+    ).toBe(false)
   })
 })
 
@@ -314,8 +316,14 @@ describe('separar en argumentos', () => {
 describe('reconocer la rama principal', () => {
   it('acepta todas las formas de nombrarla', () => {
     for (const forma of [
-      'master', 'main', 'refs/heads/master', '+master',
-      'HEAD:master', ':master', 'x:refs/heads/main', '+HEAD:refs/heads/master',
+      'master',
+      'main',
+      'refs/heads/master',
+      '+master',
+      'HEAD:master',
+      ':master',
+      'x:refs/heads/main',
+      '+HEAD:refs/heads/master',
     ]) {
       expect(apuntaAPrincipal(forma)).toBe(true)
     }
@@ -323,8 +331,12 @@ describe('reconocer la rama principal', () => {
 
   it('y rechaza las ramas de trabajo que se le parecen', () => {
     for (const forma of [
-      'feature/mastermind', 'fix/main-menu', 'release/master-plan',
-      'integration/algo-into-master', 'origin', '-u',
+      'feature/mastermind',
+      'fix/main-menu',
+      'release/master-plan',
+      'integration/algo-into-master',
+      'origin',
+      '-u',
     ]) {
       expect(apuntaAPrincipal(forma)).toBe(false)
     }

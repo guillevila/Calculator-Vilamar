@@ -18,12 +18,7 @@
  * le toca hacer algo, y si decide no hacerlo no se queda sin nada.
  */
 
-import type {
-  Calculadora,
-  Caso,
-  Lateralidad,
-  ResultadoCalculadora,
-} from '@vilamar/domain'
+import type { Calculadora, Caso, Lateralidad, ResultadoCalculadora } from '@vilamar/domain'
 import { explicarBloqueo, fichaDe, prepararEntradas, resultadoVacio } from '@vilamar/domain'
 import type { Browser, BrowserContext } from 'playwright'
 
@@ -86,7 +81,8 @@ export async function ejecutarCalculadoras(
   const resultados: ResultadoCalculadora[] = []
 
   const contexto =
-    opciones.contexto ?? (await opciones.navegador.newContext({ viewport: { width: 1500, height: 1050 } }))
+    opciones.contexto ??
+    (await opciones.navegador.newContext({ viewport: { width: 1500, height: 1050 } }))
   const contextoPropio = opciones.contexto === undefined
 
   try {
@@ -124,9 +120,10 @@ async function ejecutarUna(
     const motivo = explicarBloqueo(preparacion) ?? 'Faltan datos.'
     return {
       ...resultadoVacio(adaptador.calculadora, ojo, 'MISSING_INPUTS', ahora(), motivo),
-      faltan: preparacion.ok === false && preparacion.motivo === 'FALTAN_DATOS'
-        ? preparacion.detalle.faltan
-        : undefined,
+      faltan:
+        preparacion.ok === false && preparacion.motivo === 'FALTAN_DATOS'
+          ? preparacion.detalle.faltan
+          : undefined,
     }
   }
 

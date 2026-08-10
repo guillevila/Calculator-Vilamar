@@ -168,7 +168,11 @@ function validarCampo(ojo: OjoBiometrico, campo: CampoBiometrico): Aviso[] {
  * sus ejes y una corrección silenciosa aquí cambia el resultado del cálculo sin
  * que nadie lo vea.
  */
-function validarOrdenK(ojo: OjoBiometrico, plano: CampoBiometrico, curvo: CampoBiometrico): Aviso[] {
+function validarOrdenK(
+  ojo: OjoBiometrico,
+  plano: CampoBiometrico,
+  curvo: CampoBiometrico,
+): Aviso[] {
   const k1 = valorDe(ojo, plano)
   const k2 = valorDe(ojo, curvo)
   if (k1 === undefined || k2 === undefined) return []
@@ -211,8 +215,7 @@ function validarPerpendicularidad(
       ojo: ojo.lateralidad,
       campo: ejeCurvo,
       codigo: 'EJES_NO_PERPENDICULARES',
-      mensaje:
-        `Los dos ejes (${a}° y ${b}°) deberían estar a 90° y están a ${separacion.toFixed(0)}°.`,
+      mensaje: `Los dos ejes (${a}° y ${b}°) deberían estar a 90° y están a ${separacion.toFixed(0)}°.`,
       sugerencia: 'Comprueba que cada eje va con su K en el informe.',
     },
   ]
@@ -238,7 +241,8 @@ function validarAcdFrenteAAqd(ojo: OjoBiometrico): Aviso[] {
       mensaje:
         `AQD (${formatearConUnidad('AQD', aqd)}) tendría que ser menor que ACD ` +
         `(${formatearConUnidad('ACD', acd)}): se diferencian en el grosor de la córnea.`,
-      sugerencia: 'Es probable que una de las dos esté en el campo de la otra. Son datos distintos.',
+      sugerencia:
+        'Es probable que una de las dos esté en el campo de la otra. Son datos distintos.',
     },
   ]
 }

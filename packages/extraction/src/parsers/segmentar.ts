@@ -34,7 +34,8 @@ export interface Segmentacion {
 }
 
 /** Rótulos que marcan un ojo. Se buscan como palabra suelta. */
-const MARCA_OJO = /\b(OD|OS|OI|R\/E|L\/E|RIGHT(?:\s*EYE)?|LEFT(?:\s*EYE)?|OCULUS\s+(?:DEXTER|SINISTER))\b/gi
+const MARCA_OJO =
+  /\b(OD|OS|OI|R\/E|L\/E|RIGHT(?:\s*EYE)?|LEFT(?:\s*EYE)?|OCULUS\s+(?:DEXTER|SINISTER))\b/gi
 
 interface Marca {
   readonly lado: Lateralidad
@@ -213,10 +214,7 @@ export function segmentarPorOjo(texto: string, bloques?: readonly BloqueTexto[])
  * cabecera clara con los dos rótulos y ninguno se repite: si el informe es
  * ambiguo, se deja para las otras estrategias.
  */
-function segmentarDosColumnasEnTexto(
-  texto: string,
-  marcas: readonly Marca[],
-): Segmentacion | null {
+function segmentarDosColumnasEnTexto(texto: string, marcas: readonly Marca[]): Segmentacion | null {
   const lineas = normalizarLineas(texto)
   let indiceCabecera = -1
   let odPrimero = true
@@ -235,7 +233,9 @@ function segmentarDosColumnasEnTexto(
   if (indiceCabecera === -1) return null
 
   // Si además hay secciones por debajo, esta estrategia no aplica.
-  const marcasTrasCabecera = marcas.filter((m) => m.indice > texto.indexOf(lineas[indiceCabecera] ?? ''))
+  const marcasTrasCabecera = marcas.filter(
+    (m) => m.indice > texto.indexOf(lineas[indiceCabecera] ?? ''),
+  )
   if (marcasTrasCabecera.length > 2) return null
 
   const izquierda: string[] = []

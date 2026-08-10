@@ -145,9 +145,7 @@ export function crearLectorPdf(): LectorPdf {
       // significa un módulo nativo. No se hace aquí: quien lo necesite es el
       // proveedor híbrido, y lo resuelve con el navegador que ya trae
       // Playwright. Ver `rasterizador.ts`.
-      throw new Error(
-        'Este lector no rasteriza páginas. Usa el rasterizador basado en navegador.',
-      )
+      throw new Error('Este lector no rasteriza páginas. Usa el rasterizador basado en navegador.')
     },
   }
 }

@@ -34,10 +34,12 @@ const DESCRIBIR = () => {
     return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none'
   }
   const etiqueta = (el) => {
-    if (el.labels && el.labels.length) return [...el.labels].map((l) => l.innerText.trim()).join(' | ')
+    if (el.labels && el.labels.length)
+      return [...el.labels].map((l) => l.innerText.trim()).join(' | ')
     if (el.getAttribute('aria-label')) return el.getAttribute('aria-label')
     const td = el.closest('td')
-    if (td && td.previousElementSibling) return td.previousElementSibling.innerText.trim().slice(0, 80)
+    if (td && td.previousElementSibling)
+      return td.previousElementSibling.innerText.trim().slice(0, 80)
     return (el.parentElement?.innerText || '').trim().slice(0, 80)
   }
   return {
@@ -55,14 +57,16 @@ const DESCRIBIR = () => {
           ? [...el.options].slice(0, 60).map((o) => ({ value: o.value, texto: o.text.trim() }))
           : undefined,
     })),
-    botones: [...document.querySelectorAll('button, input[type=submit], input[type=button]')].map((el) => ({
-      tag: el.tagName.toLowerCase(),
-      type: el.getAttribute('type') || '',
-      id: el.id || '',
-      name: el.getAttribute('name') || '',
-      texto: (el.innerText || el.value || '').trim().slice(0, 60),
-      visible: visible(el),
-    })),
+    botones: [...document.querySelectorAll('button, input[type=submit], input[type=button]')].map(
+      (el) => ({
+        tag: el.tagName.toLowerCase(),
+        type: el.getAttribute('type') || '',
+        id: el.id || '',
+        name: el.getAttribute('name') || '',
+        texto: (el.innerText || el.value || '').trim().slice(0, 60),
+        visible: visible(el),
+      }),
+    ),
     texto: document.body.innerText.replace(/\n{3,}/g, '\n\n').slice(0, 5000),
   }
 }
@@ -97,7 +101,9 @@ while (Date.now() < LIMITE) {
   }
   if (marcoCalc) break
   const marcos = pagina.frames().map((m) => m.url())
-  process.stdout.write(`   esperando la calculadora… marcos: ${marcos.filter((u) => u.includes(HOST_CALC)).length}\r`)
+  process.stdout.write(
+    `   esperando la calculadora… marcos: ${marcos.filter((u) => u.includes(HOST_CALC)).length}\r`,
+  )
   await pagina.waitForTimeout(2500)
 }
 

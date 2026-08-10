@@ -124,9 +124,7 @@ function html(): string {
 
 describe('escapado', () => {
   it('no deja pasar HTML de fuera', () => {
-    expect(esc('<script>alert(1)</script>')).toBe(
-      '&lt;script&gt;alert(1)&lt;/script&gt;',
-    )
+    expect(esc('<script>alert(1)</script>')).toBe('&lt;script&gt;alert(1)&lt;/script&gt;')
     expect(esc(undefined)).toBe('')
   })
 
@@ -265,8 +263,12 @@ describe('robustez', () => {
   })
 
   it('un caso con los dos ojos saca las dos secciones', () => {
-    let od = confirmarTodas(conMedida(ojoVacio('OD'), crearMedida('AL', 'OD', 24.07, DEL_INFORME)))
-    let os = confirmarTodas(conMedida(ojoVacio('OS'), crearMedida('AL', 'OS', 24.01, DEL_INFORME)))
+    const od = confirmarTodas(
+      conMedida(ojoVacio('OD'), crearMedida('AL', 'OD', 24.07, DEL_INFORME)),
+    )
+    const os = confirmarTodas(
+      conMedida(ojoVacio('OS'), crearMedida('AL', 'OS', 24.01, DEL_INFORME)),
+    )
     let caso = casoNuevo('c', 'CV-3', CUANDO)
     caso = conOjo(caso, od, CUANDO)
     caso = conOjo(caso, os, CUANDO)

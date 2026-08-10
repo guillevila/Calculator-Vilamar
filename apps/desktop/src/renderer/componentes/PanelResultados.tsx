@@ -190,16 +190,15 @@ export function PanelResultados({
 
       <div className="tarjeta">
         <h2>Reintentar una sola</h2>
-        <p className="sub">
-          Si alguna falló, puedes lanzarla otra vez sin perder las demás.
-        </p>
+        <p className="sub">Si alguna falló, puedes lanzarla otra vez sin perder las demás.</p>
         <div className="fila">
           {CALCULADORAS.map((c) => {
             const r = resultadoDe(caso, c, ojoActivo)
             const fallo = !r || (r.estado !== 'SUCCESS' && r.estado !== 'PARTIAL')
             return (
               <button key={c} onClick={() => onReintentar(c)} disabled={!fallo && r !== undefined}>
-                {fallo ? 'Reintentar' : 'Repetir'} {c === 'EVO_TORIC' ? 'EVO' : c === 'BARRETT_TORIC' ? 'Barrett' : 'Kane'}
+                {fallo ? 'Reintentar' : 'Repetir'}{' '}
+                {c === 'EVO_TORIC' ? 'EVO' : c === 'BARRETT_TORIC' ? 'Barrett' : 'Kane'}
               </button>
             )
           })}

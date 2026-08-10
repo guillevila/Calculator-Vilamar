@@ -61,7 +61,8 @@ const DESCRIBIR = () => {
     return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none'
   }
   const etiqueta = (el) => {
-    if (el.labels && el.labels.length) return [...el.labels].map((l) => l.innerText.trim()).join(' | ')
+    if (el.labels && el.labels.length)
+      return [...el.labels].map((l) => l.innerText.trim()).join(' | ')
     if (el.getAttribute('aria-label')) return el.getAttribute('aria-label')
     if (el.id) {
       const l = document.querySelector(`label[for="${CSS.escape(el.id)}"]`)
@@ -69,7 +70,8 @@ const DESCRIBIR = () => {
     }
     // Texto de la celda anterior en una tabla, patrón habitual en formularios viejos
     const td = el.closest('td')
-    if (td && td.previousElementSibling) return td.previousElementSibling.innerText.trim().slice(0, 80)
+    if (td && td.previousElementSibling)
+      return td.previousElementSibling.innerText.trim().slice(0, 80)
     const padre = el.parentElement
     if (padre) return padre.innerText.trim().slice(0, 80)
     return ''
@@ -80,7 +82,8 @@ const DESCRIBIR = () => {
     id: el.id || '',
     name: el.getAttribute('name') || '',
     placeholder: el.getAttribute('placeholder') || '',
-    value: el.getAttribute('type') === 'password' ? '(oculto)' : String(el.value ?? '').slice(0, 40),
+    value:
+      el.getAttribute('type') === 'password' ? '(oculto)' : String(el.value ?? '').slice(0, 40),
     etiqueta: etiqueta(el),
     visible: visible(el),
     requerido: el.hasAttribute('required'),
@@ -89,16 +92,16 @@ const DESCRIBIR = () => {
         ? [...el.options].slice(0, 40).map((o) => ({ value: o.value, texto: o.text.trim() }))
         : undefined,
   }))
-  const botones = [...document.querySelectorAll('button, input[type=submit], input[type=button], a[role=button]')].map(
-    (el) => ({
-      tag: el.tagName.toLowerCase(),
-      type: el.getAttribute('type') || '',
-      id: el.id || '',
-      name: el.getAttribute('name') || '',
-      texto: (el.innerText || el.value || '').trim().slice(0, 60),
-      visible: visible(el),
-    }),
-  )
+  const botones = [
+    ...document.querySelectorAll('button, input[type=submit], input[type=button], a[role=button]'),
+  ].map((el) => ({
+    tag: el.tagName.toLowerCase(),
+    type: el.getAttribute('type') || '',
+    id: el.id || '',
+    name: el.getAttribute('name') || '',
+    texto: (el.innerText || el.value || '').trim().slice(0, 60),
+    visible: visible(el),
+  }))
   const formularios = [...document.querySelectorAll('form')].map((f) => ({
     id: f.id || '',
     name: f.getAttribute('name') || '',
@@ -156,7 +159,11 @@ const informe = {
 for (const marco of pagina.frames()) {
   if (marco === pagina.mainFrame()) continue
   try {
-    informe.marcos.push({ url: marco.url(), nombre: marco.name(), ...(await marco.evaluate(DESCRIBIR)) })
+    informe.marcos.push({
+      url: marco.url(),
+      nombre: marco.name(),
+      ...(await marco.evaluate(DESCRIBIR)),
+    })
   } catch (e) {
     informe.marcos.push({ url: marco.url(), error: String(e).slice(0, 200) })
   }
@@ -167,7 +174,9 @@ writeFileSync(join(SALIDA, `${clave}.html`), await pagina.content())
 await pagina.screenshot({ path: join(SALIDA, `${clave}.png`), fullPage: true })
 
 console.log(`   HTTP ${informe.estadoHttp} · "${informe.principal.titulo}"`)
-console.log(`   campos: ${informe.principal.campos.length} · botones: ${informe.principal.botones.length} · marcos: ${informe.marcos.length}`)
+console.log(
+  `   campos: ${informe.principal.campos.length} · botones: ${informe.principal.botones.length} · marcos: ${informe.marcos.length}`,
+)
 console.log(`   marcadores: ${JSON.stringify(informe.principal.marcadores)}`)
 console.log(`   guardado en local/reconocimiento/${clave}.{json,html,png}`)
 

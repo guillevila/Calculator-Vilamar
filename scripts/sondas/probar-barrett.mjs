@@ -88,7 +88,7 @@ await pagina.screenshot({ path: join(SALIDA, 'barrett-calculado.png'), fullPage:
 // Los resultados de la lente viven en la pestaña "Toric IOL", que es otro
 // postback de ASP.NET dentro del mismo iframe.
 console.log('→ Abriendo la pestaña Toric IOL…')
-await calc.getByRole("link", { name: "Toric IOL" }).first().click()
+await calc.getByRole('link', { name: 'Toric IOL' }).first().click()
 await pagina.waitForTimeout(7000)
 
 const DESCRIBIR_RESULTADO = () => {
@@ -102,10 +102,17 @@ const DESCRIBIR_RESULTADO = () => {
     titulo: document.title,
     conId: [...document.querySelectorAll('[id]')]
       .filter((el) => visible(el) && el.children.length === 0 && el.innerText.trim())
-      .map((el) => ({ id: el.id, tag: el.tagName.toLowerCase(), texto: el.innerText.trim().slice(0, 120) })),
+      .map((el) => ({
+        id: el.id,
+        tag: el.tagName.toLowerCase(),
+        texto: el.innerText.trim().slice(0, 120),
+      })),
     tablas: [...document.querySelectorAll('table')]
       .filter(visible)
-      .map((t) => ({ id: t.id || '', filas: [...t.rows].map((r) => [...r.cells].map((c) => c.innerText.trim())) }))
+      .map((t) => ({
+        id: t.id || '',
+        filas: [...t.rows].map((r) => [...r.cells].map((c) => c.innerText.trim())),
+      }))
       .filter((t) => t.filas.length > 0),
     texto: document.body.innerText.replace(/\n{3,}/g, '\n\n').slice(0, 6000),
   }

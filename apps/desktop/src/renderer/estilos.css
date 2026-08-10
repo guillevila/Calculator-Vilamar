@@ -35,7 +35,11 @@ body,
 }
 
 body {
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family:
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    sans-serif;
   font-size: 14px;
   color: var(--texto);
   background: var(--gris-claro);

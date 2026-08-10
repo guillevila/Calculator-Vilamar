@@ -45,7 +45,12 @@ export interface EvidenciaExtraccion {
    * en proporción y no en píxeles para que siga valiendo si la imagen se
    * reescala.
    */
-  readonly region?: { readonly x: number; readonly y: number; readonly ancho: number; readonly alto: number }
+  readonly region?: {
+    readonly x: number
+    readonly y: number
+    readonly ancho: number
+    readonly alto: number
+  }
   /** Qué regla o plantilla lo reconoció. Sirve para arreglar un parser que falle. */
   readonly regla?: string
 }

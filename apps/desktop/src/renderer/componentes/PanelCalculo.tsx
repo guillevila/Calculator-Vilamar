@@ -114,11 +114,7 @@ export function PanelCalculo({
         <div className="fila derecha">
           {ocupado && <button onClick={onCancelar}>Cancelar</button>}
           {!ocupado && (
-            <button
-              className="principal"
-              onClick={() => onCalcular()}
-              data-testid="lanzar-calculo"
-            >
+            <button className="principal" onClick={() => onCalcular()} data-testid="lanzar-calculo">
               {hayAlguno ? 'Volver a calcular todas' : 'Calcular en las tres'}
             </button>
           )}

@@ -170,7 +170,9 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
   private async elegirModelo(pagina: Page, modelo: string): Promise<boolean> {
     try {
       const opciones = await pagina.locator(`${SEL.modeloTorico} option`).allTextContents()
-      const encontrado = opciones.find((o) => o.trim().toLowerCase() === modelo.trim().toLowerCase())
+      const encontrado = opciones.find(
+        (o) => o.trim().toLowerCase() === modelo.trim().toLowerCase(),
+      )
       if (!encontrado) return false
       await pagina.selectOption(SEL.modeloTorico, { label: encontrado })
       return true

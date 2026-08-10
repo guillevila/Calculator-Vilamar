@@ -15,7 +15,10 @@ const line = '═'.repeat(63)
 /** Ejecuta git sin reventar si no hay repositorio o si git no está. */
 function git(args) {
   try {
-    return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+    return execFileSync('git', args, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
   } catch {
     return ''
   }
@@ -37,7 +40,14 @@ out.push(`📍 Rama actual: ${git(['branch', '--show-current']) || 'sin-git'}`, 
 
 const log = git(['log', '--oneline', '-3'])
 out.push('📝 Últimos 3 commits:')
-out.push(log ? log.split('\n').map((l) => `   ${l}`).join('\n') : '   (sin historial)')
+out.push(
+  log
+    ? log
+        .split('\n')
+        .map((l) => `   ${l}`)
+        .join('\n')
+    : '   (sin historial)',
+)
 out.push('')
 
 // ── Cambios sin guardar ──────────────────────────────────────────────────────
@@ -45,7 +55,12 @@ const status = git(['status', '--short'])
 const changed = status ? status.split('\n').filter(Boolean) : []
 if (changed.length > 0) {
   out.push(`⚠️  Archivos modificados sin commitear: ${changed.length}`)
-  out.push(changed.slice(0, 5).map((l) => `    ${l}`).join('\n'))
+  out.push(
+    changed
+      .slice(0, 5)
+      .map((l) => `    ${l}`)
+      .join('\n'),
+  )
   if (changed.length > 5) out.push(`   … y ${changed.length - 5} más`)
 } else {
   out.push('✅ Todo commiteado — rama limpia')
@@ -74,7 +89,11 @@ if (projectStatus) {
   // marcadas de otras secciones (por ejemplo, el nivel de confianza).
   const section = projectStatus.split(/^## /m).find((block) => block.startsWith('1.'))
   const marked = section?.split('\n').find((l) => /^- \[[Xx]\] /.test(l))
-  out.push(marked ? `📊 Estado del proyecto: ${marked.replace(/^- \[[Xx]\] /, '')}` : '📊 Revisa la etapa en PROJECT_STATUS.md')
+  out.push(
+    marked
+      ? `📊 Estado del proyecto: ${marked.replace(/^- \[[Xx]\] /, '')}`
+      : '📊 Revisa la etapa en PROJECT_STATUS.md',
+  )
   out.push('')
 }
 

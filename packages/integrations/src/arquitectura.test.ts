@@ -79,9 +79,15 @@ describe('los selectores no salen de los adaptadores', () => {
   /**
    * Marcas de que un fichero conoce el HTML de una web ajena.
    *
-   * Se buscan los identificadores REALES de EVO y Barrett, no un patrón
-   * genérico de CSS: la interfaz tiene sus propios selectores y sus propias
-   * clases, y eso es legítimo. Lo que no es legítimo es que conozca los de otro.
+   * Son identificadores REALES de EVO y Barrett, no un patrón genérico de CSS:
+   * la interfaz tiene sus propios selectores y sus propias clases, y eso es
+   * legítimo. Lo que no es legítimo es que conozca los de otro.
+   *
+   * Los NOMBRES DE DOMINIO no están en esta lista, y es a propósito. Que el
+   * informe diga «los resultados proceden de evoiolcalculator.com» no es
+   * conocer su HTML: es atribuir la fuente, que el producto está obligado a
+   * hacer. Meterlos aquí convertía este guardián en un estorbo, que es la
+   * segunda forma de que una protección acabe desinstalada.
    */
   const HUELLAS_DE_WEB_AJENA = [
     'txtAL',
@@ -90,10 +96,8 @@ describe('los selectores no salen de los adaptadores', () => {
     'DropDownToric',
     'LabelRecIOL',
     'MainContent_',
-    'calc.apacrs.org',
-    'evoiolcalculator.com',
-    'iolformula.com',
     'cky-tag',
+    'cky-overlay',
   ]
 
   /** Los sitios donde SÍ puede aparecer el HTML de una web ajena. */
@@ -102,10 +106,6 @@ describe('los selectores no salen de los adaptadores', () => {
     join('scripts', 'sondas'),
     // Este propio test los nombra para poder buscarlos.
     join('packages', 'integrations', 'src', 'arquitectura.test.ts'),
-    // Las fichas de las calculadoras del dominio guardan su dirección pública,
-    // que es información de producto, no un selector. Se permite la URL.
-    join('packages', 'domain', 'src', 'modelo', 'calculadoras.ts'),
-    join('packages', 'integrations', 'src', 'adapters'),
   ]
 
   it('ni el dominio, ni la extracción, ni el informe, ni la interfaz saben HTML ajeno', () => {
@@ -129,6 +129,20 @@ describe('los selectores no salen de los adaptadores', () => {
     }
 
     expect(infracciones, infracciones.join('\n')).toEqual([])
+  })
+
+  it('la lectura de informes no sabe que existen las calculadoras', () => {
+    // `@vilamar/extraction` convierte documentos en datos. Qué se haga después
+    // con esos datos no es asunto suyo, y si empieza a nombrar calculadoras es
+    // que se le está metiendo lógica que no le toca.
+    const ficheros = ficherosTs(join(raiz, 'packages', 'extraction', 'src'))
+    expect(ficheros.length).toBeGreaterThan(0)
+    for (const fichero of ficheros) {
+      const contenido = readFileSync(fichero, 'utf8')
+      for (const nombre of ['evoiolcalculator', 'iolformula', 'apacrs', 'Barrett', 'EVO_TORIC']) {
+        expect(contenido, `${fichero} menciona «${nombre}»`).not.toContain(nombre)
+      }
+    }
   })
 
   it('el dominio no importa Playwright', () => {

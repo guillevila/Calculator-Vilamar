@@ -214,9 +214,26 @@ const OK = { bloquear: false }
  * empezara por `git status` quedaba exenta entera.
  */
 const SOLO_LECTURA = new Set([
-  'status', 'log', 'diff', 'show', 'remote', 'fetch', 'ls-files', 'ls-remote',
-  'rev-parse', 'rev-list', 'describe', 'blame', 'shortlog', 'whatchanged',
-  'cat-file', 'merge-base', 'merge-tree', 'name-rev', 'check-ignore', 'grep',
+  'status',
+  'log',
+  'diff',
+  'show',
+  'remote',
+  'fetch',
+  'ls-files',
+  'ls-remote',
+  'rev-parse',
+  'rev-list',
+  'describe',
+  'blame',
+  'shortlog',
+  'whatchanged',
+  'cat-file',
+  'merge-base',
+  'merge-tree',
+  'name-rev',
+  'check-ignore',
+  'grep',
 ])
 
 /** Verbos que reescriben la historia o borran la red de seguridad. */
@@ -339,7 +356,9 @@ function revisarSegmento(args, enPrincipal) {
 
   // ── fontanería de referencias ─────────────────────────────────────────────
   if (sub === 'update-ref' || sub === 'symbolic-ref') {
-    if (opciones.some((o) => apuntaAPrincipal(o.replace(/^refs\/heads\//, '')) || apuntaAPrincipal(o))) {
+    if (
+      opciones.some((o) => apuntaAPrincipal(o.replace(/^refs\/heads\//, '')) || apuntaAPrincipal(o))
+    ) {
       return NO(
         'mover la rama principal por fontanería',
         '`update-ref` y `symbolic-ref` reposicionan una rama sin pasar por commit ni merge. Sobre la principal es equivalente a reescribirla.',

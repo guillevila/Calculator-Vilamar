@@ -19,7 +19,8 @@ const tool = String(payload.tool_name ?? '')
 if (WRITE_TOOLS.has(tool)) {
   try {
     mkdirSync('.claude/audit', { recursive: true })
-    const target = payload.tool_input?.file_path ?? payload.tool_input?.notebook_path ?? '(sin ruta)'
+    const target =
+      payload.tool_input?.file_path ?? payload.tool_input?.notebook_path ?? '(sin ruta)'
     appendFileSync('.claude/audit/edits.log', `${timestamp()} | ${tool} | ${target}\n`, 'utf8')
   } catch {
     // Un fallo al registrar nunca debe interrumpir el trabajo.

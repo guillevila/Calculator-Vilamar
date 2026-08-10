@@ -180,7 +180,9 @@ function tablaComparativa(c: Comparativa): string {
         <tr><th>Cilindro</th>${cols.map((x) => celda(x.cilindro, ' D')).join('')}</tr>
         <tr><th>Eje de la lente</th>${cols.map((x) => celdaEje(x.eje)).join('')}</tr>
         <tr><th>Modelo tórico</th>${cols
-          .map((x) => (x.designacion ? `<td>${esc(x.designacion)}</td>` : '<td class="na">N/A</td>'))
+          .map((x) =>
+            x.designacion ? `<td>${esc(x.designacion)}</td>` : '<td class="na">N/A</td>',
+          )
           .join('')}</tr>
         <tr><th>Refracción prevista</th>${cols.map((x) => celda(x.refraccionPrevista, ' D')).join('')}</tr>
         <tr><th>Cilindro residual</th>${cols.map((x) => celda(x.cilindroResidual, ' D')).join('')}</tr>

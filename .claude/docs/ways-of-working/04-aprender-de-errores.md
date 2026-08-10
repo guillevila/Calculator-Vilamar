@@ -21,12 +21,14 @@ que no se repita.
 ## Cómo funciona
 
 ### Cuando corriges a Claude:
+
 1. Claude reconoce el error sin excusas
 2. Entiende por qué ocurrió
 3. Escribe la lección en el log **antes de continuar**
 4. Aplica lo aprendido en el resto de la sesión
 
 ### En la siguiente sesión:
+
 Claude lee el log al arrancar y lleva todas las lecciones incorporadas.
 
 ---
@@ -45,7 +47,7 @@ Claude te preguntará qué pasó y redactará la lección en el formato correcto
 
 **Error:** Claude usó formato MM/DD/YYYY en lugar de DD/MM/YYYY en los partes.
 **Causa:** Asumió el formato americano por defecto.
-**Lección:** En este proyecto, SIEMPRE usar DD/MM/YYYY. El cliente y los 
+**Lección:** En este proyecto, SIEMPRE usar DD/MM/YYYY. El cliente y los
 usuarios son españoles. Confirmado por [nombre] el 15/01/2026.
 ```
 

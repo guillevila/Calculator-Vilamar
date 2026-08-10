@@ -63,7 +63,15 @@ const DESTRUCTIVE = [
  * `.env.example` queda expresamente permitido: es la plantilla sin valores
  * reales, está pensada para leerse y forma parte del repositorio.
  */
-const SENSITIVE = [/(^|[\\/])\.env(\.|$)/i, /[\\/]secrets?[\\/]/i, /credential/i, /private[_-]?key/i, /\.pem$/i, /\.key$/i, /\.p12$/i]
+const SENSITIVE = [
+  /(^|[\\/])\.env(\.|$)/i,
+  /[\\/]secrets?[\\/]/i,
+  /credential/i,
+  /private[_-]?key/i,
+  /\.pem$/i,
+  /\.key$/i,
+  /\.p12$/i,
+]
 const SENSITIVE_ALLOWED = [/\.env\.example$/i]
 
 function block(reason, detail) {
@@ -124,7 +132,10 @@ for (const candidate of paths) {
 
 // ── 3. Aviso, sin bloquear, al tocar la rama principal ───────────────────────
 if (toolName === 'Bash' || toolName === 'PowerShell') {
-  if (/git\s+(checkout|switch)\s+(master|main)\b/i.test(command) && /git\s+(commit|merge)/i.test(command)) {
+  if (
+    /git\s+(checkout|switch)\s+(master|main)\b/i.test(command) &&
+    /git\s+(commit|merge)/i.test(command)
+  ) {
     process.stderr.write(
       'Recordatorio: la rama principal no se toca directamente. Trabaja en una rama y abre una PR.\n',
     )

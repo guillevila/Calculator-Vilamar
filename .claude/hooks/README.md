@@ -8,13 +8,13 @@
 
 ## Los hooks de este proyecto
 
-| Cuándo se dispara | Qué hace |
-|---|---|
-| **Al abrir sesión** | Le da a Claude el estado real: rama, últimos commits, cambios sin guardar, lecciones aprendidas y la etapa del proyecto |
-| **Antes de cada herramienta** | 🛡️ **Bloquea** operaciones destructivas y el acceso a ficheros con credenciales |
-| **Después de escribir** | Deja rastro de qué ficheros se tocaron |
-| **Al lanzar un subagente** | Anota qué agente se usó y para qué |
-| **Al cerrar sesión** | Recuerda registrar lecciones y no dejar trabajo sin commitear |
+| Cuándo se dispara             | Qué hace                                                                                                                |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **Al abrir sesión**           | Le da a Claude el estado real: rama, últimos commits, cambios sin guardar, lecciones aprendidas y la etapa del proyecto |
+| **Antes de cada herramienta** | 🛡️ **Bloquea** operaciones destructivas y el acceso a ficheros con credenciales                                         |
+| **Después de escribir**       | Deja rastro de qué ficheros se tocaron                                                                                  |
+| **Al lanzar un subagente**    | Anota qué agente se usó y para qué                                                                                      |
+| **Al cerrar sesión**          | Recuerda registrar lecciones y no dejar trabajo sin commitear                                                           |
 
 El registro de auditoría se guarda en `.claude/audit/`, **fuera del repositorio**.
 
@@ -70,14 +70,14 @@ $LASTEXITCODE
 
 ## Ficheros
 
-| Fichero | Evento |
-|---|---|
-| `session-start.mjs` | SessionStart |
-| `pre-tool-use.mjs` | PreToolUse — el que protege |
-| `post-tool-use.mjs` | PostToolUse (solo escrituras) |
-| `stop.mjs` | Stop |
-| `log-subagent-spawn.mjs` | SubagentStart |
-| `_input.mjs` | Utilidad compartida para leer la entrada |
+| Fichero                  | Evento                                   |
+| ------------------------ | ---------------------------------------- |
+| `session-start.mjs`      | SessionStart                             |
+| `pre-tool-use.mjs`       | PreToolUse — el que protege              |
+| `post-tool-use.mjs`      | PostToolUse (solo escrituras)            |
+| `stop.mjs`               | Stop                                     |
+| `log-subagent-spawn.mjs` | SubagentStart                            |
+| `_input.mjs`             | Utilidad compartida para leer la entrada |
 
 Se activan desde [`.claude/settings.json`](../settings.json). Si tocas ese
 fichero y el JSON queda mal formado, **se desactivan todos los ajustes en

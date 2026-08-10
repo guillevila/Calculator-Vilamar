@@ -42,9 +42,10 @@ export function leerNumerosDeTexto(texto: string | undefined | null): readonly n
  * Si el texto no tiene esa forma, devuelve lo que haya podido leer y deja el
  * resto sin poner.
  */
-export function leerCilindroConEje(
-  texto: string | undefined | null,
-): { magnitud?: number; eje?: number } {
+export function leerCilindroConEje(texto: string | undefined | null): {
+  magnitud?: number
+  eje?: number
+} {
   const numeros = leerNumerosDeTexto(texto)
   if (numeros.length === 0) return {}
   if (numeros.length === 1) return { magnitud: numeros[0] }

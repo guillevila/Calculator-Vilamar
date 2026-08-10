@@ -71,11 +71,17 @@ const info = await pagina.evaluate(() => {
     .filter((t) => t.filas.length > 0)
   const conId = [...document.querySelectorAll('[id]')]
     .filter((el) => visible(el) && el.children.length === 0 && el.innerText.trim())
-    .map((el) => ({ id: el.id, tag: el.tagName.toLowerCase(), texto: el.innerText.trim().slice(0, 120) }))
+    .map((el) => ({
+      id: el.id,
+      tag: el.tagName.toLowerCase(),
+      texto: el.innerText.trim().slice(0, 120),
+    }))
   return { tablas, conId, texto: document.body.innerText.replace(/\n{3,}/g, '\n\n') }
 })
 writeFileSync(join(SALIDA, 'evo-resultado.json'), JSON.stringify(info, null, 2))
-console.log(`✓ ${info.tablas.length} tablas visibles, ${info.conId.length} elementos con id y texto`)
+console.log(
+  `✓ ${info.tablas.length} tablas visibles, ${info.conId.length} elementos con id y texto`,
+)
 console.log('--- TEXTO DE LA PÁGINA TRAS CALCULAR ---')
 console.log(info.texto.slice(0, 3000))
 await navegador.close()

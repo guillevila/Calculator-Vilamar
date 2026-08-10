@@ -267,7 +267,9 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
   private async elegirModelo(calc: Frame, modelo: string): Promise<boolean> {
     try {
       const opciones = await calc.locator(`${SEL.modeloLente} option`).allTextContents()
-      const encontrado = opciones.find((o) => o.trim().toLowerCase() === modelo.trim().toLowerCase())
+      const encontrado = opciones.find(
+        (o) => o.trim().toLowerCase() === modelo.trim().toLowerCase(),
+      )
       if (!encontrado) return false
       await calc.selectOption(SEL.modeloLente, { label: encontrado })
       return true
