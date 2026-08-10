@@ -92,6 +92,13 @@ coverage/
 *.sqlite3
 datos-locales/
 
+# ── Datos de idioma del OCR ───────────────────────────────────────────────
+# tesseract.js los descarga solo, y por defecto los deja en la carpeta de
+# trabajo: 5 MB por idioma. La aplicación los guarda en su carpeta de datos,
+# pero un script lanzado a mano puede dejarlos aquí.
+*.traineddata
+*.traineddata.gz
+
 # ── Registros ─────────────────────────────────────────────────────────────
 *.log
 logs/

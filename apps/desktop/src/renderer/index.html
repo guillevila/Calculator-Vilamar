@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      Política de seguridad estricta: esta ventana no carga nada de internet.
+      Todo lo que necesita viene empaquetado. Si algún día hiciera falta una
+      fuente o una imagen de fuera, se empaqueta también, no se abre la puerta.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+    />
+    <title>Calculator Vilamar</title>
+  </head>
+  <body>
+    <div id="raiz"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>

@@ -16,7 +16,10 @@
     "@vilamar/domain": "workspace:*",
     "@vilamar/extraction": "workspace:*",
     "@vilamar/integrations": "workspace:*",
-    "@vilamar/report": "workspace:*"
+    "@vilamar/report": "workspace:*",
+    "pdfjs-dist": "^4.9.155",
+    "tesseract.js": "^5.1.1",
+    "playwright": "^1.49.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",

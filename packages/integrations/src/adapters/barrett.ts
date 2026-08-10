@@ -55,6 +55,8 @@ const CAMPOS = {
 
 const SEL = {
   rechazarCookies: '[data-cky-tag="reject-button"]',
+  // La capa que tapa la página. Es esto lo que hay que ver desaparecer.
+  capaCookies: '.cky-overlay',
   nombrePaciente: '#MainContent_PatientName',
   modeloLente: '#MainContent_IOLModel',
   constanteA: '#MainContent_Aconstant',
@@ -63,7 +65,6 @@ const SEL = {
   ojoIzquierdo: '#MainContent_Rad2',
   calcular: '#MainContent_Button1',
   anclaFormulario: '#MainContent_AxLength',
-  astigmatismoNeto: 'text=/Net Astigmatism/i',
   tablaPotencias: '#MainContent_GridView1',
   tablaToricas: '#MainContent_GridView2',
 } as const
@@ -110,6 +111,9 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
         fase: 'RELLENANDO',
         mensaje: 'Rellenando los datos en Barrett…',
       })
+      // Segunda pasada: entre la carga de la página y la del iframe pasan
+      // varios segundos, y el aviso puede haber salido en ese hueco.
+      await this.rechazarCookies(pagina)
       await this.rellenar(calc, pagina, entradas)
 
       progreso({
@@ -138,19 +142,41 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
   }
 
   /**
-   * El aviso de cookies tapa la página. Se rechaza.
+   * El aviso de cookies tapa la página entera y se come los clics. Se rechaza.
    *
-   * Si no aparece —porque el perfil ya lo resolvió otra vez— se sigue sin más.
+   * No basta con pulsar «Rechazar» una vez: el aviso aparece unos segundos
+   * después de cargar la página, y pulsar antes de que esté listo no hace nada.
+   * Lo que importa no es haber pulsado, sino que **la capa que tapa ya no esté**,
+   * así que se comprueba eso y se reintenta hasta conseguirlo.
+   *
+   * Esta función ya falló una vez por dar por bueno el clic sin mirar el
+   * resultado: el síntoma fue un tiempo de espera agotado al rellenar el primer
+   * campo, treinta segundos más tarde y en otro sitio del código.
    */
   private async rechazarCookies(pagina: Page): Promise<void> {
+    const boton = pagina.locator(SEL.rechazarCookies).first()
+    const capa = pagina.locator(SEL.capaCookies).first()
+
+    // Primero hay que ESPERAR A QUE APAREZCA. Comprobar nada más cargar la
+    // página y no verlo no significa que no vaya a salir: sale unos segundos
+    // después. Ese fue justamente el fallo — se daba por resuelto antes de que
+    // el aviso existiera, y reaparecía a tiempo de comerse el primer clic.
     try {
-      const boton = pagina.locator(SEL.rechazarCookies).first()
-      await boton.waitFor({ state: 'visible', timeout: 12_000 })
-      await boton.click()
-      await pagina.waitForTimeout(1200)
+      await boton.waitFor({ state: 'visible', timeout: 20_000 })
     } catch {
-      // No estaba: normal si el perfil ya tiene la decisión guardada.
+      return // No hay aviso de cookies en esta visita.
     }
+
+    // Y después, pulsar hasta que la capa que tapa DESAPAREZCA de verdad.
+    const limite = Date.now() + 20_000
+    while (Date.now() < limite) {
+      await boton.click({ timeout: 5000 }).catch(() => undefined)
+      await pagina.waitForTimeout(800)
+      const sigueTapando = await capa.isVisible().catch(() => false)
+      if (!sigueTapando) return
+    }
+    // Si sigue ahí, se deja continuar: el fallo posterior lo dirá con su
+    // captura, y así no se traga el problema en silencio.
   }
 
   /**
@@ -250,13 +276,22 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
     }
   }
 
-  /** «Net Astigmatism: 0.72 D @ 81 Degrees», que sale en la pestaña de datos. */
+  /**
+   * «Net Astigmatism: 0.72 D @ 81 Degrees», que sale en la pestaña de datos.
+   *
+   * Se lee del texto completo del marco y no con un localizador por texto: esa
+   * frase no está en un elemento propio, así que buscarla como nodo no la
+   * encuentra. Es un dato opcional —solo enriquece el informe—, de modo que si
+   * no aparece se sigue sin él en lugar de fallar.
+   */
   private async leerAstigmatismoNeto(
     calc: Frame,
   ): Promise<{ magnitud: number; eje: number } | undefined> {
     try {
-      const texto = await calc.locator(SEL.astigmatismoNeto).first().textContent({ timeout: 5000 })
-      const { magnitud, eje } = leerCilindroConEje(texto)
+      const texto = await calc.locator('body').innerText({ timeout: 5000 })
+      const linea = /Net\s+Astigmatism[^\n]*/i.exec(texto)?.[0]
+      if (!linea) return undefined
+      const { magnitud, eje } = leerCilindroConEje(linea)
       if (magnitud === undefined || eje === undefined) return undefined
       return { magnitud, eje }
     } catch {

@@ -24,17 +24,26 @@
     "probe:kane": "node scripts/sondas/probe.mjs kane",
     "probe:evo": "node scripts/sondas/probe.mjs evo",
     "probe:barrett": "node scripts/sondas/probe.mjs barrett",
-    "reconocer": "node scripts/sondas/reconocer.mjs"
+    "reconocer": "node scripts/sondas/reconocer.mjs",
+    "muestra:informe": "vite-node scripts/muestra-informe.ts",
+    "live": "vite-node scripts/sondas/live.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "@types/node": "^22.10.2",
+    "@vilamar/domain": "workspace:^",
+    "@vilamar/extraction": "workspace:^",
+    "@vilamar/integrations": "workspace:^",
+    "@vilamar/report": "workspace:^",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^9.1.0",
+    "pdfjs-dist": "^4.9.155",
     "playwright": "^1.49.1",
     "prettier": "^3.4.2",
+    "tesseract.js": "^5.1.1",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.1",
+    "vite-node": "^2.1.8",
     "vitest": "^2.1.8"
   },
   "pnpm": {

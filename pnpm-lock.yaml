@@ -14,24 +14,45 @@ importers:
       '@types/node':
         specifier: ^22.10.2
         version: 22.20.1
+      '@vilamar/domain':
+        specifier: workspace:^
+        version: link:packages/domain
+      '@vilamar/extraction':
+        specifier: workspace:^
+        version: link:packages/extraction
+      '@vilamar/integrations':
+        specifier: workspace:^
+        version: link:packages/integrations
+      '@vilamar/report':
+        specifier: workspace:^
+        version: link:packages/report
       eslint:
         specifier: ^9.17.0
         version: 9.39.5
       eslint-config-prettier:
         specifier: ^9.1.0
         version: 9.1.2(eslint@9.39.5)
+      pdfjs-dist:
+        specifier: ^4.9.155
+        version: 4.10.38
       playwright:
         specifier: ^1.49.1
         version: 1.62.1
       prettier:
         specifier: ^3.4.2
         version: 3.9.6
+      tesseract.js:
+        specifier: ^5.1.1
+        version: 5.1.1(encoding@0.1.13)
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
       typescript-eslint:
         specifier: ^8.18.1
         version: 8.66.0(eslint@9.39.5)(typescript@5.9.3)
+      vite-node:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.1)
@@ -50,6 +71,15 @@ importers:
       '@vilamar/report':
         specifier: workspace:*
         version: link:../../packages/report
+      pdfjs-dist:
+        specifier: ^4.9.155
+        version: 4.10.38
+      playwright:
+        specifier: ^1.49.1
+        version: 1.62.1
+      tesseract.js:
+        specifier: ^5.1.1
+        version: 5.1.1(encoding@0.1.13)
     devDependencies:
       '@playwright/test':
         specifier: ^1.49.1
@@ -89,12 +119,6 @@ importers:
       '@vilamar/domain':
         specifier: workspace:*
         version: link:../domain
-      pdfjs-dist:
-        specifier: ^4.9.155
-        version: 4.10.38
-      tesseract.js:
-        specifier: ^5.1.1
-        version: 5.1.1(encoding@0.1.13)
 
   packages/integrations:
     dependencies:
