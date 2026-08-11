@@ -36,7 +36,7 @@ import {
   sinMedida,
   validarOjo,
 } from '@vilamar/domain'
-import type { DocumentoEntrada, ProveedorExtraccion } from '@vilamar/extraction'
+import type { DocumentoEntrada, LectorVision, ProveedorExtraccion } from '@vilamar/extraction'
 import { extraerDocumento } from '@vilamar/extraction'
 import type { EventoProgreso } from '@vilamar/integrations'
 import { ejecutarCalculadoras, necesitaVentana } from '@vilamar/integrations'
@@ -51,6 +51,13 @@ import type { Diagnosticador } from './diagnostico.js'
 export interface DependenciasServicio {
   readonly carpetas: Carpetas
   readonly proveedor: ProveedorExtraccion
+  /**
+   * Lector de visión, si lo hay.
+   *
+   * Opcional porque manda el documento fuera del ordenador. Sin él, la
+   * aplicación funciona exactamente como antes.
+   */
+  readonly lectorVision?: LectorVision | undefined
   readonly diagnosticador: Diagnosticador
   readonly version: string
   readonly ahora: () => Date
@@ -68,6 +75,40 @@ export class ServicioCasos {
   private cancelar = false
 
   constructor(private readonly dep: DependenciasServicio) {}
+
+  /**
+   * Lee un documento con el mejor lector que haya configurado.
+   *
+   * Si hay lector de visión se usa ese, porque entiende el documento en vez de
+   * adivinar letras. Si falla —sin internet, clave caducada, cuenta sin saldo—
+   * **no se pierde el documento**: se lee en local y se dice qué ha pasado.
+   * Dejar a alguien sin poder leer su informe porque una API está caída sería
+   * un mal cambio.
+   */
+  private async leerDocumento(
+    entrada: DocumentoEntrada,
+  ): Promise<Awaited<ReturnType<typeof extraerDocumento>>> {
+    const vision = this.dep.lectorVision
+    if (!vision?.disponible()) {
+      return extraerDocumento(entrada, this.dep.proveedor, { ahora: () => this.iso() })
+    }
+    try {
+      return await vision.leer(entrada)
+    } catch (error) {
+      const local = await extraerDocumento(entrada, this.dep.proveedor, {
+        ahora: () => this.iso(),
+      })
+      return {
+        ...local,
+        avisos: [
+          `No se ha podido usar ${vision.nombre} para leer este informe: ${
+            error instanceof Error ? error.message : String(error)
+          }. Se ha leído en local, que se equivoca más — revisa cada dato con especial cuidado.`,
+          ...local.avisos,
+        ],
+      }
+    }
+  }
 
   private iso(): string {
     return this.dep.ahora().toISOString()
@@ -192,7 +233,7 @@ export class ServicioCasos {
 
       let resultado: Awaited<ReturnType<typeof extraerDocumento>>
       try {
-        resultado = await extraerDocumento(entrada, this.dep.proveedor, { ahora: () => this.iso() })
+        resultado = await this.leerDocumento(entrada)
       } catch (error) {
         resumenes.push({
           documentoId: guardado.id,

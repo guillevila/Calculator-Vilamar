@@ -21,6 +21,8 @@ import { crearMotorOcr } from './extraccion/ocr.js'
 import { crearLectorPdf } from './extraccion/lector-pdf.js'
 import { crearRasterizador } from './extraccion/rasterizador.js'
 import { ProveedorDocumentos } from './extraccion/proveedor.js'
+import { crearLectorVision } from './extraccion/vision-claude.js'
+import { cargarEnv } from './ajustes.js'
 import { ServicioCasos } from './servicio-casos.js'
 
 const carpetaActual = join(fileURLToPath(import.meta.url), '..')
@@ -188,6 +190,11 @@ function crearVentana(): void {
 function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   const version = versionDelProducto()
 
+  // Antes que nada: si hay un `.env`, se carga. Tiene que ir aquí arriba porque
+  // el lector de visión mira `ANTHROPIC_API_KEY` al construirse, y una clave
+  // cargada después no la vería nadie.
+  cargarEnv(carpetas.raiz)
+
   const proveedor = new ProveedorDocumentos({
     lectorPdf: crearLectorPdf(),
     motorOcr: crearMotorOcr({ carpetaDatos: join(carpetas.raiz, 'datos-ocr') }),
@@ -195,9 +202,15 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
     maximoPaginasOcr: 5,
   })
 
+  // Se construye siempre, esté configurado o no: así la aplicación puede decir
+  // «hay un lector mejor y está apagado» en lugar de comportarse distinto sin
+  // explicar por qué. Sin clave, se declara no disponible y no se usa.
+  const lectorVision = crearLectorVision()
+
   servicio = new ServicioCasos({
     carpetas,
     proveedor,
+    lectorVision,
     diagnosticador: crearDiagnosticador(carpetas.diagnostico),
     version,
     ahora: () => new Date(),

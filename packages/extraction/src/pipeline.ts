@@ -38,6 +38,27 @@ export interface ResultadoExtraccion {
 }
 
 /**
+ * Un lector que entiende el documento, en vez de reconocer caracteres.
+ *
+ * Devuelve directamente el resultado, sin pasar por el texto ni por las reglas
+ * de cada aparato: un modelo de visión ve la maqueta y sabe qué es cada número,
+ * así que buscar «AL» con una expresión regular sobre su transcripción sería
+ * tirar por el camino la parte útil.
+ *
+ * Es opcional a propósito. Manda el documento fuera del ordenador, y eso lo
+ * decide quien lo usa, no el programa: mientras no esté configurado, la
+ * aplicación lee en local igual que siempre.
+ */
+export interface LectorVision {
+  readonly nombre: string
+  /** ¿Está configurado? Si no, se lee en local, y eso no es un error. */
+  disponible(): boolean
+  /** Por qué no está disponible, en lenguaje normal. Se enseña al usuario. */
+  readonly porQueNoDisponible: string
+  leer(documento: DocumentoEntrada): Promise<ResultadoExtraccion>
+}
+
+/**
  * Convierte lo leído en medidas del dominio, cada una con su procedencia.
  */
 function aMedidas(

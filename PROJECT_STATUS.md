@@ -125,6 +125,32 @@ Y con imágenes de distintos tamaños y formatos, comprobado por separado:
 | JPEG 4032×3024 (foto de móvil)       | 91 %               | correctos                                    |
 | Fichero corrupto                     | —                  | mensaje claro, y la aplicación sigue abierta |
 
+#### Hay un segundo lector, mejor, y viene apagado
+
+Existe un **lector de visión** (Claude, `claude-opus-5`) que lee el informe
+entendiéndolo en vez de reconociendo letras: ve la maqueta, sabe que AL es una
+longitud axial en milímetros y devuelve los datos ya estructurados, cada uno con
+la línea literal del informe de donde sale.
+
+**Está construido, con pruebas, y APAGADO.** Sin `ANTHROPIC_API_KEY` configurada
+se declara no disponible y la aplicación lee en local exactamente como antes.
+
+Por qué apagado: **manda el informe fuera del ordenador.** Son datos de salud
+(RGPD art. 9). Encenderlo es una decisión de quien lo usa, no del programa —
+decisión abierta O5 en SYSTEM_VISION.
+
+Qué NO cambia si se enciende: un dato leído por el modelo sigue saliendo en
+ámbar y hay que comprobarlo uno a uno. Acierta mucho más, pero no es exacto.
+
+**Sin validar contra informes reales.** No he podido medir cuánto mejora, porque
+para eso hacen falta informes de verdad anonimizados. Lo que está probado son
+las 13 pruebas de que su respuesta se trata con la desconfianza que le toca
+(entra como `VISION`, un ojo dudoso se descarta entero, nada se pierde en
+silencio), verificadas rompiendo cada guarda a propósito.
+
+Si la API falla —sin internet, clave caducada, cuenta sin saldo— **no se pierde
+el documento**: se lee en local y se dice qué ha pasado.
+
 #### ⚠️ Lo más importante que se ha aprendido: el OCR no es de fiar para números
 
 Sobre un informe convertido a PDF desde una imagen comprimida, el reconocimiento

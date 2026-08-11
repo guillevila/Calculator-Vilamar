@@ -4,6 +4,58 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [0.3.0] — 11/08/2026
+
+Un lector de informes que **entiende** el documento, en lugar de reconocer letras.
+Construido, probado y **apagado**.
+
+### Añadido
+
+- **Lector de visión** (Claude, `claude-opus-5`). Lee el informe como lo lee una
+  persona: ve la maqueta, sabe que AL es una longitud axial en milímetros y
+  devuelve los datos estructurados, cada uno con la línea literal del informe de
+  donde sale. Es la comprobación semántica que el reconocimiento de texto no
+  puede hacer, y que en la versión 0.2.0 se midió que falta.
+- **Lectura del fichero `.env`**. No existía: poner una variable en un `.env` no
+  hacía absolutamente nada. Era el peor tipo de fallo — configuras la clave,
+  arrancas, y el programa sigue igual sin decir nada.
+- 22 pruebas nuevas. Ninguna sale a internet.
+
+### Decidido
+
+- **D17 — el lector de visión viene apagado.** Manda el informe fuera del
+  ordenador; son datos de salud. Sin `ANTHROPIC_API_KEY`, la aplicación lee en
+  local exactamente como antes y no manda nada a ningún sitio. Encenderlo es
+  una decisión de quien lo usa (decisión abierta **O5**).
+- **D18 — el modelo está fijo en el código**, no en una variable de entorno. En
+  una herramienta clínica hay que poder decir con qué se leyó cada informe.
+
+### Lo que NO cambia
+
+Un dato leído por el modelo **sigue** saliendo en ámbar y hay que comprobarlo uno
+a uno: entra con procedencia `VISION`, que el dominio trata igual que `OCR`. La
+invariante 11 lo alcanza. Un modelo que se equivoca menos sigue siendo un modelo
+que se equivoca, y aquí un número mal leído cambia la lente.
+
+### Detalles que importan
+
+- Si la API falla, **no se pierde el documento**: se lee en local y se dice qué
+  ha pasado. Quedarse sin poder leer un informe porque una API está caída sería
+  un mal cambio.
+- Un ojo que aparece dos veces se **descarta entero**, con aviso. Quedarse con
+  uno sería elegir al azar entre dos ojos.
+- El catálogo de campos que se le pide al modelo se genera desde el dominio, no
+  de una lista paralela que se desincronizaría.
+- Las tres guardas anteriores se verificaron **rompiéndolas a propósito** y
+  comprobando que los tests fallan.
+
+**Sin validar contra informes reales.** No se ha podido medir cuánto mejora;
+hacen falta informes anonimizados de verdad.
+
+254 tests y 8 pruebas de interfaz.
+
+---
+
 ## [0.2.0] — 11/08/2026
 
 Cambio de producto, no de ajuste. Salió de probar con un informe convertido a PDF

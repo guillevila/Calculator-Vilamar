@@ -586,3 +586,77 @@ alguien vuelve a optimizar esto, que rehaga la tabla antes». Un número mágico
 su medición al lado es una invitación a repetir el experimento.
 
 **Contexto:** Todo el tratamiento de imagen previo al OCR.
+
+---
+
+## 2026-08-11 (noche, 6) — Un fichero de configuración que nadie lee
+
+**Error o aprendizaje:** Añadí el lector de visión, que se activa poniendo
+`ANTHROPIC_API_KEY` en un `.env`. Documenté cómo hacerlo. Iba a darlo por
+terminado.
+
+Y entonces comprobé si alguien leía ese `.env`. **Nadie.** Electron no lee
+ficheros `.env` por su cuenta, y en todo el proyecto no había un solo `dotenv` ni
+nada equivalente.
+
+El fallo habría sido perfecto en su clase: el usuario pone la clave, guarda,
+arranca la aplicación, y todo sigue funcionando **exactamente igual que antes**.
+Sin error, sin aviso, sin nada que investigar. La conclusión natural sería «esto
+no funciona» o, peor, «ya está usando el modelo bueno».
+
+**Causa raíz:** Documenté una instrucción sin ejecutar la instrucción. Escribir
+«pon ANTHROPIC_API_KEY en el .env» y comprobar que el código lee
+`process.env['ANTHROPIC_API_KEY']` parecen la misma comprobación, y no lo son:
+falta el eslabón que convierte el fichero en variable de entorno.
+
+**Lección:**
+
+1. **Toda instrucción de configuración se ejecuta antes de escribirla.** No se
+   revisa el código que la consume: se hace lo que dice el documento, de
+   principio a fin, y se mira si pasa lo prometido.
+2. **Un interruptor que no enciende nada es peor que un interruptor que falla.**
+   Un error se investiga; un silencio se interpreta. Cuando una función se activa
+   por configuración, el camino que va del fichero al comportamiento tiene que
+   estar probado entero.
+3. Esta es la misma familia que «he pulsado el botón» ≠ «el aviso ya no está»,
+   que ya está en este log: dar por hecho el efecto en vez de comprobarlo.
+
+**Contexto:** Cualquier cosa que se active por configuración. Y toda
+documentación que diga «pon X en Y».
+
+---
+
+## 2026-08-11 (noche, 7) — La respuesta de un modelo mejor sigue siendo la respuesta de una máquina
+
+**Error o aprendizaje:** Al construir el lector de visión, la tentación era
+tratarlo como una fuente mejor: acierta muchísimo más que el OCR, así que ¿por
+qué no darlo por bueno y ahorrarle al usuario la comprobación?
+
+Porque «se equivoca menos» y «no se equivoca» son cosas distintas, y aquí la
+diferencia entre las dos es una lente equivocada. Un lector que acierta el 99 %
+falla uno de cada cien informes, y ese uno no viene marcado.
+
+Así que entra con procedencia `VISION`, que el dominio ya trataba igual que
+`OCR`: ámbar, comprobación uno a uno. Cero excepciones por ser mejor.
+
+**Causa raíz:** Confundir la calidad media de una fuente con la fiabilidad de un
+dato concreto. Es el mismo error que usar la puntuación de confianza del OCR
+como filtro (lección anterior), un nivel más arriba: allí era «este número tiene
+93 %, luego es bueno»; aquí sería «este lector acierta mucho, luego este número
+es bueno». Las dos son estadística aplicada a un caso individual donde no vale.
+
+**Lección:**
+
+1. **Las garantías del producto no se relajan porque mejore un componente.** Si
+   la regla era «lo leído por una máquina se comprueba», sigue siendo eso con la
+   máquina nueva. Cambiar la regla exige una razón nueva, no un componente nuevo.
+2. Diseñar el dominio con `VISION` desde el primer día —antes de que existiera
+   ningún modelo de visión— hizo que esto saliera gratis: la invariante 11 ya lo
+   cubría sin tocar nada. Nombrar los casos que aún no existen es barato cuando
+   los escribes y caro cuando los añades después.
+3. **Lo que sí se puede mejorar sin discusión es la evidencia.** El modelo
+   devuelve la línea literal del informe de donde sale cada número. Eso no
+   ahorra la comprobación: la hace de un vistazo en vez de volver al papel.
+
+**Contexto:** Toda sustitución de un componente por otro «mejor» detrás de una
+garantía de seguridad.
