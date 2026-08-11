@@ -59,13 +59,30 @@ Esto descarga el navegador que usará para rellenar las calculadoras. Son unos
 
 ## 3. Arrancarlo
 
+### Con doble clic (lo normal)
+
+En la carpeta del proyecto hay un fichero llamado **`Calculator Vilamar.cmd`**.
+**Haz doble clic.** Se abre la aplicación.
+
+La primera vez tarda un poco porque construye el programa; después es inmediato.
+
+> **Truco:** haz clic derecho sobre ese fichero → _Enviar a_ → _Escritorio (crear
+> acceso directo)_. Así lo tienes como cualquier otro programa.
+
+### Desde la consola (si prefieres)
+
 ```powershell
-pnpm dev
+pnpm dev      # modo desarrollo, se recarga al cambiar el código
+pnpm start    # abre la versión construida
 ```
 
-Se abre una ventana con el título **Calculator Vilamar**. Ya está.
+Para cerrarlo, cierra la ventana.
 
-Para cerrarlo, cierra la ventana. Para volver a arrancarlo, `pnpm dev` otra vez.
+> ℹ️ **Todavía no hay un instalador .exe.** Generarlo requiere activar el _Modo
+> de desarrollador_ de Windows (Configuración → Privacidad y seguridad → Para
+> desarrolladores), porque la herramienta que lo crea necesita permiso para
+> hacer enlaces simbólicos. El fichero `.cmd` hace el mismo trabajo mientras
+> tanto.
 
 ---
 

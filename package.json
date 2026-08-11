@@ -27,7 +27,8 @@
     "reconocer": "node scripts/sondas/reconocer.mjs",
     "muestra:informe": "vite-node scripts/muestra-informe.ts",
     "live": "vite-node scripts/sondas/live.ts",
-    "verificar:vertical": "pnpm --filter @vilamar/desktop verificar:vertical"
+    "verificar:vertical": "pnpm --filter @vilamar/desktop verificar:vertical",
+    "start": "pnpm --filter @vilamar/desktop start"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

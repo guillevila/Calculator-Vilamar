@@ -38,7 +38,8 @@ Pero **falta lo que lo convertiría en MVP**, y es justo la puerta de entrada:
    dato de entrada del producto no está validado.** Es la limitación más
    importante de esta lista.
 2. **Kane no está verificado** contra su formulario real (ver apartado 4).
-3. **No hay instalador.** Hoy se arranca con `pnpm dev` desde una consola.
+3. **No hay instalador `.exe`.** Se arranca con doble clic en
+   `Calculator Vilamar.cmd`, que sí funciona, pero no es un programa instalado.
 
 Mientras el paso 1 siga abierto, esto no se puede usar cómodamente cada día, que
 es lo que separa un prototipo de un MVP.
@@ -120,7 +121,11 @@ vertical completa:
   número donde no toca.
 - **Kane no está verificado.** El adaptador está escrito y busca los campos por
   su etiqueta, pero no se ha podido ver su formulario (ver apartado 4).
-- **No hay instalador.** Se arranca desde consola con `pnpm dev`.
+- **No hay instalador `.exe`.** Hay un lanzador de doble clic
+  (`Calculator Vilamar.cmd`) **comprobado: abre la ventana**. El instalador de
+  verdad falla en este equipo porque `electron-builder` necesita permiso para
+  crear enlaces simbólicos; se arregla activando el Modo de desarrollador de
+  Windows, pero no lo he podido probar sin ese permiso.
 - **Sin historial de casos en la interfaz.** Los casos se guardan en disco, pero
   no hay pantalla para volver a uno anterior.
 - **El OCR necesita internet la primera vez** (unos 5 MB de datos de idioma).
@@ -173,6 +178,7 @@ Ninguno de los tres impide usar lo demás.
    detrás de esto.
 2. **Cerrar Kane**: aceptar sus condiciones una vez, capturar su formulario y
    ajustar el adaptador. Antes, decidir O1.
-3. **Instalador de Windows**, para poder arrancarlo sin consola.
+3. **Instalador de Windows.** La configuración está puesta; falta ejecutarlo
+   con el Modo de desarrollador activado y comprobar el `.exe` resultante.
 4. Calcular los dos ojos de una vez.
 5. Historial de casos.

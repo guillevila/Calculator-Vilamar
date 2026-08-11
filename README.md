@@ -45,6 +45,10 @@ pnpm playwright:install   # el navegador que usan las calculadoras (una vez)
 pnpm dev                  # arranca la aplicación
 ```
 
+Después de la primera vez, basta con **hacer doble clic en
+`Calculator Vilamar.cmd`**. (Todavía no hay instalador `.exe`; ver
+[GETTING-STARTED](docs/GETTING-STARTED.md#3-arrancarlo).)
+
 Instrucciones detalladas, incluida la primera vez y qué esperar:
 [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md).
 
@@ -52,16 +56,16 @@ Instrucciones detalladas, incluida la primera vez y qué esperar:
 
 ## Comandos
 
-| Comando                                       | Qué hace                                                        |
-| --------------------------------------------- | --------------------------------------------------------------- |
-| `pnpm dev`                                    | Arranca la aplicación                                           |
-| `pnpm test`                                   | 205 tests. No tocan internet                                    |
-| `pnpm test:e2e`                               | Arranca la aplicación real y recorre el flujo                   |
-| `pnpm lint` · `pnpm typecheck` · `pnpm build` | Calidad y compilación                                           |
-| `pnpm live [evo\|barrett\|kane]`              | Prueba los adaptadores **contra las webs reales**               |
-| `pnpm verificar:vertical`                     | El producto entero contra EVO y Barrett reales, hasta el PDF    |
-| `pnpm reconocer <sitio>`                      | Mira el formulario actual de una web, para reparar un adaptador |
-| `pnpm muestra:informe`                        | Genera un informe de ejemplo para verlo                         |
+| Comando                                             | Qué hace                                                        |
+| --------------------------------------------------- | --------------------------------------------------------------- |
+| `pnpm dev` · doble clic en `Calculator Vilamar.cmd` | Arranca la aplicación                                           |
+| `pnpm test`                                         | 205 tests. No tocan internet                                    |
+| `pnpm test:e2e`                                     | Arranca la aplicación real y recorre el flujo                   |
+| `pnpm lint` · `pnpm typecheck` · `pnpm build`       | Calidad y compilación                                           |
+| `pnpm live [evo\|barrett\|kane]`                    | Prueba los adaptadores **contra las webs reales**               |
+| `pnpm verificar:vertical`                           | El producto entero contra EVO y Barrett reales, hasta el PDF    |
+| `pnpm reconocer <sitio>`                            | Mira el formulario actual de una web, para reparar un adaptador |
+| `pnpm muestra:informe`                              | Genera un informe de ejemplo para verlo                         |
 
 Los que hablan con las webs **no están en el CI**, a propósito: una web ajena con
 un mal día no puede poner el control en rojo.
@@ -119,3 +123,7 @@ calculadoras externas **Kane** (iolformula.com), **EVO Toric**
 (evoiolcalculator.com) y **Barrett Toric** (ASCRS / APACRS), y están sujetos a
 las condiciones de uso de cada una. Las comparaciones que muestra son
 descriptivas. **No sustituye el criterio del cirujano.**
+
+```
+
+```
