@@ -124,10 +124,11 @@ export class ProveedorDocumentos implements ProveedorExtraccion {
 
     for (let n = 1; n <= aLeer; n++) {
       try {
-        const imagen = await this.piezas.rasterizador.rasterizar(documento.datos, n, 2)
-        // La página rasterizada pasa por la MISMA preparación que una imagen
-        // subida por el usuario. Así el OCR solo ve una clase de entrada: un PNG
-        // limpio del tamaño que mejor lee.
+        // Dos pasos, y en este orden: dibujar la página a tamaño moderado y
+        // AMPLIARLA después. Dibujar directamente a alta resolución sale peor
+        // —está medido en `ANCHO_RASTERIZADO_OCR`, con tabla— porque reproduce
+        // los defectos de compresión de la imagen incrustada a tamaño completo.
+        const imagen = await this.piezas.rasterizador.rasterizar(documento.datos, n)
         const lista = await this.piezas.rasterizador.prepararParaOcr(imagen)
         const r = await this.piezas.motorOcr.reconocer(lista)
         paginas.push({ numero: n, texto: r.texto, bloques: r.bloques })

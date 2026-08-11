@@ -85,8 +85,20 @@ const PAGINA_HTML =
   '<!doctype html><html><head><meta charset="utf-8"><title>rasterizar</title></head><body style="margin:0"></body></html>'
 
 export interface Rasterizador {
-  /** Devuelve la página del PDF como PNG. */
-  readonly rasterizar: (datos: Uint8Array, pagina: number, escala?: number) => Promise<Uint8Array>
+  /**
+   * Devuelve la página del PDF como PNG, dibujada al ancho que se pida.
+   *
+   * Se pide un ANCHO y no un factor de escala a propósito. Antes se dibujaba a
+   * «escala 2» y luego se reescalaba al tamaño del OCR: **dos remuestreos**, y el
+   * texto pequeño de un escaneo no sobrevive a eso. Dibujando directamente al
+   * tamaño final hay uno solo, y pdf.js rasteriza desde el original vectorial o
+   * desde la imagen a plena resolución.
+   */
+  readonly rasterizar: (
+    datos: Uint8Array,
+    pagina: number,
+    anchoObjetivo?: number,
+  ) => Promise<Uint8Array>
   /**
    * Prepara una imagen para el OCR: la decodifica y la devuelve como PNG
    * limpio, con un tamaño razonable.
@@ -117,6 +129,35 @@ export interface Rasterizador {
  * de 4032 px la convertía en una de 8064, que ni cabe ni ayuda.
  */
 export const ANCHO_OBJETIVO_OCR = 2200
+
+/**
+ * Ancho al que se dibuja una página de PDF antes de ampliarla para el OCR.
+ *
+ * **1190, que es A4 al doble de su tamaño natural.** Parece poco, y lo parece
+ * porque lo lógico sería dibujar directamente a la resolución del OCR. Se probó,
+ * y sale PEOR. Medido sobre el mismo PDF escaneado, contando cuántos de diez
+ * números se leen bien:
+ *
+ *   | cómo se dibuja                | fiabilidad | aciertos |
+ *   | ----------------------------- | ---------- | -------- |
+ *   | directo a 1200 px             | 82 %       | 9 / 10   |
+ *   | directo a 1600 px             | 86 %       | 7 / 10   |
+ *   | directo a 2000 px             | 89 %       | 7 / 10   |
+ *   | directo a 2480 px (300 ppp)   | 88 %       | 7 / 10   |
+ *   | directo a 3000 px             | 87 %       | 6 / 10   |
+ *   | **1190 y luego ampliar a 2200** | **90 %** | **10/10** |
+ *
+ * Dibujar grande reproduce a tamaño completo los defectos de compresión de la
+ * imagen incrustada; dibujar pequeño y ampliar con suavizado los difumina y deja
+ * los números más limpios.
+ *
+ * Fíjate también en que **la fiabilidad no sigue a los aciertos**: 89 % con 7 de
+ * 10, y 90 % con 10 de 10. No sirve para elegir.
+ *
+ * Si alguien vuelve a «optimizar» esto subiendo la resolución, que rehaga la
+ * tabla antes.
+ */
+export const ANCHO_RASTERIZADO_OCR = 1190
 
 /**
  * Tope de ampliación.
@@ -194,11 +235,15 @@ export function crearRasterizador(): Rasterizador {
   }
 
   return {
-    async rasterizar(datos: Uint8Array, pagina: number, escala = 2): Promise<Uint8Array> {
+    async rasterizar(
+      datos: Uint8Array,
+      pagina: number,
+      anchoObjetivo = ANCHO_RASTERIZADO_OCR,
+    ): Promise<Uint8Array> {
       const { pagina: p, cerrar } = await abrirPagina()
       try {
         const medidas = await p.evaluate(
-          async ({ origen, base64, numero, factor }) => {
+          async ({ origen, base64, numero, anchoPedido, ladoMaximo }) => {
             // El import va escondido en un `new Function` para que ningún
             // empaquetador lo reescriba: este código se ejecuta DENTRO del
             // navegador. Con vite-node, un `import()` normal se convierte en su
@@ -226,6 +271,15 @@ export function crearRasterizador(): Rasterizador {
             if (numero > doc.numPages) throw new Error(`La página ${numero} no existe`)
 
             const pag = await doc.getPage(numero)
+            // El factor se calcula del ancho natural de la página, para llegar
+            // al ancho pedido de una sola vez.
+            const natural = pag.getViewport({ scale: 1 })
+            let factor = anchoPedido / natural.width
+            // Ni tan poco que no se lea, ni tanto que no quepa en un lienzo.
+            factor = Math.max(
+              1,
+              Math.min(factor, ladoMaximo / Math.max(natural.width, natural.height)),
+            )
             const vista = pag.getViewport({ scale: factor })
             const lienzo = document.createElement('canvas')
             lienzo.id = 'pagina'
@@ -246,7 +300,8 @@ export function crearRasterizador(): Rasterizador {
             origen: ORIGEN,
             base64: Buffer.from(datos).toString('base64'),
             numero: pagina,
-            factor: escala,
+            anchoPedido: anchoObjetivo,
+            ladoMaximo: LADO_MAXIMO,
           },
         )
 

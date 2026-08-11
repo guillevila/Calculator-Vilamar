@@ -125,6 +125,38 @@ Y con imágenes de distintos tamaños y formatos, comprobado por separado:
 | JPEG 4032×3024 (foto de móvil)       | 91 %               | correctos                                    |
 | Fichero corrupto                     | —                  | mensaje claro, y la aplicación sigue abierta |
 
+#### ⚠️ Lo más importante que se ha aprendido: el OCR no es de fiar para números
+
+Sobre un informe convertido a PDF desde una imagen comprimida, el reconocimiento
+leyó esto:
+
+| Pone en el informe | Leyó      | Fiabilidad que declaró |
+| ------------------ | --------- | ---------------------- |
+| AL 24.01           | **24.81** | **93 %**               |
+| AL 24.07           | **24.87** | 80 %                   |
+| K1 40.27           | **48.27** | 68 %                   |
+| CCT 530            | **538**   | —                      |
+
+Y en el mismo documento, un **24.07 leído CORRECTAMENTE** declaraba un 79 %.
+
+O sea: **la fiabilidad que da el OCR no distingue lo correcto de lo incorrecto.**
+El programa NO PUEDE saber si un número reconocido es bueno. Y un 24.81 en lugar
+de 24.01 está dentro de rango, así que ninguna validación lo detecta.
+
+**Qué se ha hecho con eso**, porque es una decisión de producto y no un ajuste:
+
+- Un dato leído por OCR **nunca se enseña como «✓ correcto»**. Sale en ámbar,
+  como «⚠ compruébalo», aunque el valor sea perfectamente normal.
+- **«Confirmar datos» no los acepta en bloque.** Hay que comprobar cada uno
+  contra el informe y pulsar «Está bien». Lo escrito a mano y lo que viene del
+  texto de un PDF no lo necesitan: son exactos.
+- La pantalla enseña el texto que se leyó, para poder compararlo de un vistazo.
+
+**Consecuencia práctica:** con un informe en PDF **con texto dentro**, la lectura
+es exacta y el programa ahorra todo el trabajo. Con una imagen o un escaneo,
+ahorra teclear pero **hay que comprobar cada número**. Convertir una imagen a PDF
+no ayuda: sigue siendo reconocimiento sobre imagen.
+
 **Toda imagen pasa por el navegador y sale como PNG limpio** del tamaño que
 mejor lee el OCR (unos 2200 px de ancho). El navegador decodifica muchos más
 formatos y variantes que tesseract, y eso es lo que convirtió un «Error

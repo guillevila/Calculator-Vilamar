@@ -101,6 +101,28 @@ export function esDerivado(p: Procedencia): boolean {
   return p.metodo === 'DERIVADO'
 }
 
+/**
+ * ¿Lo ha leído una máquina de una imagen, adivinando?
+ *
+ * Esta distinción es la más importante de este fichero, y está medida:
+ *
+ *   Sobre un informe convertido a PDF, el reconocimiento leyó **24.81 donde
+ *   ponía 24.01, con un 93 % de fiabilidad**. En el mismo documento, un 24.07
+ *   leído CORRECTAMENTE tenía un 79 %.
+ *
+ * O sea: **la fiabilidad que da el OCR no distingue lo correcto de lo
+ * incorrecto.** No sirve como filtro, y por tanto el programa NO PUEDE saber si
+ * un número reconocido es bueno.
+ *
+ * De ahí la regla: un dato leído por OCR o por visión nunca se presenta como
+ * correcto. Se presenta como pendiente de comprobar, y hay que comprobarlo uno a
+ * uno contra el informe. El texto nativo de un PDF es exacto y no necesita eso;
+ * lo escrito a mano lo ha puesto una persona mirando.
+ */
+export function esLecturaAutomatica(p: Procedencia): boolean {
+  return p.metodo === 'OCR' || p.metodo === 'VISION'
+}
+
 export function procedenciaManual(cuando: string): Procedencia {
   return { metodo: 'MANUAL', registradoEn: cuando }
 }

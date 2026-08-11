@@ -507,3 +507,82 @@ Y si el umbral sobrevive, que sobreviva con una prueba que fije los dos lados: e
 caso corto que debe pasar y el caso mínimo que no debe.
 
 **Contexto:** Cualquier umbral numérico en el código.
+
+---
+
+## 2026-08-11 (noche, 4) — La fiabilidad del OCR no distingue lo correcto de lo incorrecto
+
+**Error o aprendizaje:** Con un informe convertido a PDF desde una imagen
+comprimida, el reconocimiento devolvió números **equivocados y creíbles**:
+
+| Pone  | Leyó      | Fiabilidad |
+| ----- | --------- | ---------- |
+| 24.01 | **24.81** | **93 %**   |
+| 24.07 | **24.87** | 80 %       |
+| 40.27 | **48.27** | 68 %       |
+
+Y en el mismo documento, un 24.07 leído BIEN declaraba un 79 %.
+
+El plan era usar la fiabilidad como filtro: por debajo de un umbral, no rellenar.
+**La medición lo tumbó**: el peor error tenía la fiabilidad más alta de todas.
+
+**Causa raíz:** La fiabilidad del OCR mide lo seguro que está de haber
+reconocido unos trazos, no lo parecido que es el resultado a lo que ponía. Un «8»
+bien dibujado donde había un «0» es un 8 nítido: alta confianza, valor
+equivocado. Dar por hecho que «confianza» significa «acierto» es la misma clase
+de error que traducir el vocabulario de una herramienta ajena por parecido
+fonético, que ya está en este log.
+
+**Lección:**
+
+1. **Antes de usar una métrica como filtro, comprobar que separa lo que dices que
+   separa.** Cuesta veinte minutos: coger casos buenos y malos conocidos y mirar
+   si la métrica los ordena. Aquí no los ordenaba en absoluto.
+2. Cuando un dato no se puede verificar automáticamente, **el producto tiene que
+   dejar de fingir que sí**. No hay umbral, no hay heurística: un número leído de
+   una imagen se enseña como pendiente de comprobar, y punto. Es peor producto en
+   apariencia y mucho mejor en la realidad.
+3. **Ojo con las validaciones que dan falsa seguridad.** 24.81 pasa todos los
+   rangos: es una longitud axial perfectamente normal. Una validación que no puede
+   detectar el error más probable no debe presentarse como un visto bueno.
+4. Y una de diseño: **la confirmación en bloque es un trámite**. «Confirmar todo»
+   con un clic cumplía la letra de la invariante —nada sin confirmar sale— y se
+   saltaba su intención. Ahora lo leído por máquina se comprueba uno a uno.
+
+**Contexto:** El OCR, y cualquier fuente de datos que venga con una «puntuación
+de confianza». Y toda pantalla de confirmación.
+
+---
+
+## 2026-08-11 (noche, 5) — Más resolución no es mejor, y ya van dos veces
+
+**Error o aprendizaje:** Para mejorar el OCR sobre PDF escaneados, cambié el
+dibujado de la página de «escala 2» (1190 px en A4) a 2480 px, que son los 300
+puntos por pulgada estándar para digitalizar documentos. Razonamiento de manual.
+
+Salió peor. Medido sobre el mismo documento, contando cuántos de diez números se
+leen bien:
+
+| cómo se dibuja                  | fiabilidad | aciertos  |
+| ------------------------------- | ---------- | --------- |
+| directo a 1200 px               | 82 %       | 9 / 10    |
+| directo a 2000 px               | 89 %       | 7 / 10    |
+| directo a 2480 px (300 ppp)     | 88 %       | 7 / 10    |
+| directo a 3000 px               | 87 %       | 6 / 10    |
+| **1190 y luego ampliar a 2200** | **90 %**   | **10/10** |
+
+Dibujar grande reproduce a tamaño completo los defectos de compresión de la
+imagen incrustada. Dibujar pequeño y ampliar con suavizado los difumina.
+
+Es la **segunda vez** en la misma sesión: ya había medido que ampliar una imagen
+×3 era peor que ×2.
+
+**Lección:** «Más resolución, mejor OCR» es falso a partir de cierto punto, y ese
+punto llega antes de lo que dice la intuición. Cualquier cambio de resolución se
+mide contando aciertos sobre un documento conocido, nunca se razona.
+
+Y la tabla se deja **en el código**, junto a la constante, con la frase «si
+alguien vuelve a optimizar esto, que rehaga la tabla antes». Un número mágico sin
+su medición al lado es una invitación a repetir el experimento.
+
+**Contexto:** Todo el tratamiento de imagen previo al OCR.

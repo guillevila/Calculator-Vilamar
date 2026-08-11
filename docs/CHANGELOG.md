@@ -4,6 +4,43 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [0.2.0] — 11/08/2026
+
+Cambio de producto, no de ajuste. Salió de probar con un informe convertido a PDF
+desde una imagen comprimida.
+
+### El hallazgo
+
+El reconocimiento de texto leyó **24.81 donde ponía 24.01, declarando un 93 % de
+fiabilidad**. En el mismo documento, un 24.07 leído bien declaraba un 79 %.
+
+**La fiabilidad del OCR no distingue lo correcto de lo incorrecto.** No sirve como
+filtro, y por tanto el programa no puede saber si un número reconocido es bueno.
+Peor: 24.81 está dentro de rango, así que ninguna validación lo detecta.
+
+### Cambiado
+
+- **Un dato leído por OCR ya no se enseña como «correcto».** Sale como
+  «⚠ compruébalo», en ámbar, aunque el valor sea perfectamente normal.
+- **«Confirmar datos» ya no acepta en bloque lo leído por OCR.** Hay que
+  comprobar cada uno contra el informe y pulsar «Está bien». Lo escrito a mano y
+  lo que viene del texto nativo de un PDF siguen confirmándose de una vez: son
+  exactos.
+- Se añade la **invariante 11** con sus tests: un dato leído por una máquina no
+  se da por bueno solo, por mucha fiabilidad que declare.
+
+### Corregido
+
+- Se probó a dibujar las páginas de un PDF escaneado directamente a resolución de
+  escaneo (300 ppp). **Sale peor**, y está medido con tabla en el código: de 10
+  números se leen 7, frente a 10 dibujando a tamaño moderado y ampliando después.
+  Se vuelve a lo medido, con la tabla escrita para que nadie lo «optimice» otra
+  vez sin rehacerla.
+
+232 tests y 8 pruebas de interfaz.
+
+---
+
 ## [0.1.4] — 11/08/2026
 
 Corrige un diagnóstico equivocado de la versión anterior y arregla lo que ese

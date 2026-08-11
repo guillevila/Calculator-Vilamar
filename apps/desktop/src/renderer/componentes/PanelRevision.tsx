@@ -21,6 +21,7 @@ import {
   camposDeCategoria,
   definicionDe,
   esDerivado,
+  esLecturaAutomatica,
   esManual,
   nivelDeCampo,
   nombreLateralidad,
@@ -64,6 +65,25 @@ export function PanelRevision({
   const invalidos = useMemo(() => avisos.filter((a) => a.nivel === 'INVALID'), [avisos])
   const advertencias = useMemo(() => avisos.filter((a) => a.nivel === 'WARNING'), [avisos])
 
+  /**
+   * Datos leídos por una máquina que la persona todavía no ha comprobado.
+   *
+   * Bloquean la confirmación, y a propósito: el reconocimiento de texto produce
+   * números equivocados con aspecto de correctos, así que aceptarlos todos de un
+   * clic convertiría la revisión obligatoria en un trámite.
+   */
+  const porComprobar = useMemo(
+    () =>
+      ojos.flatMap((l) => {
+        const datos = ojoDe(caso, l)
+        return (Object.keys(datos.medidas) as CampoBiometrico[]).filter((c) => {
+          const m = datos.medidas[c]
+          return m !== undefined && esLecturaAutomatica(m.procedencia) && !m.confirmadoPorUsuario
+        })
+      }),
+    [caso, ojos],
+  )
+
   return (
     <>
       {ojos.length > 1 && (
@@ -94,7 +114,20 @@ export function PanelRevision({
           cuenta.
         </div>
       )}
-      {advertencias.length > 0 && invalidos.length === 0 && (
+      {porComprobar.length > 0 && invalidos.length === 0 && (
+        <div className="aviso atencion">
+          <strong>
+            Hay {porComprobar.length} {porComprobar.length === 1 ? 'dato' : 'datos'} leído
+            {porComprobar.length === 1 ? '' : 's'} de la imagen que{' '}
+            {porComprobar.length === 1 ? 'tiene' : 'tienen'} que comprobar
+            {porComprobar.length === 1 ? 'se' : 'se'} uno a uno.
+          </strong>{' '}
+          El reconocimiento de texto se equivoca con números que parecen correctos: en una prueba
+          leyó <strong>24.81</strong> donde ponía <strong>24.01</strong>. Compara cada uno con tu
+          informe y pulsa «Está bien», o corrígelo escribiéndolo.
+        </div>
+      )}
+      {advertencias.length > 0 && invalidos.length === 0 && porComprobar.length === 0 && (
         <div className="aviso atencion">
           Hay {advertencias.length} {advertencias.length === 1 ? 'valor poco' : 'valores poco'}{' '}
           frecuente{advertencias.length === 1 ? '' : 's'}. Puede ser correcto: revísalo
@@ -126,7 +159,12 @@ export function PanelRevision({
           <button
             className="principal grande"
             onClick={onConfirmar}
-            disabled={ocupado || invalidos.length > 0 || Object.keys(ojo.medidas).length === 0}
+            disabled={
+              ocupado ||
+              invalidos.length > 0 ||
+              porComprobar.length > 0 ||
+              Object.keys(ojo.medidas).length === 0
+            }
             data-testid="confirmar"
           >
             Confirmar datos
@@ -135,6 +173,13 @@ export function PanelRevision({
         {invalidos.length > 0 && (
           <p className="pie-nota">
             No se puede confirmar mientras haya datos imposibles. Están marcados en rojo.
+          </p>
+        )}
+        {porComprobar.length > 0 && invalidos.length === 0 && (
+          <p className="pie-nota">
+            Faltan {porComprobar.length} {porComprobar.length === 1 ? 'dato' : 'datos'} por
+            comprobar. Los datos que has escrito tú y los que vienen del texto de un PDF no hace
+            falta comprobarlos: son exactos.
           </p>
         )}
       </div>
@@ -231,7 +276,22 @@ function FilaCampo({ campo, caso, ojoActivo, avisos, onCambio }: PropsFila): JSX
     await onCambio()
   }
 
-  const claseFila = nivel === 'INVALID' ? 'invalid' : nivel === 'WARNING' ? 'warning' : ''
+  /**
+   * Un dato leído por una máquina y todavía no comprobado por la persona.
+   *
+   * Se marca aunque el valor esté dentro de rango, porque estar dentro de rango
+   * no significa nada: 24.81 es un valor perfectamente normal, y era 24.01.
+   */
+  const porComprobar =
+    medida !== undefined && esLecturaAutomatica(medida.procedencia) && !medida.confirmadoPorUsuario
+
+  async function comprobar(): Promise<void> {
+    await api().confirmarCampo(ojoActivo, campo)
+    await onCambio()
+  }
+
+  const claseFila =
+    nivel === 'INVALID' ? 'invalid' : nivel === 'WARNING' || porComprobar ? 'warning' : ''
 
   return (
     <>
@@ -265,23 +325,45 @@ function FilaCampo({ campo, caso, ojoActivo, avisos, onCambio }: PropsFila): JSX
           )}
         </td>
         <td>
-          <span className={`estado-campo ${nivel.toLowerCase()}`}>
-            {nivel === 'VALID' && '✓ correcto'}
-            {nivel === 'WARNING' && '⚠ poco frecuente'}
-            {nivel === 'INVALID' && '✕ imposible'}
-            {nivel === 'MISSING' && `⚠ ${TEXTO_AUSENTE}`}
-          </span>
+          {/*
+            Un dato leído por OCR NUNCA sale como «correcto», aunque esté dentro
+            de rango. Está medido: el reconocimiento leyó 24.81 donde ponía 24.01
+            con un 93 % de fiabilidad. Como el programa no puede distinguirlo, la
+            pantalla no puede decir que está bien.
+          */}
+          {porComprobar ? (
+            <span className="estado-campo warning">⚠ compruébalo</span>
+          ) : (
+            <span className={`estado-campo ${nivel.toLowerCase()}`}>
+              {nivel === 'VALID' && '✓ correcto'}
+              {nivel === 'WARNING' && '⚠ poco frecuente'}
+              {nivel === 'INVALID' && '✕ imposible'}
+              {nivel === 'MISSING' && `⚠ ${TEXTO_AUSENTE}`}
+            </span>
+          )}
         </td>
         <td>
-          {medida && (
-            <button
-              title="Borrar este dato"
-              onClick={() => void guardar('')}
-              data-testid={`borrar-${campo}`}
-            >
-              Borrar
-            </button>
-          )}
+          <div className="fila" style={{ gap: 6, flexWrap: 'nowrap' }}>
+            {porComprobar && (
+              <button
+                className="principal"
+                title="He comparado este dato con el informe y es correcto"
+                onClick={() => void comprobar()}
+                data-testid={`comprobar-${campo}`}
+              >
+                Está bien
+              </button>
+            )}
+            {medida && (
+              <button
+                title="Borrar este dato"
+                onClick={() => void guardar('')}
+                data-testid={`borrar-${campo}`}
+              >
+                Borrar
+              </button>
+            )}
+          </div>
         </td>
       </tr>
       {propios.map((a, i) => (

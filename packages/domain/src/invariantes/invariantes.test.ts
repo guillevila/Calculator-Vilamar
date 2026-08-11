@@ -21,6 +21,7 @@ import {
   conMedida,
   conOjo,
   crearMedida,
+  esLecturaAutomatica,
   formatearMedida,
   nivelDeCampo,
   obtener,
@@ -475,5 +476,75 @@ describe('Invariante 10 — nada sin confirmar llega a una calculadora', () => {
       expect(claves).not.toContain('fechaNacimiento')
       expect(r.entradas.codigoCaso).toMatch(/^CV-/)
     }
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Invariante 11 — un dato leído por una máquina no se da por bueno solo', () => {
+  const DE_OCR: Procedencia = {
+    metodo: 'OCR',
+    documentoId: 'doc-1',
+    // Ojo al dato: esta fiabilidad es REAL de una prueba, y el valor que
+    // acompañaba estaba MAL. Por eso no sirve como filtro.
+    confianza: 0.93,
+    registradoEn: CUANDO,
+    evidencia: { texto: 'AL 24.81 mm', pagina: 1 },
+  }
+
+  it('se distingue de un dato exacto y de uno escrito a mano', () => {
+    expect(esLecturaAutomatica(DE_OCR)).toBe(true)
+    expect(esLecturaAutomatica(EXTRAIDO)).toBe(false) // texto nativo del PDF: exacto
+    expect(esLecturaAutomatica(MANUAL)).toBe(false) // lo ha puesto una persona
+    expect(esLecturaAutomatica(DERIVADO)).toBe(false)
+  })
+
+  it('una fiabilidad alta NO lo convierte en fiable', () => {
+    // 24.81 con un 93 % de fiabilidad, cuando el informe decía 24.01. El valor
+    // está dentro de rango, así que la validación lo da por bueno: es
+    // exactamente por eso que hace falta que lo mire una persona.
+    const ojo = conMedida(ojoVacio('OD'), crearMedida('AL', 'OD', 24.81, DE_OCR))
+    const avisos = validarOjo(ojo)
+    expect(avisos.find((a) => a.nivel === 'INVALID')).toBeUndefined()
+    expect(nivelDeCampo(avisos, ojo, 'AL')).toBe('VALID')
+    // Y aun así, sin confirmar.
+    expect(obtener(ojo, 'AL')?.confirmadoPorUsuario).toBe(false)
+  })
+
+  it('confirmar todo NO confirma lo leído por OCR', () => {
+    let ojo = ojoVacio('OD')
+    ojo = conMedida(ojo, crearMedida('AL', 'OD', 24.81, DE_OCR))
+    ojo = conMedida(ojo, crearMedida('SIA', 'OD', 0.3, MANUAL))
+
+    // `confirmarTodas` del dominio es la operación de bajo nivel: confirma todo.
+    // Lo que NO debe hacerlo en bloque es la aplicación, que filtra por
+    // procedencia antes de llamarla. Aquí se comprueba el filtro.
+    const aConfirmar = (Object.keys(ojo.medidas) as (keyof typeof ojo.medidas)[]).filter((c) => {
+      const m = ojo.medidas[c]
+      return m !== undefined && !esLecturaAutomatica(m.procedencia)
+    })
+    expect(aConfirmar).toEqual(['SIA'])
+    expect(aConfirmar).not.toContain('AL')
+  })
+
+  it('un caso con datos de OCR sin comprobar no se puede confirmar', () => {
+    let ojo = odCompleto()
+    ojo = conMedida(ojo, crearMedida('AL', 'OD', 24.81, DE_OCR))
+    // Todo lo demás sí está confirmado; solo queda el de OCR.
+    for (const campo of Object.keys(ojo.medidas) as Parameters<typeof crearMedida>[0][]) {
+      const m = ojo.medidas[campo]
+      if (m && !esLecturaAutomatica(m.procedencia)) ojo = confirmarTodas(ojo)
+    }
+    ojo = conMedida(ojo, crearMedida('AL', 'OD', 24.81, DE_OCR)) // vuelve a entrar sin confirmar
+    const caso = casoCon([ojo])
+    expect(sePuedeConfirmar(caso)).toBe(false)
+    expect(() => confirmar(caso, CUANDO)).toThrow(/sin revisar/)
+  })
+
+  it('comprobado uno a uno, sí se puede confirmar', () => {
+    let ojo = odCompleto()
+    ojo = conMedida(ojo, crearMedida('AL', 'OD', 24.07, DE_OCR))
+    ojo = confirmarTodas(ojo) // el equivalente a haber pulsado «Está bien» en cada uno
+    const caso = confirmar(casoCon([ojo]), CUANDO)
+    expect(prepararEntradas(caso, 'EVO_TORIC', 'OD').ok).toBe(true)
   })
 })

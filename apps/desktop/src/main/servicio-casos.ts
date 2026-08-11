@@ -28,6 +28,7 @@ import {
   conOjo,
   conResultado,
   crearMedida,
+  esLecturaAutomatica,
   formatoDeNombre,
   NOMBRE_DISPOSITIVO,
   ojoDe,
@@ -290,10 +291,18 @@ export class ServicioCasos {
   }
 
   /**
-   * Confirma el caso entero.
+   * Confirma el caso.
    *
-   * Es el acto explícito de una persona que abre la puerta hacia las webs. Si
-   * hay algún dato IMPOSIBLE, no se confirma: hay que corregirlo antes.
+   * Es el acto explícito de una persona que abre la puerta hacia las webs.
+   *
+   * Dos cosas que NO hace, y que importan:
+   *
+   *  - No confirma si hay algún dato IMPOSIBLE. Hay que corregirlo antes.
+   *  - **No confirma en bloque los datos leídos por OCR.** Esos hay que
+   *    comprobarlos uno a uno, porque el reconocimiento produce números
+   *    equivocados con aspecto de correctos —medido: 24.81 donde ponía 24.01, con
+   *    un 93 % de fiabilidad— y un solo clic para aceptarlos todos convertiría la
+   *    revisión obligatoria en un trámite.
    */
   confirmarTodo(): Caso {
     let caso = this.exigirCaso()
@@ -312,6 +321,10 @@ export class ServicioCasos {
     for (const lado of ojosDelCaso(caso)) {
       let ojo = ojoDe(caso, lado)
       for (const campo of Object.keys(ojo.medidas) as CampoBiometrico[]) {
+        const medida = ojo.medidas[campo]
+        // Lo leído por una máquina se queda sin confirmar: lo tiene que marcar
+        // la persona campo por campo.
+        if (medida && esLecturaAutomatica(medida.procedencia)) continue
         ojo = confirmarMedida(ojo, campo)
       }
       caso = conOjo(caso, ojo, this.iso())
