@@ -402,6 +402,27 @@ export function camposDeCategoria(categoria: CategoriaCampo): readonly CampoBiom
   return CAMPOS.filter((c) => definicionDe(c).categoria === categoria)
 }
 
+/**
+ * ¿Es un campo que normalmente pone el cirujano, y no el aparato?
+ *
+ * Sirve **solo para elegir el texto cuando el campo está vacío**, y conviene no
+ * confundirlo con el origen de un dato:
+ *
+ *  - Un hueco en un campo que mide el aparato → «No consta en el informe». Es
+ *    información sobre el documento: ese informe no lo trae.
+ *  - Un hueco en un campo que decide el cirujano → «Pendiente de aportar». No ha
+ *    fallado nada; es que todavía no lo ha puesto nadie.
+ *
+ * **No decide el origen de un valor que sí existe.** Si el informe trae impresa
+ * la refracción objetivo, ese dato es «Del informe» aunque sea, conceptualmente,
+ * una decisión del cirujano. El origen sale siempre del valor concreto, nunca
+ * del tipo de campo.
+ */
+export function loAportaElCirujano(campo: CampoBiometrico): boolean {
+  const c = definicionDe(campo).categoria
+  return c === 'QUIRURGICO' || c === 'LENTE'
+}
+
 /** Formatea un valor con los decimales de su campo. No modifica el dato guardado. */
 export function formatearValor(campo: CampoBiometrico, valor: number): string {
   return valor.toFixed(definicionDe(campo).decimales)

@@ -6,8 +6,15 @@
  *
  * Reglas que se ven en el diseño:
  *
- *  - Un dato que no está pone «NO ENCONTRADO», en ámbar. No pone 0 ni «—».
- *  - Se distingue lo leído del informe de lo escrito a mano.
+ *  - ORIGEN Y ESTADO VAN EN COLUMNAS DISTINTAS. De dónde salió un número y si
+ *    alguien lo ha revisado son dos preguntas, y mezclarlas fue el error que
+ *    había: un campo que el informe no trae parecía un fallo de lectura.
+ *  - El origen sale del VALOR, no del tipo de campo: «Del informe», «Aportado»
+ *    o «Corregido». Sin valor, el texto depende de quién lo aporta —«No consta
+ *    en el informe» si lo mide el aparato, «Pendiente de aportar» si lo pone el
+ *    cirujano—.
+ *  - Corregir NO borra lo que ponía: se enseña «Leído originalmente: …».
+ *  - Todos los campos se pueden escribir a mano, tengan valor o no.
  *  - Un dato imposible se marca en rojo y bloquea; uno raro avisa y deja pasar.
  *  - Borrar un dato es una acción normal y visible: es la forma de decir
  *    «esto no lo sabemos», y es preferible a dejar un número dudoso.
@@ -21,13 +28,15 @@ import {
   camposDeCategoria,
   definicionDe,
   esDerivado,
+  formatearConUnidad,
+  loAportaElCirujano,
+  origenDe,
+  textoDeOrigen,
   esLecturaAutomatica,
-  esManual,
   nivelDeCampo,
   nombreLateralidad,
   ojoDe,
   ojosDelCaso,
-  TEXTO_AUSENTE,
 } from '@vilamar/domain'
 
 import { api } from '../api.js'
@@ -255,6 +264,11 @@ function FilaCampo({ campo, caso, ojoActivo, avisos, onCambio }: PropsFila): JSX
   const ojo = ojoDe(caso, ojoActivo)
   const def = definicionDe(campo)
   const medida = ojo.medidas[campo]
+  /**
+   * De dónde salió ESTE valor. Se deduce del dato, no se guarda aparte: un
+   * origen guardado por su cuenta acabaría desincronizado del dato que describe.
+   */
+  const origen = origenDe(medida)
   const nivel = nivelDeCampo(avisos, ojo, campo)
   const propios = avisos.filter((a) => a.ojo === ojoActivo && a.campo === campo)
 
@@ -302,7 +316,7 @@ function FilaCampo({ campo, caso, ojoActivo, avisos, onCambio }: PropsFila): JSX
         <td className="valor">
           <input
             value={mostrado}
-            placeholder={TEXTO_AUSENTE}
+            placeholder={textoDeOrigen('NO_CONSTA', loAportaElCirujano(campo))}
             inputMode="decimal"
             aria-label={def.etiqueta}
             data-testid={`campo-${campo}`}
@@ -315,30 +329,60 @@ function FilaCampo({ campo, caso, ojoActivo, avisos, onCambio }: PropsFila): JSX
         </td>
         <td className="unidad">{def.unidad === 'ninguna' ? '' : def.unidad}</td>
         <td>
-          {!medida && <span className="origen ausente">no encontrado</span>}
-          {medida && esManual(medida.procedencia) && <span className="origen manual">a mano</span>}
-          {medida && esDerivado(medida.procedencia) && (
-            <span className="origen derivado">derivado</span>
+          {/*
+            EL ORIGEN SALE DEL VALOR, no del tipo de campo. El mismo campo puede
+            venir del informe en un caso y escribirse a mano en otro — una
+            refracción objetivo impresa en el informe es «Del informe» aunque sea
+            conceptualmente una decisión del cirujano.
+
+            Cuando NO hay valor, el texto depende de quién se espera que lo
+            aporte: «No consta en el informe» para lo que mide el aparato,
+            «Pendiente de aportar» para lo que pone el cirujano. Antes los dos
+            decían «NO ENCONTRADO», y eso hacía parecer que la lectura había
+            fallado cuando muchas veces el dato sencillamente no venía.
+          */}
+          <span className={`origen ${origen.toLowerCase()}`} data-testid={`origen-${campo}`}>
+            {textoDeOrigen(origen, loAportaElCirujano(campo))}
+          </span>
+          {/*
+            Corregir no borra lo que ponía. Se enseña aquí mismo, porque es el
+            sitio donde alguien se pregunta «¿frente a qué se corrigió esto?».
+          */}
+          {medida?.original && (
+            <div className="origen-original" data-testid={`original-${campo}`}>
+              Leído originalmente: {formatearConUnidad(campo, medida.original.valor)}
+            </div>
           )}
-          {medida && !esManual(medida.procedencia) && !esDerivado(medida.procedencia) && (
-            <span className="origen extraido">del informe</span>
+          {medida && esDerivado(medida.procedencia) && (
+            <div className="origen-original">Derivado, no medido</div>
           )}
         </td>
         <td>
           {/*
-            Un dato leído por OCR NUNCA sale como «correcto», aunque esté dentro
-            de rango. Está medido: el reconocimiento leyó 24.81 donde ponía 24.01
-            con un 93 % de fiabilidad. Como el programa no puede distinguirlo, la
-            pantalla no puede decir que está bien.
+            ESTADO ES OTRA COSA QUE ORIGEN. De dónde salió un número y si alguien
+            lo ha revisado son dos preguntas distintas, y se responden en columnas
+            distintas. Aquí solo va la segunda.
+
+            Un dato leído por una máquina NUNCA sale como «correcto», aunque esté
+            dentro de rango. Está medido: el reconocimiento leyó 24.81 donde ponía
+            24.01 con un 93 % de fiabilidad. Como el programa no puede
+            distinguirlo, la pantalla no puede decir que está bien.
           */}
-          {porComprobar ? (
+          {!medida ? (
+            <span className="estado-campo vacio">—</span>
+          ) : porComprobar ? (
             <span className="estado-campo warning">⚠ compruébalo</span>
           ) : (
             <span className={`estado-campo ${nivel.toLowerCase()}`}>
               {nivel === 'VALID' && '✓ correcto'}
               {nivel === 'WARNING' && '⚠ poco frecuente'}
               {nivel === 'INVALID' && '✕ imposible'}
-              {nivel === 'MISSING' && `⚠ ${TEXTO_AUSENTE}`}
+              {/*
+                MISSING con medida presente es un aviso de validación sobre otra
+                cosa (por ejemplo, falta el eje que acompaña a esta K). El hueco
+                del propio campo ya lo dice la columna de origen.
+              */}
+              {nivel === 'MISSING' && '⚠ falta un dato relacionado'}
             </span>
           )}
         </td>

@@ -472,3 +472,36 @@ table.comparativa td.na {
   padding: 40px;
   text-align: center;
 }
+
+/* ── Origen del dato ────────────────────────────────────────────────────────
+   Cuatro estados, cuatro aspectos. El que más se distingue es CORREGIDO: es el
+   único que dice que alguien pisó lo que decía el informe, y quien revisa tiene
+   que verlo sin buscarlo. NO_CONSTA va apagado a propósito: no es un error, es
+   un hueco, y pintarlo de rojo era justo lo que hacía parecer que algo falló. */
+.origen.del_informe {
+  background: #e7f0fa;
+  color: #153f74;
+}
+.origen.aportado {
+  background: #eaf5ea;
+  color: #1f5c2e;
+}
+.origen.corregido {
+  background: #fde8cf;
+  color: #8a4b00;
+  font-weight: 600;
+}
+.origen.no_consta {
+  background: transparent;
+  color: #6f6f6f;
+  font-style: italic;
+}
+.origen-original {
+  margin-top: 3px;
+  font-size: 0.78rem;
+  color: #6f6f6f;
+  font-style: italic;
+}
+.estado-campo.vacio {
+  color: #b9b9b9;
+}

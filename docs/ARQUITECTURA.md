@@ -95,6 +95,48 @@ de lo que escribió el cirujano.
 Un dato derivado obliga a declarar de qué se derivó y con qué criterio, para que
 nunca se confunda con una medida.
 
+#### El origen pertenece al VALOR, no al tipo de campo
+
+`MetodoExtraccion` es el detalle técnico —cómo llegó el número al programa—. Lo
+que se le enseña a una persona es el **origen**, que se deduce del dato y no se
+guarda aparte (un origen guardado por su cuenta acabaría desincronizado del dato
+que describe):
+
+| Origen        | Cuándo                            | En pantalla                                            |
+| ------------- | --------------------------------- | ------------------------------------------------------ |
+| `DEL_INFORME` | `TEXTO_PDF`, `OCR` o `VISION`     | «Del informe»                                          |
+| `APORTADO`    | Manual, y no había nada antes     | «Aportado»                                             |
+| `CORREGIDO`   | Manual, y **pisó un valor leído** | «Corregido», con «Leído originalmente: …»              |
+| `NO_CONSTA`   | El dato no está                   | «No consta en el informe» **o** «Pendiente de aportar» |
+
+Tres consecuencias que importan:
+
+- **El mismo campo puede tener orígenes distintos** en dos casos. Una refracción
+  objetivo impresa en el informe es `DEL_INFORME` aunque el campo esté catalogado
+  como decisión del cirujano.
+- **`NO_CONSTA` tiene dos textos**, y cuál toca lo decide `loAportaElCirujano()`
+  a partir de la categoría: lo que mide el aparato «no consta en el informe»; lo
+  que decide el cirujano está «pendiente de aportar». Antes los dos decían «NO
+  ENCONTRADO», y eso hacía parecer un fallo del extractor un campo que el
+  documento sencillamente no trae.
+- **Corregir no borra.** `Medida.original` conserva el valor anterior y su
+  evidencia. `corregirMedida()` es la única forma correcta de escribir a mano, y
+  al corregir dos veces conserva **lo que decía el papel**, no el paso intermedio.
+
+`TEXTO_AUSENTE` («NO ENCONTRADO») sigue existiendo, pero solo como marca interna
+para registros. Hay un test que impide que vuelva a la interfaz.
+
+#### Origen y validación son ejes distintos
+
+De dónde salió un número y si alguien lo ha revisado son dos preguntas, y van en
+columnas distintas de la pantalla:
+
+- **Origen** → de la procedencia del valor.
+- **Estado** → de `confirmadoPorUsuario` y de los avisos de validación.
+
+Mezclarlos era el problema de fondo: el nivel de validación `MISSING` se pintaba
+con el mismo texto que la ausencia, así que un hueco normal parecía un error.
+
 ---
 
 ## 4. Extracción: capas, no una masa de expresiones regulares

@@ -29,13 +29,14 @@ import {
   camposPresentes,
   definicionDe,
   describirProcedencia,
-  esDerivado,
-  esManual,
   fichaDe,
   formatearConUnidad,
   NOMBRE_DISPOSITIVO,
   nombreLateralidad,
-  TEXTO_AUSENTE,
+  TEXTO_ORIGEN,
+  textoDeOrigen,
+  loAportaElCirujano,
+  origenDe,
   textoEstado,
 } from '@vilamar/domain'
 
@@ -73,33 +74,60 @@ function fecha(iso: string): string {
   return `${dd}/${mm}/${d.getFullYear()} ${hh}:${mi}`
 }
 
-/** Cómo se marca la procedencia de un dato en el informe. */
-function etiquetaProcedencia(medida: Medida): string {
-  if (esManual(medida.procedencia)) return '<span class="marca marca-manual">Escrito a mano</span>'
-  if (esDerivado(medida.procedencia)) return '<span class="marca marca-derivado">Derivado</span>'
-  return '<span class="marca marca-extraido">Del informe</span>'
+/**
+ * De dónde salió el dato, con el mismo vocabulario que la pantalla de revisión.
+ *
+ * Que el informe y la pantalla digan lo mismo no es cosmética: quien lee el PDF
+ * meses después tiene que poder reconocer lo que vio al revisar. Tres palabras
+ * distintas para lo mismo obligan a traducir mentalmente, y ahí es donde se
+ * cuelan los malentendidos.
+ */
+function etiquetaOrigen(medida: Medida): string {
+  const origen = origenDe(medida)
+  const clase =
+    origen === 'CORREGIDO'
+      ? 'marca-corregido'
+      : origen === 'APORTADO'
+        ? 'marca-manual'
+        : 'marca-extraido'
+  return `<span class="marca ${clase}">${esc(TEXTO_ORIGEN[origen as Exclude<typeof origen, 'NO_CONSTA'>])}</span>`
 }
 
 function filaMedida(ojo: OjoBiometrico, campo: CampoBiometrico): string {
   const def = definicionDe(campo)
   const medida = ojo.medidas[campo]
   if (!medida) {
+    // Sin valor, el texto dice de quién se esperaba el dato. «NO ENCONTRADO» a
+    // secas hacía parecer un fallo de lectura un campo que el informe
+    // sencillamente no trae, o que decide el cirujano.
     return `<tr class="ausente">
       <td>${esc(def.etiqueta)}</td>
-      <td class="valor">${TEXTO_AUSENTE}</td>
+      <td class="valor">${esc(textoDeOrigen('NO_CONSTA', loAportaElCirujano(campo)))}</td>
       <td>—</td>
       <td>—</td>
     </tr>`
   }
+  // Un dato corregido enseña las dos cosas: lo que se usó y lo que ponía. Sin
+  // eso, el informe diría «escrito a mano» sin poder explicar frente a qué, y no
+  // se podría auditar si la corrección fue un arreglo o un desliz.
+  const original = medida.original
+    ? `<br><span class="original">Leído originalmente: ${esc(
+        formatearConUnidad(campo, medida.original.valor),
+      )}</span>${
+        medida.original.procedencia.evidencia
+          ? `<br><span class="evidencia">«${esc(medida.original.procedencia.evidencia.texto)}»</span>`
+          : ''
+      }`
+    : ''
   return `<tr>
     <td>${esc(def.etiqueta)}</td>
     <td class="valor">${esc(formatearConUnidad(campo, medida.valor))}</td>
-    <td>${etiquetaProcedencia(medida)}</td>
+    <td>${etiquetaOrigen(medida)}</td>
     <td class="procedencia">${esc(describirProcedencia(medida.procedencia))}${
       medida.procedencia.evidencia
         ? `<br><span class="evidencia">«${esc(medida.procedencia.evidencia.texto)}»</span>`
         : ''
-    }</td>
+    }${original}</td>
   </tr>`
 }
 
@@ -340,7 +368,9 @@ const ESTILOS = `
     white-space: nowrap;
   }
   .marca-extraido { background: #E8F0F8; color: var(--azul); }
-  .marca-manual { background: #FFF3D6; color: var(--ambar); }
+  .marca-corregido{background:#fde8cf;color:#8a4b00}
+    .original{color:#6f6f6f;font-style:italic}
+    .marca-manual { background: #FFF3D6; color: var(--ambar); }
   .marca-derivado { background: #EFE8F8; color: #5B3B8A; }
   .fuente { color: var(--gris); font-size: 9pt; margin: 0 0 8px; }
   code { font-family: Consolas, monospace; font-size: 8.5pt; }

@@ -125,6 +125,34 @@ Y con imágenes de distintos tamaños y formatos, comprobado por separado:
 | JPEG 4032×3024 (foto de móvil)       | 91 %               | correctos                                    |
 | Fichero corrupto                     | —                  | mensaje claro, y la aplicación sigue abierta |
 
+#### La pantalla de revisión dice de dónde sale cada dato
+
+Antes, un campo que el informe no traía y un campo que tiene que poner el cirujano
+decían lo mismo: «NO ENCONTRADO». Eso hacía parecer que la lectura había fallado.
+Ahora se distinguen cuatro orígenes, y el origen sale del **valor concreto**, no
+del tipo de campo:
+
+| Lo que ves                  | Qué significa                                      |
+| --------------------------- | -------------------------------------------------- |
+| **Del informe**             | Lo traía el documento                              |
+| **Aportado**                | No venía y lo has escrito tú                       |
+| **Corregido**               | El informe traía otro valor. Se enseña cuál        |
+| **No consta en el informe** | Ese informe no publica ese dato                    |
+| **Pendiente de aportar**    | Lo decides tú (SIA, eje de incisión, constante A…) |
+
+Tres cosas que se pueden comprobar:
+
+- **Cualquier dato que no venga en el informe se puede escribir a mano**, y queda
+  marcado como aportado.
+- **Corregir no borra lo que ponía.** Si el informe decía 24.07 y escribes 24.08,
+  la pantalla y el PDF enseñan «Leído originalmente: 24.07 mm», con la línea
+  literal del documento.
+- **Origen y estado van en columnas separadas.** De dónde salió un número y si
+  está revisado son dos preguntas.
+
+También se leen ya dos datos del ANTERION que antes se tiraban: **refracción
+objetivo** (incluido el 0.00, que es emetropía y no un hueco) y **nk = 1.3375**.
+
 #### Cuánto acierta el lector local, medido
 
 `pnpm comparar:lectores` pasa 6 documentos por el lector y cuenta. 20 datos por
