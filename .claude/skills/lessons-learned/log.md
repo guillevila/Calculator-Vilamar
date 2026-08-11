@@ -699,3 +699,49 @@ Los casos que salen de imaginar el uso real cubren lo que va a fallar.
 
 **Contexto:** Todo banco de pruebas, y toda métrica que resuma en un solo número
 cosas que no se parecen.
+
+---
+
+## 2026-08-11 (integración) — He cometido el fallo que yo mismo había documentado
+
+**Error o aprendizaje:** Al integrar la rama con `master` descubrí que el
+andamiaje original traía un hook, `block-subagent-external.py`, que impedía a un
+subagente hacer `git push`, fusionar una PR o desplegar. Lo porté a Node, le
+escribí 26 tests y los 26 pasaron.
+
+**El hook no bloqueaba nada.** Lo comprobé lanzando el proceso a mano: código de
+salida 0 donde tenía que ser 2.
+
+La causa: la línea que decide «¿me están ejecutando o me están importando desde un
+test?» comparaba `import.meta.url` con una URL montada a mano. La ruta de este
+proyecto contiene un espacio —«Calculadora Vilamar»— y en `import.meta.url` un
+espacio viaja como `%20`. La comparación era falsa siempre, así que el bloque que
+bloquea no se ejecutaba nunca.
+
+**Causa raíz:** Los 26 tests probaban `revisar()`, la función pura que decide.
+Ninguno probaba **el hook**. Y lo único que Claude Code mira de un hook es su
+código de salida.
+
+Lo peor: el hook original en Python tenía **el mismo defecto por otro motivo**
+—salía con 1, que no se trata como bloqueo—, y eso estaba escrito en el README
+que yo mismo redacté. Documenté el fallo y lo repetí en la reimplementación.
+
+**Lección:**
+
+1. **Prueba la superficie que el sistema mira de verdad.** Si a un hook se le mira
+   el código de salida, hay que lanzar el proceso y mirar el código de salida. Un
+   test de la función que hay dentro es necesario y no es suficiente. Ahora hay
+   cuatro pruebas que hacen `spawnSync` y comprueban 0 o 2.
+2. **Una protección que no bloquea es peor que no tener protección**, porque se
+   cuenta como puesta. Ya son tres veces esta sesión: el `if` alrededor de una
+   aserción, el `continue` que no contaba un fallo, y esto.
+3. **No montes URLs de fichero a mano.** `pathToFileURL()` existe justo para esto.
+   Un espacio, un acento o una eñe en la ruta rompen la versión artesanal, y este
+   proyecto vive en una carpeta con espacio.
+4. Y una sobre el proceso: **haber escrito la lección no evita repetirla.** Lo que
+   la evitó fue _ejecutar el hook a mano_ después de que los tests pasaran. La
+   comprobación manual sigue haciendo falta cuando el test no toca la superficie
+   real.
+
+**Contexto:** Todo hook. Todo script cuyo contrato sea un código de salida. Y toda
+comparación de rutas o URLs.

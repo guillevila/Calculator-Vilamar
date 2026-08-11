@@ -70,14 +70,15 @@ $LASTEXITCODE
 
 ## Ficheros
 
-| Fichero                  | Evento                                   |
-| ------------------------ | ---------------------------------------- |
-| `session-start.mjs`      | SessionStart                             |
-| `pre-tool-use.mjs`       | PreToolUse — el que protege              |
-| `post-tool-use.mjs`      | PostToolUse (solo escrituras)            |
-| `stop.mjs`               | Stop                                     |
-| `log-subagent-spawn.mjs` | SubagentStart                            |
-| `_input.mjs`             | Utilidad compartida para leer la entrada |
+| Fichero                       | Evento                                                      |
+| ----------------------------- | ----------------------------------------------------------- |
+| `session-start.mjs`           | SessionStart                                                |
+| `pre-tool-use.mjs`            | PreToolUse — el que protege                                 |
+| `post-tool-use.mjs`           | PostToolUse (solo escrituras)                               |
+| `stop.mjs`                    | Stop                                                        |
+| `log-subagent-spawn.mjs`      | SubagentStart                                               |
+| `block-subagent-external.mjs` | PreToolUse — impide que un subagente haga cosas hacia fuera |
+| `_input.mjs`                  | Utilidad compartida para leer la entrada                    |
 
 Se activan desde [`.claude/settings.json`](../settings.json). Si tocas ese
 fichero y el JSON queda mal formado, **se desactivan todos los ajustes en

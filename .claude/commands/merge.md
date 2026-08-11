@@ -62,10 +62,12 @@ consciente del 5/8/2026, y se revierte en un comando —está en
 
 ## Los controles reales de este proyecto
 
-**No hay lint.** No lo inventes ni finjas ejecutarlo. Son estos:
+**Este proyecto SÍ tiene lint.** Son estos, y todos tienen que pasar:
 
 ```bash
 pnpm install --frozen-lockfile
+pnpm lint
+pnpm format:check
 pnpm typecheck
 pnpm test
 pnpm build

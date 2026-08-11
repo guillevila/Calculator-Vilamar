@@ -1,60 +1,107 @@
 # SYSTEM_VISION.md — Calculator Vilamar
 
-> Visión, límites y decisiones del proyecto.
-> Claude lo lee al empezar cada sesión. Las decisiones cerradas no se reabren
-> sin información nueva.
+> Documento de visión del producto.
+> Define QUÉ queremos construir, PARA QUIÉN y qué decisiones de producto
+> están cerradas. La implementación técnica concreta la decide Claude cuando
+> no esté expresamente fijada aquí.
+>
+> Claude lo lee al empezar cada sesión. Las decisiones cerradas no se reabren sin
+> información nueva explícita.
 
-**Versión:** 1.0 · **Fecha:** 11/08/2026 · **Autor:** Claude (con validación del dueño del proyecto)
+**Versión:** 2.0 · **Fecha:** 11/08/2026 · **Autor:** dueño del proyecto, con la
+parte técnica y las mediciones añadidas por Claude
 
----
-
-## 1. Qué es esto, en una frase
-
-Una herramienta **local** para Windows que lee una biometría ocular **una sola
-vez** y con ella rellena por ti las calculadoras de lente intraocular que hoy
-rellenas a mano, pone los resultados juntos y saca un PDF.
-
----
-
-## 2. El problema que resuelve
-
-Hoy, para elegir una lente intraocular, el usuario:
-
-1. abre el informe de biometría;
-2. abre la calculadora de Kane y teclea unos doce datos;
-3. abre EVO Toric y teclea **los mismos** doce datos;
-4. abre Barrett Toric y teclea **los mismos** doce datos otra vez;
-5. apunta los tres resultados en algún sitio;
-6. los compara a ojo.
-
-Eso es media hora por paciente, tres oportunidades de teclear mal un número y
-ningún rastro de qué se metió en cada sitio.
-
-**Lo que aporta Calculator Vilamar:** se teclea (o se lee) una vez, se revisa
-una vez, y el resto lo hace el programa. Ahorra tiempo, quita errores de
-transcripción y deja un informe auditable.
+> **Nota sobre esta versión.** La 1.x la escribió el dueño del proyecto el
+> 10/08/2026. La primera sesión de construcción ocurrió con la carpeta local
+> vacía, sin acceso a este documento, así que Claude escribió en paralelo su
+> propia versión. Esta 2.0 es la fusión de las dos: se conserva íntegra la
+> estructura y el criterio de producto del original, y se incorporan las
+> decisiones técnicas que se tomaron y lo que se ha medido. **Ninguna decisión del
+> original se ha eliminado ni renumerado.**
 
 ---
 
-## 3. Qué NO es
+## 1. ¿Qué es este proyecto?
 
-Esta lista importa tanto como la anterior. El producto se define por sus
-límites:
+Calculator Vilamar es una herramienta local para automatizar el flujo de cálculo
+de lentes intraoculares (LIO) que actualmente se realiza manualmente.
 
-- **No es una fórmula nueva.** No calcula potencias de lente. Rellena las
-  calculadoras que ya existen y recoge lo que dicen.
-- **No es el proyecto de ray tracing**, que vive en otro repositorio.
-- **No es una historia clínica.** No guarda pacientes; guarda cálculos.
-- **No es un SaaS** ni una aplicación multiusuario. Un usuario, un ordenador.
-- **No es un sistema hospitalario.**
-- **No sustituye el criterio del profesional.** Compara; no recomienda.
-- **No inventa datos que faltan.** Nunca.
-- **No salta CAPTCHA, ni login, ni aceptación de términos.**
-- **No es una cuarta calculadora clínica.**
+El usuario carga una fotografía, captura o PDF procedente de un biómetro o equipo
+oftalmológico. El sistema identifica el informe, extrae automáticamente las
+medidas relevantes de cada ojo, las presenta para revisión humana y, una vez
+confirmadas, prepara y/o introduce esos mismos datos en tres calculadoras web
+externas:
+
+1. Kane — https://www.iolformula.com
+2. EVO Toric — https://www.evoiolcalculator.com/toric.aspx
+3. Barrett Toric — https://www.ascrs.org/en/tools/barrett-toric-calculator
+
+Después recopila los resultados de las tres calculadoras y genera una vista
+comparativa y un informe PDF claro.
+
+La herramienta NO desarrolla una nueva fórmula de cálculo de LIO. Automatiza un
+trabajo que hoy se realiza manualmente.
 
 ---
 
-## 4. El flujo
+## 2. ¿Para quién es?
+
+### Usuario principal
+
+- Profesional de óptica/oftalmología que actualmente recibe informes biométricos
+  y rellena manualmente varias calculadoras online.
+
+### Usuario inicial real
+
+- Un único usuario de confianza.
+- Uso local en ordenador.
+- No es inicialmente un SaaS ni una plataforma multiusuario.
+
+### Administrador/desarrollador
+
+- El dueño del proyecto puede configurar dispositivos soportados, revisar
+  integraciones y añadir nuevas calculadoras o formatos en el futuro.
+
+---
+
+## 3. Objetivo central
+
+Convertir este flujo:
+
+    leer informe
+    → buscar AL
+    → buscar K1
+    → copiar eje
+    → buscar K2
+    → copiar eje
+    → copiar ACD
+    → copiar LT
+    → copiar CCT
+    → abrir calculadora 1
+    → rellenar
+    → abrir calculadora 2
+    → volver a rellenar
+    → abrir calculadora 3
+    → volver a rellenar
+    → comparar resultados manualmente
+
+en:
+
+    subir imagen/PDF
+    → comprobar datos extraídos
+    → confirmar
+    → ejecutar/preparar las tres calculadoras
+    → recibir comparación
+    → generar PDF
+
+El valor principal es AHORRAR TIEMPO y REDUCIR ERRORES DE TRANSCRIPCIÓN.
+
+**Medido:** el recorrido completo —datos confirmados → EVO y Barrett reales →
+tabla comparativa → PDF en disco— tarda **47 segundos**.
+
+---
+
+## 4. Flujo ideal del producto
 
 ```
   NUEVO CÁLCULO
@@ -84,78 +131,308 @@ límites:
   PDF trazable
 ```
 
+El detalle paso a paso de la versión 1.x sigue vigente. Su estado real hoy:
+
+| Paso                            | Qué ocurre                                                                            | Estado                                   |
+| ------------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------- |
+| 1 · Nuevo caso                  | Se crea un caso con su código local. Varias imágenes NO se dan por del mismo paciente | ✅ hecho                                 |
+| 2 · Detección                   | Se reconoce el aparato por la maqueta del informe                                     | ✅ hecho                                 |
+| 3 · Extracción                  | Se leen los campos al modelo único, cada uno con su procedencia                       | ✅ hecho                                 |
+| 4 · Revisión humana OBLIGATORIA | Nada avanza sin confirmación explícita; campo a campo si el dato viene de una máquina | ✅ hecho                                 |
+| 5 · Validación                  | Rango, coherencia, ACD≠AQD, ejes, avisos en lenguaje normal                           | ✅ hecho                                 |
+| 6 · Adaptadores                 | Uno por calculadora, reparables por separado                                          | ✅ EVO y Barrett · ⚠️ Kane sin verificar |
+| 7 · Automatización web          | Playwright rellena y lee resultados                                                   | ✅ EVO y Barrett                         |
+| 8 · Comparación                 | Descriptiva, sin recomendar lente                                                     | ✅ hecho                                 |
+| 9 · Informe PDF                 | Trazable, con entradas y salidas, sin datos identificativos                           | ✅ hecho                                 |
+
 ---
 
-## 5. Decisiones cerradas
+## 5. Stack técnico
+
+La arquitectura debe ser LOCAL-FIRST.
+
+El objetivo inicial NO es desplegar un SaaS.
+
+Preferencias:
+
+- aplicación sencilla de instalar en Windows;
+- interfaz moderna;
+- automatización del navegador;
+- procesamiento de imágenes/PDF;
+- generación de PDF;
+- tests automáticos.
+
+**Elegido** — era el candidato preferido del documento original y no apareció
+ninguna razón para desviarse:
+
+- TypeScript en modo estricto
+- React
+- Electron
+- Playwright para automatización de navegador
+- Vitest para tests unitarios; Playwright para los de interfaz
+- almacenamiento local en ficheros JSON
+
+### Extracción de documentos
+
+El documento original no fijaba la tecnología y exigía una interfaz desacoplada
+—`DocumentExtractor`— para poder comparar OCR local, modelo de visión, OCR más
+reglas y extractores por dispositivo. Textualmente: **«La elección debe hacerse
+por PRECISIÓN sobre informes reales, no por moda.»**
+
+Eso se ha respetado. Hay dos lectores detrás de la misma interfaz:
+
+- **OCR local** (tesseract.js sobre WebAssembly), el que se usa por defecto. No
+  manda nada a internet.
+- **Lector de visión** (Claude), construido y **apagado** mientras no haya clave.
+
+Y existe la herramienta para decidir con datos: `pnpm comparar:lectores` pasa los
+mismos documentos por todos los lectores y cuenta aciertos, errores y coste real
+por informe. **La mitad local ya está medida** (apartado 14); la de los modelos
+necesita una clave para ejecutarse.
+
+---
+
+## 6. Decisiones cerradas ✅
 
 > No se reabren sin información nueva explícita.
+>
+> **D1–D15** son del documento original (10/08/2026) y no se han modificado.
+> **D16–D28** son las decisiones técnicas tomadas al construir. Cuando una de
+> ellas concreta a una anterior, se dice cuál.
 
-| #       | Decisión                                                                                 | Por qué                                                                                                                                                                                                                        |
-| ------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **D1**  | **Playwright** para toda automatización de las webs externas                             | Decisión del dueño del proyecto. No se usa Selenium, Puppeteer, WebDriver ni clics por coordenadas.                                                                                                                            |
-| **D2**  | **Local-first por defecto.** Sin nube, sin servidor, sin base de datos remota            | Los documentos son sanitarios. Lo que no sale del ordenador no se puede filtrar. Matizado por D17.                                                                                                                             |
-| **D3**  | **Electron + React + TypeScript**                                                        | Aplicación de Windows, navegador controlado, sesiones persistentes, imágenes y PDF, e instalación sencilla.                                                                                                                    |
-| **D4**  | **Un solo modelo canónico** de biometría, no uno por calculadora                         | Tres copias de los mismos datos es la forma más segura de que se desincronicen.                                                                                                                                                |
-| **D5**  | **Nada llega a una calculadora sin confirmación humana**                                 | Es la invariante central del producto. Está impuesta por el tipo, no por la interfaz.                                                                                                                                          |
-| **D6**  | **Un dato que falta se representa por su AUSENCIA**, nunca con un número                 | `Medida.valor` es un `number` a secas: no hay ningún valor que signifique «no lo sé», así que no se puede confundir con un cero.                                                                                               |
-| **D7**  | **El programa no corrige datos.** Avisa y bloquea; corrige la persona                    | Un OCR arreglado en silencio esconde el fallo y la próxima vez nadie se entera.                                                                                                                                                |
-| **D8**  | **Almacenamiento en ficheros JSON**, no SQLite                                           | Un módulo nativo convierte «instalar» en una tarde de configuración. Lección registrada en el log del proyecto.                                                                                                                |
-| **D9**  | **El PDF se genera con `printToPDF` de Electron** desde HTML                             | Cero dependencias nuevas, nada que compilar y se maqueta con CSS.                                                                                                                                                              |
-| **D10** | **OCR local con tesseract.js**; PDF escaneado se rasteriza con el Chromium de Playwright | WebAssembly puro: no compila nada. Evita traer un lienzo nativo.                                                                                                                                                               |
-| **D11** | **Ningún selector HTML sale de `packages/integrations/src/adapters/`**                   | Para que cambiar EVO sea tocar un fichero. Hay un test que lo vigila.                                                                                                                                                          |
-| **D12** | **A las webs se les manda el CÓDIGO LOCAL del caso**, nunca un nombre                    | EVO y Barrett exigen «Patient Name». Se les da `CV-2026-0042`, que es un identificador de este programa.                                                                                                                       |
-| **D13** | **En la web de la ASCRS se RECHAZAN las cookies opcionales**                             | Declinar no es consentir en nombre de nadie, y es lo que menos datos comparte.                                                                                                                                                 |
-| **D14** | **Las tres calculadoras son independientes.** Si una falla, las otras entregan           | Un fallo es un dato, no una excepción que corta el proceso.                                                                                                                                                                    |
-| **D15** | **Los tests contra las webs reales NO están en el CI**                                   | Una web ajena con un mal día no puede poner el control en rojo. Se lanzan a mano con `pnpm live`.                                                                                                                              |
-| **D16** | **El producto compara; no recomienda**                                                   | Puede decir que dos calculadoras coinciden. No puede decir qué lente implantar. Hay un test que lo vigila.                                                                                                                     |
-| **D17** | **El lector de visión existe, y viene APAGADO**                                          | El OCR local no basta (ver §11) y un modelo de visión sí. Pero manda el informe fuera del ordenador, y eso lo decide una persona, no el programa. Sin clave configurada, nada sale a internet.                                 |
-| **D18** | **El modelo de visión está fijo en el código**, no en una variable de entorno            | En una herramienta clínica hay que poder decir con qué se leyó cada informe. Un modelo cambiable por una variable suelta haría que dos lecturas del mismo documento pudieran no ser comparables sin que nadie supiera por qué. |
+| ID  | Decisión                                                                                   | Razón                                                                                                                                                                                                 |
+| --- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | El producto inicial es de uso local y para un único usuario                                | No necesitamos SaaS ni infraestructura compleja                                                                                                                                                       |
+| D2  | Los datos extraídos siempre requieren confirmación humana antes de enviarse                | Un error OCR en biometría puede ser clínicamente relevante                                                                                                                                            |
+| D3  | Ningún campo clínico faltante se inventa ni se completa silenciosamente                    | Trazabilidad y seguridad                                                                                                                                                                              |
+| D4  | Kane, EVO Toric y Barrett Toric son las tres integraciones iniciales                       | Son las tres calculadoras que el usuario quiere consultar                                                                                                                                             |
+| D5  | Cada calculadora tendrá un adapter independiente                                           | Las webs cambiarán y deben poder repararse por separado                                                                                                                                               |
+| D6  | Existirá un único modelo normalizado de biometría                                          | Evita introducir tres veces información ligeramente diferente                                                                                                                                         |
+| D7  | El sistema conservará procedencia y estado de confirmación de cada dato                    | Debe poder auditarse qué se leyó y qué se corrigió                                                                                                                                                    |
+| D8  | La herramienta no implementa ni replica las fórmulas de Kane, EVO o Barrett                | Su función es automatizar el flujo de usuario                                                                                                                                                         |
+| D9  | CAPTCHA, login y protecciones externas no se evaden                                        | Si requieren intervención humana, se solicita                                                                                                                                                         |
+| D10 | No se mezclan automáticamente informes de pacientes/casos diferentes                       | Mezclar ojos o pacientes sería un fallo crítico                                                                                                                                                       |
+| D11 | Ninguna imagen clínica real se almacena en Git ni se incluye en el repositorio             | Privacidad                                                                                                                                                                                            |
+| D12 | No habrá base de datos clínica en la primera versión                                       | No es necesaria para el caso de uso inicial                                                                                                                                                           |
+| D13 | Los resultados deben poder exportarse a PDF                                                | Es parte del flujo final del usuario                                                                                                                                                                  |
+| D14 | La primera versión no da una recomendación clínica propia                                  | Compara las salidas de las calculadoras externas                                                                                                                                                      |
+| D15 | El producto debe seguir funcionando aunque una de las tres calculadoras falle              | Un adapter roto no debe bloquear necesariamente los demás                                                                                                                                             |
+| D16 | **Playwright** para toda automatización de las webs externas                               | Decisión del dueño del proyecto. No se usa Selenium, Puppeteer, WebDriver ni clics por coordenadas                                                                                                    |
+| D17 | **Electron + React + TypeScript estricto**                                                 | Concreta D1 y el apartado 5: navegador controlado, sesiones persistentes, imágenes y PDF, instalación sencilla en Windows                                                                             |
+| D18 | **Almacenamiento en ficheros JSON**, no SQLite                                             | Concreta D12. Un módulo nativo convierte «instalar» en una tarde de configuración. Hay una lección registrada sobre esto                                                                              |
+| D19 | **El PDF se genera con `printToPDF` de Electron** desde HTML                               | Concreta D13. Cero dependencias nuevas, nada que compilar, y se maqueta con CSS                                                                                                                       |
+| D20 | **Un dato ausente se representa por su AUSENCIA**, nunca con un número                     | Concreta D3 en el tipo: `Medida.valor` es un `number` a secas, así que no existe ningún valor que signifique «no lo sé» y no se puede confundir con un cero                                           |
+| D21 | **El programa no corrige datos.** Avisa y bloquea; corrige la persona                      | Concreta D3. Un OCR arreglado en silencio esconde el fallo y la próxima vez nadie se entera                                                                                                           |
+| D22 | **Ningún selector HTML sale de `packages/integrations/src/adapters/`**                     | Concreta D5, y hay un test que lo vigila. Para que reparar EVO sea tocar un solo fichero                                                                                                              |
+| D23 | **A las webs se les manda el CÓDIGO LOCAL del caso**, nunca un nombre                      | Concreta D11. EVO y Barrett exigen «Patient Name»: se les da `CV-2026-0042`                                                                                                                           |
+| D24 | **En la web de la ASCRS se RECHAZAN las cookies opcionales**                               | Declinar no es consentir en nombre de nadie, y es lo que menos datos comparte                                                                                                                         |
+| D25 | **Los tests contra las webs reales NO están en el CI**                                     | Una web ajena con un mal día no puede poner el control en rojo. Se lanzan a mano con `pnpm live`                                                                                                      |
+| D26 | **El lector de visión existe, y viene APAGADO**                                            | El OCR local no basta (apartado 14) y un modelo de visión sí. Pero manda el informe fuera del ordenador, y eso lo decide una persona. Sin clave, nada sale a internet                                 |
+| D27 | **El modelo de visión está fijo en el código**, no en una variable de entorno              | En una herramienta clínica hay que poder decir con qué se leyó cada informe. Una variable suelta haría que dos lecturas del mismo documento pudieran no ser comparables sin que nadie supiera por qué |
+| D28 | **Un dato leído por una máquina no se da por bueno solo**, por mucha confianza que declare | Es el **principio rector** (apartado 13) aplicado al dato concreto, y está medido en el apartado 14. Sale en ámbar y se comprueba uno a uno                                                           |
 
 ---
 
-## 6. Decisiones abiertas
+## 7. Decisiones abiertas ❓
 
-| #      | Pregunta                                                                                                                     | Qué bloquea                                                      | Quién decide                                           |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------ |
-| **O1** | ¿Se automatiza Kane, sabiendo que sus condiciones de uso prohíben «operar un service bureau» y que la web declara reCAPTCHA? | Cerrar el adaptador de Kane                                      | El dueño del proyecto. Ver el apartado 7.              |
-| **O2** | ¿Qué aparatos y qué modelos de informe usa de verdad la consulta?                                                            | Ajustar los parsers a informes reales                            | El dueño del proyecto, aportando informes anonimizados |
-| **O3** | ¿Qué lentes y constantes se usan habitualmente?                                                                              | Precargar el catálogo de lentes en vez de teclear la constante A | El dueño del proyecto                                  |
-| **O4** | ¿Hace falta historial de casos y búsqueda, o basta con el caso en curso?                                                     | Diseño de la persistencia a medio plazo                          | El dueño del proyecto                                  |
-| **O5** | ¿Se enciende el lector de visión, sabiendo que el informe sale del ordenador?                                                | Que la lectura de informes sea buena de verdad. Ver §11.         | El dueño del proyecto, con criterio jurídico           |
+| ID  | Pregunta                                                                                                              | Estado                                                                                                                            | Quién decide                  |
+| --- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| O1  | ¿Electron es la mejor opción o conviene aplicación web local + extensión de navegador?                                | **Cerrada** → D17. Electron, por el navegador controlado y las sesiones persistentes                                              | Claude propuso; falta validar |
+| O2  | ¿OCR local, modelo de visión o sistema híbrido ofrece mayor precisión?                                                | **En curso, con herramienta**: `pnpm comparar:lectores`. La mitad local ya medida (apartado 14); la de los modelos necesita clave | Se decide mediante benchmark  |
+| O3  | ¿Cómo gestionar de forma más robusta las sesiones/cookies de las tres webs?                                           | **Cerrada**: perfil de navegador persistente en la carpeta de datos del usuario, que nunca sale del ordenador                     | Claude                        |
+| O4  | ¿Qué campos exactos devuelve cada web y cuáles merece la pena incluir en el informe?                                  | **Cerrada para EVO y Barrett** (ver `docs/INTEGRACIONES.md`). Abierta para Kane                                                   | Se determina al implementar   |
+| O5  | ¿Qué formatos exactos de ANTERION, IOLMaster y Pentacam soportará V1?                                                 | **Abierta, y es hoy el bloqueo más importante del proyecto**: la lectura no se ha validado nunca contra un informe real           | Dueño + pruebas reales        |
+| O6  | ¿Conviene guardar historial local de casos o trabajar sin persistencia?                                               | Abierta                                                                                                                           | Dueño, después del MVP        |
+| O7  | ¿Se automatiza Kane, sabiendo que sus condiciones prohíben «operar un service bureau» y que la web declara reCAPTCHA? | Abierta. Bloquea cerrar el adaptador de Kane. Ver apartado 15                                                                     | Dueño, con criterio jurídico  |
+| O8  | ¿Se enciende el lector de visión, sabiendo que el informe sale del ordenador?                                         | Abierta. Ver apartados 11 y 14                                                                                                    | Dueño, con criterio jurídico  |
 
 ---
 
-## 11. Por qué el OCR local no basta
+## 8. Lo que NO es este proyecto
 
-Está medido, no supuesto. Sobre un informe convertido a PDF desde una imagen
-comprimida, el reconocimiento de texto devolvió esto:
+- No es una nueva fórmula de cálculo de LIO.
+- No pretende reproducir internamente Kane, EVO o Barrett.
+- No es el proyecto de ray tracing independiente.
+- No es inicialmente un SaaS.
+- No es inicialmente multiusuario.
+- No es una historia clínica.
+- No debe guardar información identificativa del paciente sin necesidad.
+- No realiza cálculos inventando campos ausentes.
+- No debe saltarse CAPTCHA ni mecanismos de seguridad.
+- No debe decidir automáticamente qué lente implantar.
+- No sustituye la comprobación profesional de los datos.
+- No debe mezclar datos de distintos informes sin confirmación.
 
-| Pone en el informe | Leyó      | Fiabilidad que declaró |
-| ------------------ | --------- | ---------------------- |
-| AL 24.01           | **24.81** | **93 %**               |
-| AL 24.07           | **24.87** | 80 %                   |
-| K1 40.27           | **48.27** | 68 %                   |
+---
+
+## 9. Fases del proyecto
+
+| Fase | Qué incluye                                                      | Estado                                                                                      |
+| ---- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| F0   | Arquitectura, modelo de datos, análisis técnico de las tres webs | ✅ Hecho                                                                                    |
+| F1   | Carga de imagen/PDF + modelo biométrico normalizado              | ✅ Hecho                                                                                    |
+| F2   | Extracción ANTERION / IOLMaster + pantalla de confirmación       | ⚠️ Construido y probado con documentos sintéticos; **sin validar con informes reales** (O5) |
+| F3   | Primer adapter funcional: EVO                                    | ✅ Hecho y comprobado contra la web real                                                    |
+| F4   | Adapter Kane                                                     | ⚠️ Construido: detecta su pantalla de condiciones y cede el control. **Sin verificar** (O7) |
+| F5   | Adapter Barrett                                                  | ✅ Hecho y comprobado contra la web real                                                    |
+| F6   | Recogida y comparación de resultados                             | ✅ Hecho                                                                                    |
+| F7   | Informe PDF                                                      | ✅ Hecho                                                                                    |
+| F8   | Robustez, errores, cambios de las webs y tests end-to-end        | ✅ 254 tests y 8 pruebas de interfaz                                                        |
+| F9   | Empaquetado sencillo para el ordenador del usuario               | ⬜ Pendiente: falta el instalador `.exe`                                                    |
+
+El orden puede modificarse por razones técnicas documentadas.
+
+---
+
+## 10. Contexto de negocio relevante
+
+El problema no es calcular una nueva fórmula.
+
+El problema es que el usuario ya utiliza varias calculadoras y actualmente tiene
+que leer y copiar manualmente los mismos datos varias veces.
+
+El producto tiene que sentirse más parecido a:
+
+    "subir → comprobar → calcular → comparar"
+
+que a un software clínico complejo.
+
+La interfaz debe ser extremadamente sencilla.
+
+La mayor prioridad es evitar errores de transcripción.
+
+Los informes pueden contener OD y OS.
+
+También pueden recibirse varias imágenes de un mismo caso.
+
+Nunca debe asumirse que dos imágenes pertenecen al mismo paciente/caso simplemente
+porque se han cargado juntas.
+
+Las páginas de terceros pueden cambiar su HTML. Los adapters deben diseñarse para
+que ese cambio sea localizable y reparable.
+
+---
+
+## 11. Privacidad y datos clínicos
+
+- No guardar imágenes reales en el repositorio.
+- No incluir nombres, identificadores, fechas de nacimiento u otros datos personales
+  en fixtures de test.
+- Los fixtures serán sintéticos o correctamente anonimizados.
+- Los archivos temporales deben eliminarse cuando deje de necesitarlos la sesión.
+- No imprimir información identificativa en logs.
+- Si se utiliza una API externa de visión, la arquitectura debe separar previamente
+  la información identificativa cuando sea técnicamente viable y documentar
+  exactamente qué se envía.
+- Ninguna API key se almacena en Git.
+
+### Qué se envía al lector de visión, exactamente
+
+Este apartado cumple el requisito anterior. Cuando —y solo cuando— hay una clave
+configurada y el lector de visión está encendido, cada lectura envía a la API de
+Anthropic tres cosas y ninguna más:
+
+1. **El documento tal y como lo subió el usuario**, en base64: el PDF o la imagen,
+   sin recortar y sin modificar.
+2. **Las instrucciones de transcripción**, que son fijas y están a la vista en
+   `instrucciones()`, en `apps/desktop/src/main/extraccion/vision-claude.ts`.
+3. **El catálogo de campos** que se pueden devolver, generado desde el dominio.
+
+No se envía el código del caso, ni el nombre del fichero, ni resultados
+anteriores, ni ningún otro dato del programa.
+
+**Lo que eso implica, dicho sin rodeos:** si el informe lleva impreso el nombre del
+paciente, su fecha de nacimiento o su número de historia, **eso viaja con él**.
+Separarlo antes de enviarlo no es técnicamente viable: para localizar un nombre en
+la imagen habría que leerla primero, y recortar a ciegas se llevaría por delante
+datos biométricos. La cláusula «cuando sea técnicamente viable» de este apartado
+se invoca aquí de forma explícita, no por omisión.
+
+De ahí que el lector **venga apagado** (D26) y que encenderlo sea la decisión
+abierta O8: exige valorar el encargado de tratamiento, qué lleva impreso el
+informe que se sube y la política de retención del proveedor.
+
+Con el lector apagado —el estado por defecto— **el programa no manda nada a
+internet** salvo lo que las tres calculadoras necesitan: datos biométricos y un
+código local, nunca un nombre (D23).
+
+---
+
+## 12. Métricas de éxito
+
+Para considerar logrado el MVP:
+
+| #   | Métrica                                                                          | Estado                                                    |
+| --- | -------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 1   | Puede cargar al menos los principales informes utilizados por el usuario         | ⚠️ Sin validar con informes reales (O5)                   |
+| 2   | Extrae los campos biométricos relevantes y los presenta claramente para revisión | ✅                                                        |
+| 3   | El usuario puede corregir cualquier dato antes de continuar                      | ✅                                                        |
+| 4   | Nunca completa silenciosamente un dato clínico ausente                           | ✅ con test que lo vigila                                 |
+| 5   | Puede ejecutar/preparar el flujo de las tres calculadoras objetivo               | ⚠️ EVO y Barrett sí; Kane cede el control al usuario (O7) |
+| 6   | Recupera los resultados de las tres o informa claramente qué integración falló   | ✅                                                        |
+| 7   | Produce una comparación comprensible                                             | ✅                                                        |
+| 8   | Genera un PDF trazable con inputs y outputs                                      | ✅                                                        |
+| 9   | El proceso completo requiere sustancialmente menos trabajo manual                | ✅ 47 s medidos, frente a media hora a mano               |
+| 10  | Las rutas críticas tienen tests automatizados                                    | ✅ 254 tests y 8 de interfaz                              |
+| 11  | Puede instalarse y utilizarse sin entorno de desarrollo                          | ⬜ Falta el instalador `.exe`                             |
+
+---
+
+## 13. Principio rector
+
+Cuando haya conflicto entre:
+
+    AUTOMATIZAR MÁS
+
+y
+
+    SABER CON SEGURIDAD QUÉ DATOS SE ESTÁN UTILIZANDO
+
+gana siempre la segunda opción.
+
+Calculator Vilamar debe ahorrar trabajo manual sin convertir un error automático
+en un error clínico invisible.
+
+> Este principio se escribió el 10/08/2026, antes de construir nada. El 11/08/2026
+> una medición lo confirmó de la peor forma posible: ver el apartado siguiente. De
+> él sale D28, que es este mismo principio aplicado al dato concreto.
+
+---
+
+## 14. Lo que se ha medido sobre la lectura de informes
+
+Este apartado existe porque el principio rector no es una aspiración: es la
+respuesta a unos datos.
+
+### La confianza que declara el OCR no sirve de filtro
+
+Sobre un informe convertido a PDF desde una imagen comprimida:
+
+| Pone en el informe | Leyó      | Confianza que declaró |
+| ------------------ | --------- | --------------------- |
+| AL 24.01           | **24.81** | **93 %**              |
+| AL 24.07           | **24.87** | 80 %                  |
+| K1 40.27           | **48.27** | 68 %                  |
 
 Y en el mismo documento, un **24.07 leído bien** declaraba un 79 %.
 
 Dos conclusiones, y las dos importan:
 
-1. **La fiabilidad del OCR no distingue lo correcto de lo incorrecto.** No sirve
-   como filtro. El programa no puede saber si un número reconocido es bueno.
+1. **La confianza del OCR no distingue lo correcto de lo incorrecto.** El plan era
+   usarla como filtro; la medición lo tumbó, porque el peor error tenía la
+   confianza más alta de todas.
 2. **La validación por rangos tampoco lo detecta.** 24.81 es una longitud axial
-   perfectamente normal. Es un error invisible que cambia la lente.
+   perfectamente normal: es un error invisible que cambia la lente.
 
-La causa es de raíz: Tesseract es un **reconocedor de caracteres**. Mira unos
-trazos y decide a qué letra se parecen. No sabe que «AL» es una longitud axial
-ni que va en milímetros. Un «8» bien dibujado donde había un «0» es un 8 nítido:
-alta confianza, valor equivocado.
+La causa es de raíz. Tesseract es un **reconocedor de caracteres**: un «8» bien
+dibujado donde había un «0» es un 8 nítido, o sea alta confianza y valor
+equivocado.
 
-### Cuánto falla, sobre seis documentos
+### Cuánto acierta, sobre seis documentos
 
-Medido con `pnpm comparar:lectores`, sobre 6 documentos × 20 datos = 120
-comparaciones. Cada dato cae en una de tres casillas, y **no valen lo mismo**:
-un dato ausente se ve y lo escribes tú; un dato equivocado que parece razonable
-no se ve y cambia la lente.
+`pnpm comparar:lectores`, 6 documentos × 20 datos = 120 comparaciones. Cada dato
+cae en una de tres casillas, y **no valen lo mismo**: uno ausente se ve y lo
+escribe la persona; uno equivocado que parece razonable no se ve.
 
 | Documento                              | bien     | MAL   | falta  |
 | -------------------------------------- | -------- | ----- | ------ |
@@ -167,101 +444,61 @@ no se ve y cambia la lente.
 | **Foto de una pantalla, algo torcida** | **1/20** | —     | **19** |
 | **Total**                              | **91**   | **1** | **28** |
 
-Dos cosas que solo se ven con la tabla delante:
+Lo que solo se ve con la tabla delante:
 
 - **Un PDF con texto dentro se lee perfecto.** Si el aparato puede exportar así,
   ese es el camino y no hace falta nada más.
 - **Una foto de la pantalla del aparato lo hunde: 1 de 20.** La imagen es
-  perfectamente legible para cualquier persona —basta un giro de 2,4° y un poco
-  de desenfoque—. Y es justo lo que hace un usuario real cuando no puede
-  exportar. El fallo es del tipo seguro (no lee, en vez de leer mal), pero deja
-  el programa sin servir para nada en ese caso.
+  perfectamente legible para cualquier persona —basta un giro de 2,4° y algo de
+  desenfoque—. Y es justo lo que hace un usuario real cuando no puede exportar.
 
-**Un modelo de visión sí lo sabe.** Lee la maqueta, entiende las etiquetas y
-conoce los órdenes de magnitud. Es la comprobación semántica que falta. Por eso
-existe D17 — y por eso viene apagado: resolverlo cuesta mandar el informe fuera
-del ordenador, que es una decisión de quien lo usa (O5).
+### Qué se hizo con esto
 
-**Cuánto mejora, no se sabe todavía.** El comparador está hecho y mide también
-los modelos, con su coste real por informe; falta ejecutarlo con una clave. La
-regla de elección está escrita en el propio comparador: _el más barato que no
-cometa ni un error_.
-
-Mientras tanto, y con cualquiera de los dos lectores, **un dato leído por una
-máquina no se da por bueno solo**: sale en ámbar y hay que comprobarlo uno a uno
-(invariante 11).
+- **D28**: un dato leído por una máquina nunca se enseña como correcto. Sale en
+  ámbar y hay que comprobarlo uno a uno contra el informe. Lo escrito a mano y el
+  texto nativo de un PDF sí se confirman de una vez, porque son exactos.
+- **D26**: existe un lector de visión, que sí entiende el documento, y viene
+  apagado por lo que dice el apartado 11.
+- **La regla para elegir lector** queda escrita en el propio comparador: _el más
+  barato que no cometa ni un error_. A estos precios la diferencia entre modelos
+  son céntimos por informe, así que lo útil no es «cuál es el mejor» sino «a
+  partir de cuál deja de mejorar».
 
 ---
 
-## 7. La cuestión de Kane
+## 15. La cuestión de Kane
 
-Al abrir `iolformula.com` con un navegador real aparece, **antes** de la
-calculadora, un acuerdo de licencia que hay que aceptar. Dos frases suyas
-afectan a este producto:
+Kane exige aceptar un acuerdo de licencia antes de calcular, y su web declara
+reCAPTCHA. El adaptador **detecta esa pantalla, avisa al usuario con un mensaje
+claro y le cede el control**: no acepta condiciones en nombre de nadie ni intenta
+rodear la protección (D9).
 
-> «…gives the user a non-exclusive, non-transferable license to access the Kane
-> formula for the limited purpose of performing IOL power calculations for the
-> user's clinical operations.»
+Sus condiciones prohíben, entre otras cosas, «operar un service bureau». Un
+profesional que consulta la calculadora para sus propios pacientes no es
+evidentemente eso, pero tampoco es evidentemente lo contrario.
 
-> «The user may not adapt, modify, reverse engineer, decompile, disassemble,
-> create derivative works, **act as a software as a service provider, or operate
-> a service bureau** based on the Kane Formula.»
-
-Y al pie: «This site is protected by reCAPTCHA».
-
-**Cómo se ha resuelto de momento:** Calculator Vilamar **no acepta ese acuerdo
-en nombre de nadie** y **no rodea el reCAPTCHA**. El adaptador abre Kane en un
-navegador visible, detecta que la puerta está ahí, avisa al usuario con un
-mensaje claro y **espera** a que la persona acepte. Cuando la puerta desaparece,
-continúa solo.
-
-**Lo que hace falta decidir (O1):** un uso local, de un único profesional, para
-sus propios cálculos, encaja en la licencia que la web concede y no es un
-«service bureau». Pero es una interpretación legal, y quien asume el riesgo es
-el dueño del proyecto, no el programa. **Recomendación: revisión jurídica antes
-de usarlo en trabajo real**, porque el impacto es relevante.
-
-Mientras tanto, el resto del producto funciona sin Kane: EVO y Barrett entregan
-resultados y el informe dice con todas las letras que Kane no se ejecutó y por
-qué.
+Por eso está en O7 y **requiere revisión jurídica antes de cerrarse**. Hasta
+entonces el adaptador queda como está: construido, sin verificar contra el
+formulario real, y con la intervención humana como parte del diseño y no como un
+apaño.
 
 ---
 
-## 8. Privacidad
+## 16. Dónde mirar
 
-Este software toca documentos sanitarios. Las reglas no son negociables:
-
-- Al repositorio no entra **ningún** informe real, imagen clínica, PDF de
-  paciente, nombre, fecha de nacimiento ni identificador. Todos los fixtures son
-  sintéticos y están declarados como tales.
-- Los registros de diagnóstico **no llevan datos identificativos**.
-- Las capturas de diagnóstico de los adaptadores **sí pueden contener
-  biometría** —son pantallazos de una web rellenada con los datos del caso—, así
-  que viven solo en `%APPDATA%`, nunca en el repositorio, y su carpeta lleva un
-  aviso escrito.
-- Las sesiones y cookies del navegador son locales y están en `.gitignore`.
-- El PDF final **no lleva el nombre del paciente**: el caso se identifica por su
-  código local.
-
----
-
-## 9. Cómo se sabe si esto va bien
-
-- Un cálculo completo tarda **minutos en lugar de media hora**.
-- **Cero** errores de transcripción, porque el dato se teclea una vez.
-- Cuando dos calculadoras discrepan, **se ve de un vistazo**.
-- Seis meses después, un informe permite reconstruir qué entró, adónde fue y qué
-  salió.
+| Si buscas…                                      | Está en…                                |
+| ----------------------------------------------- | --------------------------------------- |
+| Qué funciona HOY de verdad, y qué no            | `PROJECT_STATUS.md`                     |
+| Cómo se comporta Claude en este proyecto        | `.claude/CLAUDE.md`                     |
+| El estado técnico y la estructura               | `docs/ARQUITECTURA.md`                  |
+| Cómo es cada web externa por dentro             | `docs/INTEGRACIONES.md`                 |
+| Cómo reparar un adaptador cuando una web cambie | `docs/MANTENIMIENTO.md`                 |
+| Qué significa cada etapa del proyecto           | `docs/ESTADOS_DEL_PROYECTO.md`          |
+| Guía para el dueño del proyecto                 | `docs/GETTING-STARTED.md`               |
+| Vocabulario del dominio                         | `docs/DICCIONARIO.md`                   |
+| Lecciones de sesiones anteriores                | `.claude/skills/lessons-learned/log.md` |
+| Antes de compartir el repositorio con alguien   | `docs/ANTES_DE_COMPARTIR.md`            |
 
 ---
 
-## 10. Dónde mirar
-
-| Quieres saber…                        | Está en…                                                     |
-| ------------------------------------- | ------------------------------------------------------------ |
-| Qué funciona HOY de verdad            | [PROJECT_STATUS.md](PROJECT_STATUS.md)                       |
-| Cómo está construido                  | [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md)                 |
-| Qué viene después                     | [docs/ROADMAP.md](docs/ROADMAP.md)                           |
-| Los contratos de las tres webs        | [docs/INTEGRACIONES.md](docs/INTEGRACIONES.md)               |
-| Cómo arreglar un adaptador roto       | [docs/MANTENIMIENTO.md](docs/MANTENIMIENTO.md)               |
-| Qué significa cada etapa del proyecto | [docs/ESTADOS_DEL_PROYECTO.md](docs/ESTADOS_DEL_PROYECTO.md) |
+Última actualización: 11/08/2026

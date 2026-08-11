@@ -117,3 +117,12 @@ desktop.ini
 *.tmp
 *.temp
 .tmp/
+
+# ── Heredado de la plantilla ────────────────────────────────────────────────
+# Este proyecto no usa Python ni Next.js, pero una regla de ignorar que sobra no
+# hace daño y una que falta es una fuga. Se conservan.
+__pycache__/
+*.pyc
+.venv/
+venv/
+.next/

@@ -1,0 +1,79 @@
+{
+  "$comentario": [
+    "Ajustes del proyecto. Vienen del documento original del dueño (10/08/2026),",
+    "con los hooks reapuntados a la versión en Node.",
+    "",
+    "POR QUÉ EL CAMBIO: los hooks originales estaban en Bash y Python. En Windows",
+    "no funcionaban —salían con código 1, que Claude Code NO trata como bloqueo,",
+    "así que la protección parecía estar puesta y no lo estaba—. Se reescribieron",
+    "en Node (.mjs), que es lo que este proyecto ya tiene instalado, y salen con 2.",
+    "Está explicado en .claude/hooks/README.md.",
+    "",
+    "Los permisos de abajo son los del original y NO se han tocado: son mejores que",
+    "no tener ninguno y cubren justo lo que hay que cubrir."
+  ],
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "deny": [
+      ".env*",
+      "**/*.env",
+      "**/secrets/**",
+      "**/*secret*",
+      "**/*password*",
+      "**/*credential*",
+      "git push --force",
+      "git reset --hard",
+      "git clean -f",
+      "rm -rf /"
+    ],
+    "allow": [
+      "Bash(git status)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git checkout*)",
+      "Bash(git branch*)",
+      "Bash(git fetch*)",
+      "Bash(git pull*)",
+      "Bash(git push origin*)"
+    ]
+  },
+  "includeGitInstructions": true,
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "node .claude/hooks/session-start.mjs"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "type": "command",
+        "command": "node .claude/hooks/pre-tool-use.mjs"
+      },
+      {
+        "type": "command",
+        "command": "node .claude/hooks/block-subagent-external.mjs"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "type": "command",
+        "command": "node .claude/hooks/post-tool-use.mjs"
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node .claude/hooks/stop.mjs"
+      }
+    ],
+    "SubagentStart": [
+      {
+        "type": "command",
+        "command": "node .claude/hooks/log-subagent-spawn.mjs"
+      }
+    ]
+  }
+}

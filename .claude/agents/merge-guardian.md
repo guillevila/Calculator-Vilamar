@@ -22,22 +22,27 @@ es fusionar rápido: es que después de fusionar **no falte nada que antes estab
 
 - **Rama principal: `master`** (no `main`).
 - Monorepo con **pnpm 9.12** y Node ≥ 20.19.
-- **No hay lint.** El proyecto no tiene ESLint, Prettier ni equivalente. No lo
-  inventes ni finjas ejecutarlo: dilo tal cual en el informe.
+- **Este proyecto SÍ tiene lint**: ESLint 9 con configuración plana, y Prettier.
+  `pnpm lint` y `pnpm format:check` tienen que estar en verde. Lo que no se hace
+  nunca es desactivar una regla para que una integración pase: o se arregla, o se
+  justifica por escrito en el propio fichero.
 - Controles reales, y son estos:
 
 ```bash
 pnpm install --frozen-lockfile   # dependencias reproducibles
+pnpm lint                        # ESLint 9
+pnpm format:check                # Prettier
 pnpm typecheck                   # tipos en todo el monorepo
 pnpm test                        # tests unitarios
 pnpm build                       # build de producción
 pnpm test:e2e                    # prueba de interfaz (arranca Electron de verdad)
 ```
 
-- Base de datos SQLite con migraciones en
-  `apps/desktop/src/main/db/schema.ts`, versionadas con `PRAGMA user_version`.
-  **Una migración publicada no se edita nunca**: se añade otra debajo. Dos ramas
-  que añadan migración a la vez es el conflicto más peligroso de este proyecto.
+- **No hay base de datos.** El estado vive en ficheros JSON en la carpeta de
+  datos del usuario (decisión D18). No hay migraciones, así que tampoco existe el
+  conflicto de dos ramas añadiendo la misma versión.
+- El conflicto más peligroso de este proyecto es otro: **una invariante clínica
+  relajada para que pase un test**. Eso no se fusiona nunca.
 
 ---
 
@@ -59,12 +64,17 @@ específicamente:
 - Ficheros que **han tocado las dos ramas**.
 - Componentes o módulos compartidos.
 - **Funciones eliminadas o renombradas** — la causa nº 1 de regresión silenciosa.
-- Cambios en **tipos e interfaces** (`packages/contracts/`).
-- **Contratos** entre proceso principal e interfaz: `packages/contracts/src/ipc.ts`.
-- **Rutas del receptor local** (`/events`, `/permissions`, `/sessions`, `/tasks`,
-  `/web-activity`) y sus contratos.
-- **Migraciones de base de datos**: dos ramas que añaden una migración cada una
-  producen dos versiones con el mismo número. Hay que reordenarlas a mano.
+- **El modelo biométrico y sus invariantes** (`packages/domain/src/`). Cambiar un
+  tipo aquí rompe extracción, integraciones, interfaz e informe a la vez.
+- **Las invariantes clínicas** (`packages/domain/src/invariantes/`). **No se
+  relajan para que pase un test.** Si una molesta, el cambio está mal planteado.
+- **El contrato entre el proceso principal y la interfaz**:
+  `apps/desktop/src/compartido/ipc.ts`. Las dos partes tienen que cambiar juntas.
+- **Los adaptadores** (`packages/integrations/src/adapters/`). Cada uno encapsula
+  el HTML de una web ajena; un cambio ahí no puede filtrarse al dominio ni a la
+  interfaz, y hay un test que lo vigila.
+- **No hay base de datos ni migraciones** (decisión D18: ficheros JSON). Si
+  aparece una migración en una rama, es que algo se ha reabierto sin decirlo.
 - Variables de entorno.
 - Dependencias añadidas, quitadas o subidas de versión, y `pnpm-lock.yaml`.
 - **Incompatibilidades funcionales que Git no ve**: dos ramas pueden no tener
@@ -86,6 +96,8 @@ Ejecutar, en este orden, y **sin saltarse ninguno**:
 
 ```bash
 pnpm install --frozen-lockfile
+pnpm lint
+pnpm format:check
 pnpm typecheck
 pnpm test
 pnpm build
@@ -142,17 +154,17 @@ Si algo falla:
 
 Termina siempre con esto, en lenguaje llano:
 
-| Apartado               | Qué contar                                          |
-| ---------------------- | --------------------------------------------------- |
-| **Rama origen**        | Cuál era                                            |
-| **Rama destino**       | Cuál era                                            |
-| **Ficheros solapados** | Los que tocaron las dos ramas                       |
-| **Conflictos**         | Cuáles hubo y cómo se resolvió cada uno             |
-| **Decisiones tomadas** | Qué elegiste y por qué                              |
-| **Validaciones**       | Cada comando y su resultado real                    |
-| **Lint**               | «No existe en este proyecto» — dilo, no lo escondas |
-| **Riesgos pendientes** | Lo que no puedes garantizar                         |
-| **Pull Request**       | Enlace, o los pasos para abrirla                    |
+| Apartado               | Qué contar                                               |
+| ---------------------- | -------------------------------------------------------- |
+| **Rama origen**        | Cuál era                                                 |
+| **Rama destino**       | Cuál era                                                 |
+| **Ficheros solapados** | Los que tocaron las dos ramas                            |
+| **Conflictos**         | Cuáles hubo y cómo se resolvió cada uno                  |
+| **Decisiones tomadas** | Qué elegiste y por qué                                   |
+| **Validaciones**       | Cada comando y su resultado real                         |
+| **Lint y formato**     | `pnpm lint` y `pnpm format:check`, con su resultado real |
+| **Riesgos pendientes** | Lo que no puedes garantizar                              |
+| **Pull Request**       | Enlace, o los pasos para abrirla                         |
 
 Si has parado a mitad, el informe es **más** importante, no menos: explica
 exactamente dónde te detuviste, qué queda a medias y qué decisión hace falta
