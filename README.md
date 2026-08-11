@@ -123,7 +123,3 @@ calculadoras externas **Kane** (iolformula.com), **EVO Toric**
 (evoiolcalculator.com) y **Barrett Toric** (ASCRS / APACRS), y están sujetos a
 las condiciones de uso de cada una. Las comparaciones que muestra son
 descriptivas. **No sustituye el criterio del cirujano.**
-
-```
-
-```
