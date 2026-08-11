@@ -245,3 +245,110 @@ reconocimiento (`pnpm reconocer`) se quedó en el proyecto, porque el día que u
 web cambie hará falta otra vez.
 
 **Contexto:** Toda integración con algo que no controlamos.
+
+---
+
+## 2026-08-11 (tarde) — Un fallo por evento se escapa del try/catch y mata la aplicación
+
+**Error o aprendizaje:** El dueño del proyecto subió un documento y la aplicación
+**se cerró** con el cuadro de diálogo de Electron «A JavaScript error occurred in
+the main process» y una traza. Causa: sin conexión, tesseract.js intentaba
+descargar sus datos de idioma y fallaba con `ENOTFOUND`.
+
+El `try/catch` alrededor de `createWorker` no lo cogía, porque **el fallo no
+llega como promesa rechazada**: lo emite el worker como evento de error, Node lo
+convierte en excepción no capturada y Electron mata el proceso principal.
+
+**Causa raíz:** La misma que ya está en este log con `spawn`: «un doble más
+simple que el original no prueba el original». Se protegió la forma de fallar que
+se esperaba —una promesa— y no la que la librería usa de verdad.
+
+**Lección:**
+
+1. Antes de confiar en un `try/catch` alrededor de una librería, preguntarse
+   **cómo falla**: promesa rechazada, evento, excepción o código de salida. Si
+   falla por evento, el `try/catch` no la ve.
+2. Cuando una librería hace algo por su cuenta que puede fallar —descargar,
+   abrir un puerto, escribir— **quitarle ese trabajo y hacerlo nosotros**. La
+   descarga de los 5 MB se hace ahora con `node:https`, y así el fallo es un
+   error normal que se puede explicar en una frase.
+3. Una aplicación de escritorio **nunca** debe morirse por un fallo así. Hay una
+   red de seguridad (`uncaughtException` / `unhandledRejection`) que avisa y
+   sigue: para quien la usa en consulta, cerrarse significa perder el caso.
+
+**Contexto:** Cualquier librería con workers, procesos hijos o descargas. Y todo
+el proceso principal de Electron.
+
+---
+
+## 2026-08-11 (tarde) — Cuatro fallos que solo aparecen con un documento de verdad
+
+**Error o aprendizaje:** Al probar la lectura con documentos generados —un PDF con
+texto, una imagen y un PDF escaneado— salieron cuatro fallos que 205 tests en
+verde no habían visto:
+
+1. **El OCR devolvía cero datos.** El segmentador juntaba los bloques con saltos
+   de línea, y el OCR devuelve **una palabra por bloque**: cada palabra quedaba
+   en su propia línea y las reglas, que buscan etiqueta y valor en la MISMA
+   línea, no encontraban nada. Parecía que el reconocimiento no funcionaba.
+2. **La frontera entre columnas estaba mal puesta.** Era el punto medio entre los
+   dos rótulos, pero el contenido de la columna izquierda se extiende más allá:
+   el «@ 175» del ojo derecho caía en la mitad derecha y **se leía como dato del
+   ojo izquierdo**.
+3. **pdfjs se queda con el array que se le pasa.** Lo transfiere a su worker y
+   deja el original con longitud cero. Al rasterizar después, el PDF ya no
+   existía: `InvalidPDFException` sin ninguna pista.
+4. **La aplicación guardaba en `%APPDATA%@vilamardesktop`.** Electron saca la
+   carpeta del `name` del paquete, que era `@vilamar/desktop`. Los datos del OCR
+   se descargaban en un sitio y se buscaban en otro.
+
+**Causa raíz:** Todos los tests usaban texto ya en líneas. Ninguno partía de
+bloques con posición, que es lo que devuelven de verdad pdfjs y el OCR. El doble
+era más limpio que el original.
+
+**Lección:**
+
+1. **Probar con lo que devuelve la librería, no con lo que sería cómodo.** Si el
+   proveedor devuelve trozos posicionados, los tests parten de trozos
+   posicionados.
+2. Cuando una librería recibe un buffer, **preguntarse si se lo queda**. Pasar
+   una copia cuesta nada y evita un fallo mudo.
+3. Al escribir un script de comprobación, **cuidado con el criterio de éxito**:
+   el primero decía «✓ los tres caminos leen bien» con dos caminos rotos, porque
+   un ojo ausente hacía `continue` sin contar como fallo. Es el mismo error del
+   `if` alrededor de la aserción, cometido otra vez el mismo día.
+
+**Y una que salió bien:** al detectar solo uno de los dos rótulos —el OCR leyó
+«op os» y solo reconoció «os»— la guardia de «el rótulo tiene que estar al
+principio de línea» impidió atribuir el informe entero al ojo izquierdo. Una
+protección escrita por precaución hizo exactamente su trabajo.
+
+**Contexto:** Toda la lectura de documentos. Y la forma de escribir los tests que
+la cubren.
+
+---
+
+## 2026-08-11 (tarde) — Más resolución no es mejor
+
+**Error o aprendizaje:** El OCR leía «Ki 41.220» y «Lr 4.53» sobre una captura de
+pantalla normal. Antes de enseñarle al parser a aceptar esas variantes —que es la
+tentación— se midió qué pasaba escalando la imagen:
+
+| factor | fiabilidad | resultado                                                    |
+| ------ | ---------- | ------------------------------------------------------------ |
+| 1      | 80 %       | `Ki 41.220`, `Lr`, `cet`, `WW`, y **40.27 leído como 20.27** |
+| **2**  | **92 %**   | **todas las etiquetas y todos los números correctos**        |
+| 3      | 90 %       | `24.97` donde ponía 24.07, `490.27` donde ponía 40.27        |
+
+**Lección:**
+
+1. **Escalar ×2 antes del OCR, y no más.** Con 3 empeora, y empeora en la
+   dirección peligrosa: números plausibles pero equivocados.
+2. Antes de hacer el parser tolerante a la basura, **comprobar si se puede dejar
+   de producir basura**. Enseñarle a aceptar «Ki» habría tapado el problema y
+   habría dejado pasar el «20.27».
+3. Y donde no hay remedio, **la asimetría es el peligro**: aceptar `0S` como OS
+   sin aceptar `0D` como OD haría que un informe de dos ojos pareciera de uno.
+   Los alias de rótulo se añaden en pareja o no se añaden.
+
+**Contexto:** OCR, y en general cualquier decisión de «hacerlo tolerante».

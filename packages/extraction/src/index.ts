@@ -10,6 +10,7 @@
 
 export * from './contratos.js'
 export * from './deteccion/detector.js'
+export * from './parsers/lineas.js'
 export * from './parsers/nucleo.js'
 export * from './parsers/segmentar.js'
 export * from './parsers/dispositivos.js'

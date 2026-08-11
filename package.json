@@ -28,7 +28,9 @@
     "muestra:informe": "vite-node scripts/muestra-informe.ts",
     "live": "vite-node scripts/sondas/live.ts",
     "verificar:vertical": "pnpm --filter @vilamar/desktop verificar:vertical",
-    "start": "pnpm --filter @vilamar/desktop start"
+    "start": "pnpm --filter @vilamar/desktop start",
+    "ocr:preparar": "vite-node scripts/preparar-ocr.ts",
+    "probar:lectura": "vite-node scripts/probar-lectura.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

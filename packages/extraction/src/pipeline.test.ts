@@ -16,6 +16,7 @@ import { interpretarTexto } from './pipeline.js'
 import { textoAUnDocumento } from './proveedores/fixture.js'
 import { segmentarPorOjo } from './parsers/segmentar.js'
 import { leerNumero } from './parsers/nucleo.js'
+import { reconstruirLineas } from './parsers/lineas.js'
 
 const OPCIONES = { ahora: () => '2026-08-10T10:00:00.000Z' }
 
@@ -222,5 +223,116 @@ describe('documentos que no dan nada', () => {
       OPCIONES,
     )
     expect(Object.keys(r.ojos)).toHaveLength(0)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Regresiones de la sesión del 11/08/2026
+//
+//  Cinco fallos que aparecieron al probar la lectura con documentos de verdad
+//  —no leyendo el código— y que el usuario encontró antes que yo. Cada uno tiene
+//  aquí su test para que no vuelva.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('regresión — reconstruir líneas a partir de trozos', () => {
+  it('agrupa por altura, no por orden de llegada', () => {
+    // El OCR devuelve una palabra por trozo. Si se juntan con saltos de línea,
+    // la etiqueta y el número quedan en líneas distintas y no se lee nada.
+    const bloques = [
+      { texto: 'mm', x: 0.3, y: 0.2, ancho: 0.04, alto: 0.02 },
+      { texto: 'AL', x: 0.1, y: 0.2, ancho: 0.04, alto: 0.02 },
+      { texto: '24.07', x: 0.2, y: 0.201, ancho: 0.06, alto: 0.02 },
+      { texto: 'K1', x: 0.1, y: 0.3, ancho: 0.04, alto: 0.02 },
+    ]
+    const lineas = reconstruirLineas(bloques).split('\n')
+    // Lo que importa: la etiqueta y su valor acaban en la MISMA línea, que es
+    // donde las reglas de lectura los buscan. El espaciado da igual.
+    expect(lineas[0]).toMatch(/^AL\s+24\.07\s+mm$/)
+    expect(lineas[1]).toBe('K1')
+    expect(lineas).toHaveLength(2)
+  })
+
+  it('un hueco grande se marca con doble espacio, que es lo que separa columnas', () => {
+    const bloques = [
+      { texto: '24.07', x: 0.1, y: 0.2, ancho: 0.06, alto: 0.02 },
+      { texto: '24.01', x: 0.6, y: 0.2, ancho: 0.06, alto: 0.02 },
+    ]
+    expect(reconstruirLineas(bloques)).toBe('24.07  24.01')
+  })
+})
+
+describe('regresión — la frontera entre columnas es el hueco, no el punto medio', () => {
+  it('un valor al final de la columna izquierda no se va a la derecha', () => {
+    // Caso real: el eje «@ 175» del ojo derecho estaba a la derecha del punto
+    // medio entre los rótulos, y se leía como dato del ojo izquierdo. El ojo
+    // derecho se quedaba sin ejes y el izquierdo tenía ejes ajenos.
+    const bloques = [
+      { texto: 'OD', x: 0.08, y: 0.1, ancho: 0.04, alto: 0.02 },
+      { texto: 'OS', x: 0.62, y: 0.1, ancho: 0.04, alto: 0.02 },
+      { texto: 'K1', x: 0.08, y: 0.2, ancho: 0.04, alto: 0.02 },
+      { texto: '41.22', x: 0.2, y: 0.2, ancho: 0.06, alto: 0.02 },
+      { texto: 'D', x: 0.3, y: 0.2, ancho: 0.02, alto: 0.02 },
+      { texto: '@', x: 0.34, y: 0.2, ancho: 0.02, alto: 0.02 },
+      // Este está pasado el punto medio (0.35) pero pertenece a la izquierda.
+      { texto: '175', x: 0.4, y: 0.2, ancho: 0.05, alto: 0.02 },
+      { texto: 'K1', x: 0.62, y: 0.2, ancho: 0.04, alto: 0.02 },
+      { texto: '40.27', x: 0.74, y: 0.2, ancho: 0.06, alto: 0.02 },
+      { texto: 'D', x: 0.84, y: 0.2, ancho: 0.02, alto: 0.02 },
+      { texto: '@', x: 0.88, y: 0.2, ancho: 0.02, alto: 0.02 },
+      { texto: '8', x: 0.93, y: 0.2, ancho: 0.02, alto: 0.02 },
+    ]
+    const s = segmentarPorOjo(reconstruirLineas(bloques), bloques)
+    expect(s.disposicion).toBe('DOS_COLUMNAS')
+    expect(s.porOjo.OD).toContain('175')
+    expect(s.porOjo.OS).not.toContain('175')
+    expect(s.porOjo.OS).toContain('8')
+  })
+})
+
+describe('regresión — el cero por la letra O del OCR', () => {
+  it('«0D» y «0S» se reconocen como rótulos de ojo', () => {
+    const bloques = [
+      { texto: '0D', x: 0.2, y: 0.1, ancho: 0.04, alto: 0.02 },
+      { texto: '0S', x: 0.7, y: 0.1, ancho: 0.04, alto: 0.02 },
+      { texto: 'AL 24.07 mm', x: 0.15, y: 0.2, ancho: 0.2, alto: 0.02 },
+      { texto: 'AL 24.01 mm', x: 0.65, y: 0.2, ancho: 0.2, alto: 0.02 },
+    ]
+    const s = segmentarPorOjo(reconstruirLineas(bloques), bloques)
+    expect(s.disposicion).toBe('DOS_COLUMNAS')
+    expect(s.porOjo.OD).toContain('24.07')
+    expect(s.porOjo.OS).toContain('24.01')
+  })
+
+  it('un «0D» en medio de una línea NO convierte el informe en un informe de OD', () => {
+    // «target 0 D» mal leído no puede bastar para atribuir todo el documento al
+    // ojo derecho: es la clase de error que produce un resultado creíble y falso.
+    const texto = ['Biometry summary', 'AL 24.07 mm', 'Target refraction 0D', 'ACD 3.18 mm'].join(
+      '\n',
+    )
+    const s = segmentarPorOjo(texto)
+    expect(s.disposicion).toBe('DESCONOCIDA')
+    expect(s.porOjo.OD).toBeUndefined()
+    expect(s.porOjo.OS).toBeUndefined()
+  })
+
+  it('un «OD» como encabezado de línea sí vale', () => {
+    const texto = ['ANTERION', 'OD', 'AL 24.07 mm', 'ACD 3.18 mm'].join('\n')
+    const s = segmentarPorOjo(texto)
+    expect(s.disposicion).toBe('UN_OJO')
+    expect(s.porOjo.OD).toBeDefined()
+  })
+})
+
+describe('regresión — no decir «no he encontrado nada» cuando sí se ha encontrado', () => {
+  it('si los datos se leen pero falta el ojo, se dice eso y no lo contrario', () => {
+    const r = leer(fx.SIN_MARCA_DE_OJO)
+    const todos = r.avisos.join(' ')
+    expect(todos).toMatch(/Se han reconocido \d+ datos/)
+    expect(todos).not.toMatch(/No se ha podido leer ningún dato/)
+  })
+
+  it('si de verdad no hay nada, se dice que no hay nada', () => {
+    const r = leer(fx.SIN_DATOS)
+    expect(r.avisos.join(' ')).toMatch(/No se ha podido leer ningún dato/)
   })
 })

@@ -21,6 +21,7 @@ import type { Lateralidad } from '@vilamar/domain'
 import { interpretarLateralidad } from '@vilamar/domain'
 
 import type { BloqueTexto } from '../contratos.js'
+import { reconstruirLineas } from './lineas.js'
 import { normalizarLineas } from './nucleo.js'
 
 export type Disposicion = 'DOS_COLUMNAS' | 'SECCIONES' | 'UN_OJO' | 'DESCONOCIDA'
@@ -33,9 +34,19 @@ export interface Segmentacion {
   readonly explicacion: string
 }
 
-/** Rótulos que marcan un ojo. Se buscan como palabra suelta. */
+/**
+ * Rótulos que marcan un ojo. Se buscan como palabra suelta.
+ *
+ * Incluye `0D` y `0S` —con cero en lugar de la letra O— porque es la confusión
+ * más frecuente del OCR: sobre una captura real, «OD OS» se leyó «oD 0s».
+ *
+ * Los dos van SIEMPRE juntos, y eso es lo importante. Reconocer solo uno sería
+ * PEOR que no reconocer ninguno: un informe de dos ojos parecería de uno y
+ * todos los datos acabarían asignados al ojo equivocado.
+ *
+ */
 const MARCA_OJO =
-  /\b(OD|OS|OI|R\/E|L\/E|RIGHT(?:\s*EYE)?|LEFT(?:\s*EYE)?|OCULUS\s+(?:DEXTER|SINISTER))\b/gi
+  /\b(OD|0D|OS|0S|OI|R\/E|L\/E|RIGHT(?:\s*EYE)?|LEFT(?:\s*EYE)?|OCULUS\s+(?:DEXTER|SINISTER))\b/gi
 
 interface Marca {
   readonly lado: Lateralidad
@@ -56,11 +67,65 @@ function buscarMarcas(texto: string): readonly Marca[] {
 }
 
 /**
+ * Dónde separar las dos columnas.
+ *
+ * **No sirve el punto medio entre los dos rótulos**, que es lo primero que uno
+ * escribe. El contenido de la columna izquierda se extiende hacia la derecha más
+ * allá de su rótulo: en un informe real, el eje de la K del ojo derecho —«@ 175»,
+ * al final de su línea— caía pasado ese punto medio y **se leía como dato del ojo
+ * izquierdo**. El resultado era un ojo derecho sin ejes y un izquierdo con ejes
+ * ajenos: exactamente el error que este módulo existe para evitar.
+ *
+ * Lo que sí funciona es buscar el HUECO de verdad: entre las dos columnas hay una
+ * franja vertical sin nada. Se toma el mayor espacio libre entre los extremos de
+ * los bloques y se parte por su mitad. Si no hubiera ningún hueco claro, se
+ * vuelve al punto medio, que al menos es determinista.
+ */
+function fronteraEntreColumnas(
+  bloques: readonly BloqueTexto[],
+  xRotuloA: number,
+  xRotuloB: number,
+): number {
+  const izquierda = Math.min(xRotuloA, xRotuloB)
+  const derecha = Math.max(xRotuloA, xRotuloB)
+  const medio = (izquierda + derecha) / 2
+
+  // Los bloques cuyo centro cae en la zona donde puede estar la separación.
+  const enMedio = bloques
+    .filter((b) => {
+      const centro = b.x + b.ancho / 2
+      return centro >= izquierda && centro <= derecha
+    })
+    .map((b) => ({ inicio: b.x, fin: b.x + b.ancho }))
+    .sort((a, b) => a.inicio - b.inicio)
+
+  if (enMedio.length === 0) return medio
+
+  let mejorHueco = 0
+  let mejorFrontera = medio
+  let finAcumulado = enMedio[0]?.fin ?? izquierda
+
+  for (const bloque of enMedio.slice(1)) {
+    const hueco = bloque.inicio - finAcumulado
+    if (hueco > mejorHueco) {
+      mejorHueco = hueco
+      mejorFrontera = finAcumulado + hueco / 2
+    }
+    finAcumulado = Math.max(finAcumulado, bloque.fin)
+  }
+
+  // Un hueco menor que esto no es una separación de columnas: es un espacio
+  // entre palabras.
+  return mejorHueco >= 0.03 ? mejorFrontera : medio
+}
+
+/**
  * Segmenta usando las posiciones de los bloques.
  *
  * Es la forma buena cuando se tienen: mira dónde está el rótulo de cada ojo y
- * parte la página por la mitad entre los dos. No depende del orden en que el
- * lector haya devuelto el texto, que es justo lo que suele estar mal.
+ * parte la página por el hueco que hay entre las dos columnas. No depende del
+ * orden en que el lector haya devuelto el texto, que es justo lo que suele estar
+ * mal.
  */
 export function segmentarPorPosicion(bloques: readonly BloqueTexto[]): Segmentacion | null {
   if (bloques.length === 0) return null
@@ -87,20 +152,22 @@ export function segmentarPorPosicion(bloques: readonly BloqueTexto[]): Segmentac
   if (Math.abs(cabeceraOd.y - cabeceraOs.y) > 0.05) return null
   if (Math.abs(cabeceraOd.x - cabeceraOs.x) < 0.08) return null
 
-  const frontera = (cabeceraOd.x + cabeceraOs.x) / 2
   const odIzquierda = cabeceraOd.x < cabeceraOs.x
+  const frontera = fronteraEntreColumnas(bloques, cabeceraOd.x, cabeceraOs.x)
 
   const texto = (lado: Lateralidad): string => {
     const enIzquierda = (lado === 'OD') === odIzquierda
-    return bloques
-      .filter((b) => {
-        const centro = b.x + b.ancho / 2
-        return enIzquierda ? centro < frontera : centro >= frontera
-      })
-      .slice()
-      .sort((a, b) => a.y - b.y || a.x - b.x)
-      .map((b) => b.texto)
-      .join('\n')
+    const suyos = bloques.filter((b) => {
+      const centro = b.x + b.ancho / 2
+      return enIzquierda ? centro < frontera : centro >= frontera
+    })
+    // Hay que RECONSTRUIR LAS LÍNEAS, no juntar los trozos con saltos.
+    //
+    // El OCR devuelve una palabra por trozo, y las reglas de lectura buscan la
+    // etiqueta y el número en la MISMA línea. Juntándolos con «\n» quedaba una
+    // palabra por línea y no se leía ni un solo dato: parecía que el
+    // reconocimiento no funcionaba, cuando lo que no funcionaba era esto.
+    return reconstruirLineas(suyos)
   }
 
   return {
@@ -157,6 +224,19 @@ function segmentarUnOjo(texto: string, marcas: readonly Marca[]): Segmentacion |
   if (lados.size !== 1) return null
   const lado = [...lados][0]
   if (!lado) return null
+
+  // Esta estrategia atribuye TODO el documento a un ojo, así que el rótulo tiene
+  // que ser un encabezado de verdad: al principio de una línea.
+  //
+  // Sin esta comprobación, un «0D» suelto en medio de una línea —que es lo que
+  // el OCR puede sacar de un «target 0 D»— bastaría para dar por hecho que el
+  // informe entero es del ojo derecho. Es la clase de error que produce un
+  // resultado creíble y equivocado.
+  const alPrincipioDeLinea = marcas.some((m) => {
+    const anterior = texto.lastIndexOf('\n', m.indice - 1)
+    return texto.slice(anterior + 1, m.indice).trim() === ''
+  })
+  if (!alPrincipioDeLinea) return null
   return {
     disposicion: 'UN_OJO',
     porOjo: { [lado]: texto },

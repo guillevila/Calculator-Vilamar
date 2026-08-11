@@ -36,7 +36,11 @@ export function esLateralidad(valor: unknown): valor is Lateralidad {
  */
 export function interpretarLateralidad(texto: string): Lateralidad | null {
   const t = texto.trim().toUpperCase()
-  if (/^(OD|R|RIGHT|DERECHO|DCHO|DER|OCULUS DEXTER)$/.test(t)) return 'OD'
-  if (/^(OS|OI|L|LEFT|IZQUIERDO|IZQDO|IZQ|OCULUS SINISTER)$/.test(t)) return 'OS'
+  // `0D` y `0S`, con cero en lugar de la letra O, son la confusión más habitual
+  // del reconocimiento de texto: sobre una captura real, «OD OS» se leyó «oD 0s».
+  // Se aceptan las dos, siempre las dos: reconocer solo una haría que un informe
+  // de dos ojos pareciera de uno, con todos los datos en el ojo equivocado.
+  if (/^(OD|0D|R|RIGHT|DERECHO|DCHO|DER|OCULUS DEXTER)$/.test(t)) return 'OD'
+  if (/^(OS|0S|OI|L|LEFT|IZQUIERDO|IZQDO|IZQ|OCULUS SINISTER)$/.test(t)) return 'OS'
   return null
 }

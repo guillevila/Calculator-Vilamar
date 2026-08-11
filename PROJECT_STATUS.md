@@ -9,7 +9,8 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 11/08/2026 · tras la primera sesión de construcción
+**Última actualización:** 11/08/2026 · tras la primera sesión y la ronda de
+arreglos que salió de probarla con un documento real
 
 ---
 
@@ -104,6 +105,25 @@ vertical completa:
 - **El informe PDF** no lleva datos identificativos en su cuerpo y escapa el HTML
   que venga de fuera.
 
+### Lectura de documentos — comprobada con documentos generados
+
+Con `pnpm probar:lectura`, que genera tres documentos y los pasa por el mismo
+proveedor que usa la aplicación:
+
+| Documento                         | Resultado                                                                                          |
+| --------------------------------- | -------------------------------------------------------------------------------------------------- |
+| **PDF con capa de texto**         | ✅ **8 de 8 campos, los dos ojos, ejes incluidos**                                                 |
+| **Imagen PNG (OCR)**              | ✅ **8 de 8 campos, los dos ojos, ejes incluidos**                                                 |
+| **PDF escaneado (imagen dentro)** | ⚠️ Lee los 8 datos, pero **no consigue saber de qué ojo son**, así que no asigna ninguno y lo dice |
+
+El tercer caso falla de forma **segura**: el OCR lee «OD» como «op» y solo
+reconoce uno de los dos rótulos; la comprobación que exige que el rótulo esté al
+principio de una línea impidió atribuir el informe entero al ojo equivocado.
+
+Medido también: **escalar la imagen ×2 antes del OCR** sube la fiabilidad del
+80 % al 92 % y arregla las etiquetas y los números. Con ×3 **empeora** —apareció
+un 24.97 donde ponía 24.07—, así que está fijado en 2.
+
 ### Comprobado a mano
 
 - **`pnpm install` no compila nada** y termina en segundos.
@@ -128,8 +148,10 @@ vertical completa:
   Windows, pero no lo he podido probar sin ese permiso.
 - **Sin historial de casos en la interfaz.** Los casos se guardan en disco, pero
   no hay pantalla para volver a uno anterior.
-- **El OCR necesita internet la primera vez** (unos 5 MB de datos de idioma).
-  Después funciona sin conexión.
+- **El OCR necesita internet UNA vez** para bajar 5 MB de datos de idioma;
+  después funciona sin conexión. Se puede hacer por adelantado con
+  `pnpm ocr:preparar`. Si faltan y no hay conexión, se dice con claridad y se
+  puede seguir a mano — **antes esto cerraba la aplicación**.
 - **Un PDF escaneado se lee, pero solo las 5 primeras páginas**, y lo dice.
 - **Sin soporte de córnea post-cirugía refractiva** más allá de guardar los
   campos: no se rellenan las secciones específicas de EVO para post-LASIK.

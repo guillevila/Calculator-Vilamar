@@ -50,7 +50,11 @@ export class ProveedorDocumentos implements ProveedorExtraccion {
 
   private async extraerDeImagen(documento: DocumentoEntrada): Promise<TextoDocumento> {
     try {
-      const r = await this.piezas.motorOcr.reconocer(documento.datos)
+      // Se agranda antes de reconocer. Sobre una captura normal, esto es la
+      // diferencia entre leer «Ki 41.220» y leer «K1 41.22 D». Ver
+      // FACTOR_ESCALA_OCR en el rasterizador: 2, y no más.
+      const preparada = await this.piezas.rasterizador.escalar(documento.datos)
+      const r = await this.piezas.motorOcr.reconocer(preparada)
       const avisos: string[] = []
       if (r.confianzaMedia < 0.6) {
         avisos.push(

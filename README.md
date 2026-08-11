@@ -41,6 +41,7 @@ cd "Calculadora Vilamar"
 
 pnpm install              # rápido: no compila nada
 pnpm playwright:install   # el navegador que usan las calculadoras (una vez)
+pnpm ocr:preparar         # datos del lector de texto, 5 MB (una vez, opcional)
 
 pnpm dev                  # arranca la aplicación
 ```
@@ -66,6 +67,8 @@ Instrucciones detalladas, incluida la primera vez y qué esperar:
 | `pnpm verificar:vertical`                           | El producto entero contra EVO y Barrett reales, hasta el PDF    |
 | `pnpm reconocer <sitio>`                            | Mira el formulario actual de una web, para reparar un adaptador |
 | `pnpm muestra:informe`                              | Genera un informe de ejemplo para verlo                         |
+| `pnpm probar:lectura`                               | Comprueba la lectura de PDF con texto, imagen y PDF escaneado   |
+| `pnpm ocr:preparar`                                 | Baja los datos del lector de texto para trabajar sin conexión   |
 
 Los que hablan con las webs **no están en el CI**, a propósito: una web ajena con
 un mal día no puede poner el control en rojo.

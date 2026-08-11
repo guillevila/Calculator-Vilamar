@@ -270,10 +270,21 @@ pnpm format
 # Prueba de interfaz: arranca la aplicación real y recorre el flujo completo
 pnpm test:e2e
 
-# Sondas contra las webs reales de las calculadoras (NO forman parte del CI)
-pnpm probe:kane
-pnpm probe:evo
-pnpm probe:barrett
+# Comprobar los adaptadores contra las webs reales (NO forman parte del CI)
+pnpm live                 # las tres
+pnpm live evo barrett     # solo algunas
+
+# Mirar el formulario actual de una web, para reparar un adaptador
+pnpm reconocer evo
+
+# El producto entero contra EVO y Barrett reales, hasta el PDF
+pnpm verificar:vertical
+
+# Comprobar la lectura de documentos (PDF con texto, imagen, PDF escaneado)
+pnpm probar:lectura
+
+# Dejar el lector de texto listo para trabajar sin conexión
+pnpm ocr:preparar
 ```
 
 **Antes de dar por terminado cualquier cambio, ejecutar como mínimo:**

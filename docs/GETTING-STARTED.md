@@ -55,6 +55,14 @@ pnpm playwright:install
 Esto descarga el navegador que usará para rellenar las calculadoras. Son unos
 150 MB y tarda un par de minutos. **Solo hace falta la primera vez.**
 
+```powershell
+pnpm ocr:preparar
+```
+
+Esto baja los datos del lector de texto (5 MB). **No es obligatorio**: si no lo
+haces, la aplicación los descarga sola la primera vez que leas un documento
+escaneado. Hacerlo ahora te asegura que después funcione **sin conexión**.
+
 ---
 
 ## 3. Arrancarlo

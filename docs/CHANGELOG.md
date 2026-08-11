@@ -4,6 +4,44 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [0.1.1] — 11/08/2026
+
+Ronda de arreglos a partir del primer uso real: el dueño del proyecto subió un
+documento y la aplicación se cerró.
+
+### Corregido
+
+- **La aplicación se cerraba** al leer un documento sin conexión. tesseract.js
+  intentaba descargar sus datos de idioma y su fallo llegaba como evento del
+  worker, no como promesa rechazada, así que se escapaba de todos los
+  `try/catch` y Electron mataba el proceso. Ahora la descarga la hace el
+  programa con `node:https`, el fallo se explica en una frase y **se puede
+  seguir escribiendo los datos a mano**. Además, ninguna excepción no capturada
+  vuelve a cerrar la ventana.
+- **El OCR devolvía cero datos.** El segmentador unía los bloques con saltos de
+  línea, y el OCR devuelve una palabra por bloque: cada palabra quedaba sola en
+  su línea y las reglas no encontraban nada. La reconstrucción de líneas se ha
+  movido al paquete de extracción, donde la usan el PDF y el OCR.
+- **Datos de un ojo se leían como del otro.** La frontera entre columnas era el
+  punto medio entre los rótulos, y el «@ 175» del ojo derecho caía al otro lado.
+  Ahora se busca el hueco real entre las dos columnas.
+- **Un PDF escaneado fallaba con `InvalidPDFException`**: pdfjs se queda con el
+  array que se le pasa y lo deja vacío. Se le entrega una copia.
+- **La aplicación guardaba en `%APPDATA%\@vilamar\desktop`**, distinto de lo
+  documentado y de donde lo buscaban los scripts auxiliares.
+- Un aviso que mentía: cuando los datos se leen pero no se sabe de qué ojo son,
+  decía «no se ha podido leer ningún dato».
+
+### Añadido
+
+- `pnpm ocr:preparar` — deja el lector de texto listo para trabajar sin conexión.
+- `pnpm probar:lectura` — comprueba los tres caminos de lectura.
+- Escalado ×2 de la imagen antes del OCR: la fiabilidad pasa del 80 % al 92 %.
+  Medido que con ×3 empeora.
+- 8 tests de regresión, uno por fallo.
+
+---
+
 ## [0.1.0] — 11/08/2026
 
 Primera sesión de construcción. De carpeta vacía a prototipo funcional que habla

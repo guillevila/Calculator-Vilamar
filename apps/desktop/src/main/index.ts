@@ -25,6 +25,18 @@ import { ServicioCasos } from './servicio-casos.js'
 
 const carpetaActual = join(fileURLToPath(import.meta.url), '..')
 
+/**
+ * El nombre con el que la aplicación guarda sus datos. Se fija ANTES de
+ * preguntar por cualquier ruta.
+ *
+ * Sin esto, Electron lo saca del `name` del paquete —que es `@vilamar/desktop`—
+ * y termina guardando en `%APPDATA%\@vilamar\desktop`: una carpeta con arroba,
+ * imposible de encontrar para quien la busque, y distinta de la que documentamos
+ * y de la que usan los scripts auxiliares. Los datos del OCR se descargaban en
+ * un sitio y se buscaban en otro.
+ */
+app.setName('calculator-vilamar')
+
 /** La versión que se enseña en la pantalla y en el PDF. */
 function versionDelProducto(): string {
   try {
@@ -40,6 +52,48 @@ function versionDelProducto(): string {
 let ventana: BrowserWindow | null = null
 let servicio: ServicioCasos | null = null
 const rasterizador = crearRasterizador()
+
+/**
+ * Red de seguridad: una excepción sin capturar NO puede cerrar la aplicación.
+ *
+ * Electron, por defecto, ante una excepción no capturada en el proceso principal
+ * enseña un cuadro de diálogo con la traza y **mata el programa**. Para quien
+ * está usando esto en una consulta, eso significa perder el caso que tenía a
+ * medias por un fallo que casi nunca es grave.
+ *
+ * Pasó de verdad: sin conexión a internet, la librería de reconocimiento de
+ * texto intentaba descargar sus datos y su fallo llegaba como evento del worker
+ * —no como promesa rechazada—, así que se escapaba de todos los `try/catch` y
+ * cerraba la aplicación.
+ *
+ * La causa concreta ya está arreglada en `extraccion/ocr.ts`. Esto es lo que
+ * queda para la próxima vez que algo falle por un camino que no habíamos
+ * previsto: se avisa, se apunta y **se sigue**.
+ */
+function instalarRedDeSeguridad(): void {
+  const avisar = (titulo: string, error: unknown): void => {
+    const detalle = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+    // A la consola, el detalle técnico completo. Nunca lleva datos del paciente:
+    // son fallos de librerías y de red.
+    console.error(`[${titulo}]`, error)
+
+    if (ventana && !ventana.isDestroyed()) {
+      void dialog.showMessageBox(ventana, {
+        type: 'warning',
+        title: 'Algo no ha salido como esperaba',
+        message: 'Ha fallado una parte del programa, pero tu caso no se ha perdido.',
+        detail:
+          'Puedes seguir trabajando: revisa los datos en pantalla y, si hace falta, escríbelos a mano.\n\n' +
+          `Detalle técnico (por si hay que arreglarlo): ${detalle}`,
+        buttons: ['Continuar'],
+        noLink: true,
+      })
+    }
+  }
+
+  process.on('uncaughtException', (error) => avisar('excepción no capturada', error))
+  process.on('unhandledRejection', (motivo) => avisar('promesa rechazada sin capturar', motivo))
+}
 
 function enviarAlaInterfaz(canal: string, carga: unknown): void {
   if (ventana && !ventana.isDestroyed()) ventana.webContents.send(canal, carga)
@@ -200,6 +254,8 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   ipcMain.handle(CANALES.generarPdf, () => s().generarPdf())
   ipcMain.handle(CANALES.abrirCarpetaInformes, () => shell.openPath(carpetas.informes))
 }
+
+instalarRedDeSeguridad()
 
 void app.whenReady().then(() => {
   const carpetas = prepararCarpetas(app.getPath('userData'))

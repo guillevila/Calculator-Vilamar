@@ -11,12 +11,19 @@
  * que viene, las reglas de lectura no encontrarían nada, porque buscan la
  * etiqueta y el número en la misma línea.
  *
- * Por eso aquí se reconstruyen las líneas agrupando por altura y ordenando por
- * posición horizontal. Y además se conservan los trozos con su posición, que es
- * lo que permite separar las dos columnas de un informe sin depender del orden.
+ * Y un aviso que cuesta un rato encontrar: **pdfjs se queda con el array que se
+ * le pasa**. Lo transfiere a su worker y deja el original con longitud cero, así
+ * que quien lo use después se encuentra un PDF vacío —`InvalidPDFException`— sin
+ * ninguna pista de por qué. Aquí se le entrega siempre una copia.
+ *
+ * Por eso se reconstruyen las líneas con `reconstruirLineas`, que vive en el
+ * paquete de extracción porque el mismo problema lo tiene el OCR. Y además se
+ * conservan los trozos con su posición, que es lo que permite separar las dos
+ * columnas de un informe sin depender del orden.
  */
 
 import type { BloqueTexto, LectorPdf, PaginaDocumento } from '@vilamar/extraction'
+import { reconstruirLineas } from '@vilamar/extraction'
 
 // Se usa la construcción «legacy» porque es la que funciona en Node sin
 // depender de APIs de navegador.
@@ -31,9 +38,6 @@ async function pdfjs(): Promise<ModuloPdfjs> {
   return modulo
 }
 
-/** Dos trozos están en la misma línea si su altura no difiere más que esto. */
-const TOLERANCIA_LINEA = 0.006
-
 interface TrozoConPosicion {
   readonly texto: string
   readonly x: number
@@ -42,52 +46,12 @@ interface TrozoConPosicion {
   readonly alto: number
 }
 
-/**
- * Reconstruye las líneas a partir de trozos posicionados.
- *
- * Se agrupa por altura y se ordena por horizontal. Entre dos trozos se pone un
- * separador de dos espacios cuando hay un hueco apreciable, porque ese hueco es
- * justo lo que separa la columna del ojo derecho de la del izquierdo y lo que
- * necesita el segmentador cuando trabaja con texto plano.
- */
-export function reconstruirLineas(trozos: readonly TrozoConPosicion[]): string {
-  const ordenados = [...trozos].sort((a, b) => a.y - b.y || a.x - b.x)
-  const lineas: TrozoConPosicion[][] = []
-
-  for (const trozo of ordenados) {
-    const ultima = lineas[lineas.length - 1]
-    const referencia = ultima?.[0]
-    if (ultima && referencia && Math.abs(trozo.y - referencia.y) <= TOLERANCIA_LINEA) {
-      ultima.push(trozo)
-    } else {
-      lineas.push([trozo])
-    }
-  }
-
-  return lineas
-    .map((linea) => {
-      const enOrden = linea.sort((a, b) => a.x - b.x)
-      let salida = ''
-      let finAnterior = 0
-      for (const [i, trozo] of enOrden.entries()) {
-        if (i > 0) {
-          const hueco = trozo.x - finAnterior
-          salida += hueco > 0.02 ? '  ' : ' '
-        }
-        salida += trozo.texto
-        finAnterior = trozo.x + trozo.ancho
-      }
-      return salida.trim()
-    })
-    .filter((l) => l.length > 0)
-    .join('\n')
-}
-
 export function crearLectorPdf(): LectorPdf {
   return {
     async numeroDePaginas(datos: Uint8Array): Promise<number> {
       const modulo = await pdfjs()
-      const doc = await modulo.getDocument({ data: datos, useSystemFonts: true }).promise
+      const doc = await modulo.getDocument({ data: new Uint8Array(datos), useSystemFonts: true })
+        .promise
       const n = doc.numPages
       await doc.destroy()
       return n
@@ -95,7 +59,8 @@ export function crearLectorPdf(): LectorPdf {
 
     async leer(datos: Uint8Array): Promise<readonly PaginaDocumento[]> {
       const modulo = await pdfjs()
-      const doc = await modulo.getDocument({ data: datos, useSystemFonts: true }).promise
+      const doc = await modulo.getDocument({ data: new Uint8Array(datos), useSystemFonts: true })
+        .promise
       const paginas: PaginaDocumento[] = []
 
       try {

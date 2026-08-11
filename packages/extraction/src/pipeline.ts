@@ -137,9 +137,23 @@ export function interpretarTexto(
   }
 
   if (Object.keys(ojos).length === 0) {
-    avisos.push(
-      'No se ha podido leer ningún dato biométrico de este documento. Puedes escribirlos a mano.',
-    )
+    // Antes de decir «no he encontrado nada», hay que comprobar si es verdad.
+    //
+    // Hay un caso muy concreto en el que no lo es: los datos SÍ se han leído,
+    // pero no se ha podido determinar de qué ojo son, así que no se ha asignado
+    // ninguno. Decirle al usuario que no hay nada cuando el problema es otro le
+    // manda a teclear trece datos que el programa ya tiene delante.
+    const sueltos = aplicarReglas(completo, reglas, 1, texto.confianzaMedia)
+    if (sueltos.length > 0) {
+      avisos.push(
+        `Se han reconocido ${sueltos.length} datos en el documento, pero NO se ha podido saber de qué ojo son, así que no se ha asignado ninguno. ` +
+          'Es la única forma segura de no mezclar los dos ojos. Indica tú los valores del ojo que corresponda; los tienes en el documento original.',
+      )
+    } else {
+      avisos.push(
+        'No se ha podido leer ningún dato biométrico de este documento. Puedes escribirlos a mano.',
+      )
+    }
   }
 
   return {
