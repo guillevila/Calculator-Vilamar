@@ -4,6 +4,51 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [0.6.0] — 11/08/2026
+
+Cada campo dice cuánta falta hace, y la pantalla avisa antes de calcular de qué
+se va a quedar sin resultado.
+
+### La pregunta
+
+«¿Son todos los datos obligatorios?» No. Y **«obligatorio» no es una propiedad
+del campo**: depende de qué calculadora quieras. Sin SIA, Barrett no calcula y
+EVO sí. De los 24 campos:
+
+| Cuántos | Nivel                      | Cuáles                                                                                   |
+| ------- | -------------------------- | ---------------------------------------------------------------------------------------- |
+| 5       | Obligatorios en las tres   | AL, K1, K2, ACD, refracción objetivo                                                     |
+| 5       | Obligatorios en alguna     | Ejes de K1/K2 (EVO y Barrett), SIA y eje de incisión (Barrett), constante A (EVO y Kane) |
+| 8       | Opcionales                 | LT, CCT, WTW, córnea posterior, factor de lente                                          |
+| 6       | **No se envían a ninguna** | AQD, TK1/TK2 y sus ejes, nk                                                              |
+
+Esos seis últimos merecen decirse en voz alta: se leen del informe y quedan en el
+PDF por trazabilidad, pero **no alimentan ningún cálculo**. Callarlo hacía pensar
+que hacían falta. Incluye el `nk` que se añadió en la versión anterior.
+
+### Añadido
+
+- `exigenciaDe(campo)` y `textoDeExigencia()`. Salen de `FICHAS`, comprobada
+  contra los formularios reales: no hay una segunda lista que mantener, y hay un
+  test que lo vigila.
+- Cada campo enseña su nivel debajo del nombre. En el caso intermedio **se
+  nombran las calculadoras** — «Obligatorio para Barrett Toric» dice qué pierdes;
+  «puede ser obligatorio» no dice nada.
+- `quienNoPuedeCalcular()` y el aviso **antes** de confirmar, con qué calculadora
+  se queda fuera y qué le falta. Hasta ahora eso solo se sabía después de que el
+  navegador recorriera las tres webs: 47 segundos para enterarse de un dato que
+  se podía haber escrito antes.
+- 11 tests nuevos y una prueba de interfaz más.
+
+### Lo que NO hace
+
+**No bloquea.** Calcular con dos de tres es un resultado legítimo, y puede que el
+dato que falta sencillamente no se tenga. Se avisa y se sigue.
+
+334 tests y 10 pruebas de interfaz.
+
+---
+
 ## [0.5.0] — 11/08/2026
 
 La pantalla de revisión deja de mezclar «el informe no lo trae» con «esto lo

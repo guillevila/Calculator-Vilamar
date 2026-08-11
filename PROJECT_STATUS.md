@@ -125,6 +125,25 @@ Y con imágenes de distintos tamaños y formatos, comprobado por separado:
 | JPEG 4032×3024 (foto de móvil)       | 91 %               | correctos                                    |
 | Fichero corrupto                     | —                  | mensaje claro, y la aplicación sigue abierta |
 
+#### Cada campo dice cuánta falta hace
+
+No todos los datos son obligatorios, y **«obligatorio» depende de qué calculadora
+quieras**. De los 24 campos:
+
+| Cuántos | Qué son                                | Cuáles                                                                                        |
+| ------- | -------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 5       | **Obligatorios** en las tres           | AL, K1, K2, ACD, refracción objetivo                                                          |
+| 5       | **Obligatorios en alguna**             | Ejes de K1/K2 (EVO y Barrett), SIA y eje de incisión (solo Barrett), constante A (EVO y Kane) |
+| 8       | **Opcionales** — mejoran el resultado  | LT, CCT, WTW, córnea posterior, factor de lente                                               |
+| 6       | **No se envían a ninguna calculadora** | AQD, TK1/TK2 y sus ejes, nk                                                                   |
+
+Cada campo lo dice debajo de su nombre. Y antes de confirmar, la pantalla avisa
+de **qué calculadoras no van a poder calcular** con lo que hay y qué les falta —
+hasta ahora eso solo se sabía después de esperar los 47 segundos del recorrido.
+
+No bloquea: calcular con dos de tres es un resultado legítimo, y quizá el dato que
+falta sencillamente no lo tienes.
+
 #### La pantalla de revisión dice de dónde sale cada dato
 
 Antes, un campo que el informe no traía y un campo que tiene que poner el cirujano

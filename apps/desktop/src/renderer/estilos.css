@@ -505,3 +505,30 @@ table.comparativa td.na {
 .estado-campo.vacio {
   color: #b9b9b9;
 }
+
+/* ── Cuánta falta hace cada campo ───────────────────────────────────────────
+   OBLIGATORIO no lleva color de alarma a propósito: es lo normal, no un
+   problema. Lo que se destaca es INFORMATIVO, porque es la sorpresa —un campo
+   que se lee y no se envía a ninguna parte— y lo que nadie adivinaría. */
+.exigencia {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+.exigencia.obligatorio {
+  color: #153f74;
+}
+.exigencia.segun_calculadora {
+  color: #8a4b00;
+}
+.exigencia.opcional {
+  color: #6f6f6f;
+  font-weight: 400;
+}
+.exigencia.informativo {
+  color: #6f6f6f;
+  font-weight: 400;
+  font-style: italic;
+}

@@ -133,6 +133,26 @@ test('un dato que el informe no traía se puede APORTAR a mano', async () => {
   await expect(ventana.getByTestId('origen-WTW')).toHaveText('No consta en el informe')
 })
 
+test('cada campo dice cuánta falta hace, y avisa antes de confirmar', async () => {
+  // «Obligatorio» a secas sería mentira: depende de qué calculadora quieras.
+  await expect(ventana.getByTestId('exigencia-AL')).toHaveText('Obligatorio')
+  // El SIA solo lo pide Barrett, y se nombra: es lo que hace la frase útil.
+  await expect(ventana.getByTestId('exigencia-SIA')).toContainText('Barrett')
+  await expect(ventana.getByTestId('exigencia-LT')).toHaveText('Opcional')
+  // Y lo que sorprende: hay campos que se leen y no se envían a ninguna parte.
+  await expect(ventana.getByTestId('exigencia-AQD')).toContainText(/no se envía/i)
+
+  // El aviso llega ANTES de pulsar. Antes esto solo se sabía después de que el
+  // navegador recorriera las tres webs: 47 segundos para saber que faltaba algo.
+  const aviso = ventana.getByTestId('aviso-faltan-requeridos')
+  await expect(aviso).toBeVisible()
+  await expect(aviso).toContainText('Barrett')
+  await ventana.screenshot({ path: 'test-results/10-exigencia.png' })
+
+  // Y no bloquea: calcular con dos de tres es un resultado legítimo.
+  await expect(ventana.getByTestId('confirmar')).toBeEnabled()
+})
+
 test('el flujo completo llega hasta la pantalla de cálculo', async () => {
   // Los datos mínimos que pide EVO, escritos a mano.
   const datos: [string, string][] = [

@@ -26,6 +26,10 @@ import type { JSX } from 'react'
 import type { Aviso, CampoBiometrico, Caso, Lateralidad } from '@vilamar/domain'
 import {
   camposDeCategoria,
+  exigenciaDe,
+  fichaDe,
+  quienNoPuedeCalcular,
+  textoDeExigencia,
   definicionDe,
   esDerivado,
   formatearConUnidad,
@@ -73,6 +77,14 @@ export function PanelRevision({
 
   const invalidos = useMemo(() => avisos.filter((a) => a.nivel === 'INVALID'), [avisos])
   const advertencias = useMemo(() => avisos.filter((a) => a.nivel === 'WARNING'), [avisos])
+
+  /**
+   * Calculadoras que, con lo que hay escrito, no van a poder calcular.
+   *
+   * Se mira del ojo que se está revisando: los dos ojos pueden tener datos
+   * distintos, y avisar del otro sería confundir.
+   */
+  const sinDatos = useMemo(() => quienNoPuedeCalcular(ojo.medidas), [ojo])
 
   /**
    * Datos leídos por una máquina que la persona todavía no ha comprobado.
@@ -164,6 +176,34 @@ export function PanelRevision({
           Al confirmar, estos datos —y solo estos— se enviarán a las calculadoras. Nada sin revisar
           sale de aquí.
         </p>
+        {/*
+          Se avisa AQUÍ, antes de pulsar. Hasta ahora esto solo se sabía después:
+          el navegador recorría las tres webs y una decía «faltan datos» — 47
+          segundos para enterarse de algo que se podía haber escrito antes.
+
+          No bloquea. Calcular con dos de tres es un resultado legítimo, y quizá
+          el dato que falta no lo tienes. Pero se dice, y se dice qué falta.
+        */}
+        {sinDatos.length > 0 && (
+          <div className="aviso atencion" data-testid="aviso-faltan-requeridos">
+            <strong>
+              Con los datos de {nombreLateralidad(ojoActivo)},{' '}
+              {sinDatos.length === 1 ? 'una' : sinDatos.length}{' '}
+              {sinDatos.length === 1 ? 'calculadora' : 'calculadoras'} no{' '}
+              {sinDatos.length === 1 ? 'va' : 'van'} a poder calcular.
+            </strong>
+            <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
+              {sinDatos.map((x) => (
+                <li key={x.calculadora}>
+                  <strong>{fichaDe(x.calculadora).nombre}</strong>: falta{' '}
+                  {x.faltan.map((c) => definicionDe(c).etiqueta).join(', ')}
+                </li>
+              ))}
+            </ul>
+            Puedes escribir esos datos arriba, o continuar: las demás calculan igual y el informe
+            dirá cuál se quedó sin resultado.
+          </div>
+        )}
         <div className="fila derecha">
           <button
             className="principal grande"
@@ -269,6 +309,7 @@ function FilaCampo({ campo, caso, ojoActivo, avisos, onCambio }: PropsFila): JSX
    * origen guardado por su cuenta acabaría desincronizado del dato que describe.
    */
   const origen = origenDe(medida)
+  const exigencia = exigenciaDe(campo)
   const nivel = nivelDeCampo(avisos, ojo, campo)
   const propios = avisos.filter((a) => a.ojo === ojoActivo && a.campo === campo)
 
@@ -312,6 +353,17 @@ function FilaCampo({ campo, caso, ojoActivo, avisos, onCambio }: PropsFila): JSX
       <tr className={claseFila}>
         <td className="campo" title={def.descripcion}>
           {def.etiqueta}
+          {/*
+            «Obligatorio» a secas sería mentira: depende de qué calculadora
+            quieras. Sin SIA, Barrett no calcula y EVO sí. Cuando solo hace falta
+            para algunas, se nombran — es lo que hace la frase accionable.
+          */}
+          <span
+            className={`exigencia ${exigencia.nivel.toLowerCase()}`}
+            data-testid={`exigencia-${campo}`}
+          >
+            {textoDeExigencia(exigencia)}
+          </span>
         </td>
         <td className="valor">
           <input

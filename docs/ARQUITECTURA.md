@@ -126,6 +126,38 @@ Tres consecuencias que importan:
 `TEXTO_AUSENTE` («NO ENCONTRADO») sigue existiendo, pero solo como marca interna
 para registros. Hay un test que impide que vuelva a la interfaz.
 
+#### Cuánta falta hace cada campo
+
+`exigenciaDe(campo)` mira las tres fichas y clasifica en cuatro niveles. No hay
+una segunda lista que mantener: sale de `FICHAS`, que está comprobada contra los
+formularios reales, así que si Barrett deja de pedir el SIA se cambia su ficha y
+esto cambia solo. Hay un test que lo vigila.
+
+| Nivel               | Qué significa                         | Ejemplos                                                                                  |
+| ------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `OBLIGATORIO`       | Sin él no calcula ninguna de las tres | AL, K1, K2, ACD, refracción objetivo                                                      |
+| `SEGUN_CALCULADORA` | Unas calculan y otras no              | SIA y eje de incisión (solo Barrett); ejes de K (EVO y Barrett); constante A (EVO y Kane) |
+| `OPCIONAL`          | Todas calculan; mejora el resultado   | LT, CCT, WTW, córnea posterior                                                            |
+| `INFORMATIVO`       | **No se envía a ninguna calculadora** | AQD, TK1/TK2 y sus ejes, nk                                                               |
+
+Dos cosas que no son obvias:
+
+- **«Obligatorio» a secas sería mentira.** No es una propiedad del campo: depende
+  de qué calculadora quieras. Por eso el texto del nivel intermedio **nombra las
+  calculadoras** — «Obligatorio para Barrett Toric» dice qué pierdes si lo dejas
+  vacío; «puede ser obligatorio» no dice nada.
+- **Seis campos no alimentan ningún cálculo.** Se leen y quedan en el informe por
+  trazabilidad. Callarlo haría pensar que hacen falta.
+
+`quienNoPuedeCalcular(medidas)` responde lo mismo desde el otro lado: qué
+calculadoras se van a quedar sin resultado con lo que hay escrito. La pantalla lo
+enseña **antes** de confirmar; hasta ahora eso solo se sabía después de que el
+navegador recorriera las tres webs — cuarenta y siete segundos para enterarse de
+que faltaba un dato que se podía haber escrito antes.
+
+No bloquea la confirmación a propósito: calcular con dos de tres es un resultado
+legítimo, y puede que el dato que falta sencillamente no se tenga.
+
 #### Origen y validación son ejes distintos
 
 De dónde salió un número y si alguien lo ha revisado son dos preguntas, y van en
