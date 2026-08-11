@@ -86,37 +86,39 @@ function fronteraEntreColumnas(
   xRotuloA: number,
   xRotuloB: number,
 ): number {
-  const izquierda = Math.min(xRotuloA, xRotuloB)
-  const derecha = Math.max(xRotuloA, xRotuloB)
-  const medio = (izquierda + derecha) / 2
+  const xDerecho = Math.max(xRotuloA, xRotuloB)
+  const medio = (Math.min(xRotuloA, xRotuloB) + xDerecho) / 2
 
-  // Los bloques cuyo centro cae en la zona donde puede estar la separación.
-  const enMedio = bloques
-    .filter((b) => {
-      const centro = b.x + b.ancho / 2
-      return centro >= izquierda && centro <= derecha
-    })
-    .map((b) => ({ inicio: b.x, fin: b.x + b.ancho }))
-    .sort((a, b) => a.inicio - b.inicio)
+  // Margen para una alineación imperfecta entre el rótulo y su columna.
+  const MARGEN = 0.03
+  const inicioDerecha = xDerecho - MARGEN
 
-  if (enMedio.length === 0) return medio
-
-  let mejorHueco = 0
-  let mejorFrontera = medio
-  let finAcumulado = enMedio[0]?.fin ?? izquierda
-
-  for (const bloque of enMedio.slice(1)) {
-    const hueco = bloque.inicio - finAcumulado
-    if (hueco > mejorHueco) {
-      mejorHueco = hueco
-      mejorFrontera = finAcumulado + hueco / 2
-    }
-    finAcumulado = Math.max(finAcumulado, bloque.fin)
+  // El rótulo de la derecha es la SEMILLA: en un informe a dos columnas, el
+  // contenido de la columna derecha empieza donde empieza su rótulo.
+  //
+  // Buscar simplemente «el hueco más grande» no vale, y aquí está el motivo: en
+  // la columna izquierda, el espacio entre la etiqueta «K1» y su valor puede ser
+  // MAYOR que el espacio entre las dos columnas. La frontera se colocaba ahí, y
+  // el resultado era un ojo derecho SIN NINGUNA K —la etiqueta a un lado, el
+  // número al otro— mientras el izquierdo salía perfecto. Un fallo así no da
+  // ningún error: da un informe a medias.
+  let finIzquierda = Number.NEGATIVE_INFINITY
+  let inicioBloquesDerecha = Number.POSITIVE_INFINITY
+  for (const b of bloques) {
+    if (b.x >= inicioDerecha) inicioBloquesDerecha = Math.min(inicioBloquesDerecha, b.x)
+    else finIzquierda = Math.max(finIzquierda, b.x + b.ancho)
   }
 
-  // Un hueco menor que esto no es una separación de columnas: es un espacio
-  // entre palabras.
-  return mejorHueco >= 0.03 ? mejorFrontera : medio
+  // El hueco de verdad, entre donde acaba la columna izquierda y donde empieza
+  // la derecha.
+  if (Number.isFinite(finIzquierda) && Number.isFinite(inicioBloquesDerecha)) {
+    if (inicioBloquesDerecha > finIzquierda) return (finIzquierda + inicioBloquesDerecha) / 2
+    // Se solapan: se corta justo antes del rótulo derecho, que es lo más fiable
+    // que queda.
+    return inicioDerecha
+  }
+
+  return Number.isFinite(inicioBloquesDerecha) ? inicioDerecha : medio
 }
 
 /**

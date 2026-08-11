@@ -336,3 +336,35 @@ describe('regresión — no decir «no he encontrado nada» cuando sí se ha enc
     expect(r.avisos.join(' ')).toMatch(/No se ha podido leer ningún dato/)
   })
 })
+
+describe('regresión — el hueco entre columnas no es «el hueco más grande»', () => {
+  it('un espacio ancho entre la etiqueta y su valor no parte la columna', () => {
+    // Caso real, y de los peores: en la columna izquierda el espacio entre «K1»
+    // y su valor era MAYOR que el espacio entre las dos columnas. La frontera se
+    // colocaba ahí y el ojo derecho salía SIN NINGUNA K —etiqueta a un lado,
+    // número al otro— mientras el izquierdo salía perfecto. Sin ningún error.
+    const bloques = [
+      { texto: 'OD', x: 0.07, y: 0.1, ancho: 0.03, alto: 0.02 },
+      { texto: 'OS', x: 0.62, y: 0.1, ancho: 0.03, alto: 0.02 },
+      // Izquierda: hueco de 0.13 entre la etiqueta y el valor.
+      { texto: 'K1', x: 0.07, y: 0.2, ancho: 0.03, alto: 0.02 },
+      { texto: '41.22', x: 0.23, y: 0.2, ancho: 0.06, alto: 0.02 },
+      { texto: 'D', x: 0.31, y: 0.2, ancho: 0.02, alto: 0.02 },
+      { texto: '@', x: 0.35, y: 0.2, ancho: 0.02, alto: 0.02 },
+      { texto: '175', x: 0.39, y: 0.2, ancho: 0.05, alto: 0.02 },
+      // Derecha: el hueco entre columnas (0.44 → 0.62) es MENOR que el de arriba.
+      { texto: 'K1', x: 0.62, y: 0.2, ancho: 0.03, alto: 0.02 },
+      { texto: '40.27', x: 0.78, y: 0.2, ancho: 0.06, alto: 0.02 },
+      { texto: 'D', x: 0.86, y: 0.2, ancho: 0.02, alto: 0.02 },
+      { texto: '@', x: 0.9, y: 0.2, ancho: 0.02, alto: 0.02 },
+      { texto: '8', x: 0.94, y: 0.2, ancho: 0.02, alto: 0.02 },
+    ]
+    const s = segmentarPorOjo(reconstruirLineas(bloques), bloques)
+    expect(s.disposicion).toBe('DOS_COLUMNAS')
+    // Cada K con su etiqueta, su valor y su eje, en su ojo.
+    expect(s.porOjo.OD).toMatch(/K1[\s\S]*41\.22[\s\S]*175/)
+    expect(s.porOjo.OS).toMatch(/K1[\s\S]*40\.27[\s\S]*8/)
+    expect(s.porOjo.OD).not.toContain('40.27')
+    expect(s.porOjo.OS).not.toContain('41.22')
+  })
+})

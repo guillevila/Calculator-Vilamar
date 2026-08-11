@@ -397,3 +397,49 @@ hasta un sitio donde ya no se puede diagnosticar.
 
 **Contexto:** Toda entrada de fichero del usuario. Y cualquier `catch` que
 «sigue adelante».
+
+---
+
+## 2026-08-11 (noche) — Dos rondas arreglando síntomas porque no comprobé la entrada
+
+**Error o aprendizaje:** El dueño del proyecto subió un informe y no se leía.
+Arreglé el OCR. Volvió a fallar. Arreglé el manejo de imágenes: el formato, el
+recorte, el mensaje de error. Volvió a fallar, con «The source image cannot be
+decoded».
+
+La causa real era otra: **el fichero llegaba vacío, 0 bytes**. Nunca llegó a
+haber una imagen que decodificar. Los bytes viajaban por IPC y —en el caso de
+«Elegir archivo»— hacían un viaje de ida y vuelta absurdo: el proceso principal
+leía el fichero, lo mandaba a la pantalla y la pantalla lo devolvía. En ese viaje
+se perdía el contenido.
+
+Se descubrió en diez segundos, cuando por fin miré el sitio correcto: **la copia
+que la propia aplicación guarda de cada documento**. Pesaba 0 bytes y su nombre
+era `e3b0c44298fc1c14`, que es el principio del hash SHA-256 de la cadena vacía.
+
+**Causa raíz:** Empecé a depurar por donde salía el error —el OCR— en lugar de
+por donde entraban los datos. Los dos arreglos anteriores eran correctos y
+necesarios, pero ninguno era EL fallo, y cada uno me hizo creer que ya estaba.
+
+**Lección:**
+
+1. **Cuando algo no se lee, lo primero es comprobar que ha llegado.** Antes de
+   mirar el reconocimiento, el formato o el tamaño: ¿cuántos bytes hay? Una
+   comprobación de una línea al principio de la cadena habría ahorrado dos rondas.
+2. **Y si el programa guarda una copia de lo que recibe, mírala.** Estaba ahí
+   desde el primer intento. El rastro que se diseñó para auditar servía también
+   para diagnosticar, y tardé dos rondas en abrirlo.
+3. **Los datos grandes no viajan por IPC si se puede mandar una referencia.** Una
+   ruta es una cadena: no se puede perder a medias. Y el viaje de ida y vuelta
+   —leer en el proceso principal, mandar a la pantalla, devolver— no tenía
+   ninguna razón de ser.
+4. **Sospechar de la validación que falta, no solo de la que falla.** El programa
+   aceptaba un fichero de 0 bytes sin decir nada y seguía adelante cuatro pasos.
+   Ahora se dice al abrirlo: «está vacío: 0 bytes».
+5. Y la de siempre, en su versión más cara: **ninguna de las 221 pruebas tocaba
+   el camino por el que entra un fichero.** Probaban el motor de lectura con
+   texto ya cargado. La prueba que faltaba —subir un fichero de verdad por el
+   mismo camino que la aplicación— encontró el fallo a la primera, y ahora existe.
+
+**Contexto:** Cualquier cosa que entre en el programa desde fuera. Y el orden en
+que se depura: de la entrada hacia la salida, no al revés.

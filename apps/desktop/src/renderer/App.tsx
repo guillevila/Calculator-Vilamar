@@ -86,18 +86,29 @@ export function App(): JSX.Element {
     setPaso('INICIO')
   }, [])
 
-  const cargar = useCallback(
-    async (archivos: readonly { nombre: string; tamanoBytes: number; datos: Uint8Array }[]) => {
-      if (archivos.length === 0) return
+  /** Aplica el resultado de una carga, venga del diálogo o de arrastrar. */
+  const aplicarCarga = useCallback(
+    async (r: { caso: Caso; resumenes: readonly ResumenExtraccion[] } | null) => {
+      if (!r) {
+        setPaso('INICIO')
+        return
+      }
+      setCaso(r.caso)
+      setResumenes(r.resumenes)
+      await refrescarAvisos()
+      setPaso('REVISION')
+    },
+    [refrescarAvisos],
+  )
+
+  const cargarRutas = useCallback(
+    async (rutas: readonly string[]) => {
+      if (rutas.length === 0) return
       setError(null)
       setPaso('CARGANDO')
       setOcupado(true)
       try {
-        const r = await api().cargarDocumentos(archivos)
-        setCaso(r.caso)
-        setResumenes(r.resumenes)
-        await refrescarAvisos()
-        setPaso('REVISION')
+        await aplicarCarga(await api().cargarDocumentos(rutas))
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
         setPaso('INICIO')
@@ -105,13 +116,25 @@ export function App(): JSX.Element {
         setOcupado(false)
       }
     },
-    [refrescarAvisos],
+    [aplicarCarga],
   )
 
   const elegirYcargar = useCallback(async () => {
-    const archivos = await api().elegirArchivos()
-    await cargar(archivos)
-  }, [cargar])
+    setError(null)
+    setOcupado(true)
+    try {
+      // El diálogo, la lectura y el análisis pasan enteros en el proceso
+      // principal. Aquí solo llega el resultado.
+      const r = await api().elegirYCargarDocumentos()
+      if (r) setPaso('CARGANDO')
+      await aplicarCarga(r)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      setPaso('INICIO')
+    } finally {
+      setOcupado(false)
+    }
+  }, [aplicarCarga])
 
   /** Empezar sin documento: todo a mano. Es un caso de uso legítimo. */
   const empezarAMano = useCallback(async () => {
@@ -220,7 +243,7 @@ export function App(): JSX.Element {
 
           {paso === 'INICIO' && (
             <ZonaSoltar
-              onArchivos={(a) => void cargar(a)}
+              onRutas={(r) => void cargarRutas(r)}
               onElegir={() => void elegirYcargar()}
               onAMano={() => void empezarAMano()}
               ocupado={ocupado}

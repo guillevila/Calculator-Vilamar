@@ -7,7 +7,7 @@
  */
 
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
@@ -216,12 +216,16 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   ipcMain.handle(CANALES.casoNuevo, () => s().nuevo())
   ipcMain.handle(CANALES.casoActual, () => s().obtener())
 
-  ipcMain.handle(CANALES.cargarDocumentos, async (_e, archivos: readonly ArchivoEntrante[]) =>
-    s().cargarDocumentos(archivos),
+  /** Convierte rutas en documentos leídos del disco. El contenido no sale de aquí. */
+  const desdeRutas = (rutas: readonly string[]): ArchivoEntrante[] =>
+    rutas.map((ruta) => ({ nombre: basename(ruta), ruta }))
+
+  ipcMain.handle(CANALES.cargarDocumentos, async (_e, rutas: readonly string[]) =>
+    s().cargarDocumentos(desdeRutas(rutas)),
   )
 
-  ipcMain.handle(CANALES.elegirArchivos, async (): Promise<readonly ArchivoEntrante[]> => {
-    if (!ventana) return []
+  ipcMain.handle(CANALES.elegirYCargarDocumentos, async () => {
+    if (!ventana) return null
     const r = await dialog.showOpenDialog(ventana, {
       title: 'Elige el informe de biometría',
       properties: ['openFile', 'multiSelections'],
@@ -230,14 +234,10 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
         { name: 'Todos los archivos', extensions: ['*'] },
       ],
     })
-    if (r.canceled) return []
-    const { readFileSync: leer, statSync } = await import('node:fs')
-    const { basename } = await import('node:path')
-    return r.filePaths.map((ruta) => ({
-      nombre: basename(ruta),
-      tamanoBytes: statSync(ruta).size,
-      datos: new Uint8Array(leer(ruta)),
-    }))
+    if (r.canceled || r.filePaths.length === 0) return null
+    // Se lee y se procesa aquí mismo. El contenido del fichero no pasa por la
+    // pantalla: antes hacía el viaje de ida y vuelta, y en ese viaje se perdía.
+    return s().cargarDocumentos(desdeRutas(r.filePaths))
   })
 
   ipcMain.handle(CANALES.editarMedida, (_e, ojo, campo, valor) =>

@@ -3,16 +3,13 @@
  */
 
 import { useCallback, useState } from 'react'
+
+import { api } from '../api.js'
 import type { JSX } from 'react'
 
-export interface ArchivoParaSubir {
-  readonly nombre: string
-  readonly tamanoBytes: number
-  readonly datos: Uint8Array
-}
-
 interface Props {
-  readonly onArchivos: (archivos: readonly ArchivoParaSubir[]) => void
+  /** Se le pasan las RUTAS de los ficheros, no su contenido. */
+  readonly onRutas: (rutas: readonly string[]) => void
   readonly onElegir: () => void
   readonly onAMano: () => void
   readonly ocupado: boolean
@@ -20,13 +17,20 @@ interface Props {
 
 const ADMITIDOS = ['pdf', 'jpg', 'jpeg', 'png']
 
-export function ZonaSoltar({ onArchivos, onElegir, onAMano, ocupado }: Props): JSX.Element {
+export function ZonaSoltar({ onRutas, onElegir, onAMano, ocupado }: Props): JSX.Element {
   const [encima, setEncima] = useState(false)
   const [rechazados, setRechazados] = useState<readonly string[]>([])
 
+  /**
+   * De los ficheros arrastrados solo se saca su RUTA, y se manda esa.
+   *
+   * El contenido lo lee el proceso principal, que es quien tiene acceso al
+   * disco. Antes se leía aquí y se enviaba por IPC, y en ese viaje se perdía:
+   * llegaba un fichero de 0 bytes.
+   */
   const procesar = useCallback(
-    async (lista: FileList) => {
-      const validos: ArchivoParaSubir[] = []
+    (lista: FileList) => {
+      const rutas: string[] = []
       const malos: string[] = []
       for (const fichero of Array.from(lista)) {
         const extension = fichero.name.toLowerCase().split('.').pop() ?? ''
@@ -34,16 +38,14 @@ export function ZonaSoltar({ onArchivos, onElegir, onAMano, ocupado }: Props): J
           malos.push(fichero.name)
           continue
         }
-        validos.push({
-          nombre: fichero.name,
-          tamanoBytes: fichero.size,
-          datos: new Uint8Array(await fichero.arrayBuffer()),
-        })
+        const ruta = api().rutaDeArchivo(fichero)
+        if (ruta) rutas.push(ruta)
+        else malos.push(fichero.name)
       }
       setRechazados(malos)
-      if (validos.length > 0) onArchivos(validos)
+      if (rutas.length > 0) onRutas(rutas)
     },
-    [onArchivos],
+    [onRutas],
   )
 
   return (
@@ -58,7 +60,7 @@ export function ZonaSoltar({ onArchivos, onElegir, onAMano, ocupado }: Props): J
         onDrop={(e) => {
           e.preventDefault()
           setEncima(false)
-          void procesar(e.dataTransfer.files)
+          procesar(e.dataTransfer.files)
         }}
         data-testid="zona-soltar"
       >

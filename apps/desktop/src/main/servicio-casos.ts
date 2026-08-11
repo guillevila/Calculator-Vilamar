@@ -9,7 +9,7 @@
  * llama a `prepararEntradas` como todo el mundo.
  */
 
-import { writeFileSync } from 'node:fs'
+import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type {
@@ -112,6 +112,44 @@ export class ServicioCasos {
     const resumenes: ResumenExtraccion[] = []
 
     for (const archivo of archivos) {
+      // El fichero se lee AQUÍ, del disco, una sola vez. Si está vacío se dice
+      // ahora y no diez pasos más adelante disfrazado de «no se puede
+      // decodificar la imagen».
+      let datos: Uint8Array
+      let tamanoBytes: number
+      try {
+        datos = new Uint8Array(readFileSync(archivo.ruta))
+        tamanoBytes = statSync(archivo.ruta).size
+      } catch (error) {
+        resumenes.push({
+          documentoId: '',
+          nombreArchivo: archivo.nombre,
+          dispositivo: 'DESCONOCIDO',
+          nombreDispositivo: 'No se ha podido abrir',
+          confianzaDispositivo: 0,
+          explicacionOjos: '',
+          ojosEncontrados: [],
+          avisos: [
+            `No se ha podido abrir «${archivo.nombre}». ${error instanceof Error ? error.message : String(error)}`,
+          ],
+        })
+        continue
+      }
+
+      if (datos.length === 0) {
+        resumenes.push({
+          documentoId: '',
+          nombreArchivo: archivo.nombre,
+          dispositivo: 'DESCONOCIDO',
+          nombreDispositivo: 'Archivo vacío',
+          confianzaDispositivo: 0,
+          explicacionOjos: '',
+          ojosEncontrados: [],
+          avisos: [`«${archivo.nombre}» está vacío: 0 bytes. Comprueba el archivo original.`],
+        })
+        continue
+      }
+
       const formato = formatoDeNombre(archivo.nombre)
       if (!formato) {
         resumenes.push({
@@ -129,12 +167,12 @@ export class ServicioCasos {
         continue
       }
 
-      const guardado = guardarDocumento(this.dep.carpetas, archivo.nombre, archivo.datos)
+      const guardado = guardarDocumento(this.dep.carpetas, archivo.nombre, datos)
       const entrada: DocumentoEntrada = {
         id: guardado.id,
         nombre: archivo.nombre,
         formato,
-        datos: archivo.datos,
+        datos,
       }
 
       let resultado: Awaited<ReturnType<typeof extraerDocumento>>
@@ -169,7 +207,7 @@ export class ServicioCasos {
             nombre: archivo.nombre,
             tipo: formato === 'pdf' ? 'PDF' : 'IMAGEN',
             formato,
-            tamanoBytes: archivo.tamanoBytes,
+            tamanoBytes,
             paginas: Math.max(1, resultado.ojos ? 1 : 1),
             cargadoEn: this.iso(),
             dispositivoDetectado: resultado.dispositivo,

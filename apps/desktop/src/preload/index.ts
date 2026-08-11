@@ -11,7 +11,7 @@
  * una librería a un preload.
  */
 
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 import type { ApiVilamar } from '../compartido/ipc.js'
 import { CANALES } from '../compartido/ipc.js'
@@ -22,8 +22,12 @@ const api: ApiVilamar = {
   casoNuevo: () => ipcRenderer.invoke(CANALES.casoNuevo),
   casoActual: () => ipcRenderer.invoke(CANALES.casoActual),
 
-  cargarDocumentos: (archivos) => ipcRenderer.invoke(CANALES.cargarDocumentos, archivos),
-  elegirArchivos: () => ipcRenderer.invoke(CANALES.elegirArchivos),
+  cargarDocumentos: (rutas) => ipcRenderer.invoke(CANALES.cargarDocumentos, rutas),
+  elegirYCargarDocumentos: () => ipcRenderer.invoke(CANALES.elegirYCargarDocumentos),
+
+  // La única función que hace algo más que reenviar. El objeto File del
+  // navegador no expone su ruta en disco: hay que pedírsela a Electron.
+  rutaDeArchivo: (fichero) => webUtils.getPathForFile(fichero),
 
   editarMedida: (ojo, campo, valor) => ipcRenderer.invoke(CANALES.editarMedida, ojo, campo, valor),
   confirmarCampo: (ojo, campo) => ipcRenderer.invoke(CANALES.confirmarCampo, ojo, campo),

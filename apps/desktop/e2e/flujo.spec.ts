@@ -15,7 +15,7 @@
  * al lanzarlo.
  */
 
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -33,6 +33,16 @@ const raizApp = join(fileURLToPath(import.meta.url), '..', '..')
 let app: ElectronApplication
 let ventana: Page
 let carpetaDatos: string
+
+// El tipo de `window.vilamar` ya lo declara el renderer en `api.ts`; aquí solo
+// se importa para no duplicarlo (dos declaraciones distintas del mismo global
+// son un error de compilación).
+import type { ApiVilamar } from '../src/compartido/ipc.js'
+declare global {
+  interface Window {
+    readonly vilamar?: ApiVilamar
+  }
+}
 
 test.beforeAll(async () => {
   // Cada ejecución sobre una carpeta de datos desechable: no se tocan los
@@ -140,4 +150,76 @@ test('la interfaz no enseña jerga técnica al usuario', async () => {
   for (const jerga of ['locator(', 'timeouterror', 'undefined', 'null pointer', 'stack trace']) {
     expect(texto, `la pantalla enseña «${jerga}»`).not.toContain(jerga)
   }
+})
+
+/**
+ * Esta prueba existe por un fallo concreto: al subir un informe, **el fichero
+ * llegaba vacío**. Los bytes viajaban por IPC —y en el caso de «Elegir archivo»,
+ * ida y vuelta— y se perdían por el camino. Todo lo que se veía después («la
+ * imagen no se puede decodificar», «no se encuentran datos») eran síntomas.
+ *
+ * Ahora solo viaja la RUTA y el proceso principal lee el fichero. Esta prueba
+ * comprueba justamente eso: que un fichero de verdad, con contenido de verdad,
+ * llega entero y se lee.
+ */
+test('un informe subido llega con su contenido y se lee', async () => {
+  test.setTimeout(180_000)
+
+  // Un informe sintético con capa de texto: se lee sin OCR, así que la prueba no
+  // depende de tener descargados los datos del idioma.
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  await p.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <div style="display:flex;gap:90px">
+      <pre>OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+ACD (epi)      3.18 mm
+LT             4.53 mm
+CCT             530 um</pre>
+      <pre>OS
+AL            24.01 mm
+K1            40.27 D @ 8
+K2            42.68 D @ 98
+ACD (epi)      3.23 mm
+LT             4.48 mm
+CCT             533 um</pre>
+    </div></body>`)
+  const rutaPdf = join(carpetaDatos, 'informe-sintetico.pdf')
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+
+  // El fichero existe y NO está vacío. Si esto falla, el resto no significa nada.
+  expect(statSync(rutaPdf).size).toBeGreaterThan(1000)
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+
+  // Se llama al mismo canal que usa la aplicación al arrastrar un fichero.
+  const resultado = await ventana.evaluate(
+    async (ruta) => window.vilamar?.cargarDocumentos([ruta]),
+    rutaPdf,
+  )
+
+  expect(resultado, 'el proceso principal no ha devuelto nada').toBeTruthy()
+  const resumen = resultado?.resumenes?.[0]
+  expect(resumen?.nombreDispositivo, 'no ha reconocido el ANTERION').toContain('ANTERION')
+  expect(resumen?.ojosEncontrados, 'no ha encontrado los dos ojos').toEqual(['OD', 'OS'])
+  expect(
+    resumen?.avisos.join(' '),
+    'ha avisado de que no encuentra datos, y sí los hay',
+  ).not.toMatch(/no se ha podido leer ningún dato|está vacío/i)
+
+  // Y los valores son los que pone el informe.
+  const od = resultado?.caso?.ojos?.OD?.medidas
+  expect(od?.AL?.valor).toBe(24.07)
+  expect(od?.K1?.valor).toBe(41.22)
+  expect(od?.K1_EJE?.valor).toBe(175)
+  const os = resultado?.caso?.ojos?.OS?.medidas
+  expect(os?.AL?.valor).toBe(24.01)
+  expect(os?.K1?.valor).toBe(40.27)
+
+  await ventana.screenshot({ path: 'test-results/05-informe-cargado.png', fullPage: true })
 })

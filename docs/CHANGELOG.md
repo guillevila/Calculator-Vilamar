@@ -4,6 +4,45 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [0.1.3] — 11/08/2026
+
+La causa de verdad. Los dos arreglos anteriores atacaban síntomas: **el fichero
+que subía el usuario llegaba VACÍO**, 0 bytes. Se descubrió mirando la copia que
+la propia aplicación guarda de cada documento — su nombre era el hash de la
+cadena vacía.
+
+### Corregido
+
+- **Los bytes de los ficheros ya no viajan por IPC.** Solo viaja la RUTA, y el
+  proceso principal lee el fichero una vez, donde tiene acceso al disco. En el
+  caso de «Elegir archivo» el contenido hacía un viaje absurdo —el proceso
+  principal lo leía, lo mandaba a la pantalla y la pantalla lo devolvía— y en ese
+  viaje se perdía. Los ficheros arrastrados usan `webUtils.getPathForFile`.
+- **Un fichero vacío o ilegible se dice ahora al abrirlo**, no diez pasos más
+  adelante disfrazado de «la imagen no se puede decodificar».
+- **La frontera entre columnas volvía a estar mal.** Buscaba «el hueco más
+  grande», y en la columna izquierda el espacio entre la etiqueta `K1` y su
+  valor era MAYOR que el espacio entre columnas: la frontera partía la línea por
+  dentro y el ojo derecho salía **sin ninguna K**, mientras el izquierdo salía
+  perfecto. Ahora el rótulo de la columna derecha es la referencia y la frontera
+  se coloca en el hueco real entre las dos.
+
+### Añadido
+
+- Una prueba de interfaz que **sube un informe de verdad** por el mismo camino
+  que la aplicación y comprueba que llega con su contenido y se lee entero. Es la
+  que faltaba: ninguna de las 221 anteriores tocaba ese camino.
+
+### Resultado
+
+Los tres caminos de lectura leen 8 de 8 campos en los dos ojos, y un informe
+subido a la aplicación se lee completo: AL, K1, K1 eje, K2, K2 eje, ACD, LT y CCT
+en OD y en OS.
+
+222 tests y 6 pruebas de interfaz.
+
+---
+
 ## [0.1.2] — 11/08/2026
 
 Segunda ronda a partir del uso real: un JPEG fallaba con «Error attempting to
