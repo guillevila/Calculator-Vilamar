@@ -1,4 +1,17 @@
 {
+  "$comentario": [
+    "Ajustes del proyecto. Vienen del documento original del dueño (10/08/2026),",
+    "con los hooks reapuntados a la versión en Node.",
+    "",
+    "POR QUÉ EL CAMBIO: los hooks originales estaban en Bash y Python. En Windows",
+    "no funcionaban —salían con código 1, que Claude Code NO trata como bloqueo,",
+    "así que la protección parecía estar puesta y no lo estaba—. Se reescribieron",
+    "en Node (.mjs), que es lo que este proyecto ya tiene instalado, y salen con 2.",
+    "Está explicado en .claude/hooks/README.md.",
+    "",
+    "Los permisos de abajo son los del original y NO se han tocado: son mejores que",
+    "no tener ninguno y cubren justo lo que hay que cubrir."
+  ],
   "permissions": {
     "defaultMode": "acceptEdits",
     "deny": [
@@ -31,31 +44,35 @@
     "SessionStart": [
       {
         "type": "command",
-        "command": "bash .claude/hooks/SessionStart.sh"
+        "command": "node .claude/hooks/session-start.mjs"
       }
     ],
     "PreToolUse": [
       {
         "type": "command",
-        "command": "bash .claude/hooks/PreToolUse.sh"
+        "command": "node .claude/hooks/pre-tool-use.mjs"
+      },
+      {
+        "type": "command",
+        "command": "node .claude/hooks/block-subagent-external.mjs"
       }
     ],
     "PostToolUse": [
       {
         "type": "command",
-        "command": "bash .claude/hooks/PostToolUse.sh"
+        "command": "node .claude/hooks/post-tool-use.mjs"
       }
     ],
     "Stop": [
       {
         "type": "command",
-        "command": "bash .claude/hooks/Stop.sh"
+        "command": "node .claude/hooks/stop.mjs"
       }
     ],
     "SubagentStart": [
       {
         "type": "command",
-        "command": "python .claude/hooks/log-subagent-spawn.py"
+        "command": "node .claude/hooks/log-subagent-spawn.mjs"
       }
     ]
   }

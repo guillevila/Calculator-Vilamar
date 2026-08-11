@@ -12,8 +12,8 @@ description: Contexto específico del proyecto. Rellena este archivo con la info
 
 ## Entidades principales del dominio
 
-> *Ejemplo: En una empresa de transporte, las entidades son: Conductor, Vehículo,
-> Parte de trabajo, Ruta, Cliente.*
+> _Ejemplo: En una empresa de transporte, las entidades son: Conductor, Vehículo,
+> Parte de trabajo, Ruta, Cliente._
 
 [Listar aquí las entidades principales con una descripción de 1 línea cada una]
 
@@ -21,8 +21,8 @@ description: Contexto específico del proyecto. Rellena este archivo con la info
 
 ## Reglas de negocio clave
 
-> *Ejemplo: "Un conductor solo puede tener un parte activo a la vez.
-> Los partes se cierran al final del turno, nunca antes."*
+> _Ejemplo: "Un conductor solo puede tener un parte activo a la vez.
+> Los partes se cierran al final del turno, nunca antes."_
 
 [Listar aquí las reglas de negocio más importantes]
 
@@ -30,18 +30,19 @@ description: Contexto específico del proyecto. Rellena este archivo con la info
 
 ## Usuarios del sistema y sus permisos
 
-| Rol | Qué puede hacer | Qué NO puede hacer |
-|-----|----------------|-------------------|
-| [Rol 1] | | |
-| [Rol 2] | | |
+| Rol     | Qué puede hacer | Qué NO puede hacer |
+| ------- | --------------- | ------------------ |
+| [Rol 1] |                 |                    |
+| [Rol 2] |                 |                    |
 
 ---
 
 ## Flujos críticos del negocio
 
-> *Describe los procesos más importantes paso a paso en lenguaje natural*
+> _Describe los procesos más importantes paso a paso en lenguaje natural_
 
 ### Flujo 1: [nombre]
+
 1. [Paso 1]
 2. [Paso 2]
 3. [Paso 3]
@@ -50,17 +51,17 @@ description: Contexto específico del proyecto. Rellena este archivo con la info
 
 ## Terminología específica del negocio
 
-> *Palabras que en tu negocio significan algo concreto y Claude debe conocer*
+> _Palabras que en tu negocio significan algo concreto y Claude debe conocer_
 
-| Término | Qué significa en este contexto |
-|---------|-------------------------------|
-| [término] | [significado] |
+| Término   | Qué significa en este contexto |
+| --------- | ------------------------------ |
+| [término] | [significado]                  |
 
 ---
 
 ## Integraciones y sistemas externos
 
-> *Con qué otros sistemas se conecta este proyecto*
+> _Con qué otros sistemas se conecta este proyecto_
 
 [Listar aquí: ERP, pasarelas de pago, APIs externas, etc.]
 
@@ -68,7 +69,7 @@ description: Contexto específico del proyecto. Rellena este archivo con la info
 
 ## Sensibilidad de datos
 
-| Tipo de dato | Nivel | Reglas |
-|-------------|-------|--------|
-| [ej: DNIs] | Alta | Solo admin |
+| Tipo de dato  | Nivel | Reglas                     |
+| ------------- | ----- | -------------------------- |
+| [ej: DNIs]    | Alta  | Solo admin                 |
 | [ej: Nombres] | Media | Solo usuarios autenticados |

@@ -7,11 +7,11 @@ description: Registra una nueva lección aprendida en el log de lessons-learned.
 
 Cuando el usuario invoca este comando:
 
-1. Pregunta: *"¿Qué pasó? Descríbeme el error o la corrección en tus propias palabras."*
+1. Pregunta: _"¿Qué pasó? Descríbeme el error o la corrección en tus propias palabras."_
 2. Entiende la causa raíz
 3. Redacta una lección clara en el formato estándar
 4. La añade a `.claude/skills/lessons-learned/log.md`
-5. Confirma: *"Lección registrada. ¿Continuamos?"*
+5. Confirma: _"Lección registrada. ¿Continuamos?"_
 
 ## Formato a usar
 

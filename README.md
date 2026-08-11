@@ -1,141 +1,128 @@
-# Claude Project Template — Sistema operativo de proyecto
+# Calculator Vilamar
 
-> Una plantilla para construir proyectos reales con **Claude Code** de forma
-> **ordenada, profesional y segura** — aunque no tengas conocimientos técnicos.
->
-> **Tú aportas el negocio. Claude actúa como tu técnico.**
-> La plantilla pone las reglas, la estructura y las protecciones para que esa
-> colaboración salga bien y para que **siempre sepas en qué estado real está tu proyecto.**
+**Lee una biometría ocular una sola vez y rellena por ti las calculadoras de
+lente intraocular.**
 
-> ℹ️ **Esto es una plantilla, no tu proyecto todavía.** Acabas de copiar el molde.
-> Hasta que no lo rellenes y empieces a construir, el proyecto está en estado **💡 Idea**
-> (lo verás reflejado en [PROJECT_STATUS.md](PROJECT_STATUS.md)).
+Local, para Windows. Nada sale de tu ordenador salvo lo que se envía a las
+propias calculadoras — y sin el nombre de nadie.
 
----
-
-## ¿Qué es esto?
-
-Una carpeta preparada para que, al abrirla con Claude Code, Claude tenga todo el
-contexto necesario para trabajar bien y, sobre todo, para que **tú siempre puedas
-entender**, sin leer código:
-
-- 🟢 **qué es** el proyecto → [SYSTEM_VISION.md](SYSTEM_VISION.md)
-- 📊 **en qué estado está** y qué funciona de verdad hoy → [PROJECT_STATUS.md](PROJECT_STATUS.md)
-- 🪜 **qué significa cada etapa** (idea, demo, MVP, producción) → [docs/ESTADOS_DEL_PROYECTO.md](docs/ESTADOS_DEL_PROYECTO.md)
-- 🤝 **cómo trabajar con Claude** → [docs/ONBOARDING_NO_TECNICO.md](docs/ONBOARDING_NO_TECNICO.md)
-- 🔒 **cuándo se puede compartir** con terceros → [docs/ANTES_DE_COMPARTIR.md](docs/ANTES_DE_COMPARTIR.md)
-
-## ¿Para quién es?
-
-Para **personas con un buen conocimiento de su negocio pero sin perfil técnico**
-que quieren construir software con Claude Code sin perder el control ni hacerse
-falsas ilusiones sobre el avance real.
+> 🛠️ **Estado: prototipo funcional.** Habla de verdad con EVO Toric y Barrett
+> Toric y genera el PDF. La lectura automática de informes **todavía no se ha
+> probado con informes reales**. Lo que funciona y lo que no está en
+> [PROJECT_STATUS.md](PROJECT_STATUS.md), sin adornos.
 
 ---
 
-## Empezar en 4 pasos
+## Qué hace
 
 ```
-1. Copia esta carpeta y renómbrala con el nombre de tu proyecto.
-2. Rellena SYSTEM_VISION.md (qué es, para quién, objetivo).
-3. Abre la carpeta en Claude Code y dile:
-   "Lee SYSTEM_VISION.md y PROJECT_STATUS.md y cuéntame qué entiendes."
-4. A partir de ahí, Claude te guía.
+  NUEVO CÁLCULO  →  arrastras el informe  →  revisas lo que ha leído
+                 →  CONFIRMAS  →  rellena EVO, Barrett y Kane
+                 →  resultados juntos  →  PDF
 ```
 
-¿Primera vez con esto? Sigue la guía completa en **[docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)**
-(instalar, conectar GitHub, primera sesión). Y para el día a día con Claude:
-**[docs/ONBOARDING_NO_TECNICO.md](docs/ONBOARDING_NO_TECNICO.md)**.
+En lugar de teclear los mismos doce datos en tres webs distintas, los tecleas —o
+los lee— una vez.
+
+**Lo que NO hace:** no calcula potencias de lente, no recomienda ninguna lente y
+no sustituye tu criterio. Los números son de Kane, EVO y Barrett; este programa
+los pone juntos.
 
 ---
 
-## Los 3 archivos que TÚ rellenas
+## Arrancarlo en Windows
 
-| Archivo | Qué es | Cuándo |
-|---------|--------|--------|
-| **[SYSTEM_VISION.md](SYSTEM_VISION.md)** | La visión: qué construyes, para quién, qué decisiones están tomadas | Al empezar, y lo vas completando |
-| **[PROJECT_STATUS.md](PROJECT_STATUS.md)** | El estado real: qué funciona hoy, qué no, qué falta decidir | Lo mantiene Claude, tú lo validas |
-| **[.claude/skills/project-context/SKILL.md](.claude/skills/project-context/SKILL.md)** | Contexto de negocio que Claude necesita para decidir bien | Cuando tu negocio tenga reglas que Claude deba conocer |
+Necesitas [Node.js 20 o superior](https://nodejs.org) y
+[pnpm](https://pnpm.io/installation) (`npm install -g pnpm`).
 
-> El resto de archivos los **mantiene Claude por ti** (arquitectura, changelog, roadmap...).
-> Tú solo los lees cuando quieras entender algo.
+```bash
+git clone <este-repositorio>
+cd "Calculadora Vilamar"
 
-## Archivos que NO deberías tocar sin entenderlos
+pnpm install              # rápido: no compila nada
+pnpm playwright:install   # el navegador que usan las calculadoras (una vez)
+pnpm ocr:preparar         # datos del lector de texto, 5 MB (una vez, opcional)
 
-Estos definen *cómo se comporta Claude y qué protecciones tienes*. Funcionan solos.
-Cámbialos solo si sabes lo que haces (o pídele a Claude que te explique antes):
-
-- **[CLAUDE.md](CLAUDE.md)** y **[.claude/CLAUDE.md](.claude/CLAUDE.md)** — las reglas del agente (su "constitución").
-- **[.claude/hooks/](.claude/hooks/README.md)** — protecciones de seguridad automáticas.
-- **[.claude/settings.json](.claude/settings.json)** — configuración técnica de Claude Code.
-- **[.gitignore](.gitignore)** y **[.env.example](.env.example)** — protegen tus secretos. No los vacíes.
-
----
-
-## Cómo trabajar con Claude Code
-
-El detalle está en [docs/ONBOARDING_NO_TECNICO.md](docs/ONBOARDING_NO_TECNICO.md), pero en resumen:
-
-1. **Pide el QUÉ y el PORQUÉ**, no el CÓMO. Tú describes el resultado de negocio; Claude decide lo técnico.
-2. **Una cosa a la vez.** Los cambios pequeños se revisan mejor y se rompen menos.
-3. **Revisa antes de aprobar.** Pide que te expliquen el cambio en lenguaje normal y pruébalo tú.
-4. **Antes de compartir con alguien**, pide una auditoría con [docs/ANTES_DE_COMPARTIR.md](docs/ANTES_DE_COMPARTIR.md).
-
-Tienes prompts listos para copiar y pegar en **[docs/PROMPTS_BASE.md](docs/PROMPTS_BASE.md)**.
-
-## Flujo recomendado de trabajo
-
-```
-Abrir sesión  →  "Lee SYSTEM_VISION + PROJECT_STATUS y dime el estado"
-      ↓
-Pedir un cambio concreto (con su porqué de negocio)
-      ↓
-Claude propone / construye  →  te explica qué hizo
-      ↓
-Tú lo pruebas y lo apruebas  →  Claude actualiza PROJECT_STATUS
-      ↓
-Antes de enseñarlo a alguien  →  auditoría (ANTES_DE_COMPARTIR.md)
+pnpm dev                  # arranca la aplicación
 ```
 
----
+Después de la primera vez, basta con **hacer doble clic en
+`Calculator Vilamar.cmd`**. (Todavía no hay instalador `.exe`; ver
+[GETTING-STARTED](docs/GETTING-STARTED.md#3-arrancarlo).)
 
-## Mapa de la plantilla
-
-### Raíz — lo que más usarás
-- **[SYSTEM_VISION.md](SYSTEM_VISION.md)** ⭐ — la visión (tú la rellenas).
-- **[PROJECT_STATUS.md](PROJECT_STATUS.md)** 📊 — el estado real y honesto, de un vistazo.
-- **[CLAUDE.md](CLAUDE.md)** — puntero a las reglas del agente.
-
-### `docs/` — para personas, no para Claude
-- **[GETTING-STARTED.md](docs/GETTING-STARTED.md)** — arrancar desde cero (instalar, GitHub).
-- **[ONBOARDING_NO_TECNICO.md](docs/ONBOARDING_NO_TECNICO.md)** — cómo trabajar con Claude día a día.
-- **[ESTADOS_DEL_PROYECTO.md](docs/ESTADOS_DEL_PROYECTO.md)** — qué es idea / demo / MVP / producción.
-- **[ANTES_DE_COMPARTIR.md](docs/ANTES_DE_COMPARTIR.md)** — checklist antes de enseñar el repo.
-- **[PROMPTS_BASE.md](docs/PROMPTS_BASE.md)** — prompts listos para copiar.
-- **[DICCIONARIO.md](docs/DICCIONARIO.md)** — términos técnicos en lenguaje normal.
-- **[ARQUITECTURA.md](docs/ARQUITECTURA.md)** · **[ROADMAP.md](docs/ROADMAP.md)** · **[CHANGELOG.md](docs/CHANGELOG.md)** — Claude los mantiene.
-- **[decisiones/](docs/decisiones/README.md)** · **[sprints/](docs/sprints/README.md)** — historial de decisiones y trabajo.
-
-### `.claude/` — cómo se comporta Claude (funciona solo)
-- **[CLAUDE.md](.claude/CLAUDE.md)** — constitución del agente.
-- **[hooks/](.claude/hooks/README.md)** — automatizaciones y protecciones de seguridad.
-- **[agents/](.claude/agents/README.md)** — agentes especializados (arquitectura, negocio...).
-- **[skills/](.claude/skills/)** — conocimiento: lecciones aprendidas, protocolo Git, contexto de negocio.
-- **[commands/](.claude/commands/)** — atajos `/nueva-leccion`, `/revisar-cambios`, `/nuevo-sprint`.
-- **[memory/](.claude/memory/README.md)** — memoria persistente entre sesiones.
-
-### `.github/` — automatización en GitHub
-- **CI** — comprueba que la **documentación** está en orden (NO que el producto funcione; ver [el propio CI](.github/workflows/ci.yml)).
-- **PR template** — checklist de revisión antes de aprobar cambios.
+Instrucciones detalladas, incluida la primera vez y qué esperar:
+[docs/GETTING-STARTED.md](docs/GETTING-STARTED.md).
 
 ---
 
-## ¿Es mucho? No tienes que entenderlo todo
+## Comandos
 
-Para empezar solo necesitas cuatro archivos:
-1. [SYSTEM_VISION.md](SYSTEM_VISION.md) — rellénalo.
-2. [PROJECT_STATUS.md](PROJECT_STATUS.md) — consulta el estado real (lo mantiene Claude).
-3. [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md) — sigue los pasos.
-4. [docs/DICCIONARIO.md](docs/DICCIONARIO.md) — consúltalo cuando aparezca algo desconocido.
+| Comando                                             | Qué hace                                                        |
+| --------------------------------------------------- | --------------------------------------------------------------- |
+| `pnpm dev` · doble clic en `Calculator Vilamar.cmd` | Arranca la aplicación                                           |
+| `pnpm test`                                         | 205 tests. No tocan internet                                    |
+| `pnpm test:e2e`                                     | Arranca la aplicación real y recorre el flujo                   |
+| `pnpm lint` · `pnpm typecheck` · `pnpm build`       | Calidad y compilación                                           |
+| `pnpm live [evo\|barrett\|kane]`                    | Prueba los adaptadores **contra las webs reales**               |
+| `pnpm verificar:vertical`                           | El producto entero contra EVO y Barrett reales, hasta el PDF    |
+| `pnpm reconocer <sitio>`                            | Mira el formulario actual de una web, para reparar un adaptador |
+| `pnpm muestra:informe`                              | Genera un informe de ejemplo para verlo                         |
+| `pnpm probar:lectura`                               | Comprueba la lectura de PDF con texto, imagen y PDF escaneado   |
+| `pnpm ocr:preparar`                                 | Baja los datos del lector de texto para trabajar sin conexión   |
 
-**El resto lo gestiona Claude.**
+Los que hablan con las webs **no están en el CI**, a propósito: una web ajena con
+un mal día no puede poner el control en rojo.
+
+---
+
+## Privacidad
+
+Este programa toca documentos sanitarios. Las reglas:
+
+- **Nada identificativo entra en el repositorio.** Todos los fixtures son
+  sintéticos y están declarados como tales.
+- **El PDF no lleva el nombre del paciente.** El caso se identifica por un código
+  local, `CV-2026-0042`.
+- **A las webs externas se les manda ese código**, no un nombre. EVO y Barrett
+  exigen un «Patient Name»; reciben el código del caso.
+- Tus documentos, casos, sesiones de navegador e informes viven en
+  `%APPDATA%\calculator-vilamar`, fuera del repositorio.
+- Las capturas de diagnóstico **pueden contener biometría** —son pantallazos de
+  una web rellenada con tus datos—. Son locales y su carpeta lleva un aviso.
+
+---
+
+## Lo que este programa no hace, por principio
+
+- No acepta condiciones de uso en tu nombre. Kane pide aceptar un acuerdo de
+  licencia: **lo aceptas tú**, en el navegador, y el programa continúa.
+- No resuelve ni rodea CAPTCHA, ni falsea el navegador, ni salta protecciones.
+- No inventa un dato que falta. Si no hay WTW, pone `NO ENCONTRADO`, no `12.0`.
+- No corrige lo que ha leído. Si lee `AL = 240.7`, avisa de que probablemente
+  sean `24.07` y **te deja corregirlo a ti**.
+- No envía nada a ninguna calculadora sin que tú lo hayas confirmado antes.
+
+---
+
+## Documentación
+
+| Documento                                                    | Para qué                                                  |
+| ------------------------------------------------------------ | --------------------------------------------------------- |
+| [PROJECT_STATUS.md](PROJECT_STATUS.md)                       | **Qué funciona hoy de verdad.** Empieza aquí              |
+| [SYSTEM_VISION.md](SYSTEM_VISION.md)                         | Visión, límites y decisiones cerradas                     |
+| [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md)                 | Cómo está construido y por qué                            |
+| [docs/INTEGRACIONES.md](docs/INTEGRACIONES.md)               | Cómo es cada una de las tres webs                         |
+| [docs/MANTENIMIENTO.md](docs/MANTENIMIENTO.md)               | Reparar un adaptador, añadir un aparato o una calculadora |
+| [docs/ROADMAP.md](docs/ROADMAP.md)                           | Qué viene después                                         |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md)                       | Qué ha cambiado                                           |
+| [docs/ESTADOS_DEL_PROYECTO.md](docs/ESTADOS_DEL_PROYECTO.md) | Qué significa «prototipo» y qué significa «MVP»           |
+
+---
+
+## Aviso
+
+Calculator Vilamar es una herramienta de apoyo. Los resultados proceden de las
+calculadoras externas **Kane** (iolformula.com), **EVO Toric**
+(evoiolcalculator.com) y **Barrett Toric** (ASCRS / APACRS), y están sujetos a
+las condiciones de uso de cada una. Las comparaciones que muestra son
+descriptivas. **No sustituye el criterio del cirujano.**

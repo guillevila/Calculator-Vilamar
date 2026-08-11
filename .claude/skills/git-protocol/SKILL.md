@@ -5,9 +5,13 @@ description: Protocolo de Git para este proyecto. Cárgalo antes de cualquier co
 
 # Skill: Git Protocol
 
+> **La rama principal de este repositorio se llama `master`.** Donde este
+> documento diga «rama principal», es `master`. Si algún día se renombra a
+> `main`, hay que actualizar también este archivo y `.github/workflows/ci.yml`.
+
 ## Reglas absolutas
 
-1. **NUNCA tocar `main` directamente** — toda tarea nueva = rama nueva + PR
+1. **NUNCA tocar la rama principal directamente** — toda tarea nueva = rama nueva + PR
 2. **NUNCA `git push --force`** — si hay que deshacer algo, usar `git revert`
 3. **NUNCA mergear sin aprobación** del dueño del proyecto
 4. **NUNCA commitear `.env`** ni archivos con credenciales
@@ -15,8 +19,8 @@ description: Protocolo de Git para este proyecto. Cárgalo antes de cualquier co
 ## Flujo estándar
 
 ```bash
-# 1. Asegurarse de estar en main actualizado
-git checkout main && git pull origin main
+# 1. Asegurarse de estar en la rama principal actualizada
+git checkout master && git pull origin master
 
 # 2. Crear rama nueva con nombre descriptivo
 git checkout -b feat/nombre-descriptivo

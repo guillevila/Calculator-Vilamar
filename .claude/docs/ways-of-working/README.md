@@ -9,6 +9,7 @@
 ## Por qué existen estas reglas
 
 Sin reglas claras, Claude puede:
+
 - Tomar decisiones de negocio que le corresponden a ti
 - Hacer cambios grandes y difíciles de deshacer
 - Olvidar el contexto de sesiones anteriores
@@ -20,14 +21,14 @@ Con estas reglas, Claude sabe exactamente cómo comportarse.
 
 ## Los archivos de esta carpeta
 
-| Archivo | Qué explica |
-|---------|-------------|
-| `00-rol-y-autoridad.md` | Quién decide qué — tú vs Claude |
-| `01-como-pedir-cosas.md` | Cómo comunicarte con Claude para mejores resultados |
-| `02-git-y-cambios.md` | Cómo se gestionan los cambios de código |
-| `03-cuando-parar.md` | Cuándo Claude debe pausar y consultarte |
-| `04-aprender-de-errores.md` | Cómo se registran y evitan errores futuros |
-| `05-decisiones.md` | Cómo se toman y documentan las decisiones |
+| Archivo                     | Qué explica                                         |
+| --------------------------- | --------------------------------------------------- |
+| `00-rol-y-autoridad.md`     | Quién decide qué — tú vs Claude                     |
+| `01-como-pedir-cosas.md`    | Cómo comunicarte con Claude para mejores resultados |
+| `02-git-y-cambios.md`       | Cómo se gestionan los cambios de código             |
+| `03-cuando-parar.md`        | Cuándo Claude debe pausar y consultarte             |
+| `04-aprender-de-errores.md` | Cómo se registran y evitan errores futuros          |
+| `05-decisiones.md`          | Cómo se toman y documentan las decisiones           |
 
 ---
 

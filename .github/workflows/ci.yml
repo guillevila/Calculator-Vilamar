@@ -1,9 +1,11 @@
 name: CI — Verificación del proyecto
 
-# Se ejecuta en cada push y en cada Pull Request hacia la rama principal.
+# `pull_request` cubre todas las ramas de trabajo: nada llega a master sin pasar
+# por una PR. `push` se limita a master y a las ramas de integración, para no
+# ejecutar cada comprobación dos veces.
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, 'integration/**']
   pull_request:
     branches: [main, master]
 
@@ -12,114 +14,178 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ════════════════════════════════════════════════════════════════════════
-  #  CHECKS DE DOCUMENTACIÓN  (siempre activos)
+  # ═══════════════════════════════════════════════════════════════════════
+  #  DOCUMENTACIÓN
   #
-  #  Este job NO comprueba que el producto funcione. Comprueba que el proyecto
-  #  esté bien documentado y honesto sobre su estado. Pasar este job en verde
-  #  significa "la documentación está en orden", NO "el producto funciona".
-  # ════════════════════════════════════════════════════════════════════════
+  #  Comprueba que el proyecto está documentado y es honesto sobre su estado.
+  #  Verde aquí significa «la documentación está en orden», NO «el producto
+  #  funciona».
+  # ═══════════════════════════════════════════════════════════════════════
   documentacion:
     name: Documentación y estado del proyecto
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Checkout del código
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Comprobar que existen los archivos obligatorios
         run: |
-          echo "→ Comprobando archivos obligatorios..."
-          obligatorios="README.md SYSTEM_VISION.md PROJECT_STATUS.md CLAUDE.md .claude/CLAUDE.md docs/ESTADOS_DEL_PROYECTO.md docs/ONBOARDING_NO_TECNICO.md docs/ANTES_DE_COMPARTIR.md docs/PROMPTS_BASE.md"
+          obligatorios="README.md SYSTEM_VISION.md PROJECT_STATUS.md CLAUDE.md .claude/CLAUDE.md \
+            docs/ESTADOS_DEL_PROYECTO.md docs/ARQUITECTURA.md docs/INTEGRACIONES.md \
+            docs/MANTENIMIENTO.md docs/GETTING-STARTED.md docs/ROADMAP.md docs/CHANGELOG.md \
+            .env.example"
           falta=0
           for f in $obligatorios; do
-            if [ -f "$f" ]; then
-              echo "  ✅ $f"
-            else
-              echo "  ❌ FALTA: $f"
-              falta=1
-            fi
+            if [ -f "$f" ]; then echo "  ✅ $f"; else echo "  ❌ FALTA: $f"; falta=1; fi
           done
-          if [ "$falta" -eq 1 ]; then
-            echo ""
-            echo "ERROR: faltan archivos obligatorios del proyecto. Revisa la lista de arriba."
+          [ "$falta" -eq 0 ] || { echo "Faltan archivos obligatorios."; exit 1; }
+
+      - name: PROJECT_STATUS declara una etapa
+        # La búsqueda es SIN distinguir mayúsculas: en Markdown `[x]` y `[X]`
+        # marcan la casilla igual, y el documento usa la minúscula. Con la
+        # búsqueda estricta, este control fallaba sobre un documento correcto.
+        run: |
+          if grep -qiE '^- \[x\] ' PROJECT_STATUS.md; then
+            echo "Etapa declarada:"
+            grep -iE '^- \[x\] ' PROJECT_STATUS.md
+          else
+            echo "::error::PROJECT_STATUS.md no marca ninguna etapa."
             exit 1
           fi
-          echo "Todos los archivos obligatorios existen."
 
-      - name: Avisar si README o PROJECT_STATUS siguen genéricos
-        # Solo AVISA (no rompe el CI): un proyecto recién creado todavía tiene
-        # plantillas sin rellenar, y eso es normal. Pero deja el aviso visible
-        # para que nadie comparta el repo creyendo que está personalizado.
-        run: |
-          echo "→ Buscando contenido de plantilla sin rellenar..."
-          aviso=0
-
-          # Marcas típicas de texto sin rellenar.
-          if grep -qE '\[Escribe aquí|\[rellenar|\[Claude rellena|\[fecha\]|\[nombre\]|\[Descripción\]|\[Tipo de usuario' README.md SYSTEM_VISION.md PROJECT_STATUS.md 2>/dev/null; then
-            echo "  ⚠️  Hay marcas de plantilla sin rellenar (ej: [Escribe aquí], [rellenar], [fecha])."
-            aviso=1
-          fi
-
-          # El título genérico del README de la plantilla.
-          if head -n 1 README.md | grep -qE 'Claude Project Template'; then
-            echo "  ⚠️  El README todavía tiene el título genérico de la plantilla."
-            aviso=1
-          fi
-
-          if [ "$aviso" -eq 1 ]; then
-            echo ""
-            echo "::warning::El proyecto aún tiene documentación genérica sin personalizar."
-            echo "Esto es NORMAL al empezar. Pero NO compartas el repo con terceros hasta"
-            echo "personalizar README.md y PROJECT_STATUS.md (ver docs/ANTES_DE_COMPARTIR.md)."
-          else
-            echo "  ✅ No se detectó contenido de plantilla sin rellenar."
-          fi
-
-      - name: Recordatorio sobre el estado del CI
-        run: |
-          echo "════════════════════════════════════════════════════════════════"
-          echo " Este CI comprueba DOCUMENTACIÓN, no funcionamiento del producto."
-          echo " Un check verde aquí NO significa que el producto funcione ni que"
-          echo " esté testeado. Cuando el proyecto tenga código, añade tests reales"
-          echo " en el job 'tests' de abajo (está desactivado a propósito)."
-          echo "════════════════════════════════════════════════════════════════"
-
-  # ════════════════════════════════════════════════════════════════════════
-  #  TESTS DEL PRODUCTO  (DESACTIVADO hasta que exista stack técnico)
+  # ═══════════════════════════════════════════════════════════════════════
+  #  PRIVACIDAD
   #
-  #  Mientras esté así, NO hay verificación automática de que el producto
-  #  funcione — y eso queda dicho honestamente. Cuando el proyecto tenga código:
-  #    1. Borra la línea `if: false` de abajo para activarlo.
-  #    2. Descomenta el bloque del lenguaje que uses (Node o Python).
-  #    3. Pon los comandos reales de instalar, compilar y testear.
-  #  Pídeselo a Claude: "Activa el job de tests del CI para nuestro stack".
-  # ════════════════════════════════════════════════════════════════════════
-  tests:
-    name: Tests del producto (pendiente de configurar)
+  #  Este software toca documentos sanitarios. Este job existe para que un
+  #  descuido no acabe en el repositorio.
+  # ═══════════════════════════════════════════════════════════════════════
+  privacidad:
+    name: Nada clínico ni secreto en el repositorio
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No hay documentos ni imágenes fuera de lo permitido
+        run: |
+          # Los PDF e imágenes solo pueden vivir en sitios declarados.
+          sospechosos=$(git ls-files | grep -iE '\.(pdf|jpg|jpeg|png|tif|tiff|dcm|heic)$' \
+            | grep -vE '^(docs/assets/|apps/desktop/build/|packages/extraction/fixtures/sinteticos/)' || true)
+          if [ -n "$sospechosos" ]; then
+            echo "::error::Hay documentos o imágenes en sitios no permitidos:"
+            echo "$sospechosos"
+            exit 1
+          fi
+          echo "✅ Sin documentos ni imágenes fuera de lo permitido."
+
+      - name: No hay sesiones, claves ni datos de OCR
+        run: |
+          prohibidos=$(git ls-files | grep -iE '(storagestate|storage-state|\.env$|\.pem$|\.key$|\.pfx$|traineddata|cookies\.json)' || true)
+          if [ -n "$prohibidos" ]; then
+            echo "::error::Hay ficheros que nunca deben subirse:"
+            echo "$prohibidos"
+            exit 1
+          fi
+          echo "✅ Sin sesiones, claves ni datos de OCR."
+
+      - name: La carpeta local/ no está versionada
+        run: |
+          if git ls-files | grep -qE '^local/'; then
+            echo "::error::La carpeta local/ contiene material de trabajo y no debe versionarse."
+            git ls-files | grep -E '^local/'
+            exit 1
+          fi
+          echo "✅ local/ fuera del repositorio."
+
+  # ═══════════════════════════════════════════════════════════════════════
+  #  CALIDAD
+  #
+  #  Este job SÍ comprueba que el código funciona: estilo, tipos, tests y que
+  #  la aplicación se construye.
+  # ═══════════════════════════════════════════════════════════════════════
+  calidad:
+    name: Lint, tipos, tests y build
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: false   # ← BORRA esta línea cuando haya tests reales que ejecutar.
     steps:
-      - name: Checkout del código
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
 
-      # --- Node.js (descomenta si tu proyecto usa Node/JavaScript) ---
-      # - uses: actions/setup-node@v4
-      #   with:
-      #     node-version: '20'
-      # - run: npm install
-      # - run: npm run build
-      # - run: npm test
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
 
-      # --- Python (descomenta si tu proyecto usa Python) ---
-      # - uses: actions/setup-python@v5
-      #   with:
-      #     python-version: '3.12'
-      # - run: pip install -r requirements.txt
-      # - run: python -m pytest
+      - name: Lint
+        run: pnpm lint
 
-      - name: Sin tests configurados
+      - name: Formato
+        run: pnpm format:check
+
+      - name: Tipos (TypeScript estricto)
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      # Los tests contra Kane, EVO y Barrett NO están aquí, y es a propósito.
+      # Una web ajena con un mal día pondría este control en rojo por algo que
+      # no es nuestro, y un control que falla por motivos ajenos deja de
+      # mirarse. Se lanzan a mano con `pnpm live`.
+      - name: Recordatorio sobre las webs externas
         run: |
-          echo "Este job está desactivado porque el proyecto aún no tiene tests."
-          exit 1
+          echo "::notice::Este control NO prueba Kane, EVO ni Barrett. Para eso: pnpm live"
+
+  # ═══════════════════════════════════════════════════════════════════════
+  #  INTERFAZ
+  #
+  #  Arranca Electron de verdad y recorre el flujo pulsando con el ratón.
+  # ═══════════════════════════════════════════════════════════════════════
+  interfaz:
+    name: Prueba de interfaz (Electron)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Dependencias de sistema de Electron
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 \
+            libcups2 libdrm2 libgbm1 libasound2t64 libxkbcommon0 libxcomposite1 \
+            libxdamage1 libxfixes3 libxrandr2 libpango-1.0-0 libcairo2
+
+      # Hace falta de verdad, no «por si acaso»: dos de las pruebas de interfaz
+      # suben un documento, y leer un documento arranca Chromium para rasterizar
+      # las páginas del PDF. Sin este paso esas dos fallan con «Executable
+      # doesn't exist», y solo en el CI — en un ordenador de trabajo el navegador
+      # ya está instalado de antes, así que el fallo no se ve en local.
+      - name: Descargar el Chromium que usan la lectura de documentos y los adaptadores
+        run: pnpm playwright:install
+
+      - name: Construir la aplicación
+        run: pnpm build
+
+      - name: Prueba de interfaz
+        run: xvfb-run --auto-servernum pnpm test:e2e
+
+      - name: Guardar el rastro si algo falla
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultados-prueba-interfaz
+          path: apps/desktop/test-results/
+          retention-days: 7

@@ -1,110 +1,209 @@
-# Getting Started — Cómo arrancar un proyecto nuevo
+# Arrancar Calculator Vilamar en Windows, desde cero
 
-> Guía paso a paso para empezar desde cero con esta plantilla.
-> Diseñada para alguien que no tiene experiencia técnica previa.
+**Versión:** 1.0 · **Fecha:** 11/08/2026 · **Autor:** Claude
 
----
-
-## Antes de empezar: lo que necesitas
-
-- [ ] **Claude Code** instalado ([descarga aquí](https://claude.ai/download))
-- [ ] **Git** instalado ([descarga aquí](https://git-scm.com/downloads)) — el instalador por defecto está bien
-- [ ] **Una cuenta en GitHub** (gratis en [github.com](https://github.com))
-- [ ] **Node.js** si tu proyecto es web ([descarga aquí](https://nodejs.org)) — la versión LTS
-- [ ] Tu proyecto ya tiene nombre y sabes aproximadamente qué vas a construir
+> Pensado para seguirlo tal cual, sin saber programar. Si algo no sale como
+> aquí pone, es un fallo del programa o de estas instrucciones — no tuyo.
 
 ---
 
-## Paso 1 — Copiar la plantilla
+## 1. Lo que hay que instalar una vez
 
-1. Descarga o copia la carpeta `claude-project-template`
-2. Renómbrala con el nombre de tu proyecto (ej: `mi-app-de-partes`)
-3. Muévela a donde quieras trabajar (escritorio, documentos, etc.)
+### Node.js
 
----
+Descárgalo de **<https://nodejs.org>** y elige la versión **LTS**. Instalador
+siguiente-siguiente-terminar.
 
-## Paso 2 — Rellenar la visión del proyecto
+Para comprobar que ha ido bien, abre **PowerShell** (tecla Windows, escribe
+«PowerShell», Enter) y escribe:
 
-Abre el archivo `SYSTEM_VISION.md` con cualquier editor de texto (el Bloc de notas vale).
+```powershell
+node --version
+```
 
-Rellena al menos estas secciones:
-- ¿Qué es este proyecto?
-- ¿Para quién es?
-- ¿Cuál es el objetivo central?
+Tiene que responder algo como `v22.x.x` o superior. Si dice que no reconoce el
+comando, cierra PowerShell, ábrelo otra vez y repite.
 
-No hace falta rellenarlo todo ahora. Lo irás completando con Claude.
+### pnpm
 
----
+En la misma ventana:
 
-## Paso 3 — Conectar a GitHub
-
-1. Ve a [github.com/new](https://github.com/new) y crea un repositorio nuevo
-   - Nombre: el mismo que tu carpeta (ej: `mi-app-de-partes`)
-   - Visibilidad: Privado si los datos son sensibles
-   - NO marques "Add a README" ni nada más — la plantilla ya lo trae todo
-
-2. Abre la carpeta del proyecto en Claude Code
-
-3. Dile a Claude:
-   > *"Inicializa git y conecta este proyecto al repositorio de GitHub que acabo
-   > de crear. La URL es: [pega aquí la URL de tu repo]"*
-
-Claude hará el resto.
+```powershell
+npm install -g pnpm
+pnpm --version
+```
 
 ---
 
-## Paso 4 — Primera sesión de trabajo
+## 2. Preparar el programa
 
-Abre Claude Code en la carpeta del proyecto y dile:
+Ve a la carpeta del proyecto y ejecuta, **por este orden**:
 
-> *"Lee el SYSTEM_VISION.md y el CLAUDE.md y cuéntame qué entiendes del proyecto
-> hasta ahora. Luego hazme las preguntas que necesites para poder empezar."*
+```powershell
+cd "C:\Users\<tu-usuario>\Desktop\Desarrollo\Calculadora Vilamar"
 
-Claude leerá los documentos, te resumirá lo que entendió y te hará las preguntas
-necesarias. A partir de ahí, empieza el trabajo real.
+pnpm install
+```
 
----
+Esto baja las piezas que necesita. **Debe tardar segundos y no debe fallar**: no
+compila nada. Si te pide Visual Studio o Python, algo va mal — avísame.
 
-## Paso 5 — Flujo de trabajo diario
+```powershell
+pnpm playwright:install
+```
 
-Una vez el proyecto está en marcha, cada sesión de trabajo es así:
+Esto descarga el navegador que usará para rellenar las calculadoras. Son unos
+150 MB y tarda un par de minutos. **Solo hace falta la primera vez.**
 
-1. **Abrís Claude Code** → Claude lee el estado del proyecto automáticamente
-2. **Describes lo que quieres** en lenguaje natural
-3. **Claude trabaja** — te va informando de lo que hace
-4. **Revisas y apruebas** los cambios
-5. **Al cerrar**, Claude recuerda anotar las lecciones de la sesión
+```powershell
+pnpm ocr:preparar
+```
 
-No hay más complejidad que esa.
-
----
-
-## Preguntas frecuentes
-
-### ¿Tengo que aprender a programar?
-No. Para usar esta plantilla y trabajar con Claude, no necesitas saber código.
-Lo que sí necesitas es saber describir claramente qué quieres que haga tu aplicación.
-
-### ¿Qué hago si algo no funciona?
-Descríbeselo a Claude en lenguaje normal: "Cuando hago X, pasa Y, pero esperaba Z".
-Claude investigará y te dirá qué pasó.
-
-### ¿Puedo compartir el proyecto con mi equipo?
-Sí. Una vez conectado a GitHub, invita a tu equipo al repositorio desde
-la configuración de GitHub. Cada persona trabajará en su propia sesión de Claude Code.
-
-### ¿Se puede perder trabajo?
-Git guarda todo el historial. Mientras hagas commits regularmente (Claude lo hace
-por ti), no se pierde nada. En el peor caso, se puede volver a cualquier versión anterior.
-
-### ¿Cuánto cuesta Claude Code?
-Consulta los planes en [claude.ai](https://claude.ai). Hay planes para individuos
-y para equipos.
+Esto baja los datos del lector de texto (5 MB). **No es obligatorio**: si no lo
+haces, la aplicación los descarga sola la primera vez que leas un documento
+escaneado. Hacerlo ahora te asegura que después funcione **sin conexión**.
 
 ---
 
-## Necesito ayuda
+## 3. Arrancarlo
 
-Si algo no funciona o no entiendes algo, el mejor recurso es preguntarle
-directamente a Claude en lenguaje natural. Claude está diseñado para este proyecto
-y conoce su estructura.
+### Con doble clic (lo normal)
+
+En la carpeta del proyecto hay un fichero llamado **`Calculator Vilamar.cmd`**.
+**Haz doble clic.** Se abre la aplicación.
+
+La primera vez tarda un poco porque construye el programa; después es inmediato.
+
+> **Truco:** haz clic derecho sobre ese fichero → _Enviar a_ → _Escritorio (crear
+> acceso directo)_. Así lo tienes como cualquier otro programa.
+
+### Desde la consola (si prefieres)
+
+```powershell
+pnpm dev      # modo desarrollo, se recarga al cambiar el código
+pnpm start    # abre la versión construida
+```
+
+Para cerrarlo, cierra la ventana.
+
+> ℹ️ **Todavía no hay un instalador .exe.** Generarlo requiere activar el _Modo
+> de desarrollador_ de Windows (Configuración → Privacidad y seguridad → Para
+> desarrolladores), porque la herramienta que lo crea necesita permiso para
+> hacer enlaces simbólicos. El fichero `.cmd` hace el mismo trabajo mientras
+> tanto.
+
+---
+
+## 4. Tu primer cálculo
+
+### a) Los datos
+
+Tienes dos caminos:
+
+- **Arrastra tu informe** (PDF, JPG o PNG) a la zona de puntos, o pulsa **Elegir
+  archivo**.
+- O pulsa **Escribir los datos a mano**, que es el camino que ahora mismo está
+  más probado.
+
+> ⚠️ La lectura automática de informes **todavía no se ha probado con informes
+> reales**. Puede leer bien, puede leer mal, y puede leer un número donde no
+> toca. **Revísalo todo** en el paso siguiente. Es la razón por la que ese paso
+> existe.
+
+### b) Revisar
+
+Verás todos los datos, agrupados. De cada uno se dice **de dónde salió**:
+
+- `del informe` — lo ha leído el programa
+- `a mano` — lo has escrito tú
+- `no encontrado` — **no está**. No es cero: es que no se sabe
+
+Y su estado: `correcto`, `poco frecuente` (ámbar) o `imposible` (rojo).
+
+Si algo está en rojo, no te dejará continuar. El programa te dirá qué sospecha
+—por ejemplo, que `240.7` debería ser `24.07`— pero **no lo cambiará por su
+cuenta**: lo corriges tú.
+
+Para decir que un dato no se conoce, **deja el campo vacío** o pulsa **Borrar**.
+No pongas 0: para el cálculo no es lo mismo.
+
+Antes de seguir, rellena lo que decides tú y no viene en el informe:
+**refracción objetivo**, **SIA**, **eje de la incisión**, **constante A** y el
+**modelo de lente**.
+
+### c) Confirmar
+
+**Confirmar datos.** A partir de aquí, y solo a partir de aquí, los datos pueden
+salir hacia las calculadoras.
+
+### d) Calcular
+
+Pulsa **Calcular en las tres**. Se abrirá un navegador y **verás cómo se
+rellenan las webs solas**. No lo cierres.
+
+- **EVO Toric** tarda unos segundos.
+- **Barrett Toric** tarda alrededor de medio minuto.
+- **Kane** te pedirá que **aceptes sus condiciones de uso** en el navegador. Es
+  un acuerdo legal y solo puedes aceptarlo tú. Cuando lo hagas, el programa
+  continúa solo.
+
+Si no quieres usar Kane, no pasa nada: **no esperes**. Pulsa **Ver los
+resultados que ya hay** y tendrás EVO y Barrett.
+
+### e) Resultados y PDF
+
+Una tabla con las tres columnas, y debajo, en lenguaje normal, en qué coinciden y
+en qué no.
+
+**Generar PDF** te lo guarda y te dice dónde. El botón **Abrir la carpeta** te
+lleva allí.
+
+---
+
+## 5. Dónde queda todo
+
+```
+%APPDATA%\calculator-vilamar\
+   casos\          los cálculos, en ficheros de texto
+   documentos\     copia de los informes que has subido
+   informes\       los PDF generados
+   diagnostico\    qué pasó cuando algo falló
+   sesion-navegador\  cookies y sesiones del navegador
+```
+
+Para llegar: tecla Windows + R, escribe `%APPDATA%\calculator-vilamar`, Enter.
+
+**Nada de eso sale de tu ordenador** y nada de eso está en el repositorio.
+
+---
+
+## 6. Si algo va mal
+
+| Qué ves                                   | Qué pasa                                                                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `pnpm` no se reconoce                     | Cierra PowerShell y ábrelo otra vez tras instalar pnpm                                     |
+| No se abre ninguna ventana con `pnpm dev` | Copia lo que salga en la consola y mándamelo                                               |
+| «EVO no ha respondido como se esperaba»   | Reinténtalo. Si sigue, es que la web ha cambiado: mira `docs/MANTENIMIENTO.md`             |
+| Barrett se queda esperando                | Su web pide a veces una comprobación de seguridad. Hazla en el navegador que se ha abierto |
+| El OCR falla la primera vez               | Necesita internet una vez para bajar 5 MB de datos de idioma                               |
+| Kane no avanza                            | Está esperando a que aceptes sus condiciones en el navegador                               |
+
+**Lo importante:** si una calculadora falla, **las demás no se pierden**. Puedes
+reintentar solo esa.
+
+---
+
+## 7. Comprobar que todo sigue bien
+
+De vez en cuando, o después de un cambio:
+
+```powershell
+pnpm lint ; pnpm typecheck ; pnpm test ; pnpm build
+```
+
+Y para comprobar que las webs siguen respondiendo como esperamos (tarda un
+minuto y abre ventanas):
+
+```powershell
+pnpm live evo barrett
+```

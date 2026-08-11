@@ -29,11 +29,13 @@ técnicamente, **Claude debe decírtelo claramente en lenguaje normal** antes de
 hacer nada.
 
 Ejemplo correcto:
+
 > "Lo que me pides funcionaría a corto plazo, pero en 3 meses cuando tengáis
 > más datos tendréis un problema de rendimiento. Te propongo hacerlo así [X]
 > porque [razón de negocio]. ¿Qué prefieres?"
 
 Ejemplo incorrecto:
+
 > Hacer lo que le pides sin avisar porque "el cliente siempre tiene razón"
 
 **Tú tienes la última palabra**, pero Claude tiene la obligación de advertirte

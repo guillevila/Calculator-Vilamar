@@ -29,7 +29,7 @@ y recupera todo el contexto aprendido.
 
 No. Claude gestiona esta carpeta automáticamente.
 Puedes pedirle que "recuerde" algo concreto:
-*"Recuerda que preferimos los importes con coma decimal, no con punto"*
+_"Recuerda que preferimos los importes con coma decimal, no con punto"_
 
 También puedes pedirle que "olvide" algo:
-*"Olvida lo que tienes sobre el módulo de nóminas, ya no aplica"*
+_"Olvida lo que tienes sobre el módulo de nóminas, ya no aplica"_

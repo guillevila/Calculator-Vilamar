@@ -1,42 +1,128 @@
-# Variables de entorno — NUNCA subir a GitHub
+# ═══════════════════════════════════════════════════════════════════════════
+#  Calculator Vilamar — qué NUNCA entra en el repositorio
+#
+#  Este software lee informes de biometría de pacientes reales. La primera
+#  línea de defensa es esta lista. Si dudas de si un fichero puede subirse,
+#  la respuesta es no.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── Datos clínicos y todo lo que los toca ─────────────────────────────────
+# Carpeta única para trabajar con informes reales en local. Nada de aquí sube.
+local/
+casos-locales/
+informes/
+pacientes/
+*.dcm
+
+# Documentos sueltos en la raíz o en cualquier carpeta que no sea de fixtures
+# sintéticos. Los fixtures del repositorio viven en `fixtures/sinteticos/`
+# y están permitidos más abajo con excepciones explícitas.
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.tif
+*.tiff
+*.bmp
+*.webp
+*.heic
+
+# Excepciones: material del propio producto (iconos, capturas de documentación)
+# y fixtures declarados sintéticos. Se añaden de uno en uno, a conciencia.
+!docs/assets/**/*.png
+!docs/assets/**/*.jpg
+!apps/desktop/build/**/*.png
+!apps/desktop/build/**/*.ico
+!packages/extraction/fixtures/sinteticos/**/*.png
+!packages/extraction/fixtures/sinteticos/**/*.pdf
+
+# ── Salidas de la aplicación ──────────────────────────────────────────────
+informes-generados/
+salida-pdf/
+capturas/
+screenshots/
+diagnostico/
+.diagnostico/
+
+# ── Sesiones de navegador de Playwright ───────────────────────────────────
+# Contienen cookies y sesiones reales del usuario. Nunca al repositorio.
+.sesiones/
+sesiones-playwright/
+storage-state*.json
+storageState*.json
+*.storagestate
+user-data-dir/
+.playwright-profile/
+
+# ── Variables de entorno y credenciales ───────────────────────────────────
 .env
 .env.local
 .env.development
 .env.production
 .env.*
 !.env.example
+*.pem
+*.key
+*.cert
+*.p12
+*.pfx
+credenciales*
+credentials*
+secrets/
 
-# Dependencias — se reinstalan con el comando de instalación
+# ── Dependencias y builds ─────────────────────────────────────────────────
 node_modules/
-__pycache__/
-*.pyc
-.venv/
-venv/
-
-# Builds — se generan con el comando de build
 dist/
 build/
-.next/
 out/
+.vite/
+*.tsbuildinfo
 
-# Logs de auditoría local (opcionales — quitar si quieres subirlos)
+# ── Resultados de pruebas ─────────────────────────────────────────────────
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+coverage/
+
+# ── Almacenamiento local de casos (el de verdad vive en %APPDATA%) ────────
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+datos-locales/
+
+# ── Datos de idioma del OCR ───────────────────────────────────────────────
+# tesseract.js los descarga solo, y por defecto los deja en la carpeta de
+# trabajo: 5 MB por idioma. La aplicación los guarda en su carpeta de datos,
+# pero un script lanzado a mano puede dejarlos aquí.
+*.traineddata
+*.traineddata.gz
+
+# ── Registros ─────────────────────────────────────────────────────────────
+*.log
+logs/
 .claude/audit/
 
-# IDEs y editores
+# ── Editores y sistema ────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# Archivos temporales
+# ── Temporales ────────────────────────────────────────────────────────────
 *.tmp
 *.temp
-*.log
+.tmp/
 
-# Claves y certificados
-*.pem
-*.key
-*.cert
-*.p12
+# ── Heredado de la plantilla ────────────────────────────────────────────────
+# Este proyecto no usa Python ni Next.js, pero una regla de ignorar que sobra no
+# hace daño y una que falta es una fuga. Se conservan.
+__pycache__/
+*.pyc
+.venv/
+venv/
+.next/

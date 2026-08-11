@@ -7,8 +7,8 @@ description: Inicia un nuevo sprint de trabajo. Crea la estructura de seguimient
 
 Cuando el usuario invoca este comando:
 
-1. Pregunta: *"¿Cuál es el objetivo principal de este sprint? ¿Qué tiene que funcionar al final?"*
-2. Pregunta: *"¿Cuánto tiempo tenemos? (días o semanas)"*
+1. Pregunta: _"¿Cuál es el objetivo principal de este sprint? ¿Qué tiene que funcionar al final?"_
+2. Pregunta: _"¿Cuánto tiempo tenemos? (días o semanas)"_
 3. Revisa las decisiones abiertas en SYSTEM_VISION.md — si alguna bloquea el sprint, avisar
 4. Crea el archivo `docs/sprints/sprint-NNN.md` con la estructura
 5. Confirma el plan con el usuario antes de empezar

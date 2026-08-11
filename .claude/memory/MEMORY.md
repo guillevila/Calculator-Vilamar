@@ -8,15 +8,15 @@
 
 ## Sobre el proyecto
 
-*[Se irá rellenando automáticamente por Claude]*
+_[Se irá rellenando automáticamente por Claude]_
 
 ## Sobre el equipo y sus preferencias
 
-*[Se irá rellenando automáticamente por Claude]*
+_[Se irá rellenando automáticamente por Claude]_
 
 ## Sobre las formas de trabajar
 
-*[Se irá rellenando automáticamente por Claude]*
+_[Se irá rellenando automáticamente por Claude]_
 
 ---
 

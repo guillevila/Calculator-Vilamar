@@ -8,6 +8,7 @@
 ## Cómo funciona un sprint
 
 Un sprint es un período de trabajo enfocado (normalmente 1-2 semanas) con:
+
 - Un objetivo claro: "al final de este sprint, [algo] tiene que funcionar"
 - Una lista de tareas concretas
 - Una fecha de inicio y una fecha objetivo
@@ -25,6 +26,6 @@ Claude te guiará para definir el objetivo y las tareas.
 
 ## Sprints del proyecto
 
-| Sprint | Objetivo | Fechas | Estado |
-|--------|----------|--------|--------|
-| *[Se irán añadiendo aquí]* | | | |
+| Sprint                     | Objetivo | Fechas | Estado |
+| -------------------------- | -------- | ------ | ------ |
+| _[Se irán añadiendo aquí]_ |          |        |        |

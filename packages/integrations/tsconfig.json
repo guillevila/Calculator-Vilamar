@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // Los callbacks de `evaluate` se ejecutan DENTRO del navegador, así que
+    // necesitan los tipos del DOM. Es la única capa del programa que los usa:
+    // el dominio no los tiene a propósito.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"]
+}
