@@ -1,0 +1,223 @@
+# Arquitectura de Calculator Vilamar
+
+**Versión:** 1.0 · **Fecha:** 11/08/2026 · **Autor:** Claude
+
+> Cómo está construido y, sobre todo, **por qué está construido así**. Lo que
+> aquí se explica es lo que permite mantenerlo dentro de seis meses.
+
+---
+
+## 1. El mapa en treinta segundos
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  apps/desktop                                                        │
+│                                                                      │
+│   renderer (React)  ──IPC──▶  main (Node)                            │
+│   la pantalla                 ficheros, navegador, PDF               │
+└───────────────┬──────────────────────────┬───────────────────────────┘
+                │                          │
+    ┌───────────▼──────────┐   ┌───────────▼───────────┐
+    │  @vilamar/extraction │   │ @vilamar/integrations │
+    │  documento → datos   │   │  Playwright, HTML     │
+    └───────────┬──────────┘   └───────────┬───────────┘
+                │                          │
+                └────────────┬─────────────┘
+                             ▼
+                  ┌─────────────────────┐      ┌──────────────────┐
+                  │   @vilamar/domain   │◀─────│ @vilamar/report  │
+                  │  el modelo y sus    │      │  HTML del PDF    │
+                  │  invariantes        │      └──────────────────┘
+                  └─────────────────────┘
+```
+
+Las flechas apuntan **hacia dentro**. El dominio no conoce a nadie; todos lo
+conocen a él.
+
+---
+
+## 2. Los cinco paquetes
+
+| Paquete                 | Qué hace                                                              | Qué NO puede importar                                     |
+| ----------------------- | --------------------------------------------------------------------- | --------------------------------------------------------- |
+| `@vilamar/domain`       | El modelo biométrico, sus invariantes, la validación y la comparación | Playwright, Electron, React, `node:fs`. Lo impide ESLint. |
+| `@vilamar/extraction`   | Documento → datos, con evidencia                                      | Nada de calculadoras. Ni siquiera sabe que existen.       |
+| `@vilamar/integrations` | Los tres adaptadores de Playwright                                    | Es la **única** capa con HTML ajeno                       |
+| `@vilamar/report`       | El HTML del informe                                                   | Nada del sistema; son funciones puras                     |
+| `@vilamar/desktop`      | Electron, la interfaz y las implementaciones concretas                | —                                                         |
+
+### Las tres reglas estructurales
+
+1. **`packages/domain` es puro.** Se prueba sin navegador, sin disco y sin
+   Electron. Si un cambio obliga a importar algo de esos, el cambio está mal
+   planteado.
+2. **Ningún selector HTML sale de `packages/integrations/src/adapters/`.** Hay un
+   test que lo vigila y que se ha comprobado plantando una infracción.
+3. **Nada llega a una calculadora sin pasar por `prepararEntradas`.** Es el único
+   camino, y hace dos comprobaciones que no se pueden saltar.
+
+---
+
+## 3. El modelo: por qué un dato ausente no es un cero
+
+Es la decisión de diseño más importante y conviene entenderla antes de tocar
+nada.
+
+```ts
+interface Medida {
+  readonly valor: number // ← siempre un número real
+  // …
+}
+
+type MapaMedidas = Partial<Record<CampoBiometrico, Medida>>
+```
+
+`valor` es un `number` a secas: **no admite `null`, ni `0` como comodín, ni
+`-1`, ni `NaN`.** Un dato que no se conoce no se representa con un número: la
+medida **no se crea** y la clave no está en el mapa.
+
+Eso convierte «lo que falta no es cero» en algo que no depende de que nadie se
+acuerde de comprobarlo: **es imposible escribir el caso contrario.** Y
+`crearMedida` lanza un error si le pasan algo que no es un número finito.
+
+La otra cara: los datos que faltan no se pueden distinguir de los que no se
+buscaron. Es un precio asumido — la pantalla enseña todos los campos esperados,
+así que un hueco se ve.
+
+### Procedencia
+
+Un número nunca viaja solo. Lleva de dónde vino (`TEXTO_PDF`, `OCR`, `VISION`,
+`MANUAL`, `DERIVADO`), de qué documento, con qué fiabilidad, **qué texto exacto
+se leyó** y si una persona lo ha confirmado. Sin eso el informe no se podría
+auditar y la pantalla de revisión no podría distinguir lo que leyó el ordenador
+de lo que escribió el cirujano.
+
+Un dato derivado obliga a declarar de qué se derivó y con qué criterio, para que
+nunca se confunda con una medida.
+
+---
+
+## 4. Extracción: capas, no una masa de expresiones regulares
+
+```
+documento
+   ↓  ProveedorExtraccion  (se inyecta: PDF nativo, OCR, o lo que venga)
+texto + posiciones
+   ↓  detectarDispositivo   (indicios con peso; DESCONOCIDO es una respuesta válida)
+qué aparato es
+   ↓  segmentarPorOjo       (por posición si hay coordenadas; si no, por texto)
+un trozo por ojo
+   ↓  aplicarReglas         (tabla de reglas por aparato)
+medidas con evidencia
+```
+
+**`ProveedorExtraccion` es la abstracción que permite cambiar de tecnología.**
+Hoy hay tres implementaciones en la aplicación: texto nativo de PDF con pdfjs,
+OCR con tesseract.js, y PDF escaneado → imagen → OCR. Cambiarlas no toca los
+parsers.
+
+Añadir un aparato es **añadir una tabla de reglas**, no reescribir la lógica.
+Ver [MANTENIMIENTO.md](MANTENIMIENTO.md).
+
+### Dos detalles que costaron sangre
+
+- **pdfjs no devuelve líneas, devuelve trozos.** «AL» y «24.07 mm» son elementos
+  distintos que solo comparten la altura. Si se juntara el texto en el orden en
+  que viene, las reglas no encontrarían nada. Por eso `lector-pdf.ts`
+  reconstruye las líneas agrupando por altura y ordenando por horizontal, **y
+  conserva además los trozos con su posición** para poder separar columnas.
+- **Rasterizar un PDF sin módulos nativos.** Convertir una página en imagen suele
+  exigir un lienzo nativo que compila C++. Aquí se usa el Chromium que ya trae
+  Playwright: se carga pdf.js desde `node_modules` en una página local, se dibuja
+  en un lienzo de verdad y se captura. Ninguna dependencia nueva.
+
+---
+
+## 5. Integraciones: un adaptador por web
+
+```ts
+interface AdaptadorCalculadora {
+  readonly calculadora: Calculadora
+  readonly requiereNavegadorVisible: boolean
+  validarEntradas(entradas): readonly string[]
+  ejecutar(contexto): Promise<ResultadoCalculadora>
+}
+```
+
+`ejecutar` **no lanza excepciones hacia fuera**: cualquier fallo se convierte en
+un `ResultadoCalculadora` con estado. Es lo que permite que una calculadora se
+rompa sin llevarse a las otras dos. El orquestador tiene además una red por si
+algo se escapa.
+
+Estados posibles: `SUCCESS`, `PARTIAL`, `NEEDS_USER_ACTION`, `MISSING_INPUTS`,
+`EXTERNAL_ERROR`, `ADAPTER_BROKEN`.
+
+**El orden de ejecución no es casual:** EVO (no pide nada) → Barrett (puede pedir
+una comprobación) → Kane (pide aceptar sus condiciones). Así el usuario ya tiene
+resultados en pantalla cuando le toca hacer algo, y si decide no hacerlo no se
+queda sin nada.
+
+Lo específico de cada web está en [INTEGRACIONES.md](INTEGRACIONES.md).
+
+---
+
+## 6. La aplicación
+
+### Proceso principal
+
+- `almacen.ts` — ficheros JSON en `%APPDATA%\calculator-vilamar`. Sin base de
+  datos, y es una decisión: un caso es un objeto pequeño, no hay consultas, y
+  SQLite traería un módulo nativo que hay que compilar.
+- `diagnostico.ts` — el cuaderno de bitácora de los adaptadores.
+- `servicio-casos.ts` — coordina; no decide. Todo lo que decide «qué se puede
+  hacer» está en el dominio.
+- `extraccion/` — las implementaciones concretas de lectura.
+
+### Interfaz
+
+React con `contextIsolation` puesto y sin Node: solo puede llamar a lo que
+expone el preload. Una política de seguridad estricta impide cargar nada de
+internet.
+
+El flujo es uno solo, en cuatro pasos. No hay menús.
+
+### El PDF
+
+HTML → `printToPDF` de Electron. Cero dependencias, nada que compilar, y se
+maqueta con CSS. Se guarda también el HTML: si el PDF fallara, el informe no se
+pierde.
+
+---
+
+## 7. Qué se prueba y dónde
+
+| Dónde                            | Qué                                                                         | Depende de   |
+| -------------------------------- | --------------------------------------------------------------------------- | ------------ |
+| `pnpm test` (205)                | Dominio, invariantes, parsers, aislamiento de fallos, arquitectura, informe | Nada externo |
+| `pnpm test:e2e` (5)              | La aplicación real, pulsando con el ratón                                   | Electron     |
+| `pnpm verificar:vertical`        | El producto entero contra EVO y Barrett reales                              | Las webs     |
+| `pnpm live [evo\|barrett\|kane]` | Los adaptadores contra las webs                                             | Las webs     |
+
+**Los dos últimos NO están en el CI, a propósito.** Una web ajena con un mal día
+pondría el control en rojo por algo que no es nuestro, y un control que falla
+por motivos ajenos deja de mirarse.
+
+---
+
+## 8. Decisiones que parecen raras y no lo son
+
+- **`ELECTRON_RUN_AS_NODE` se quita al lanzar.** Si esa variable está en el
+  entorno —lo está dentro de algunos editores— Electron arranca como Node y **no
+  abre ventana, sin decir nada**. Es un fallo mudo que ya costó un rato.
+- **`externalizeDepsPlugin` excluye los paquetes `@vilamar/*`.** Son TypeScript
+  sin compilar: si se dejan fuera del paquete, Electron intenta importar un `.ts`
+  en ejecución y la aplicación no arranca. El síntoma es el peor posible: la
+  ventana no aparece y no se ve ningún error salvo en la salida de error.
+- **Barrett exige navegador con ventana.** No es estética: su dominio responde
+  403 al navegador sin ventana.
+- **A las webs se les manda el código local del caso** como «Patient Name».
+  EVO y Barrett lo exigen; darles `CV-2026-0042` cumple sin enviar un dato de
+  paciente.
+- **Los datos del idioma del OCR van a `%APPDATA%`.** Por defecto tesseract.js
+  los deja donde se ejecute el programa; la primera prueba dejó 5 MB en la raíz
+  del repositorio.

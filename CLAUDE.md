@@ -8,11 +8,26 @@ El orden de lectura al iniciar una sesión es:
 
 1. Este archivo (puntero)
 2. `.claude/CLAUDE.md` — constitución completa
-3. `SYSTEM_VISION.md` — visión y contexto del proyecto
-4. `PROJECT_STATUS.md` — estado real del proyecto (qué funciona hoy, qué no)
+3. `SYSTEM_VISION.md` — visión, límites y decisiones cerradas del proyecto
+4. `PROJECT_STATUS.md` — estado REAL (qué funciona hoy, qué no, qué está bloqueado)
 5. `.claude/skills/lessons-learned/log.md` — lecciones de sesiones anteriores
 6. `docs/ARQUITECTURA.md` — estado técnico actual
 
-> Guías para humanos no técnicos (Claude las usa al orientar al dueño, aunque no
-> las lea entero al arrancar): `docs/ONBOARDING_NO_TECNICO.md`,
-> `docs/ESTADOS_DEL_PROYECTO.md`, `docs/ANTES_DE_COMPARTIR.md`, `docs/PROMPTS_BASE.md`.
+> Para trabajar con las webs externas: `docs/INTEGRACIONES.md` (cómo es cada una)
+> y `docs/MANTENIMIENTO.md` (cómo reparar un adaptador cuando una cambie).
+>
+> Guía para el dueño del proyecto: `docs/GETTING-STARTED.md`. Qué significa cada
+> etapa: `docs/ESTADOS_DEL_PROYECTO.md`.
+
+---
+
+## Lo que este proyecto no hace, nunca
+
+Está en la constitución, pero se repite aquí porque es lo que define el producto:
+
+- **No inventa un dato que falta.** Ni con cero, ni con un valor «normal».
+- **No corrige lo que ha leído.** Avisa y bloquea; corrige la persona.
+- **No mezcla los datos de los dos ojos.**
+- **No envía nada a una calculadora sin confirmación humana.**
+- **No acepta términos ni rodea protecciones** en nombre del usuario.
+- **Compara, pero no recomienda.** No dice qué lente implantar.
