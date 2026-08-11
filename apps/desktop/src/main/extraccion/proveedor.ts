@@ -22,7 +22,7 @@ import type {
   ProveedorExtraccion,
   TextoDocumento,
 } from '@vilamar/extraction'
-import { MINIMO_CARACTERES_TEXTO_NATIVO } from '@vilamar/extraction'
+import { traeTextoDeVerdad } from '@vilamar/extraction'
 
 import type { Rasterizador } from './rasterizador.js'
 
@@ -85,8 +85,11 @@ export class ProveedorDocumentos implements ProveedorExtraccion {
       return this.fallo(error, 'TEXTO_PDF', 'No se ha podido abrir el PDF. Puede estar dañado.')
     }
 
-    const caracteres = paginas.reduce((s, p) => s + p.texto.replace(/\s/g, '').length, 0)
-    if (caracteres >= MINIMO_CARACTERES_TEXTO_NATIVO) {
+    // No basta con contar caracteres: un informe corto pero con texto perfecto
+    // —un solo ojo, pocas líneas— se mandaba al OCR sin necesidad, y se leía
+    // peor teniendo el texto exacto delante. Ver `traeTextoDeVerdad`.
+    const todoElTexto = paginas.map((p) => p.texto).join('\n')
+    if (traeTextoDeVerdad(todoElTexto)) {
       return {
         paginas,
         proveedor: 'texto nativo del PDF',
@@ -107,7 +110,7 @@ export class ProveedorDocumentos implements ProveedorExtraccion {
     const total = Math.max(1, numeroPaginas)
     const aLeer = Math.min(total, tope)
     const avisos: string[] = [
-      'Este PDF no traía texto dentro: es una imagen escaneada. Se ha leído con reconocimiento de texto, que puede equivocarse. Revisa los datos con más cuidado de lo normal.',
+      'Este PDF no traía texto dentro (o traía muy poco): se ha leído con reconocimiento de texto sobre la imagen, que puede equivocarse. Revisa los datos con más cuidado de lo normal.',
     ]
     // Si se recorta, se dice. Un recorte silencioso se lee como «lo he mirado todo».
     if (total > aLeer) {

@@ -220,8 +220,9 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   const desdeRutas = (rutas: readonly string[]): ArchivoEntrante[] =>
     rutas.map((ruta) => ({ nombre: basename(ruta), ruta }))
 
-  ipcMain.handle(CANALES.cargarDocumentos, async (_e, rutas: readonly string[]) =>
-    s().cargarDocumentos(desdeRutas(rutas)),
+  ipcMain.handle(CANALES.cargarDocumentos, async (_e, archivos: readonly ArchivoEntrante[]) =>
+    // Cada archivo trae su ruta o su contenido; el servicio se ocupa de los dos.
+    s().cargarDocumentos(archivos),
   )
 
   ipcMain.handle(CANALES.elegirYCargarDocumentos, async () => {

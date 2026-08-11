@@ -443,3 +443,67 @@ necesarios, pero ninguno era EL fallo, y cada uno me hizo creer que ya estaba.
 
 **Contexto:** Cualquier cosa que entre en el programa desde fuera. Y el orden en
 que se depura: de la entrada hacia la salida, no al revés.
+
+---
+
+## 2026-08-11 (noche, 2) — Arreglé algo que no estaba roto, y rompí lo que funcionaba
+
+**Error o aprendizaje:** Tras encontrar que el fichero subido llegaba con 0 bytes,
+concluí que **los bytes se perdían al viajar por IPC** y reescribí la carga para
+mandar solo la ruta. Se lo conté al dueño del proyecto con esa explicación.
+
+Era falso. Al medirlo —un canal de diagnóstico que devolvía el tipo, la longitud
+y los primeros bytes de lo que llegaba— resultó que un `Uint8Array` atraviesa el
+IPC **perfectamente íntegro**. Nunca hubo nada roto ahí.
+
+Y el cambio innecesario rompió algo que sí funcionaba: los ficheros arrastrados
+dejaron de aceptarse, porque `webUtils.getPathForFile` devuelve a veces una
+cadena vacía y sin ruta se descartaba el fichero.
+
+**Causa raíz:** Tenía un síntoma real —0 bytes— y una hipótesis plausible, y
+**actué sobre la hipótesis sin comprobarla**. El viaje de ida y vuelta que había
+en el código era llamativo y encajaba con el síntoma, así que lo di por culpable.
+La explicación más probable, con lo que se sabía, era mucho más aburrida: que el
+archivo estuviera vacío en el disco.
+
+**Lección:**
+
+1. **Un síntoma no es un diagnóstico.** Antes de reescribir un camino entero,
+   medir. El canal de diagnóstico que zanjó la duda costó cinco minutos, y los
+   habría ahorrado con creces si lo hubiera hecho al principio.
+2. **Cuidado con la hipótesis elegante.** «Los datos se pierden en un viaje de ida
+   y vuelta absurdo» es una historia mejor que «el archivo está vacío», y por eso
+   mismo hay que desconfiar de ella.
+3. **Y con lo que se le cuenta al dueño del proyecto.** Le expliqué una causa que
+   no era, con seguridad y con detalle. Corregirlo cuesta credibilidad; decir
+   «esto es lo que veo, aún no sé por qué» no cuesta nada.
+4. Del cambio se queda lo que sí mejora —mandar la ruta cuando la hay, no copiar
+   datos de más— pero **admitiendo los dos caminos**, porque ninguno funciona
+   siempre. Un cambio hecho sobre una hipótesis equivocada puede tener partes
+   buenas: hay que separarlas, no defenderlo entero ni tirarlo entero.
+
+**Contexto:** Todo diagnóstico. Y en particular el momento de decidir entre
+«mirar un poco más» y «ya sé lo que es».
+
+---
+
+## 2026-08-11 (noche, 3) — Un umbral redondo tomado sin medir
+
+**Error o aprendizaje:** Para decidir si un PDF trae texto o es un escaneo, el
+criterio era «al menos 120 caracteres». Un informe de un solo ojo tiene unos 80,
+así que se mandaba al reconocimiento de texto **teniendo el texto exacto
+delante**: más lento, menos preciso, y perdiendo la marca del ojo.
+
+**Causa raíz:** El 120 era un número redondo elegido a ojo, no medido. Y medía lo
+que era fácil de contar —caracteres— en lugar de lo que distingue de verdad los
+dos casos.
+
+**Lección:** Cuando haya que separar dos situaciones, buscar **qué las distingue
+de verdad**, no qué es fácil de contar. Aquí, un informe de biometría tiene
+números con decimales (24.07, 41.22) y la cabecera suelta de un escaneo no. Con
+eso, un informe corto se reconoce bien y un «Página 1 de 1» sigue yéndose al OCR.
+
+Y si el umbral sobrevive, que sobreviva con una prueba que fije los dos lados: el
+caso corto que debe pasar y el caso mínimo que no debe.
+
+**Contexto:** Cualquier umbral numérico en el código.

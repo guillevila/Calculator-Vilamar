@@ -4,12 +4,12 @@
 
 import { useCallback, useState } from 'react'
 
+import type { ArchivoEntrante } from '../../compartido/ipc.js'
 import { api } from '../api.js'
 import type { JSX } from 'react'
 
 interface Props {
-  /** Se le pasan las RUTAS de los ficheros, no su contenido. */
-  readonly onRutas: (rutas: readonly string[]) => void
+  readonly onArchivos: (archivos: readonly ArchivoEntrante[]) => void
   readonly onElegir: () => void
   readonly onAMano: () => void
   readonly ocupado: boolean
@@ -17,20 +17,22 @@ interface Props {
 
 const ADMITIDOS = ['pdf', 'jpg', 'jpeg', 'png']
 
-export function ZonaSoltar({ onRutas, onElegir, onAMano, ocupado }: Props): JSX.Element {
+export function ZonaSoltar({ onArchivos, onElegir, onAMano, ocupado }: Props): JSX.Element {
   const [encima, setEncima] = useState(false)
   const [rechazados, setRechazados] = useState<readonly string[]>([])
 
   /**
-   * De los ficheros arrastrados solo se saca su RUTA, y se manda esa.
+   * De cada fichero arrastrado se manda su RUTA si Electron la da, y su
+   * CONTENIDO si no.
    *
-   * El contenido lo lee el proceso principal, que es quien tiene acceso al
-   * disco. Antes se leía aquí y se enviaba por IPC, y en ese viaje se perdía:
-   * llegaba un fichero de 0 bytes.
+   * La ruta es mejor —no copia nada— pero `getPathForFile` devuelve a veces una
+   * cadena vacía, y entonces rechazar el fichero sería absurdo cuando el
+   * contenido está aquí mismo. Se comprobó que un `Uint8Array` sobrevive íntegro
+   * al IPC, así que el segundo camino es igual de válido.
    */
   const procesar = useCallback(
-    (lista: FileList) => {
-      const rutas: string[] = []
+    async (lista: FileList) => {
+      const archivos: ArchivoEntrante[] = []
       const malos: string[] = []
       for (const fichero of Array.from(lista)) {
         const extension = fichero.name.toLowerCase().split('.').pop() ?? ''
@@ -38,14 +40,25 @@ export function ZonaSoltar({ onRutas, onElegir, onAMano, ocupado }: Props): JSX.
           malos.push(fichero.name)
           continue
         }
-        const ruta = api().rutaDeArchivo(fichero)
-        if (ruta) rutas.push(ruta)
-        else malos.push(fichero.name)
+        let ruta = ''
+        try {
+          ruta = api().rutaDeArchivo(fichero)
+        } catch {
+          ruta = ''
+        }
+        if (ruta) {
+          archivos.push({ nombre: fichero.name, ruta })
+        } else {
+          archivos.push({
+            nombre: fichero.name,
+            datos: new Uint8Array(await fichero.arrayBuffer()),
+          })
+        }
       }
       setRechazados(malos)
-      if (rutas.length > 0) onRutas(rutas)
+      if (archivos.length > 0) onArchivos(archivos)
     },
-    [onRutas],
+    [onArchivos],
   )
 
   return (
@@ -60,7 +73,7 @@ export function ZonaSoltar({ onRutas, onElegir, onAMano, ocupado }: Props): JSX.
         onDrop={(e) => {
           e.preventDefault()
           setEncima(false)
-          procesar(e.dataTransfer.files)
+          void procesar(e.dataTransfer.files)
         }}
         data-testid="zona-soltar"
       >

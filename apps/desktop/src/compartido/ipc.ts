@@ -17,21 +17,25 @@ import type {
 } from '@vilamar/domain'
 
 /**
- * Un fichero que se va a leer, identificado por su RUTA en el disco.
+ * Un fichero que se va a leer. Llega por RUTA o, si no hay ruta, por contenido.
  *
- * Aquí no viajan bytes, y es a propósito. La primera versión mandaba el
- * contenido del fichero por IPC —y en el caso de «Elegir archivo» lo mandaba dos
- * veces: el proceso principal lo leía, lo enviaba a la pantalla y la pantalla lo
- * devolvía—. En ese viaje el contenido **se perdía**: llegaba un fichero de 0
- * bytes, y todos los errores que salían después (que la imagen no se podía
- * decodificar, que no se encontraban datos) eran síntomas de eso.
+ * Se admiten los dos caminos porque ninguno funciona siempre:
  *
- * Mandando la ruta, el fichero se lee UNA vez, en el sitio que tiene acceso al
- * disco, y no hay nada que se pueda perder por el camino.
+ *  - **La ruta** es lo preferible: el proceso principal lee el fichero una sola
+ *    vez, donde tiene acceso al disco, y no se copia nada por IPC. Es lo que se
+ *    usa al elegir un fichero con el diálogo del sistema.
+ *  - **El contenido** hace falta para los ficheros arrastrados a la ventana:
+ *    `webUtils.getPathForFile` a veces devuelve una cadena vacía y entonces no
+ *    hay ruta que mandar. Se comprobó que un `Uint8Array` **sí sobrevive
+ *    íntegro al IPC** —llega con su tipo, su longitud y sus bytes—, así que es
+ *    un camino perfectamente válido; solo copia datos de más.
+ *
+ * Exactamente uno de los dos tiene que venir.
  */
 export interface ArchivoEntrante {
   readonly nombre: string
-  readonly ruta: string
+  readonly ruta?: string
+  readonly datos?: Uint8Array
 }
 
 export interface ResumenExtraccion {
@@ -60,9 +64,9 @@ export interface ApiVilamar {
   readonly casoNuevo: () => Promise<Caso>
   readonly casoActual: () => Promise<Caso | null>
 
-  /** Lee los documentos que están en esas rutas. */
+  /** Lee los documentos indicados, por ruta o por contenido. */
   readonly cargarDocumentos: (
-    rutas: readonly string[],
+    archivos: readonly ArchivoEntrante[],
   ) => Promise<{ readonly caso: Caso; readonly resumenes: readonly ResumenExtraccion[] }>
 
   /**

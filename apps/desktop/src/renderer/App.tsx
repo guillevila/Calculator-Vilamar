@@ -15,7 +15,7 @@ import type { Calculadora, Caso, Lateralidad, Aviso } from '@vilamar/domain'
 import { ojosDelCaso } from '@vilamar/domain'
 
 import { api, hayApi } from './api.js'
-import type { EstadoCalculo, ResumenExtraccion } from '../compartido/ipc.js'
+import type { ArchivoEntrante, EstadoCalculo, ResumenExtraccion } from '../compartido/ipc.js'
 import { ZonaSoltar } from './componentes/ZonaSoltar.js'
 import { PanelRevision } from './componentes/PanelRevision.js'
 import { PanelCalculo } from './componentes/PanelCalculo.js'
@@ -101,14 +101,14 @@ export function App(): JSX.Element {
     [refrescarAvisos],
   )
 
-  const cargarRutas = useCallback(
-    async (rutas: readonly string[]) => {
-      if (rutas.length === 0) return
+  const cargarArchivos = useCallback(
+    async (archivos: readonly ArchivoEntrante[]) => {
+      if (archivos.length === 0) return
       setError(null)
       setPaso('CARGANDO')
       setOcupado(true)
       try {
-        await aplicarCarga(await api().cargarDocumentos(rutas))
+        await aplicarCarga(await api().cargarDocumentos(archivos))
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
         setPaso('INICIO')
@@ -243,7 +243,7 @@ export function App(): JSX.Element {
 
           {paso === 'INICIO' && (
             <ZonaSoltar
-              onRutas={(r) => void cargarRutas(r)}
+              onArchivos={(a) => void cargarArchivos(a)}
               onElegir={() => void elegirYcargar()}
               onAMano={() => void empezarAMano()}
               ocupado={ocupado}

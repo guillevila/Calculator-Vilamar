@@ -15,7 +15,7 @@
  * al lanzarlo.
  */
 
-import { mkdtempSync, rmSync, statSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -199,7 +199,7 @@ CCT             533 um</pre>
 
   // Se llama al mismo canal que usa la aplicación al arrastrar un fichero.
   const resultado = await ventana.evaluate(
-    async (ruta) => window.vilamar?.cargarDocumentos([ruta]),
+    async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'informe-sintetico.pdf', ruta }]),
     rutaPdf,
   )
 
@@ -222,4 +222,65 @@ CCT             533 um</pre>
   expect(os?.K1?.valor).toBe(40.27)
 
   await ventana.screenshot({ path: 'test-results/05-informe-cargado.png', fullPage: true })
+})
+
+/**
+ * El otro camino: el contenido del fichero, que es el que usa el arrastre cuando
+ * Electron no da la ruta. Se comprobó que un `Uint8Array` sobrevive íntegro al
+ * IPC; esta prueba lo fija para que no se rompa sin que nadie se entere.
+ */
+test('un informe enviado por contenido también llega entero', async () => {
+  test.setTimeout(120_000)
+
+  const rutaPdf = join(carpetaDatos, 'por-contenido.pdf')
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1000, height: 500 } })
+  await p.setContent(`<body style="font-family:Arial;padding:36px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <pre>OD
+AL            24.07 mm
+K1            41.22 D @ 175
+ACD (epi)      3.18 mm</pre></body>`)
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+
+  const bytes = [...readFileSync(rutaPdf)]
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+
+  const resultado = await ventana.evaluate(
+    async (numeros) =>
+      window.vilamar?.cargarDocumentos([
+        { nombre: 'por-contenido.pdf', datos: new Uint8Array(numeros) },
+      ]),
+    bytes,
+  )
+
+  expect(resultado?.resumenes?.[0]?.nombreDispositivo).toContain('ANTERION')
+  expect(resultado?.caso?.ojos?.OD?.medidas?.AL?.valor).toBe(24.07)
+  expect(resultado?.caso?.ojos?.OD?.medidas?.K1?.valor).toBe(41.22)
+})
+
+/**
+ * Un fichero vacío tiene que decirse EN CUANTO se abre.
+ *
+ * Es el fallo que costó dos rondas de diagnóstico: un archivo de 0 bytes se
+ * aceptaba sin decir nada y reventaba cuatro pasos más adelante, disfrazado de
+ * «la imagen no se puede decodificar».
+ */
+test('un archivo vacío se dice claramente, y no como un error de imagen', async () => {
+  const rutaVacia = join(carpetaDatos, 'vacio.jpeg')
+  writeFileSync(rutaVacia, '')
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  const resultado = await ventana.evaluate(
+    async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'vacio.jpeg', ruta }]),
+    rutaVacia,
+  )
+
+  const avisos = resultado?.resumenes?.[0]?.avisos.join(' ') ?? ''
+  expect(avisos).toMatch(/está vacío/i)
+  expect(avisos).toMatch(/0 bytes/)
+  // Y NO se le echa la culpa al reconocimiento de imagen.
+  expect(avisos).not.toMatch(/decodificar|decoded|attempting to read/i)
 })

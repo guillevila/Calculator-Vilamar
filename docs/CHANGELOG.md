@@ -4,6 +4,42 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [0.1.4] — 11/08/2026
+
+Corrige un diagnóstico equivocado de la versión anterior y arregla lo que ese
+error introdujo.
+
+### Corregido
+
+- **Los ficheros arrastrados volvían a rechazarse.** La 0.1.3 pasó a mandar solo
+  la RUTA por IPC, dando por hecho que los bytes se perdían por el camino. **Se
+  midió y no era verdad**: un `Uint8Array` atraviesa el IPC íntegro, con su
+  tipo, su longitud y sus bytes. Pero `webUtils.getPathForFile` devuelve a veces
+  una cadena vacía, y sin ruta el fichero se descartaba. Ahora se admiten los dos
+  caminos: la ruta cuando la hay —es mejor, no copia nada— y el contenido cuando
+  no.
+- **Un PDF corto con texto perfecto se mandaba al OCR.** El criterio era «120
+  caracteres», y un informe de un solo ojo no llega. Se leía peor y más despacio
+  teniendo el texto exacto delante. Ahora lo que decide es si hay **números con
+  decimales**, que es lo que distingue un informe de la cabecera suelta de un
+  escaneo.
+
+### Añadido
+
+- Prueba de interfaz del camino por CONTENIDO, además del de ruta.
+- Prueba de que un archivo de 0 bytes se dice como tal —«está vacío: tiene 0
+  bytes»— y no como un error de imagen.
+
+### Nota sobre el diagnóstico
+
+La causa del fallo original sigue en pie: el fichero llegaba con 0 bytes. Pero
+**no era el IPC**, como se dijo en la 0.1.3. Lo más probable es que el archivo
+estuviera vacío en el disco. El programa ahora lo dice en cuanto lo abre.
+
+227 tests y 8 pruebas de interfaz.
+
+---
+
 ## [0.1.3] — 11/08/2026
 
 La causa de verdad. Los dos arreglos anteriores atacaban síntomas: **el fichero

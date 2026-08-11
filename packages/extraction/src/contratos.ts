@@ -107,3 +107,24 @@ export interface MotorOcr {
  * ejecutarse nunca y el informe saldría vacío sin explicación.
  */
 export const MINIMO_CARACTERES_TEXTO_NATIVO = 120
+
+/**
+ * Decide si un PDF trae texto de verdad o es una imagen escaneada.
+ *
+ * Contar caracteres a secas **no vale**, y costó un fallo descubrirlo: un informe
+ * corto pero con texto perfecto —un solo ojo, pocas líneas— no llegaba a 120
+ * caracteres y se mandaba al OCR. Se leía peor y más despacio, teniendo el texto
+ * exacto delante.
+ *
+ * Lo que de verdad distingue un informe de biometría de la cabecera suelta de un
+ * escaneo son los **números con decimales**: 24.07, 41.22, 3.18. Un «Página 1 de
+ * 1» no los tiene. Así que basta con unos pocos, aunque el texto sea corto.
+ */
+export function traeTextoDeVerdad(texto: string): boolean {
+  const caracteres = texto.replace(/\s/g, '').length
+  if (caracteres >= MINIMO_CARACTERES_TEXTO_NATIVO) return true
+  // Dos decimales o más. Con uno no basta: una fecha o una hora («10.30 h») lo
+  // tienen, y eso puede estar en la cabecera de un escaneo.
+  const decimales = (texto.match(/\d+[.,]\d/g) ?? []).length
+  return decimales >= 2 && caracteres >= 20
+}

@@ -112,14 +112,25 @@ export class ServicioCasos {
     const resumenes: ResumenExtraccion[] = []
 
     for (const archivo of archivos) {
-      // El fichero se lee AQUÍ, del disco, una sola vez. Si está vacío se dice
-      // ahora y no diez pasos más adelante disfrazado de «no se puede
+      // Si viene la ruta, se lee del disco aquí —una sola vez, y sin copiar
+      // nada por IPC—. Si viene el contenido, se usa: es el caso de un fichero
+      // arrastrado, cuando Electron no da la ruta.
+      //
+      // Y en los dos casos se comprueba que hay ALGO. Un fichero vacío se dice
+      // ahora, no cuatro pasos más adelante disfrazado de «no se puede
       // decodificar la imagen».
       let datos: Uint8Array
       let tamanoBytes: number
       try {
-        datos = new Uint8Array(readFileSync(archivo.ruta))
-        tamanoBytes = statSync(archivo.ruta).size
+        if (archivo.ruta) {
+          datos = new Uint8Array(readFileSync(archivo.ruta))
+          tamanoBytes = statSync(archivo.ruta).size
+        } else if (archivo.datos) {
+          datos = archivo.datos
+          tamanoBytes = archivo.datos.length
+        } else {
+          throw new Error('no se ha recibido ni la ruta ni el contenido del archivo')
+        }
       } catch (error) {
         resumenes.push({
           documentoId: '',
@@ -145,7 +156,10 @@ export class ServicioCasos {
           confianzaDispositivo: 0,
           explicacionOjos: '',
           ojosEncontrados: [],
-          avisos: [`«${archivo.nombre}» está vacío: 0 bytes. Comprueba el archivo original.`],
+          avisos: [
+            `«${archivo.nombre}» está vacío: tiene 0 bytes. El archivo original no tiene contenido — ` +
+              'ábrelo para comprobarlo y vuelve a guardarlo, o escribe los datos a mano.',
+          ],
         })
         continue
       }
