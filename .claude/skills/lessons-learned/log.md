@@ -352,3 +352,48 @@ tentación— se midió qué pasaba escalando la imagen:
    Los alias de rótulo se añaden en pareja o no se añaden.
 
 **Contexto:** OCR, y en general cualquier decisión de «hacerlo tolerante».
+
+---
+
+## 2026-08-11 (noche) — Tres formas de perder datos sin que salte ningún error
+
+**Error o aprendizaje:** El dueño del proyecto subió un JPEG y no se leyó: «Error
+attempting to read image», de tesseract. La aplicación ya no se cerraba, pero el
+documento tampoco se leía. Al buscarlo aparecieron tres cosas, y las tres fallaban
+**en silencio**:
+
+1. **Se le mentía al navegador sobre el formato.** La URL de datos decía
+   `image/png` **fijo**, también para un JPEG. Con los JPEG normales Chromium lo
+   adivina por el contenido y funciona; con otros, no. Un fallo que aparece solo a
+   veces es peor que uno que aparece siempre.
+2. **Las imágenes grandes se recortaban.** Se ampliaba ×2 a ciegas y luego se
+   capturaba con el viewport limitado a 4000 px: de una foto de 4032 px salía
+   media foto. **Sin error, sin aviso, sin nada** — solo la mitad de los datos.
+3. **El fallo al preparar la imagen se tragaba.** Un `catch` devolvía la imagen
+   original «para no caerse», y el error reaparecía después dentro de tesseract
+   con un mensaje que no señala a nada.
+
+**Causa raíz:** Las tres son la misma decisión mal tomada: **elegir seguir adelante
+con algo dudoso en lugar de parar y decirlo**. El formato inventado, el recorte y
+el `catch` que devuelve la entrada sin tocar son tres maneras de aplazar un fallo
+hasta un sitio donde ya no se puede diagnosticar.
+
+**Lección:**
+
+1. **El formato de un fichero se mira en sus bytes, no en su nombre.** Un `.jpeg`
+   puede ser cualquier cosa, y quien lo sube no tiene por qué saberlo.
+2. **Un límite que se alcanza no puede resolverse recortando.** Si algo no cabe,
+   se reduce en proporción —se pierde detalle, no contenido— o se avisa. Recortar
+   es perder datos disimuladamente.
+3. **Un `catch` que devuelve la entrada sin tocar casi nunca es lo correcto.** Si
+   la preparación falla, el paso siguiente va a fallar igual, pero más lejos y
+   peor explicado. Mejor fallar aquí con un mensaje que se entienda.
+4. Y una que salió bien: **normalizar la entrada en un solo formato**. Ahora toda
+   imagen —subida por el usuario o rasterizada de un PDF— pasa por el navegador y
+   sale como PNG limpio del mismo tamaño. El navegador decodifica muchos más
+   formatos que tesseract, así que eso solo arregló el JPEG **y**, de paso, hizo
+   que el PDF escaneado pasara a leer los dos ojos. Cuando dos caminos distintos
+   dan problemas parecidos, unificar la entrada arregla los dos.
+
+**Contexto:** Toda entrada de fichero del usuario. Y cualquier `catch` que
+«sigue adelante».

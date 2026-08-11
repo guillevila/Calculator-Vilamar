@@ -4,6 +4,39 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [0.1.2] — 11/08/2026
+
+Segunda ronda a partir del uso real: un JPEG fallaba con «Error attempting to
+read image». La aplicación ya no se cerraba —la red de seguridad funcionó— pero
+el documento no se leía.
+
+### Corregido
+
+- **Un JPEG podía no leerse.** Al preparar la imagen se construía la URL de datos
+  con `image/png` **fijo**, también para un JPEG. Ahora el formato se reconoce
+  por los primeros bytes del fichero, no por su extensión.
+- **Las imágenes grandes se RECORTABAN en silencio.** Se ampliaba ×2 a ciegas y,
+  al topar con el límite de captura, de una foto de 4032 px salía media foto sin
+  que nadie se enterara. Ahora se lleva a un ancho objetivo, con tope de
+  ampliación, y si no cabe se **reduce en proporción** en lugar de recortarse.
+- **Un fallo al preparar la imagen ya no se traga.** Antes se devolvía la imagen
+  original y el error aparecía después, dentro de tesseract, con un mensaje que
+  no le dice nada a nadie. Ahora se explica aquí: «no se ha podido abrir esta
+  imagen… prueba a guardarla como PNG o JPG, o escribe los datos a mano».
+- **El PDF escaneado ya lee los dos ojos.** Su página rasterizada no pasaba por
+  la misma preparación que una imagen subida; ahora el OCR solo ve una clase de
+  entrada y reconoce bien los rótulos.
+
+### Resultado
+
+Los **tres** caminos de lectura leen 8 de 8 campos en los dos ojos, ejes
+incluidos: PDF con texto, imagen (PNG y JPEG, de 900 a 4032 px) y PDF escaneado.
+Fiabilidad del OCR entre 89 % y 91 %.
+
+221 tests.
+
+---
+
 ## [0.1.1] — 11/08/2026
 
 Ronda de arreglos a partir del primer uso real: el dueño del proyecto subió un

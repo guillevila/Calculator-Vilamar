@@ -110,19 +110,28 @@ vertical completa:
 Con `pnpm probar:lectura`, que genera tres documentos y los pasa por el mismo
 proveedor que usa la aplicación:
 
-| Documento                         | Resultado                                                                                          |
-| --------------------------------- | -------------------------------------------------------------------------------------------------- |
-| **PDF con capa de texto**         | ✅ **8 de 8 campos, los dos ojos, ejes incluidos**                                                 |
-| **Imagen PNG (OCR)**              | ✅ **8 de 8 campos, los dos ojos, ejes incluidos**                                                 |
-| **PDF escaneado (imagen dentro)** | ⚠️ Lee los 8 datos, pero **no consigue saber de qué ojo son**, así que no asigna ninguno y lo dice |
+| Documento                         | Resultado                                      |
+| --------------------------------- | ---------------------------------------------- |
+| **PDF con capa de texto**         | ✅ 8 de 8 campos, los dos ojos, ejes incluidos |
+| **Imagen PNG o JPEG (OCR)**       | ✅ 8 de 8 campos, los dos ojos, ejes incluidos |
+| **PDF escaneado (imagen dentro)** | ✅ 8 de 8 campos, los dos ojos, ejes incluidos |
 
-El tercer caso falla de forma **segura**: el OCR lee «OD» como «op» y solo
-reconoce uno de los dos rótulos; la comprobación que exige que el rótulo esté al
-principio de una línea impidió atribuir el informe entero al ojo equivocado.
+Y con imágenes de distintos tamaños y formatos, comprobado por separado:
 
-Medido también: **escalar la imagen ×2 antes del OCR** sube la fiabilidad del
-80 % al 92 % y arregla las etiquetas y los números. Con ×3 **empeora** —apareció
-un 24.97 donde ponía 24.07—, así que está fijado en 2.
+| Entrada                              | Fiabilidad del OCR | Números                                      |
+| ------------------------------------ | ------------------ | -------------------------------------------- |
+| PNG 900×600                          | 89 %               | correctos                                    |
+| JPEG 1920×1080 (captura de pantalla) | 90 %               | correctos                                    |
+| JPEG 4032×3024 (foto de móvil)       | 91 %               | correctos                                    |
+| Fichero corrupto                     | —                  | mensaje claro, y la aplicación sigue abierta |
+
+**Toda imagen pasa por el navegador y sale como PNG limpio** del tamaño que
+mejor lee el OCR (unos 2200 px de ancho). El navegador decodifica muchos más
+formatos y variantes que tesseract, y eso es lo que convirtió un «Error
+attempting to read image» en un informe leído.
+
+Medido: llevar la imagen a ese ancho sube la fiabilidad del 80 % al 90 %.
+Ampliar ×3 **empeora** —apareció un 24.97 donde ponía 24.07—, así que hay tope.
 
 ### Comprobado a mano
 

@@ -50,10 +50,12 @@ export class ProveedorDocumentos implements ProveedorExtraccion {
 
   private async extraerDeImagen(documento: DocumentoEntrada): Promise<TextoDocumento> {
     try {
-      // Se agranda antes de reconocer. Sobre una captura normal, esto es la
-      // diferencia entre leer «Ki 41.220» y leer «K1 41.22 D». Ver
-      // FACTOR_ESCALA_OCR en el rasterizador: 2, y no más.
-      const preparada = await this.piezas.rasterizador.escalar(documento.datos)
+      // Toda imagen pasa por el navegador y sale como PNG limpio del tamaño
+      // que mejor lee el OCR. El navegador decodifica muchos más formatos que
+      // tesseract, así que esto convierte un «Error attempting to read image»
+      // en un informe legible. Si ni el navegador puede, lanza con un mensaje
+      // que se entiende.
+      const preparada = await this.piezas.rasterizador.prepararParaOcr(documento.datos)
       const r = await this.piezas.motorOcr.reconocer(preparada)
       const avisos: string[] = []
       if (r.confianzaMedia < 0.6) {
@@ -120,7 +122,11 @@ export class ProveedorDocumentos implements ProveedorExtraccion {
     for (let n = 1; n <= aLeer; n++) {
       try {
         const imagen = await this.piezas.rasterizador.rasterizar(documento.datos, n, 2)
-        const r = await this.piezas.motorOcr.reconocer(imagen)
+        // La página rasterizada pasa por la MISMA preparación que una imagen
+        // subida por el usuario. Así el OCR solo ve una clase de entrada: un PNG
+        // limpio del tamaño que mejor lee.
+        const lista = await this.piezas.rasterizador.prepararParaOcr(imagen)
+        const r = await this.piezas.motorOcr.reconocer(lista)
         paginas.push({ numero: n, texto: r.texto, bloques: r.bloques })
         confianzas.push(r.confianzaMedia)
       } catch (error) {

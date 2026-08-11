@@ -36,6 +36,44 @@ const require = createRequire(import.meta.url)
 /** Dominio inventado. Nunca se resuelve por DNS: todo se responde en local. */
 const ORIGEN = 'https://pdfjs.vilamar.local'
 
+/**
+ * Reconoce el formato de una imagen por sus primeros bytes.
+ *
+ * No se fía de la extensión del fichero: un `.jpeg` puede ser cualquier cosa, y
+ * quien lo subió no tiene por qué saberlo. Lo que importa es lo que hay dentro,
+ * porque es lo que el navegador va a intentar decodificar.
+ */
+export function tipoDeImagen(datos: Uint8Array): string {
+  const b = datos
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg'
+  if (b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) {
+    return 'image/png'
+  }
+  if (b.length >= 6 && b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return 'image/gif'
+  if (b.length >= 2 && b[0] === 0x42 && b[1] === 0x4d) return 'image/bmp'
+  // RIFF….WEBP
+  if (
+    b.length >= 12 &&
+    b[0] === 0x52 &&
+    b[1] === 0x49 &&
+    b[2] === 0x46 &&
+    b[3] === 0x46 &&
+    b[8] === 0x57 &&
+    b[9] === 0x45 &&
+    b[10] === 0x42 &&
+    b[11] === 0x50
+  ) {
+    return 'image/webp'
+  }
+  // ftyp…heic / heif — las fotos de iPhone. El navegador puede no saber
+  // decodificarlas; si no puede, se dirá con claridad.
+  if (b.length >= 12 && b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70) {
+    return 'image/heic'
+  }
+  // Sin reconocer: se deja que el navegador lo intente por su cuenta.
+  return 'application/octet-stream'
+}
+
 /** Localiza los ficheros de pdf.js dentro de node_modules. */
 function rutasPdfJs(): { visor: string; trabajador: string } {
   const entrada = require.resolve('pdfjs-dist/legacy/build/pdf.mjs')
@@ -50,25 +88,54 @@ export interface Rasterizador {
   /** Devuelve la página del PDF como PNG. */
   readonly rasterizar: (datos: Uint8Array, pagina: number, escala?: number) => Promise<Uint8Array>
   /**
-   * Agranda una imagen antes de pasarle el OCR.
+   * Prepara una imagen para el OCR: la decodifica y la devuelve como PNG
+   * limpio, con un tamaño razonable.
    *
-   * No es un adorno: sobre una captura de pantalla normal, el reconocimiento
-   * pasa de leer «Ki 41.220» y «Lr 4.53» a leer «K1 41.22 D» y «LT 4.53», y de
-   * un 80 % de fiabilidad a un 92 %. Medido, no supuesto.
+   * Hace dos cosas, y las dos importan:
+   *
+   *  1. **Normaliza el formato.** El navegador decodifica muchos más formatos y
+   *     variantes que tesseract —JPEG progresivos, CMYK, perfiles de color
+   *     raros—. Pasándolo por aquí, tesseract solo ve PNG. Un JPEG de móvil que
+   *     hacía fallar el OCR con «Error attempting to read image» pasa a leerse.
+   *  2. **Ajusta el tamaño al que mejor lee.** Sobre una captura pequeña, el
+   *     reconocimiento pasa de leer «Ki 41.220» y «Lr 4.53» a leer «K1 41.22 D»
+   *     y «LT 4.53», y de un 80 % de fiabilidad a un 92 %. Medido.
+   *
+   * Si la imagen no se puede decodificar, **lanza**. Antes devolvía la original
+   * en silencio y el fallo aparecía después, dentro de tesseract, con un mensaje
+   * que no le dice nada a nadie.
    */
-  readonly escalar: (imagen: Uint8Array, factor?: number) => Promise<Uint8Array>
+  readonly prepararParaOcr: (imagen: Uint8Array) => Promise<Uint8Array>
   readonly cerrar: () => Promise<void>
 }
 
 /**
- * Cuánto se agranda una imagen antes del OCR.
+ * Ancho al que se lleva la imagen antes del OCR, en píxeles.
+ *
+ * Una captura pequeña se agranda hasta aquí; una foto de móvil ya lo supera y se
+ * deja como está. Lo que NO se hace es multiplicar a ciegas: escalar ×2 una foto
+ * de 4032 px la convertía en una de 8064, que ni cabe ni ayuda.
+ */
+export const ANCHO_OBJETIVO_OCR = 2200
+
+/**
+ * Tope de ampliación.
  *
  * **2, y no más.** Con 3 el reconocimiento EMPEORA: aparecieron un «24.97» donde
  * ponía 24.07 y un «490.27» donde ponía 40.27. Más resolución no es mejor
  * indefinidamente, y un número mal leído pero dentro de rango es el fallo más
  * peligroso de este programa. Comprobado con los tres factores.
  */
-export const FACTOR_ESCALA_OCR = 2
+export const AMPLIACION_MAXIMA = 2
+
+/**
+ * Tope de píxeles por lado.
+ *
+ * Chromium no captura un elemento indefinidamente grande, y al topar **recortaba
+ * la imagen sin avisar**: de una foto de 4032 px salía media foto. Ahora, si no
+ * cabe, se REDUCE de forma proporcional, que pierde detalle pero no contenido.
+ */
+export const LADO_MAXIMO = 4000
 
 /**
  * Crea un rasterizador que reutiliza un solo navegador.
@@ -193,38 +260,69 @@ export function crearRasterizador(): Rasterizador {
       }
     },
 
-    async escalar(imagen: Uint8Array, factor = FACTOR_ESCALA_OCR): Promise<Uint8Array> {
-      if (factor <= 1) return imagen
+    async prepararParaOcr(imagen: Uint8Array): Promise<Uint8Array> {
       const { pagina: p, cerrar } = await abrirPagina()
       try {
         const medidas = await p.evaluate(
-          async ({ base64, f }) => {
+          async ({ base64, tipo, objetivo, ampliacionMaxima, ladoMaximo }) => {
             const img = new Image()
-            img.src = `data:image/png;base64,${base64}`
+            // El tipo va de verdad. Antes decía siempre «image/png», también
+            // para un JPEG: el navegador solía adivinarlo, pero no siempre.
+            img.src = `data:${tipo};base64,${base64}`
             await img.decode()
+            if (img.width === 0 || img.height === 0) throw new Error('imagen vacía')
+
+            // Se lleva al ancho que mejor lee el OCR, sin pasarse: ampliar sí,
+            // pero con tope; y si el resultado no cabe, se REDUCE en proporción
+            // en lugar de recortarse.
+            let factor = objetivo / img.width
+            factor = Math.min(factor, ampliacionMaxima)
+            const mayorLado = Math.max(img.width, img.height) * factor
+            if (mayorLado > ladoMaximo) factor *= ladoMaximo / mayorLado
+
             const lienzo = document.createElement('canvas')
-            lienzo.id = 'escalada'
-            lienzo.width = Math.round(img.width * f)
-            lienzo.height = Math.round(img.height * f)
+            lienzo.id = 'preparada'
+            lienzo.width = Math.max(1, Math.round(img.width * factor))
+            lienzo.height = Math.max(1, Math.round(img.height * factor))
             const ctx = lienzo.getContext('2d')
-            if (!ctx) throw new Error('No se ha podido crear el lienzo')
+            if (!ctx) throw new Error('no se ha podido crear el lienzo')
+            // Fondo blanco: un PNG con transparencia se lee fatal.
+            ctx.fillStyle = '#ffffff'
+            ctx.fillRect(0, 0, lienzo.width, lienzo.height)
             ctx.imageSmoothingEnabled = true
             ctx.imageSmoothingQuality = 'high'
             ctx.drawImage(img, 0, 0, lienzo.width, lienzo.height)
             lienzo.style.display = 'block'
             document.body.appendChild(lienzo)
-            return { ancho: lienzo.width, alto: lienzo.height }
+            return {
+              ancho: lienzo.width,
+              alto: lienzo.height,
+              anchoOriginal: img.width,
+              factor,
+            }
           },
-          { base64: Buffer.from(imagen).toString('base64'), f: factor },
+          {
+            base64: Buffer.from(imagen).toString('base64'),
+            tipo: tipoDeImagen(imagen),
+            objetivo: ANCHO_OBJETIVO_OCR,
+            ampliacionMaxima: AMPLIACION_MAXIMA,
+            ladoMaximo: LADO_MAXIMO,
+          },
         )
-        await p.setViewportSize({
-          width: Math.min(medidas.ancho, 4000),
-          height: Math.min(medidas.alto, 4000),
-        })
-        return new Uint8Array(await p.locator('#escalada').screenshot({ type: 'png' }))
-      } catch {
-        // Si no se puede escalar, se reconoce la original. Peor, pero no se cae.
-        return imagen
+
+        // El viewport tiene que dar cabida al lienzo entero. Si se queda corto,
+        // la captura sale recortada y se pierde media página en silencio.
+        await p.setViewportSize({ width: medidas.ancho, height: medidas.alto })
+        return new Uint8Array(await p.locator('#preparada').screenshot({ type: 'png' }))
+      } catch (error) {
+        // NO se devuelve la original: tesseract fallaría después con «Error
+        // attempting to read image», que no le dice nada a nadie. Mejor decir
+        // aquí lo que pasa, que es que el fichero no se ha podido abrir.
+        throw new Error(
+          'No se ha podido abrir esta imagen. Puede estar dañada, o estar en un formato que el programa no sabe leer. ' +
+            'Prueba a abrirla y volver a guardarla como PNG o JPG, o escribe los datos a mano. ' +
+            `Detalle técnico: ${error instanceof Error ? error.message : String(error)}`,
+        )
       } finally {
         await cerrar()
       }
