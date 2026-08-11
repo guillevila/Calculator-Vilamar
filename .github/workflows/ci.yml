@@ -41,10 +41,13 @@ jobs:
           [ "$falta" -eq 0 ] || { echo "Faltan archivos obligatorios."; exit 1; }
 
       - name: PROJECT_STATUS declara una etapa
+        # La búsqueda es SIN distinguir mayúsculas: en Markdown `[x]` y `[X]`
+        # marcan la casilla igual, y el documento usa la minúscula. Con la
+        # búsqueda estricta, este control fallaba sobre un documento correcto.
         run: |
-          if grep -qE '^- \[X\] ' PROJECT_STATUS.md; then
+          if grep -qiE '^- \[x\] ' PROJECT_STATUS.md; then
             echo "Etapa declarada:"
-            grep -E '^- \[X\] ' PROJECT_STATUS.md
+            grep -iE '^- \[x\] ' PROJECT_STATUS.md
           else
             echo "::error::PROJECT_STATUS.md no marca ninguna etapa."
             exit 1
@@ -164,6 +167,14 @@ jobs:
           sudo apt-get install -y xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 \
             libcups2 libdrm2 libgbm1 libasound2t64 libxkbcommon0 libxcomposite1 \
             libxdamage1 libxfixes3 libxrandr2 libpango-1.0-0 libcairo2
+
+      # Hace falta de verdad, no «por si acaso»: dos de las pruebas de interfaz
+      # suben un documento, y leer un documento arranca Chromium para rasterizar
+      # las páginas del PDF. Sin este paso esas dos fallan con «Executable
+      # doesn't exist», y solo en el CI — en un ordenador de trabajo el navegador
+      # ya está instalado de antes, así que el fallo no se ve en local.
+      - name: Descargar el Chromium que usan la lectura de documentos y los adaptadores
+        run: pnpm playwright:install
 
       - name: Construir la aplicación
         run: pnpm build
