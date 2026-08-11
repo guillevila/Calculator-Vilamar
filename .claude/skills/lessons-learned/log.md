@@ -660,3 +660,42 @@ es bueno». Las dos son estadística aplicada a un caso individual donde no vale
 
 **Contexto:** Toda sustitución de un componente por otro «mejor» detrás de una
 garantía de seguridad.
+
+---
+
+## 2026-08-11 (noche, 8) — Un caso de prueba que faltaba y era el más probable
+
+**Error o aprendizaje:** Llevaba toda la sesión midiendo el OCR sobre capturas de
+pantalla, JPEG comprimidos y PDF escaneados. Al montar el comparador añadí un
+caso que no se me había ocurrido antes: **una foto de la pantalla del aparato**,
+con un giro de 2,4°, algo de perspectiva y un poco de desenfoque.
+
+Resultado: **1 acierto de 20**. Y la imagen es perfectamente legible a simple
+vista — la miré para asegurarme de que la prueba era justa, y lo era.
+
+Los otros cinco documentos daban entre 13 y 20 sobre 20. Este daba 1.
+
+**Causa raíz:** Mis casos de prueba salían de los fallos que me habían reportado,
+no de cómo se usa el programa. Nadie me había mandado una foto torcida, así que
+no la probé. Pero es exactamente lo que hace alguien que no puede exportar el
+informe: sacar el móvil y fotografiar la pantalla.
+
+Los casos de prueba heredados de los fallos reportados cubren lo que ya falló.
+Los casos que salen de imaginar el uso real cubren lo que va a fallar.
+
+**Lección:**
+
+1. **Al hacer un banco de pruebas, no partas de los fallos conocidos: parte de
+   cómo se usa la herramienta de verdad.** «¿Qué hará esta persona cuando no
+   pueda hacer lo correcto?» encuentra casos que ningún informe de fallo trae.
+2. **Un resultado extremo se verifica antes de creérselo.** 1 de 20 podía ser una
+   prueba mal montada. Abrí la imagen y la miré: se leía sin esfuerzo. Solo
+   entonces el número significaba algo. Un dato raro que confirma tu tesis es
+   justo el que hay que dudar más.
+3. **Contar por separado «mal leído» y «no leído» cambia las conclusiones.** El
+   OCR en la foto torcida no se inventa nada: no lee. Es un fallo seguro, del que
+   se ve. Un resumen con un único porcentaje habría mezclado eso con el 24.87 —
+   que es un fallo invisible y peligroso— y las dos cosas no se arreglan igual.
+
+**Contexto:** Todo banco de pruebas, y toda métrica que resuma en un solo número
+cosas que no se parecen.

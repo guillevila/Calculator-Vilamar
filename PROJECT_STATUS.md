@@ -125,6 +125,34 @@ Y con imágenes de distintos tamaños y formatos, comprobado por separado:
 | JPEG 4032×3024 (foto de móvil)       | 91 %               | correctos                                    |
 | Fichero corrupto                     | —                  | mensaje claro, y la aplicación sigue abierta |
 
+#### Cuánto acierta el lector local, medido
+
+`pnpm comparar:lectores` pasa 6 documentos por el lector y cuenta. 20 datos por
+documento, 120 comparaciones. Ejecutado el 11/08/2026:
+
+| Documento                              | bien     | MAL   | falta  |
+| -------------------------------------- | -------- | ----- | ------ |
+| PDF con texto dentro                   | 20/20    | —     | —      |
+| Captura de pantalla nítida             | 20/20    | —     | —      |
+| PDF que por dentro es una imagen       | 19/20    | —     | 1      |
+| JPEG pequeño y muy comprimido          | 18/20    | —     | 2      |
+| Esa imagen convertida a PDF            | 13/20    | **1** | 6      |
+| **Foto de una pantalla, algo torcida** | **1/20** | —     | **19** |
+| **Total**                              | **91**   | **1** | **28** |
+
+**Lo que hay que saber de esta tabla:**
+
+- **Un PDF con texto dentro sale perfecto.** Si el aparato exporta así, no hace
+  falta nada más: es exacto, instantáneo y gratis.
+- **Una foto de la pantalla lo hunde: 1 de 20.** La imagen se lee sin esfuerzo a
+  simple vista; basta un giro de 2,4° y algo de desenfoque. Es el caso más
+  probable en el uso real cuando no se puede exportar.
+- **El único dato equivocado** es el conocido: 24.87 donde ponía 24.07. Los
+  demás fallos son del tipo seguro (no lee) y salen como NO ENCONTRADO.
+
+El comparador mide también los modelos de visión, con su coste real por informe.
+**Falta ejecutarlo con una clave** — sin eso, no se sabe cuánto mejoran.
+
 #### Hay un segundo lector, mejor, y viene apagado
 
 Existe un **lector de visión** (Claude, `claude-opus-5`) que lee el informe

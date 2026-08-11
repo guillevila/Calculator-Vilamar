@@ -30,7 +30,8 @@
     "verificar:vertical": "pnpm --filter @vilamar/desktop verificar:vertical",
     "start": "pnpm --filter @vilamar/desktop start",
     "ocr:preparar": "vite-node scripts/preparar-ocr.ts",
-    "probar:lectura": "vite-node scripts/probar-lectura.ts"
+    "probar:lectura": "vite-node scripts/probar-lectura.ts",
+    "comparar:lectores": "vite-node scripts/comparar-lectores.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

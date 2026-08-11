@@ -150,10 +150,42 @@ trazos y decide a qué letra se parecen. No sabe que «AL» es una longitud axia
 ni que va en milímetros. Un «8» bien dibujado donde había un «0» es un 8 nítido:
 alta confianza, valor equivocado.
 
+### Cuánto falla, sobre seis documentos
+
+Medido con `pnpm comparar:lectores`, sobre 6 documentos × 20 datos = 120
+comparaciones. Cada dato cae en una de tres casillas, y **no valen lo mismo**:
+un dato ausente se ve y lo escribes tú; un dato equivocado que parece razonable
+no se ve y cambia la lente.
+
+| Documento                              | bien     | MAL   | falta  |
+| -------------------------------------- | -------- | ----- | ------ |
+| PDF con texto dentro                   | 20/20    | —     | —      |
+| Captura de pantalla nítida             | 20/20    | —     | —      |
+| PDF que por dentro es una imagen       | 19/20    | —     | 1      |
+| JPEG pequeño y muy comprimido          | 18/20    | —     | 2      |
+| Esa imagen convertida a PDF            | 13/20    | **1** | 6      |
+| **Foto de una pantalla, algo torcida** | **1/20** | —     | **19** |
+| **Total**                              | **91**   | **1** | **28** |
+
+Dos cosas que solo se ven con la tabla delante:
+
+- **Un PDF con texto dentro se lee perfecto.** Si el aparato puede exportar así,
+  ese es el camino y no hace falta nada más.
+- **Una foto de la pantalla del aparato lo hunde: 1 de 20.** La imagen es
+  perfectamente legible para cualquier persona —basta un giro de 2,4° y un poco
+  de desenfoque—. Y es justo lo que hace un usuario real cuando no puede
+  exportar. El fallo es del tipo seguro (no lee, en vez de leer mal), pero deja
+  el programa sin servir para nada en ese caso.
+
 **Un modelo de visión sí lo sabe.** Lee la maqueta, entiende las etiquetas y
 conoce los órdenes de magnitud. Es la comprobación semántica que falta. Por eso
 existe D17 — y por eso viene apagado: resolverlo cuesta mandar el informe fuera
 del ordenador, que es una decisión de quien lo usa (O5).
+
+**Cuánto mejora, no se sabe todavía.** El comparador está hecho y mide también
+los modelos, con su coste real por informe; falta ejecutarlo con una clave. La
+regla de elección está escrita en el propio comparador: _el más barato que no
+cometa ni un error_.
 
 Mientras tanto, y con cualquiera de los dos lectores, **un dato leído por una
 máquina no se da por bueno solo**: sale en ámbar y hay que comprobarlo uno a uno

@@ -4,6 +4,57 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [0.4.0] — 11/08/2026
+
+Un comparador que responde con números a «¿qué lector uso y cuánto cuesta?».
+
+### Añadido
+
+- **`pnpm comparar:lectores`**. Genera 6 documentos sintéticos que cubren los
+  casos que fallan de verdad —no solo el fácil— y pasa cada uno por todos los
+  lectores: el OCR local y los modelos de visión a distintos precios. Imprime
+  aciertos, errores, datos que faltan, **coste real por informe** y un veredicto.
+- El lector de visión admite elegir modelo y esfuerzo, y devuelve su consumo en
+  tokens para poder calcular el coste de verdad en vez de estimarlo.
+- **Caché del prompt.** Las instrucciones son idénticas en cada lectura; a partir
+  de la segunda cuestan la décima parte.
+- `precios.ts` con las tarifas anotadas y su fecha, porque un coste sin fecha
+  envejece en silencio.
+
+### Medido
+
+El lector local, sobre 120 comparaciones: **91 bien, 1 mal, 28 sin leer**.
+
+| Documento                         | bien     | MAL   | falta  |
+| --------------------------------- | -------- | ----- | ------ |
+| PDF con texto dentro              | 20/20    | —     | —      |
+| Captura de pantalla nítida        | 20/20    | —     | —      |
+| PDF que por dentro es una imagen  | 19/20    | —     | 1      |
+| JPEG pequeño y muy comprimido     | 18/20    | —     | 2      |
+| Esa imagen convertida a PDF       | 13/20    | **1** | 6      |
+| **Foto de una pantalla, torcida** | **1/20** | —     | **19** |
+
+Lo que enseña la tabla: **un PDF con texto sale perfecto**, y **una foto de la
+pantalla del aparato hunde el OCR a 1 de 20** aunque la imagen se lea sin
+esfuerzo a simple vista. Ese es el caso real cuando no se puede exportar.
+
+### Cómo elige el comparador
+
+_El lector más barato que no cometa ni un error._ Un dato ausente se ve y lo
+escribes tú; un dato equivocado que parece razonable no se ve y cambia la lente.
+Por eso un solo error descalifica antes de mirar el precio.
+
+### Pendiente
+
+**Cuánto mejoran los modelos, no se sabe.** El comparador los mide, pero hace
+falta una clave para ejecutarlo. El modelo por defecto (`claude-sonnet-5`,
+esfuerzo `medium`) está elegido por criterio y marcado como provisional en el
+código, no por medición.
+
+254 tests y 8 pruebas de interfaz.
+
+---
+
 ## [0.3.0] — 11/08/2026
 
 Un lector de informes que **entiende** el documento, en lugar de reconocer letras.
