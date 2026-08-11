@@ -278,6 +278,7 @@ export function App(): JSX.Element {
                 void calcular([c])
               }}
               onVolverARevisar={() => setPaso('REVISION')}
+              estados={estados}
             />
           )}
         </div>

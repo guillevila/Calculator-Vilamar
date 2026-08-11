@@ -10,7 +10,8 @@
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:e2e": "playwright test",
-    "dist": "electron-vite build && electron-builder --win --dir"
+    "dist": "electron-vite build && electron-builder --win --dir",
+    "verificar:vertical": "playwright test --config=playwright.vertical.config.ts"
   },
   "dependencies": {
     "@vilamar/domain": "workspace:*",

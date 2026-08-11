@@ -18,6 +18,7 @@ import {
   textoEstado,
 } from '@vilamar/domain'
 
+import type { EstadoCalculo } from '../../compartido/ipc.js'
 import { api } from '../api.js'
 
 interface Props {
@@ -26,6 +27,8 @@ interface Props {
   readonly onCambiarOjo: (ojo: Lateralidad) => void
   readonly onReintentar: (calculadora: Calculadora) => void
   readonly onVolverARevisar: () => void
+  /** Lo que está pasando ahora mismo, para no decir «no se ha lanzado» de algo que sí. */
+  readonly estados?: readonly EstadoCalculo[]
 }
 
 function celda(valor: number | undefined, sufijo = ''): JSX.Element {
@@ -49,6 +52,7 @@ export function PanelResultados({
   onCambiarOjo,
   onReintentar,
   onVolverARevisar,
+  estados = [],
 }: Props): JSX.Element {
   const ojos = ojosDelCaso(caso)
   const [pdf, setPdf] = useState<string | null>(null)
@@ -162,11 +166,24 @@ export function PanelResultados({
             </tr>
             <tr>
               <th>Estado</th>
-              {comparativa.celdas.map((c) => (
-                <td key={c.calculadora} style={{ fontSize: 12.5, color: 'var(--gris)' }}>
-                  {textoEstado(c.estado)}
-                </td>
-              ))}
+              {comparativa.celdas.map((c) => {
+                // Una calculadora sin resultado pero con actividad NO está «sin
+                // lanzar»: está esperando, a menudo a que el usuario haga algo.
+                const enCurso = estados.find(
+                  (e) => e.calculadora === c.calculadora && e.ojo === ojoActivo,
+                )
+                const texto =
+                  c.estado === 'NO_EJECUTADA' && enCurso
+                    ? enCurso.requiereUsuario
+                      ? 'Esperando a que hagas algo en el navegador'
+                      : 'En curso…'
+                    : textoEstado(c.estado)
+                return (
+                  <td key={c.calculadora} style={{ fontSize: 12.5, color: 'var(--gris)' }}>
+                    {texto}
+                  </td>
+                )
+              })}
             </tr>
           </tbody>
         </table>

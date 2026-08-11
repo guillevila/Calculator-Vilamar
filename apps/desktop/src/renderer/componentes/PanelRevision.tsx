@@ -30,6 +30,7 @@ import {
 } from '@vilamar/domain'
 
 import { api } from '../api.js'
+import { SelectorLente } from './SelectorLente.js'
 
 interface Props {
   readonly caso: Caso
@@ -112,6 +113,8 @@ export function PanelRevision({
           onCambio={onCambio}
         />
       ))}
+
+      <SelectorLente caso={caso} onCambio={onCambio} />
 
       <div className="tarjeta">
         <h2>Confirmar y calcular</h2>

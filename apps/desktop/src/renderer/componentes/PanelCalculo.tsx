@@ -118,16 +118,24 @@ export function PanelCalculo({
               {hayAlguno ? 'Volver a calcular todas' : 'Calcular en las tres'}
             </button>
           )}
+          {/*
+            A propósito NO se deshabilita mientras se calcula. Kane puede tener
+            al usuario esperando varios minutos a que acepte sus condiciones, y
+            durante ese rato los resultados de EVO y Barrett ya están ahí. Que
+            una calculadora que espera impida ver las que ya terminaron es justo
+            lo contrario de lo que promete el producto.
+          */}
           {hayAlguno && (
-            <button onClick={onVerResultados} disabled={ocupado}>
-              Ver resultados
+            <button onClick={onVerResultados} data-testid="ver-resultados">
+              Ver los resultados que ya hay
             </button>
           )}
         </div>
 
         <p className="pie-nota">
           Si una calculadora falla, las demás siguen. Los resultados que ya tengas no se pierden y
-          puedes reintentar solo la que falló.
+          puedes reintentar solo la que falló. No hace falta esperar a que terminen todas para
+          verlos.
         </p>
       </div>
     </>

@@ -9,6 +9,9 @@ import { defineConfig } from '@playwright/test'
  */
 export default defineConfig({
   testDir: './e2e',
+  // Solo los .spec.ts. La verificación vertical (`*.manual.ts`) queda fuera a
+  // propósito: habla con webs ajenas y no puede gobernar un control automático.
+  testMatch: /.*.spec.ts$/,
   fullyParallel: false,
   workers: 1,
   timeout: 60_000,
