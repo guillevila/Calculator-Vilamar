@@ -164,13 +164,13 @@ export async function calculadoraDeKaneLista(pagina: Page): Promise<boolean> {
         const tipo = el.getAttribute('type')
         return visible(el) && tipo !== 'hidden' && tipo !== 'submit' && tipo !== 'button'
       })
-      const calcular = [...document.querySelectorAll('button, input[type=submit], a')].some(
-        (el) => {
-          const texto =
-            (el as HTMLElement).innerText || (el as HTMLInputElement).value || el.textContent || ''
-          return visible(el) && /calculate|calcular/i.test(texto)
-        },
-      )
+      const calcular = [
+        ...document.querySelectorAll('button, input[type=submit], input[type=button], a'),
+      ].some((el) => {
+        const texto =
+          (el as HTMLElement).innerText || (el as HTMLInputElement).value || el.textContent || ''
+        return visible(el) && /calculate|calcular/i.test(texto)
+      })
       return editables.length >= minimo && calcular
     }, CAMPOS_MINIMOS_DEL_FORMULARIO)
 

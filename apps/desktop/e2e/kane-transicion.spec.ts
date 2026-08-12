@@ -59,7 +59,7 @@ const CALCULADORA = `<!doctype html><title>Kane Formula</title><body>
   <label for="k2">K2</label><input id="k2">
   <label for="acd">ACD</label><input id="acd">
   <label for="a">A Constant</label><input id="a">
-  <button id="calc">Calculate</button>
+  <input id="calc" type="button" value="Calculate">
 </body>`
 
 /** La calculadora pintada pero SIN poder escribir: una capa de carga encima. */
@@ -79,7 +79,7 @@ const CON_RETRASO = `<!doctype html><title>Kane Formula</title><body>
         '<label for="k1">K1</label><input id="k1">' +
         '<label for="k2">K2</label><input id="k2">' +
         '<label for="acd">ACD</label><input id="acd">' +
-        '<button id="calc">Calculate</button>'
+        '<input id="calc" type="button" value="Calculate">'
     }, 1500)
   </script>
 </body>`

@@ -174,9 +174,9 @@ async function hayFormulario(pagina) {
       const campos = [...document.querySelectorAll('input, select')].filter(
         (el) => visible(el) && !['hidden', 'submit', 'button'].includes(el.getAttribute('type')),
       )
-      const calcular = [...document.querySelectorAll('button, input[type=submit], a')].some(
-        (el) => visible(el) && /calculate|calcular/i.test(el.innerText || el.value || ''),
-      )
+      const calcular = [
+        ...document.querySelectorAll('button, input[type=submit], input[type=button], a'),
+      ].some((el) => visible(el) && /calculate|calcular/i.test(el.innerText || el.value || ''))
       return campos.length >= minimo && calcular
     }, CAMPOS_MINIMOS)
     .catch(() => false)
