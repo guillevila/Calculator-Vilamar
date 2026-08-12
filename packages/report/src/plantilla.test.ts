@@ -18,6 +18,7 @@ import {
   conOjo,
   conResultado,
   crearMedida,
+  normalizarOjo,
   ojoVacio,
 } from '@vilamar/domain'
 
@@ -356,5 +357,27 @@ describe('el origen de cada dato en el PDF', () => {
     // tú», y eso hacía parecer que la lectura había fallado.
     const html = informeCon((o) => conMedida(o, crearMedida('AL', 'OD', 24.07, DEL_PDF)))
     expect(html).not.toContain('NO ENCONTRADO')
+  })
+
+  it('una ACD calculada sale como «Derivado del informe», con la cuenta', () => {
+    // Quien audite este PDF meses después tiene que poder distinguir de un
+    // vistazo lo que ponía el informe de lo que calculó el programa, y poder
+    // rehacer la cuenta sin abrir el código.
+    const html = informeCon((o) => {
+      let ojo = conMedida(
+        o,
+        crearMedida('AQD', 'OD', 2.65, { ...DEL_PDF, dispositivoId: 'ANTERION' }),
+      )
+      ojo = conMedida(ojo, crearMedida('CCT', 'OD', 530, { ...DEL_PDF, dispositivoId: 'ANTERION' }))
+      return normalizarOjo(ojo, 'ANTERION', CUANDO).ojo
+    })
+
+    expect(html).toContain('Derivado del informe')
+    expect(html).toContain('AQD 2.65 mm + CCT 530 µm (0.530 mm)')
+    // Y NO se disfraza de dato leído.
+    expect(html).toContain('marca-derivado')
+    // Los sumandos siguen en el informe como medidas propias.
+    expect(html).toContain('2.65')
+    expect(html).toContain('530')
   })
 })

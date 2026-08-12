@@ -448,3 +448,84 @@ ACD (epi)   3.18 mm`)
     expect(tiene(soloAcd.ojos.OD!, 'AQD')).toBe(false)
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  La ACD, que puede llegar impresa o haber que calcularla
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('ACD: documento completo, de principio a fin', () => {
+  it('ANTERION moderno: la ACD impresa se usa tal cual', () => {
+    const m = leer(fx.ANTERION_OD_OS).ojos.OD!.medidas.ACD
+    expect(m?.valor).toBe(3.18)
+    expect(origenDe(m)).toBe('DEL_INFORME')
+    expect(m?.procedencia.evidencia?.texto).toMatch(/ACD/i)
+  })
+
+  it('ANTERION antiguo sin ACD: se calcula de AQD + CCT', () => {
+    const r = leer(fx.ANTERION_ANTIGUO_SIN_ACD)
+    const m = r.ojos.OD!.medidas.ACD
+
+    expect(r.dispositivo.dispositivo).toBe('ANTERION')
+    expect(m?.valor).toBe(3.18)
+    expect(origenDe(m)).toBe('DERIVADO_DEL_INFORME')
+    expect(m?.procedencia.derivacion?.explicacion).toBe('AQD 2.65 mm + CCT 530 µm (0.530 mm)')
+  })
+
+  it('y los datos de los que salió siguen ahí, intactos', () => {
+    const ojo = leer(fx.ANTERION_ANTIGUO_SIN_ACD).ojos.OD!
+    expect(valorDe(ojo, 'AQD')).toBe(2.65)
+    expect(valorDe(ojo, 'CCT')).toBe(530)
+    expect(origenDe(ojo.medidas.AQD)).toBe('DEL_INFORME')
+    expect(origenDe(ojo.medidas.CCT)).toBe('DEL_INFORME')
+  })
+
+  it('el aviso dice de qué ojo habla', () => {
+    // Con dos ojos sin ACD saldrían dos mensajes idénticos y no habría forma de
+    // saber a cuál mirar.
+    const r = leer(fx.ANTERION_ANTIGUO_SIN_ACD)
+    const aviso = r.avisos.find((a) => a.includes('AQD'))
+    expect(aviso).toBeDefined()
+    expect(aviso).toContain('Ojo derecho (OD)')
+  })
+
+  it('ANTERION con AQD pero sin grosor corneal: NO se inventa la ACD', () => {
+    const r = leer(fx.ANTERION_AQD_SIN_CCT)
+    expect(tiene(r.ojos.OD!, 'ACD')).toBe(false)
+    expect(valorDe(r.ojos.OD!, 'AQD')).toBe(2.65)
+    expect(r.avisos.some((a) => /grosor|CCT/i.test(a) && /a mano/i.test(a))).toBe(true)
+  })
+
+  it('aparato desconocido con AQD y CCT: NO se calcula nada automáticamente', () => {
+    // La suma daría 3.09, que es una ACD perfectamente creíble. Por eso mismo no
+    // se hace: si no se sabe cómo mide ese aparato, un número creíble y
+    // equivocado es indistinguible de uno correcto.
+    const r = leer(fx.DESCONOCIDO_CON_AQD_Y_CCT)
+    expect(r.dispositivo.dispositivo).toBe('DESCONOCIDO')
+    expect(tiene(r.ojos.OD!, 'ACD')).toBe(false)
+    expect(valorDe(r.ojos.OD!, 'AQD')).toBe(2.55)
+    expect(r.avisos.some((a) => /no se ha reconocido el aparato/i.test(a))).toBe(true)
+  })
+
+  it('ACD impresa que no cuadra con AQD + CCT: avisa y no elige', () => {
+    const r = leer(fx.ANTERION_ACD_INCOHERENTE)
+    const ojo = r.ojos.OD!
+
+    // Los tres datos se conservan exactamente como venían.
+    expect(valorDe(ojo, 'ACD')).toBe(3.18)
+    expect(valorDe(ojo, 'AQD')).toBe(2.1)
+    expect(valorDe(ojo, 'CCT')).toBe(530)
+    expect(origenDe(ojo.medidas.ACD)).toBe('DEL_INFORME')
+
+    const aviso = validarOjo(ojo).find((a) => a.codigo === 'ACD_NO_CUADRA_CON_AQD_MAS_CCT')
+    expect(aviso?.nivel).toBe('WARNING')
+  })
+
+  it('un informe coherente no genera ese aviso', () => {
+    // Guarda contra un aviso que salte siempre: si saltara, dejaría de leerse.
+    for (const ojo of [leer(fx.ANTERION_OD_OS).ojos.OD!, leer(fx.ANTERION_OD_OS).ojos.OS!]) {
+      expect(
+        validarOjo(ojo).filter((a) => a.codigo === 'ACD_NO_CUADRA_CON_AQD_MAS_CCT'),
+      ).toHaveLength(0)
+    }
+  })
+})

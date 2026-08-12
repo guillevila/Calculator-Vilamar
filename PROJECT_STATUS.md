@@ -9,8 +9,8 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 11/08/2026 · tras la primera sesión y la ronda de
-arreglos que salió de probarla con un documento real
+**Última actualización:** 12/08/2026 · tras añadir la capa de normalización por
+aparato — la ACD que puede llegar impresa o haber que calcularla
 
 ---
 
@@ -72,21 +72,21 @@ es lo que separa un prototipo de un MVP.
 
 ### Comprobado arrancando la aplicación de verdad
 
-Cinco pruebas que abren Electron y pulsan con el ratón, más una verificación
+Once pruebas que abren Electron y pulsan con el ratón, más una verificación
 vertical completa:
 
 - **La ventana abre** y enseña la pantalla de inicio.
 - **Se pueden escribir los datos a mano**, y se validan según se escriben.
 - **Un dato imposible bloquea.** `AL = 240.7` sale en rojo, dice «parece un punto
   decimal mal leído: podría ser 24.07», **no lo cambia** y no deja confirmar.
-- **Un campo vacío pone «NO ENCONTRADO»**, nunca 0.
+- **Un campo vacío dice quién lo tiene que aportar**, nunca 0.
 - **Borrar un dato** lo deja ausente, no a cero.
 - **El flujo completo**: datos → confirmar → EVO y Barrett reales → tabla
   comparativa → **PDF escrito en disco**. Comprobado en 47 segundos.
 - **Una calculadora que espera no bloquea a las demás:** con Kane esperando a que
   se acepten sus condiciones, se pueden ver los resultados de EVO y Barrett.
 
-### Comprobado con tests automáticos (205, todos en verde)
+### Comprobado con tests automáticos (376, todos en verde)
 
 - **Las diez invariantes clínicas.** Las dos barreras de confirmación se han
   comprobado **rompiéndolas a propósito** y viendo caer el test que las cubre.
@@ -148,12 +148,13 @@ falta sencillamente no lo tienes.
 
 Antes, un campo que el informe no traía y un campo que tiene que poner el cirujano
 decían lo mismo: «NO ENCONTRADO». Eso hacía parecer que la lectura había fallado.
-Ahora se distinguen cuatro orígenes, y el origen sale del **valor concreto**, no
+Ahora se distinguen cinco orígenes, y el origen sale del **valor concreto**, no
 del tipo de campo:
 
 | Lo que ves                  | Qué significa                                      |
 | --------------------------- | -------------------------------------------------- |
 | **Del informe**             | Lo traía el documento                              |
+| **Derivado del informe**    | El programa lo ha calculado con otros datos suyos  |
 | **Aportado**                | No venía y lo has escrito tú                       |
 | **Corregido**               | El informe traía otro valor. Se enseña cuál        |
 | **No consta en el informe** | Ese informe no publica ese dato                    |
@@ -171,6 +172,30 @@ Tres cosas que se pueden comprobar:
 
 También se leen ya dos datos del ANTERION que antes se tiraban: **refracción
 objetivo** (incluido el 0.00, que es emetropía y no un hueco) y **nk = 1.3375**.
+
+#### Un ANTERION que no imprime la ACD ya no deja las tres calculadoras fuera
+
+Comprobado de punta a punta, con un PDF de verdad: si el informe trae AQD y grosor
+corneal pero no ACD, el programa la calcula —`2.65 mm + 530 µm = 3.18 mm`— y la
+enseña como **«Derivado del informe»**, con la cuenta debajo para poder
+contrastarla. Las tres calculadoras exigen la ACD, así que antes esos informes se
+quedaban fuera teniendo el dato delante.
+
+Lo que **no** hace, y también está comprobado:
+
+- **No pisa una ACD impresa.** Si el informe la trae, se usa esa.
+- **No aplica la cuenta a cualquier aparato.** Solo a ANTERION, porque su informe
+  dice desde qué superficie mide cada distancia. Con un aparato desconocido no
+  calcula nada y explica por qué: la suma daría un número creíble que podría estar
+  medio milímetro desviado, y las dos cosas se parecen.
+- **No inventa si falta un ingrediente.** AQD sin CCT no da ACD.
+- **No elige cuando hay dos versiones que no cuadran.** Avisa, deja los tres datos
+  como estaban y corriges tú.
+- **No se da por buena sola.** Aunque la cuenta sea exacta, nadie ha visto el
+  resultado: hay que pulsar «Está bien», como con lo leído por OCR.
+
+⚠️ Sigue siendo lectura sobre documentos **sintéticos**. Que la regla funcione no
+dice que se reconozca la maqueta de un ANTERION real — eso sigue en el punto 1.
 
 #### Cuánto acierta el lector local, medido
 
@@ -299,6 +324,12 @@ Ampliar ×3 **empeora** —apareció un 24.97 donde ponía 24.07—, así que ha
   campos: no se rellenan las secciones específicas de EVO para post-LASIK.
 - **Los dos ojos se calculan por separado.** Hay que cambiar de ojo y volver a
   lanzar; no se calculan los dos de una tacada.
+- **Solo ANTERION puede derivar la ACD.** Es una decisión, no una carencia (D31),
+  pero conviene tenerlo escrito: si un IOLMaster o un Pentacam trae AQD y grosor
+  corneal sin ACD, el programa **no la calcula** — no está documentado desde qué
+  superficie mide su ACD, y suponerlo daría un número creíble medio milímetro
+  desviado. Para añadir un aparato hace falta poder señalar dónde lo dice su
+  informe. Si no se puede señalar, la respuesta sigue siendo no.
 
 ---
 
@@ -330,9 +361,17 @@ Ninguno de los tres impide usar lo demás.
 ## 6. Qué se ha decidido esta sesión
 
 - Todo el apartado de decisiones cerradas de [SYSTEM_VISION.md](SYSTEM_VISION.md)
-  (D1–D16).
+  (D1–D32).
 - **La carpeta del repositorio estaba vacía.** La plantilla habitual no llegó a
   copiarse, así que se ha instalado desde el proyecto hermano y adaptado.
+- **D31: un dato canónico puede derivarse, pero solo si el perfil del aparato lo
+  permite explícitamente.** La tabla de perfiles es restrictiva por defecto — hoy
+  solo ANTERION — porque en otro aparato la misma cuenta daría un número plausible
+  y equivocado, que es lo peor que puede producir este programa.
+- **D32: lo derivado tiene estado de origen propio y no se autoconfirma.** Las dos
+  alternativas eran mentira («del informe» de algo que el papel no dice, o
+  «aportado» de algo que no ha escrito nadie), y aunque la cuenta sea exacta nadie
+  ha visto el resultado.
 
 ---
 

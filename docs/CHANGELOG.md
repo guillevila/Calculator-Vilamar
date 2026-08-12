@@ -4,6 +4,103 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [0.7.0] — 12/08/2026
+
+La ACD, que puede llegar impresa o haber que calcularla. Y una capa nueva entre
+«lo que pone el informe» y «el dato canónico».
+
+### El problema
+
+Las tres calculadoras exigen la ACD. Algunos informes de ANTERION **no la
+imprimen**, pero traen AQD y grosor corneal — y en ese aparato el propio informe
+dice desde qué superficie mide cada distancia («ACD epithelium», «AQD
+endothelium»), así que entre las dos está justo el grosor de la córnea:
+
+```
+AQD 2.65 mm + CCT 530 µm (0.530 mm) = ACD 3.18 mm
+```
+
+Con esos informes, hasta ahora las tres calculadoras se quedaban fuera teniendo el
+dato delante.
+
+**Pero la cuenta no se puede aplicar a cualquier aparato.** En uno que llame «ACD»
+a otra distancia da un número plausible y equivocado, y eso es lo peor que puede
+producir este programa: un dato falso indistinguible de uno correcto.
+
+### Añadido
+
+- **`packages/domain/src/normalizacion/`**, una capa nueva. El recorrido queda así:
+
+  ```
+  documento → extracción literal → normalización del aparato → modelo canónico
+            → revisión humana → calculadoras
+  ```
+
+  El parser sigue diciendo qué pone el informe; esta capa decide si un dato
+  canónico se puede obtener de otros del mismo informe. Vive en el dominio porque
+  es conocimiento clínico, no conocimiento de cómo está maquetado un PDF.
+
+- **`perfiles.ts`: una tabla por aparato, restrictiva por defecto.** Hoy solo
+  ANTERION deriva; IOLMaster, Pentacam y DESCONOCIDO no. Un test comprueba que la
+  lista sea exactamente `['ANTERION']`, para que ampliarla sea una decisión y no
+  un descuido.
+- **`DERIVADO_DEL_INFORME`, quinto estado de origen.** No es «del informe» —el
+  papel no lo dice— ni «aportado» —no lo ha escrito nadie—. La pantalla y el PDF
+  enseñan **la cuenta**, no la palabra: «AQD 2.65 mm + CCT 530 µm (0.530 mm)» se
+  contrasta con el informe en dos segundos; «derivado» no se comprueba.
+- **`ACD_NO_CUADRA_CON_AQD_MAS_CCT`**, en la validación. Salta cuando están las
+  tres medidas y no cuadran por más de **0.05 mm**. Avisa y **no elige**: los tres
+  números pueden ser normales por separado y uno estar mal. Corre también sobre
+  una ACD derivada, para cazar el caso silencioso — corregir la AQD después de
+  haber derivado deja una ACD que ya no cuadra.
+- **`necesitaComprobacionHumana()`**. Lo leído por una máquina y lo calculado por
+  el programa exigen los dos que una persona mire, **por motivos distintos**: lo
+  primero puede estar mal; lo segundo está bien pero nadie lo ha visto. Se separa
+  de `esLecturaAutomatica()` porque una cuenta no es una lectura, y confundirlas
+  haría que la pantalla dijera «leído de la imagen» de algo que no se ha leído de
+  ninguna parte.
+- Cuatro informes sintéticos nuevos: ANTERION sin ACD, ANTERION sin CCT, ANTERION
+  con las tres medidas incoherentes, y aparato desconocido con AQD y CCT.
+
+### Corregido
+
+- El aviso de cabecera decía «datos leídos de la imagen» de todo lo pendiente.
+  Con una ACD calculada eso era falso: no se ha leído de ninguna parte. Ahora cada
+  motivo se dice solo cuando toca.
+
+### Sin cambiar
+
+- **AQD y ACD siguen siendo campos distintos.** Derivar no consume ni convierte
+  nada: las tres medidas quedan guardadas, cada una con su procedencia y su
+  evidencia. Los tests del dominio y de la extracción lo comprueban.
+- Ninguna otra semántica clínica.
+
+### Detalles que se decidieron a propósito
+
+- **El CCT se sigue guardando en µm**, como lo imprime el informe. La conversión a
+  mm ocurre dentro de la cuenta y se escribe en la explicación, porque el error de
+  mil es justo el que da un resultado creíble.
+- **La ACD derivada se redondea a dos decimales**, los del campo. Una derivada y
+  una leída tienen que tener la misma forma; distinguirlas por el número de cifras
+  en vez de por su etiqueta sería un accidente esperando. Lo que se descarta es
+  como mucho media milésima de milímetro, y los sumandos exactos quedan aparte.
+- **La capa se llama desde los dos caminos de lectura**, el local y el del modelo
+  de visión, porque el segundo no pasa por el primero. Dejarlo en uno haría que la
+  ACD se derivara o no según con qué lector se leyó el informe.
+
+### Validación
+
+lint, formato, typecheck y build en verde. **376 tests** (37 nuevos) y **11
+pruebas de interfaz** (1 nueva, de punta a punta: PDF de verdad → proceso
+principal → pantalla).
+
+Y la comprobación que de verdad importa: **seis mutaciones, seis tests caídos.**
+Se rompió a propósito la conversión de unidad, la tabla de perfiles, el estado de
+origen, la tolerancia, la regla de no pisar la ACD leída y la exigencia de
+comprobación humana. Ninguna pasó desapercibida.
+
+---
+
 ## [0.6.0] — 11/08/2026
 
 Cada campo dice cuánta falta hace, y la pantalla avisa antes de calcular de qué

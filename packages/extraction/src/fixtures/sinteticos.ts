@@ -59,6 +59,87 @@ CCT             530 um
 WTW           11.90 mm
 `
 
+/**
+ * ANTERION antiguo: publica AQD y grosor corneal, pero NO la ACD.
+ *
+ * Es el caso que justifica la capa de normalización. Las tres calculadoras
+ * necesitan la ACD, y en este aparato se puede obtener: la ACD se mide desde el
+ * epitelio y la AQD desde el endotelio, así que entre las dos está justo el
+ * grosor de la córnea.
+ *
+ *   AQD 2.65 mm + CCT 530 µm (0.530 mm) = ACD 3.18 mm
+ */
+export const ANTERION_ANTIGUO_SIN_ACD = `
+HEIDELBERG ENGINEERING          ANTERION
+Cataract App - Biometry Report
+
+OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+AQD (endo)     2.65 mm
+LT             4.53 mm
+CCT             530 um
+WTW           11.90 mm
+`
+
+/**
+ * ANTERION antiguo SIN grosor corneal: hay AQD, pero no hay con qué sumarla.
+ *
+ * Comprueba que no se inventa la ACD cuando falta un ingrediente. Media córnea
+ * no es media derivación: o están los dos datos o no hay dato.
+ */
+export const ANTERION_AQD_SIN_CCT = `
+HEIDELBERG ENGINEERING          ANTERION
+Cataract App
+
+OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+AQD (endo)     2.65 mm
+LT             4.53 mm
+WTW           11.90 mm
+`
+
+/**
+ * ANTERION con las tres medidas, y no cuadran.
+ *
+ * ACD 3.18, AQD 2.10 y CCT 530 µm: los tres son valores perfectamente normales
+ * por separado, la AQD es menor que la ACD como debe ser, y aun así 2.10 + 0.530
+ * son 2.63 y no 3.18. Uno de los tres está mal, y el programa **no elige cuál**.
+ */
+export const ANTERION_ACD_INCOHERENTE = `
+HEIDELBERG ENGINEERING          ANTERION
+Cataract App
+
+OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+ACD (epi)      3.18 mm
+AQD (endo)     2.10 mm
+CCT             530 um
+`
+
+/**
+ * Un informe que trae AQD y CCT pero no se sabe de qué aparato es.
+ *
+ * La suma daría un número plausible, y por eso mismo NO se hace: si no se sabe
+ * desde qué superficie mide ese aparato, el resultado podría ser correcto o
+ * podría estar medio milímetro desviado, y las dos cosas se parecen.
+ */
+export const DESCONOCIDO_CON_AQD_Y_CCT = `
+Biometry summary sheet
+
+OD
+AL            23.90 mm
+K1            43.10 D @ 10
+K2            44.20 D @ 100
+AQD            2.55 mm
+CCT             540 um
+`
+
 /** IOLMaster 700, formato de dos columnas — el más habitual. */
 export const IOLMASTER_DOS_COLUMNAS = `
 ZEISS IOLMaster 700

@@ -40,7 +40,15 @@ import type {
   OjoBiometrico,
   Procedencia,
 } from '@vilamar/domain'
-import { CAMPOS, conMedida, crearMedida, definicionDe, ojoVacio } from '@vilamar/domain'
+import {
+  CAMPOS,
+  conMedida,
+  crearMedida,
+  definicionDe,
+  nombreLateralidad,
+  normalizarOjo,
+  ojoVacio,
+} from '@vilamar/domain'
 import type { DocumentoEntrada, LectorVision, ResultadoExtraccion } from '@vilamar/extraction'
 
 import type { Uso } from './precios.js'
@@ -428,7 +436,17 @@ export function aResultado(
       }
       ojo = conMedida(ojo, crearMedida(m.campo, bloque.lado, m.valor, procedencia))
     }
-    ojos[bloque.lado] = ojo
+
+    // La misma normalización por aparato que aplica el lector local.
+    //
+    // Va aquí y no solo en el pipeline porque este camino NO pasa por
+    // `interpretarTexto`: el modelo de visión devuelve el resultado ya montado.
+    // Dejarlo fuera haría que la ACD se derivara o no según con qué lector se
+    // hubiese leído el informe, que es la clase de diferencia invisible que
+    // luego nadie entiende.
+    const normalizado = normalizarOjo(ojo, leido.dispositivo, cuando)
+    ojos[bloque.lado] = normalizado.ojo
+    avisos.push(...normalizado.avisos.map((a) => `${nombreLateralidad(bloque.lado)}: ${a}`))
     explicaciones.push(`${bloque.lado}: ${bloque.comoSeSabe}`)
   }
 

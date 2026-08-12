@@ -102,14 +102,15 @@ que se le enseña a una persona es el **origen**, que se deduce del dato y no se
 guarda aparte (un origen guardado por su cuenta acabaría desincronizado del dato
 que describe):
 
-| Origen        | Cuándo                            | En pantalla                                            |
-| ------------- | --------------------------------- | ------------------------------------------------------ |
-| `DEL_INFORME` | `TEXTO_PDF`, `OCR` o `VISION`     | «Del informe»                                          |
-| `APORTADO`    | Manual, y no había nada antes     | «Aportado»                                             |
-| `CORREGIDO`   | Manual, y **pisó un valor leído** | «Corregido», con «Leído originalmente: …»              |
-| `NO_CONSTA`   | El dato no está                   | «No consta en el informe» **o** «Pendiente de aportar» |
+| Origen                 | Cuándo                                | En pantalla                                            |
+| ---------------------- | ------------------------------------- | ------------------------------------------------------ |
+| `DEL_INFORME`          | `TEXTO_PDF`, `OCR` o `VISION`         | «Del informe»                                          |
+| `DERIVADO_DEL_INFORME` | `DERIVADO`: calculado con otros suyos | «Derivado del informe», con la cuenta debajo           |
+| `APORTADO`             | Manual, y no había nada antes         | «Aportado»                                             |
+| `CORREGIDO`            | Manual, y **pisó un valor leído**     | «Corregido», con «Leído originalmente: …»              |
+| `NO_CONSTA`            | El dato no está                       | «No consta en el informe» **o** «Pendiente de aportar» |
 
-Tres consecuencias que importan:
+Cuatro consecuencias que importan:
 
 - **El mismo campo puede tener orígenes distintos** en dos casos. Una refracción
   objetivo impresa en el informe es `DEL_INFORME` aunque el campo esté catalogado
@@ -122,6 +123,17 @@ Tres consecuencias que importan:
 - **Corregir no borra.** `Medida.original` conserva el valor anterior y su
   evidencia. `corregirMedida()` es la única forma correcta de escribir a mano, y
   al corregir dos veces conserva **lo que decía el papel**, no el paso intermedio.
+- **Un dato calculado no es ni leído ni aportado.** `DERIVADO_DEL_INFORME` existe
+  porque las dos alternativas eran mentira: decir «del informe» de algo que el
+  papel no dice, o «aportado» de algo que no ha escrito nadie. Siempre lleva
+  escrita la cuenta —«AQD 2.65 mm + CCT 530 µm (0.530 mm)»— para poder
+  contrastarla con el documento. Ver el apartado 4.1.
+
+Y una regla que se cruza con la validación pero no es lo mismo:
+`necesitaComprobacionHumana()` es verdadera tanto para lo leído por una máquina
+como para lo calculado, **por motivos distintos**: lo primero puede estar mal;
+lo segundo está bien pero nadie lo ha visto. Ninguna de las dos cosas se
+autoconfirma al pulsar «Confirmar».
 
 `TEXTO_AUSENTE` («NO ENCONTRADO») sigue existiendo, pero solo como marca interna
 para registros. Hay un test que impide que vuelva a la interfaz.
@@ -182,7 +194,9 @@ qué aparato es
    ↓  segmentarPorOjo       (por posición si hay coordenadas; si no, por texto)
 un trozo por ojo
    ↓  aplicarReglas         (tabla de reglas por aparato)
-medidas con evidencia
+medidas con evidencia  ← LO QUE PONE EL INFORME, y nada más
+   ↓  normalizarOjo        (dominio: qué se puede deducir en ESE aparato)
+modelo canónico
 ```
 
 **`ProveedorExtraccion` es la abstracción que permite cambiar de tecnología.**
@@ -204,6 +218,91 @@ Ver [MANTENIMIENTO.md](MANTENIMIENTO.md).
   exigir un lienzo nativo que compila C++. Aquí se usa el Chromium que ya trae
   Playwright: se carga pdf.js desde `node_modules` en una página local, se dibuja
   en un lienzo de verdad y se captura. Ninguna dependencia nueva.
+
+---
+
+## 4.1. Normalización por aparato: la capa que deduce
+
+`packages/domain/src/normalizacion/`
+
+La frontera importante es la línea marcada arriba: **hasta ahí, lo que hay es
+exactamente lo que pone el informe.** Esta capa es lo primero que puede añadir un
+dato que el documento no traía, y por eso todo lo que produce va marcado.
+
+Vive en el **dominio** y no en un parser a propósito. Decidir que en un ANTERION
+la ACD es la AQD más el grosor corneal es conocimiento clínico, no conocimiento de
+cómo está maquetado un PDF. El parser sigue diciendo qué pone; esta capa decide
+si un dato canónico se puede obtener de otros del mismo informe.
+
+### La regla que existe hoy: la ACD
+
+Las tres calculadoras exigen la ACD. Algunos informes de ANTERION no la imprimen,
+pero sí traen AQD y CCT, y en ese aparato el propio informe dice desde dónde mide
+cada distancia —«ACD (epithelium)», «AQD (endothelium)»—, así que entre las dos
+está justo el grosor de la córnea:
+
+```
+ACD = AQD + CCT/1000      (el CCT viene en µm y se guarda en µm)
+```
+
+Los cinco casos:
+
+| Qué trae el informe            | Qué hace                                      |
+| ------------------------------ | --------------------------------------------- |
+| ACD                            | Usa esa. **Nunca la pisa**                    |
+| AQD + CCT, sin ACD, y ANTERION | La calcula, marcada `DERIVADO`, con la cuenta |
+| ACD **y** AQD + CCT            | Conserva las tres y comprueba que cuadren     |
+| AQD sin CCT                    | No calcula nada. Dice qué falta               |
+| Aparato que no lo permite      | No calcula nada. Dice **por qué**             |
+
+### Por qué hay una tabla de perfiles y no una regla general
+
+`perfiles.ts` es explícito y **restrictivo por defecto**: hoy solo ANTERION
+deriva. En un aparato que llame «ACD» a otra distancia, esa misma suma da un
+número plausible y equivocado — y un número plausible y equivocado es justo lo
+que este programa no puede producir. `DESCONOCIDO` está en la tabla con todo a
+`false`, para que nadie lo trate como un caso «por definir».
+
+Añadir un aparato exige **poder señalar dónde dice el informe desde qué
+superficie mide**. Si no se puede señalar, la respuesta es `false`. Hay un test
+que comprueba que la lista de los que derivan sea exactamente `['ANTERION']`, para
+que ampliarla sea una decisión y no un descuido.
+
+### Dos cosas que la capa NO hace
+
+- **No convierte AQD en ACD.** Son campos distintos y los dos siguen guardados,
+  cada uno con su procedencia y su evidencia. Derivar no consume nada.
+- **No elige cuando hay dos versiones.** De comprobar si cuadran se encarga la
+  validación, no esta capa.
+
+### La coherencia la comprueba la validación, no la normalización
+
+Están separadas porque son preguntas distintas: derivar es «¿puedo obtener este
+dato?»; la coherencia es «¿me creo estos datos?». Y viven donde les toca —
+`validar.ts` tiene ya las otras comprobaciones de conjunto (K1 ≤ K2, ejes
+perpendiculares, AQD < ACD).
+
+`ACD_NO_CUADRA_CON_AQD_MAS_CCT` salta cuando las tres medidas están y la ACD no
+cuadra con la suma por más de **0.05 mm**. La tolerancia no es a ojo: el redondeo
+de las tres medidas explica algo más de una centésima, y confundir ACD con AQD
+desplaza el valor **medio milímetro** —el grosor entero de una córnea, diez veces
+la tolerancia—. Hay un test que fija las dos cotas para que nadie la ensanche
+hasta volverla inútil.
+
+Es un **aviso, no un bloqueo**, y no elige: los tres números pueden ser normales
+por separado y uno estar mal, y el programa no puede saber cuál. Corrige la
+persona.
+
+Corre también sobre una ACD derivada. Recién derivada la diferencia es cero y no
+dice nada; el caso que importa es el de después —si alguien corrige la AQD, la ACD
+calculada con la anterior deja de cuadrar, y eso hay que verlo antes de que viaje
+a tres calculadoras.
+
+Se llama desde **los dos** caminos de lectura —`interpretarTexto` para el lector
+local y `aResultado` para el modelo de visión—, porque el segundo no pasa por el
+primero. Dejarlo en uno haría que la ACD se derivara o no según con qué lector se
+hubiese leído el informe. Es idempotente, así que aplicarla dos veces por error
+no duplica nada.
 
 ---
 

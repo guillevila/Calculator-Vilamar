@@ -89,7 +89,12 @@ function etiquetaOrigen(medida: Medida): string {
       ? 'marca-corregido'
       : origen === 'APORTADO'
         ? 'marca-manual'
-        : 'marca-extraido'
+        : // Un dato derivado NO se pinta como uno leído. Meses después, quien
+          // audite este PDF tiene que poder distinguir de un vistazo lo que
+          // ponía el informe de lo que calculó el programa.
+          origen === 'DERIVADO_DEL_INFORME'
+          ? 'marca-derivado'
+          : 'marca-extraido'
   return `<span class="marca ${clase}">${esc(TEXTO_ORIGEN[origen as Exclude<typeof origen, 'NO_CONSTA'>])}</span>`
 }
 

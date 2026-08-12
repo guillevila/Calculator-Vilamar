@@ -84,10 +84,36 @@ REGLAS_POR_DISPOSITIVO.LENSTAR = [...LENSTAR, ...REGLAS_GENERICAS]
 
 3. Añade `'LENSTAR'` al tipo `Dispositivo` y su nombre a `NOMBRE_DISPOSITIVO`
    (`packages/domain/src/modelo/documento.ts`).
-4. Añade un fixture **sintético** a `packages/extraction/src/fixtures/` y un test.
+4. **Añade su perfil** a `packages/domain/src/normalizacion/perfiles.ts`. El tipo
+   te obliga: sin esa entrada no compila, y es a propósito.
+5. Añade un fixture **sintético** a `packages/extraction/src/fixtures/` y un test.
 
 **No hace falta tocar** el motor de reglas, la separación por ojo ni el resto del
 programa.
+
+### Sobre el perfil: la respuesta por defecto es «no deriva»
+
+```ts
+LENSTAR: {
+  dispositivo: 'LENSTAR',
+  acdDesdeAqdMasCct: false,
+  razon: 'No consta en su informe desde qué superficie mide la ACD.',
+},
+```
+
+`acdDesdeAqdMasCct: true` solo se pone si **puedes señalar dónde dice el informe
+—o su documentación— desde qué superficie mide cada distancia**. El ANTERION lo
+imprime al lado del dato («ACD epithelium», «AQD endothelium»), y por eso la suma
+`ACD = AQD + CCT` es exacta en ese aparato.
+
+Si no lo puedes señalar, la respuesta es `false`. No es prudencia excesiva: en un
+aparato que mida la ACD desde el endotelio, esa suma da un número **plausible y
+medio milímetro desviado**, y un número plausible y equivocado es indistinguible
+de uno correcto. Vale más decir «falta la ACD, escríbela» que rellenarla mal.
+
+Hay un test que comprueba que la lista de los que derivan sea exactamente
+`['ANTERION']`. Si añades uno, **actualízalo a propósito** — ese fallo es la señal
+de que estás tomando una decisión clínica, no un test molesto.
 
 ---
 

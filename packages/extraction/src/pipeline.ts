@@ -14,7 +14,7 @@ import type {
   OjoBiometrico,
   Procedencia,
 } from '@vilamar/domain'
-import { conMedida, crearMedida, ojoVacio } from '@vilamar/domain'
+import { conMedida, crearMedida, nombreLateralidad, normalizarOjo, ojoVacio } from '@vilamar/domain'
 
 import type { DocumentoEntrada, ProveedorExtraccion, TextoDocumento } from './contratos.js'
 import { detectarDispositivo } from './deteccion/detector.js'
@@ -154,7 +154,20 @@ export function interpretarTexto(
     )) {
       ojo = conMedida(ojo, medida)
     }
-    ojos[lado] = ojo
+
+    // Aquí termina la lectura literal y empieza la normalización del aparato.
+    // Hasta esta línea, lo que hay es exactamente lo que pone el informe; a
+    // partir de ella puede haber además algún dato canónico obtenido de otros
+    // del mismo informe, siempre marcado como derivado y con la cuenta escrita.
+    //
+    // La capa vive en el dominio y no en un parser a propósito: decidir que en
+    // este aparato la ACD es la AQD más el grosor corneal es conocimiento
+    // clínico, no conocimiento de cómo está maquetado el PDF.
+    const normalizado = normalizarOjo(ojo, dispositivo.dispositivo, cuando)
+    ojos[lado] = normalizado.ojo
+    // Se dice de qué ojo habla cada aviso. Con dos ojos sin ACD, si no, salen
+    // dos mensajes idénticos y no hay forma de saber a cuál mirar.
+    avisos.push(...normalizado.avisos.map((a) => `${nombreLateralidad(lado)}: ${a}`))
   }
 
   if (Object.keys(ojos).length === 0) {

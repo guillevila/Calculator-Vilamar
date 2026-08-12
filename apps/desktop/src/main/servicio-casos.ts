@@ -27,8 +27,8 @@ import {
   conOjo,
   conResultado,
   corregirMedida,
-  esLecturaAutomatica,
   formatoDeNombre,
+  necesitaComprobacionHumana,
   NOMBRE_DISPOSITIVO,
   ojoDe,
   ojosDelCaso,
@@ -350,6 +350,9 @@ export class ServicioCasos {
    *    equivocados con aspecto de correctos —medido: 24.81 donde ponía 24.01, con
    *    un 93 % de fiabilidad— y un solo clic para aceptarlos todos convertiría la
    *    revisión obligatoria en un trámite.
+   *  - **Tampoco confirma en bloque los datos derivados.** Una ACD obtenida de
+   *    AQD + CCT es aritmética exacta sobre dos números que nadie ha comprobado
+   *    todavía, y va a las tres calculadoras.
    */
   confirmarTodo(): Caso {
     let caso = this.exigirCaso()
@@ -369,9 +372,9 @@ export class ServicioCasos {
       let ojo = ojoDe(caso, lado)
       for (const campo of Object.keys(ojo.medidas) as CampoBiometrico[]) {
         const medida = ojo.medidas[campo]
-        // Lo leído por una máquina se queda sin confirmar: lo tiene que marcar
-        // la persona campo por campo.
-        if (medida && esLecturaAutomatica(medida.procedencia)) continue
+        // Lo leído por una máquina y lo calculado por el programa se quedan sin
+        // confirmar: lo tiene que marcar la persona campo por campo.
+        if (medida && necesitaComprobacionHumana(medida.procedencia)) continue
         ojo = confirmarMedida(ojo, campo)
       }
       caso = conOjo(caso, ojo, this.iso())

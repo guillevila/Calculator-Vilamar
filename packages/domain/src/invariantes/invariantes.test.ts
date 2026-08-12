@@ -23,6 +23,7 @@ import {
   crearMedida,
   esLecturaAutomatica,
   formatearMedida,
+  necesitaComprobacionHumana,
   nivelDeCampo,
   obtener,
   ojoDe,
@@ -495,7 +496,20 @@ describe('Invariante 11 — un dato leído por una máquina no se da por bueno s
     expect(esLecturaAutomatica(DE_OCR)).toBe(true)
     expect(esLecturaAutomatica(EXTRAIDO)).toBe(false) // texto nativo del PDF: exacto
     expect(esLecturaAutomatica(MANUAL)).toBe(false) // lo ha puesto una persona
+    // Una cuenta NO es una lectura. Meterla aquí haría que la pantalla dijera
+    // «leído de la imagen» de algo que no se ha leído de ninguna parte.
     expect(esLecturaAutomatica(DERIVADO)).toBe(false)
+  })
+
+  it('lo calculado tampoco se da por bueno solo, aunque no sea una lectura', () => {
+    // Son dos motivos distintos para la misma exigencia: lo leído por una
+    // máquina puede estar mal; lo calculado está bien pero NADIE LO HA VISTO, y
+    // una ACD obtenida de AQD + CCT va a las tres calculadoras.
+    expect(necesitaComprobacionHumana(DE_OCR)).toBe(true)
+    expect(necesitaComprobacionHumana(DERIVADO)).toBe(true)
+    // Lo exacto y lo escrito por una persona no lo necesitan.
+    expect(necesitaComprobacionHumana(EXTRAIDO)).toBe(false)
+    expect(necesitaComprobacionHumana(MANUAL)).toBe(false)
   })
 
   it('una fiabilidad alta NO lo convierte en fiable', () => {

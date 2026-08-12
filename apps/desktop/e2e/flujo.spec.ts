@@ -266,6 +266,70 @@ CCT             533 um</pre>
 })
 
 /**
+ * Un ANTERION antiguo, de los que no imprimen la ACD.
+ *
+ * Es el caso que motivó la capa de normalización, y se prueba de punta a punta
+ * —PDF de verdad, proceso principal de verdad, pantalla de verdad— porque las
+ * piezas sueltas ya están probadas en el dominio: lo que aquí puede fallar es
+ * que la ACD se calcule y luego no se enseñe, o se enseñe como si la trajera el
+ * informe. Las tres calculadoras necesitan la ACD; sin ella no hay producto.
+ */
+test('un ANTERION sin ACD la calcula, y la pantalla dice que la ha calculado', async () => {
+  test.setTimeout(180_000)
+
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  // Sin línea de ACD. Sí AQD y grosor corneal: 2.65 + 0.530 = 3.18 mm.
+  await p.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <pre>OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+AQD (endo)     2.65 mm
+LT             4.53 mm
+CCT             530 um</pre></body>`)
+  const rutaPdf = join(carpetaDatos, 'anterion-sin-acd.pdf')
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+  expect(statSync(rutaPdf).size).toBeGreaterThan(1000)
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  // Se entra a la pantalla de revisión ANTES de cargar. Llamar al canal de carga
+  // desde aquí actualiza el caso —la pantalla se suscribe a sus cambios— pero no
+  // hace avanzar el paso del asistente, que es estado del propio navegador.
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await expect(ventana.getByTestId('campo-ACD')).toBeVisible()
+
+  const resultado = await ventana.evaluate(
+    async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'anterion-sin-acd.pdf', ruta }]),
+    rutaPdf,
+  )
+
+  const od = resultado?.caso?.ojos?.OD?.medidas
+  // La ACD existe aunque el informe no la traiga…
+  expect(od?.ACD?.valor, 'no ha calculado la ACD').toBe(3.18)
+  expect(od?.ACD?.procedencia?.metodo, 'la ACD no está marcada como derivada').toBe('DERIVADO')
+  // …y los datos de los que salió siguen ahí, sin haberse consumido.
+  expect(od?.AQD?.valor).toBe(2.65)
+  expect(od?.CCT?.valor).toBe(530)
+
+  // Lo que ve el usuario: ni «Del informe» ni «Aportado», y la cuenta debajo.
+  await expect(ventana.getByTestId('origen-ACD')).toHaveText('Derivado del informe')
+  await expect(ventana.getByTestId('derivacion-ACD')).toContainText('AQD 2.65 mm')
+  await expect(ventana.getByTestId('derivacion-ACD')).toContainText('530 µm')
+  await expect(ventana.getByTestId('campo-ACD')).toHaveValue('3.18')
+  // La AQD sí la trae el papel, y se dice.
+  await expect(ventana.getByTestId('origen-AQD')).toHaveText('Del informe')
+
+  // Y no se da por buena sola: hay que comprobarla antes de poder confirmar.
+  await expect(ventana.getByTestId('comprobar-ACD')).toBeVisible()
+
+  await ventana.screenshot({ path: 'test-results/11-acd-derivada.png', fullPage: true })
+})
+
+/**
  * El otro camino: el contenido del fichero, que es el que usa el arrastre cuando
  * Electron no da la ruta. Se comprobó que un `Uint8Array` sobrevive íntegro al
  * IPC; esta prueba lo fija para que no se rompa sin que nadie se entere.

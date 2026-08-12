@@ -9,10 +9,12 @@
  *  - ORIGEN Y ESTADO VAN EN COLUMNAS DISTINTAS. De dónde salió un número y si
  *    alguien lo ha revisado son dos preguntas, y mezclarlas fue el error que
  *    había: un campo que el informe no trae parecía un fallo de lectura.
- *  - El origen sale del VALOR, no del tipo de campo: «Del informe», «Aportado»
- *    o «Corregido». Sin valor, el texto depende de quién lo aporta —«No consta
- *    en el informe» si lo mide el aparato, «Pendiente de aportar» si lo pone el
- *    cirujano—.
+ *  - El origen sale del VALOR, no del tipo de campo: «Del informe», «Derivado
+ *    del informe», «Aportado» o «Corregido». Sin valor, el texto depende de
+ *    quién lo aporta —«No consta en el informe» si lo mide el aparato,
+ *    «Pendiente de aportar» si lo pone el cirujano—.
+ *  - Un dato derivado enseña la cuenta con la que se obtuvo, para poder
+ *    contrastarla con el informe.
  *  - Corregir NO borra lo que ponía: se enseña «Leído originalmente: …».
  *  - Todos los campos se pueden escribir a mano, tengan valor o no.
  *  - Un dato imposible se marca en rojo y bloquea; uno raro avisa y deja pasar.
@@ -23,7 +25,7 @@
 import { useMemo, useState } from 'react'
 import type { JSX } from 'react'
 
-import type { Aviso, CampoBiometrico, Caso, Lateralidad } from '@vilamar/domain'
+import type { Aviso, CampoBiometrico, Caso, Lateralidad, Medida } from '@vilamar/domain'
 import {
   camposDeCategoria,
   exigenciaDe,
@@ -31,12 +33,12 @@ import {
   quienNoPuedeCalcular,
   textoDeExigencia,
   definicionDe,
-  esDerivado,
   formatearConUnidad,
   loAportaElCirujano,
   origenDe,
   textoDeOrigen,
   esLecturaAutomatica,
+  necesitaComprobacionHumana,
   nivelDeCampo,
   nombreLateralidad,
   ojoDe,
@@ -87,23 +89,28 @@ export function PanelRevision({
   const sinDatos = useMemo(() => quienNoPuedeCalcular(ojo.medidas), [ojo])
 
   /**
-   * Datos leídos por una máquina que la persona todavía no ha comprobado.
+   * Datos que nadie ha mirado todavía. Bloquean la confirmación.
    *
-   * Bloquean la confirmación, y a propósito: el reconocimiento de texto produce
-   * números equivocados con aspecto de correctos, así que aceptarlos todos de un
-   * clic convertiría la revisión obligatoria en un trámite.
+   * Son de dos clases y conviene contarlas por separado, porque el motivo por el
+   * que hay que mirarlos NO es el mismo y el aviso tiene que decir el que toca:
+   *
+   *  - **Leídos por una máquina**: pueden estar mal y el programa no lo sabe.
+   *  - **Calculados por el programa**: la cuenta es exacta, pero nadie ha visto
+   *    el resultado y va a las tres calculadoras.
    */
   const porComprobar = useMemo(
     () =>
       ojos.flatMap((l) => {
         const datos = ojoDe(caso, l)
-        return (Object.keys(datos.medidas) as CampoBiometrico[]).filter((c) => {
-          const m = datos.medidas[c]
-          return m !== undefined && esLecturaAutomatica(m.procedencia) && !m.confirmadoPorUsuario
-        })
+        return (Object.keys(datos.medidas) as CampoBiometrico[])
+          .map((c) => datos.medidas[c])
+          .filter((m): m is Medida => m !== undefined)
+          .filter((m) => necesitaComprobacionHumana(m.procedencia) && !m.confirmadoPorUsuario)
       }),
     [caso, ojos],
   )
+  const leidosPorMaquina = porComprobar.filter((m) => esLecturaAutomatica(m.procedencia))
+  const calculados = porComprobar.filter((m) => !esLecturaAutomatica(m.procedencia))
 
   return (
     <>
@@ -138,14 +145,28 @@ export function PanelRevision({
       {porComprobar.length > 0 && invalidos.length === 0 && (
         <div className="aviso atencion">
           <strong>
-            Hay {porComprobar.length} {porComprobar.length === 1 ? 'dato' : 'datos'} leído
-            {porComprobar.length === 1 ? '' : 's'} de la imagen que{' '}
-            {porComprobar.length === 1 ? 'tiene' : 'tienen'} que comprobar
-            {porComprobar.length === 1 ? 'se' : 'se'} uno a uno.
+            Hay {porComprobar.length} {porComprobar.length === 1 ? 'dato' : 'datos'} que{' '}
+            {porComprobar.length === 1 ? 'tiene' : 'tienen'} que comprobarse uno a uno.
           </strong>{' '}
-          El reconocimiento de texto se equivoca con números que parecen correctos: en una prueba
-          leyó <strong>24.81</strong> donde ponía <strong>24.01</strong>. Compara cada uno con tu
-          informe y pulsa «Está bien», o corrígelo escribiéndolo.
+          {/*
+            Cada motivo se dice solo cuando toca. Enseñar la frase del OCR cuando
+            lo único pendiente es una ACD calculada sería decirle al usuario que
+            algo se leyó de una imagen cuando no se ha leído de ninguna parte.
+          */}
+          {leidosPorMaquina.length > 0 && (
+            <>
+              El reconocimiento de texto se equivoca con números que parecen correctos: en una
+              prueba leyó <strong>24.81</strong> donde ponía <strong>24.01</strong>.{' '}
+            </>
+          )}
+          {calculados.length > 0 && (
+            <>
+              {calculados.length === 1 ? 'Hay un dato' : `Hay ${calculados.length} datos`} que ha
+              calculado el programa a partir de otros del informe: la cuenta es exacta, pero nadie
+              ha visto todavía el resultado.{' '}
+            </>
+          )}
+          Compara cada uno con tu informe y pulsa «Está bien», o corrígelo escribiéndolo.
         </div>
       )}
       {advertencias.length > 0 && invalidos.length === 0 && porComprobar.length === 0 && (
@@ -332,13 +353,15 @@ function FilaCampo({ campo, caso, ojoActivo, avisos, onCambio }: PropsFila): JSX
   }
 
   /**
-   * Un dato leído por una máquina y todavía no comprobado por la persona.
+   * Un dato que nadie ha mirado todavía: leído por una máquina o calculado.
    *
    * Se marca aunque el valor esté dentro de rango, porque estar dentro de rango
    * no significa nada: 24.81 es un valor perfectamente normal, y era 24.01.
    */
   const porComprobar =
-    medida !== undefined && esLecturaAutomatica(medida.procedencia) && !medida.confirmadoPorUsuario
+    medida !== undefined &&
+    necesitaComprobacionHumana(medida.procedencia) &&
+    !medida.confirmadoPorUsuario
 
   async function comprobar(): Promise<void> {
     await api().confirmarCampo(ojoActivo, campo)
@@ -405,8 +428,16 @@ function FilaCampo({ campo, caso, ojoActivo, avisos, onCambio }: PropsFila): JSX
               Leído originalmente: {formatearConUnidad(campo, medida.original.valor)}
             </div>
           )}
-          {medida && esDerivado(medida.procedencia) && (
-            <div className="origen-original">Derivado, no medido</div>
+          {/*
+            Un dato derivado enseña LA CUENTA, no la palabra «derivado».
+            «Derivado, no medido» no dejaba comprobar nada; «AQD 2.65 mm + CCT
+            530 µm (0.530 mm)» se puede contrastar con el informe en dos
+            segundos, que es justamente lo que hay que hacer con él.
+          */}
+          {medida?.procedencia.derivacion && (
+            <div className="origen-original" data-testid={`derivacion-${campo}`}>
+              {medida.procedencia.derivacion.explicacion}
+            </div>
           )}
         </td>
         <td>
