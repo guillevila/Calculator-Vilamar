@@ -4,6 +4,187 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [0.8.0] — 12/08/2026
+
+Las constantes A que trae el informe, cada una pegada a su modelo de lente.
+
+### El problema
+
+Un ANTERION no siempre imprime «A constant: 119.1». Imprime una **tabla de
+modelos**, y bajo cada uno la constante que usa una fórmula:
+
+```
+LUX SMART                     SRK/T: 118.5
+ZEISS AT ELANA 841P           SRK/T: 119.6
+Bausch&Lomb Akreos AO MI60    SRK/T: 119.1
+Bausch&Lomb enVista MX60      SRK/T: 119.2
+```
+
+La pantalla decía **«Constante A — Pendiente de aportar»** con los cuatro números
+delante.
+
+Pero la solución fácil habría sido peor que el problema: coger 118.5 porque es la
+primera. **Cuatro lentes son cuatro constantes posibles y ninguna es la del caso**
+hasta que se sabe qué se va a implantar. Calcular con la constante de una lente que
+no se pone da un resultado perfectamente creíble y equivocado.
+
+### Añadido
+
+- **`LenteDetectada`**: modelo, fabricante, constante, etiqueta de la fórmula y
+  evidencia. La constante **no se puede representar sin su modelo** — no hay
+  ningún sitio donde guardar una constante suelta salida de una tabla. La relación
+  no se pierde porque no existe la forma de perderla.
+- **`Caso.lentesDelInforme`**, fuera de los ojos: la misma lente lleva la misma
+  constante se implante en el derecho o en el izquierdo.
+- **`elegirLente()` en el dominio**, único sitio donde una constante de la tabla se
+  convierte en la del caso. Cinco caminos y ninguno adivina: la escribe, deja el
+  hueco, **quita la de la lente anterior**, pide revisión si hay ambigüedad, o
+  respeta lo que ha escrito una persona.
+- **`LenteElegida.constanteDeLaTabla`**, que es lo que hace posible cambiar de
+  lente sin arrastrar la constante vieja: distingue «la de la lente que acabo de
+  descartar» de «una constante suelta del informe o escrita a mano».
+- **`perfiles.tablaDeLentes`**: qué aparatos traen tabla y en qué formato. Hoy solo
+  ANTERION. En un documento cualquiera, un número junto a «SRK/T» puede ser el `a0`
+  de otra fórmula o un error de lectura.
+- **Auditoría de la constante frente a la web** (`auditoria-constante.ts`). Elegir
+  el modelo en EVO puede cambiar SU constante; si dice haber calculado con 119.20 y
+  se le envió 119.10, el informe lo dice con las dos cifras. **No se corrige.**
+- La pantalla de lente enseña los modelos del informe con su constante al lado y
+  **ninguno preseleccionado**: marcar el primero sería elegir por el cirujano.
+- Dos informes sintéticos: ANTERION con tabla de lentes, y el mismo listado sin
+  reconocer el aparato.
+
+### Corregido
+
+- El comentario de `SelectorLente.tsx` decía «el modelo de lente no sale del
+  informe de biometría». **Era falso** para los aparatos que traen tabla.
+
+### Sin cambiar
+
+- **Barrett sigue igual**: la constante A le es opcional y puede calcular con el
+  factor de lente. Lo que cambia es de dónde sale cuando está.
+- Ningún adaptador interpreta el informe. Reciben modelo y constante ya resueltos.
+- La lógica de EVO y Barrett de elegir el modelo en la web sigue intacta.
+
+### Lo que NO hace, y está probado
+
+- No elige una lente sola, ni la primera de la lista.
+- No empareja de forma aproximada: `MX60` y `MX60T` son lentes distintas.
+- No hereda la constante de otra lente, ni de otra de la misma marca.
+- No interpreta «SRK/T» en un aparato desconocido.
+- No guarda cuatro constantes como cuatro medidas del ojo.
+
+### Validación
+
+lint, formato, typecheck y build en verde. **435 tests** (59 nuevos) y **12 pruebas
+de interfaz** (1 nueva, de punta a punta: PDF con las cuatro lentes → elegir →
+cambiar → elegir una que no está).
+
+**Siete mutaciones, siete tests caídos** — pero la primera vez fueron seis de
+siete: la comprobación de que una constante esté dentro de 112–125 **no la vigilaba
+nadie**. El test que creía cubrirla usaba «1.85», que se descarta antes por la
+forma del número, así que pasaba sin que la comprobación existiera. Se rehízo con
+valores que sí llegan hasta ella.
+
+---
+
+## [0.7.0] — 12/08/2026
+
+La ACD, que puede llegar impresa o haber que calcularla. Y una capa nueva entre
+«lo que pone el informe» y «el dato canónico».
+
+### El problema
+
+Las tres calculadoras exigen la ACD. Algunos informes de ANTERION **no la
+imprimen**, pero traen AQD y grosor corneal — y en ese aparato el propio informe
+dice desde qué superficie mide cada distancia («ACD epithelium», «AQD
+endothelium»), así que entre las dos está justo el grosor de la córnea:
+
+```
+AQD 2.65 mm + CCT 530 µm (0.530 mm) = ACD 3.18 mm
+```
+
+Con esos informes, hasta ahora las tres calculadoras se quedaban fuera teniendo el
+dato delante.
+
+**Pero la cuenta no se puede aplicar a cualquier aparato.** En uno que llame «ACD»
+a otra distancia da un número plausible y equivocado, y eso es lo peor que puede
+producir este programa: un dato falso indistinguible de uno correcto.
+
+### Añadido
+
+- **`packages/domain/src/normalizacion/`**, una capa nueva. El recorrido queda así:
+
+  ```
+  documento → extracción literal → normalización del aparato → modelo canónico
+            → revisión humana → calculadoras
+  ```
+
+  El parser sigue diciendo qué pone el informe; esta capa decide si un dato
+  canónico se puede obtener de otros del mismo informe. Vive en el dominio porque
+  es conocimiento clínico, no conocimiento de cómo está maquetado un PDF.
+
+- **`perfiles.ts`: una tabla por aparato, restrictiva por defecto.** Hoy solo
+  ANTERION deriva; IOLMaster, Pentacam y DESCONOCIDO no. Un test comprueba que la
+  lista sea exactamente `['ANTERION']`, para que ampliarla sea una decisión y no
+  un descuido.
+- **`DERIVADO_DEL_INFORME`, quinto estado de origen.** No es «del informe» —el
+  papel no lo dice— ni «aportado» —no lo ha escrito nadie—. La pantalla y el PDF
+  enseñan **la cuenta**, no la palabra: «AQD 2.65 mm + CCT 530 µm (0.530 mm)» se
+  contrasta con el informe en dos segundos; «derivado» no se comprueba.
+- **`ACD_NO_CUADRA_CON_AQD_MAS_CCT`**, en la validación. Salta cuando están las
+  tres medidas y no cuadran por más de **0.05 mm**. Avisa y **no elige**: los tres
+  números pueden ser normales por separado y uno estar mal. Corre también sobre
+  una ACD derivada, para cazar el caso silencioso — corregir la AQD después de
+  haber derivado deja una ACD que ya no cuadra.
+- **`necesitaComprobacionHumana()`**. Lo leído por una máquina y lo calculado por
+  el programa exigen los dos que una persona mire, **por motivos distintos**: lo
+  primero puede estar mal; lo segundo está bien pero nadie lo ha visto. Se separa
+  de `esLecturaAutomatica()` porque una cuenta no es una lectura, y confundirlas
+  haría que la pantalla dijera «leído de la imagen» de algo que no se ha leído de
+  ninguna parte.
+- Cuatro informes sintéticos nuevos: ANTERION sin ACD, ANTERION sin CCT, ANTERION
+  con las tres medidas incoherentes, y aparato desconocido con AQD y CCT.
+
+### Corregido
+
+- El aviso de cabecera decía «datos leídos de la imagen» de todo lo pendiente.
+  Con una ACD calculada eso era falso: no se ha leído de ninguna parte. Ahora cada
+  motivo se dice solo cuando toca.
+
+### Sin cambiar
+
+- **AQD y ACD siguen siendo campos distintos.** Derivar no consume ni convierte
+  nada: las tres medidas quedan guardadas, cada una con su procedencia y su
+  evidencia. Los tests del dominio y de la extracción lo comprueban.
+- Ninguna otra semántica clínica.
+
+### Detalles que se decidieron a propósito
+
+- **El CCT se sigue guardando en µm**, como lo imprime el informe. La conversión a
+  mm ocurre dentro de la cuenta y se escribe en la explicación, porque el error de
+  mil es justo el que da un resultado creíble.
+- **La ACD derivada se redondea a dos decimales**, los del campo. Una derivada y
+  una leída tienen que tener la misma forma; distinguirlas por el número de cifras
+  en vez de por su etiqueta sería un accidente esperando. Lo que se descarta es
+  como mucho media milésima de milímetro, y los sumandos exactos quedan aparte.
+- **La capa se llama desde los dos caminos de lectura**, el local y el del modelo
+  de visión, porque el segundo no pasa por el primero. Dejarlo en uno haría que la
+  ACD se derivara o no según con qué lector se leyó el informe.
+
+### Validación
+
+lint, formato, typecheck y build en verde. **376 tests** (37 nuevos) y **11
+pruebas de interfaz** (1 nueva, de punta a punta: PDF de verdad → proceso
+principal → pantalla).
+
+Y la comprobación que de verdad importa: **seis mutaciones, seis tests caídos.**
+Se rompió a propósito la conversión de unidad, la tabla de perfiles, el estado de
+origen, la tolerancia, la regla de no pisar la ACD leída y la exigencia de
+comprobación humana. Ninguna pasó desapercibida.
+
+---
+
 ## [0.6.0] — 11/08/2026
 
 Cada campo dice cuánta falta hace, y la pantalla avisa antes de calcular de qué

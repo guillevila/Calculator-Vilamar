@@ -263,14 +263,51 @@ describe('el texto genérico de hueco no se le enseña al usuario', () => {
     }
   })
 
-  it('cada uno de los cuatro estados tiene su texto, y ninguno se repite', () => {
+  it('cada uno de los cinco estados tiene su texto, y ninguno se repite', () => {
     const textos = [
       textoDeOrigen('DEL_INFORME', false),
+      textoDeOrigen('DERIVADO_DEL_INFORME', false),
       textoDeOrigen('APORTADO', false),
       textoDeOrigen('CORREGIDO', false),
       textoDeOrigen('NO_CONSTA', false),
       textoDeOrigen('NO_CONSTA', true),
     ]
-    expect(new Set(textos).size).toBe(5)
+    expect(new Set(textos).size).toBe(6)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  9 · Un dato calculado no es ni leído ni aportado
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('un dato que ha calculado el programa', () => {
+  const DERIVADO: Procedencia = {
+    metodo: 'DERIVADO',
+    documentoId: 'doc-1',
+    registradoEn: CUANDO,
+    derivacion: { deCampos: ['AQD', 'CCT'], explicacion: 'AQD 2.65 mm + CCT 530 µm (0.530 mm)' },
+  }
+
+  it('tiene estado propio, distinto de los otros tres', () => {
+    // Sin un estado propio habría que elegir entre mentir de dos formas: decir
+    // «del informe» de algo que el papel no dice, o decir «aportado» de algo que
+    // no ha escrito nadie. Las dos hacen imposible auditar de dónde salió.
+    const ojo = conMedida(ojoVacio('OD'), crearMedida('ACD', 'OD', 3.18, DERIVADO))
+    const origen = origenDe(obtener(ojo, 'ACD'))
+
+    expect(origen).toBe('DERIVADO_DEL_INFORME')
+    expect(origen).not.toBe('DEL_INFORME')
+    expect(origen).not.toBe('APORTADO')
+    expect(TEXTO_ORIGEN.DERIVADO_DEL_INFORME).toBe('Derivado del informe')
+  })
+
+  it('corregido a mano pasa a CORREGIDO y conserva lo que se había calculado', () => {
+    const ojo = conMedida(ojoVacio('OD'), crearMedida('ACD', 'OD', 3.18, DERIVADO))
+    const tras = corregirMedida(ojo, 'ACD', 3.25, LUEGO)
+
+    expect(origenDe(obtener(tras, 'ACD'))).toBe('CORREGIDO')
+    expect(obtener(tras, 'ACD')?.original?.valor).toBe(3.18)
+    // Y se conserva también la cuenta con la que se había obtenido.
+    expect(obtener(tras, 'ACD')?.original?.procedencia.derivacion?.explicacion).toContain('AQD')
   })
 })

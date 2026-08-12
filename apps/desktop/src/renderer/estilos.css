@@ -474,13 +474,20 @@ table.comparativa td.na {
 }
 
 /* ── Origen del dato ────────────────────────────────────────────────────────
-   Cuatro estados, cuatro aspectos. El que más se distingue es CORREGIDO: es el
+   Cinco estados, cinco aspectos. El que más se distingue es CORREGIDO: es el
    único que dice que alguien pisó lo que decía el informe, y quien revisa tiene
    que verlo sin buscarlo. NO_CONSTA va apagado a propósito: no es un error, es
    un hueco, y pintarlo de rojo era justo lo que hacía parecer que algo falló. */
 .origen.del_informe {
   background: #e7f0fa;
   color: #153f74;
+}
+/* DERIVADO_DEL_INFORME lleva color propio, ni el de «del informe» ni el de
+   «aportado». Es lo que impide que un número que ha calculado el programa se
+   confunda de un vistazo con uno impreso en el papel. */
+.origen.derivado_del_informe {
+  background: #efe8f8;
+  color: #5b3b8a;
 }
 .origen.aportado {
   background: #eaf5ea;
@@ -531,4 +538,50 @@ table.comparativa td.na {
   color: #6f6f6f;
   font-weight: 400;
   font-style: italic;
+}
+
+/* ── Lentes que propone el informe ──────────────────────────────────────────
+   Se enseñan como botones y NINGUNO viene marcado: preseleccionar el primero
+   sería elegir por el cirujano qué lente se implanta. La constante va al lado
+   del modelo, nunca sola, porque sola no significa nada. */
+.lentes-informe {
+  list-style: none;
+  margin: 8px 0 4px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lentes-informe button.lente {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  width: 100%;
+  text-align: left;
+  padding: 7px 11px;
+  border: 1px solid var(--linea);
+  border-radius: 7px;
+  background: #fff;
+  cursor: pointer;
+}
+.lentes-informe button.lente:hover {
+  border-color: var(--azul);
+}
+.lentes-informe button.lente.elegida {
+  border-color: var(--azul);
+  background: var(--azul-suave);
+  font-weight: 600;
+}
+.lente-modelo {
+  flex: 1;
+}
+.lente-constante {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--gris);
+  font-size: 12px;
+}
+.lentes-informe button.lente.elegida .lente-constante {
+  color: var(--azul);
 }

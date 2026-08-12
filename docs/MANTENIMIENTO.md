@@ -84,10 +84,80 @@ REGLAS_POR_DISPOSITIVO.LENSTAR = [...LENSTAR, ...REGLAS_GENERICAS]
 
 3. Añade `'LENSTAR'` al tipo `Dispositivo` y su nombre a `NOMBRE_DISPOSITIVO`
    (`packages/domain/src/modelo/documento.ts`).
-4. Añade un fixture **sintético** a `packages/extraction/src/fixtures/` y un test.
+4. **Añade su perfil** a `packages/domain/src/normalizacion/perfiles.ts`. El tipo
+   te obliga: sin esa entrada no compila, y es a propósito.
+5. Añade un fixture **sintético** a `packages/extraction/src/fixtures/` y un test.
 
 **No hace falta tocar** el motor de reglas, la separación por ojo ni el resto del
 programa.
+
+### Sobre el perfil: la respuesta por defecto es «no deriva»
+
+```ts
+LENSTAR: {
+  dispositivo: 'LENSTAR',
+  acdDesdeAqdMasCct: false,
+  razonAcd: 'No consta en su informe desde qué superficie mide la ACD.',
+},
+```
+
+`acdDesdeAqdMasCct: true` solo se pone si **puedes señalar dónde dice el informe
+—o su documentación— desde qué superficie mide cada distancia**. El ANTERION lo
+imprime al lado del dato («ACD epithelium», «AQD endothelium»), y por eso la suma
+`ACD = AQD + CCT` es exacta en ese aparato.
+
+Si no lo puedes señalar, la respuesta es `false`. No es prudencia excesiva: en un
+aparato que mida la ACD desde el endotelio, esa suma da un número **plausible y
+medio milímetro desviado**, y un número plausible y equivocado es indistinguible
+de uno correcto. Vale más decir «falta la ACD, escríbela» que rellenarla mal.
+
+Hay un test que comprueba que la lista de los que derivan sea exactamente
+`['ANTERION']`. Si añades uno, **actualízalo a propósito** — ese fallo es la señal
+de que estás tomando una decisión clínica, no un test molesto.
+
+---
+
+## 2.1. Añadir la tabla de lentes de un aparato
+
+Algunos informes listan modelos de LIO con su constante A. Reconocerla exige DOS
+cosas, y la segunda es la que importa:
+
+1. Poner el formato en su perfil (`packages/domain/src/normalizacion/perfiles.ts`):
+
+```ts
+LENSTAR: {
+  ...
+  tablaDeLentes: 'CONSTANTES_POR_FORMULA',
+  razonTablaDeLentes: 'Lenstar lista los modelos y, bajo cada uno, la constante por fórmula.',
+},
+```
+
+2. **Comprobar de verdad cómo lo imprime ese aparato.** El formato
+   `CONSTANTES_POR_FORMULA` da por hecho que el modelo va encima —o delante— de una
+   línea «`SRK/T: 119.2`». Si el aparato lo monta de otra manera, hay que añadir un
+   formato nuevo en `parsers/lentes.ts`, no forzar el que hay.
+
+`NINGUNA` es la respuesta por defecto y la correcta mientras no se haya mirado. Un
+número junto a «SRK/T» puede ser el `a0` de otra fórmula o un error de lectura, y
+emparejarlo con el texto de encima inventaría una relación que quizá no existe.
+
+### Cómo NO romper la regla al tocar esto
+
+La regla es que **la constante viaja siempre con su modelo**. Si al añadir un
+aparato te encuentras escribiendo código que devuelve un número sin el nombre de la
+lente al lado, el diseño se está torciendo: no hay ningún sitio donde guardar eso,
+y es a propósito.
+
+Tres cosas que el parser ya hace y conviene no deshacer:
+
+- **Busca la CONSTANTE y luego mira hacia atrás**, no al revés. No hay forma de
+  saber que «LUX SMART» es un modelo hasta ver que debajo lleva una constante;
+  buscar primero nombres plausibles convertiría en modelo cualquier línea suelta.
+- **Rechaza un valor fuera de 112–125**, que es el rango que declaran las propias
+  calculadoras. Media relación —un modelo con una constante imposible— no vale.
+- **Descarta las líneas que son otra constante por fórmula** por su FORMA
+  («nombre: número»), no por una lista de nombres de fórmula. Una lista se queda
+  corta en cuanto aparece una que no está en ella.
 
 ---
 

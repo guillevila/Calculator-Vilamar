@@ -40,7 +40,16 @@ import type {
   OjoBiometrico,
   Procedencia,
 } from '@vilamar/domain'
-import { CAMPOS, conMedida, crearMedida, definicionDe, ojoVacio } from '@vilamar/domain'
+import {
+  CAMPOS,
+  conMedida,
+  crearMedida,
+  definicionDe,
+  nombreLateralidad,
+  normalizarOjo,
+  ojoVacio,
+  perfilDe,
+} from '@vilamar/domain'
 import type { DocumentoEntrada, LectorVision, ResultadoExtraccion } from '@vilamar/extraction'
 
 import type { Uso } from './precios.js'
@@ -428,13 +437,31 @@ export function aResultado(
       }
       ojo = conMedida(ojo, crearMedida(m.campo, bloque.lado, m.valor, procedencia))
     }
-    ojos[bloque.lado] = ojo
+
+    // La misma normalización por aparato que aplica el lector local.
+    //
+    // Va aquí y no solo en el pipeline porque este camino NO pasa por
+    // `interpretarTexto`: el modelo de visión devuelve el resultado ya montado.
+    // Dejarlo fuera haría que la ACD se derivara o no según con qué lector se
+    // hubiese leído el informe, que es la clase de diferencia invisible que
+    // luego nadie entiende.
+    const normalizado = normalizarOjo(ojo, leido.dispositivo, cuando)
+    ojos[bloque.lado] = normalizado.ojo
+    avisos.push(...normalizado.avisos.map((a) => `${nombreLateralidad(bloque.lado)}: ${a}`))
     explicaciones.push(`${bloque.lado}: ${bloque.comoSeSabe}`)
   }
 
   if (Object.keys(ojos).length === 0) {
     avisos.push(
       'No se ha podido saber con seguridad de qué ojo son los datos, así que no se ha rellenado ninguno. Es la única forma de no mezclarlos. Escribe tú los valores del ojo que corresponda.',
+    )
+  }
+
+  // Si el aparato es de los que imprimen tabla de lentes, se dice que este lector
+  // no la ha buscado. Callarlo haría pensar que el informe no la trae.
+  if (perfilDe(leido.dispositivo).tablaDeLentes !== 'NINGUNA') {
+    avisos.push(
+      'Este informe suele traer una lista de modelos de lente con su constante A, pero el lector de visión todavía no la busca. Escribe la constante A a mano, o vuelve a leer el informe sin el lector de visión.',
     )
   }
 
@@ -453,6 +480,15 @@ export function aResultado(
         ? explicaciones.join(' · ')
         : 'No se ha identificado ningún ojo en el documento.',
     ojos,
+    // ⚠️ **El lector de visión todavía NO lee la tabla de lentes.** Va vacía a
+    // propósito, no por descuido: su esquema de salida no pide los modelos de LIO,
+    // así que no los trae. Devolver una lista vacía es la respuesta correcta —lo
+    // que no se puede hacer es inventarla—.
+    //
+    // El aviso de abajo lo dice cuando se sabe que ese aparato SÍ trae tabla, para
+    // que nadie concluya que su informe no la tiene. Ampliar el esquema es una
+    // tarea aparte y no se puede medir sin clave (ver O8 en SYSTEM_VISION.md).
+    lentes: [],
     avisos,
     // Con qué modelo se leyó este informe queda en el caso, no solo en un log.
     proveedor: `Claude (${modelo})`,

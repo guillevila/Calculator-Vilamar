@@ -10,15 +10,27 @@
 import type {
   DispositivoDetectado,
   Lateralidad,
+  LenteDetectada,
   Medida,
   OjoBiometrico,
   Procedencia,
 } from '@vilamar/domain'
-import { conMedida, crearMedida, ojoVacio } from '@vilamar/domain'
+import {
+  conMedida,
+  crearMedida,
+  describirLente,
+  lentesContradictorias,
+  nombreLateralidad,
+  normalizarOjo,
+  ojoVacio,
+  perfilDe,
+  sinRepetidas,
+} from '@vilamar/domain'
 
 import type { DocumentoEntrada, ProveedorExtraccion, TextoDocumento } from './contratos.js'
 import { detectarDispositivo } from './deteccion/detector.js'
 import { reglasDe } from './parsers/dispositivos.js'
+import { extraerLentes } from './parsers/lentes.js'
 import type { Extraido } from './parsers/nucleo.js'
 import { aplicarReglas } from './parsers/nucleo.js'
 import type { Disposicion } from './parsers/segmentar.js'
@@ -31,6 +43,18 @@ export interface ResultadoExtraccion {
   /** En qué se ha basado para separar los ojos. Se enseña al usuario. */
   readonly explicacionOjos: string
   readonly ojos: Readonly<Partial<Record<Lateralidad, OjoBiometrico>>>
+  /**
+   * Los modelos de lente que el informe nombra, con su constante A.
+   *
+   * **Fuera de `ojos` a propósito.** Una constante A pertenece al modelo de lente,
+   * no al ojo: la misma lente lleva la misma constante se implante en el derecho o
+   * en el izquierdo. Ponerla dentro de un ojo obligaría a decidir de qué ojo es una
+   * tabla que no habla de ojos.
+   *
+   * Y ninguna de estas es todavía la `CONSTANTE_A` del caso. Son las candidatas;
+   * cuál vale lo decide quien elige la lente.
+   */
+  readonly lentes: readonly LenteDetectada[]
   /** Cosas que el usuario tiene que saber, en lenguaje normal. */
   readonly avisos: readonly string[]
   readonly proveedor: string
@@ -154,7 +178,20 @@ export function interpretarTexto(
     )) {
       ojo = conMedida(ojo, medida)
     }
-    ojos[lado] = ojo
+
+    // Aquí termina la lectura literal y empieza la normalización del aparato.
+    // Hasta esta línea, lo que hay es exactamente lo que pone el informe; a
+    // partir de ella puede haber además algún dato canónico obtenido de otros
+    // del mismo informe, siempre marcado como derivado y con la cuenta escrita.
+    //
+    // La capa vive en el dominio y no en un parser a propósito: decidir que en
+    // este aparato la ACD es la AQD más el grosor corneal es conocimiento
+    // clínico, no conocimiento de cómo está maquetado el PDF.
+    const normalizado = normalizarOjo(ojo, dispositivo.dispositivo, cuando)
+    ojos[lado] = normalizado.ojo
+    // Se dice de qué ojo habla cada aviso. Con dos ojos sin ACD, si no, salen
+    // dos mensajes idénticos y no hay forma de saber a cuál mirar.
+    avisos.push(...normalizado.avisos.map((a) => `${nombreLateralidad(lado)}: ${a}`))
   }
 
   if (Object.keys(ojos).length === 0) {
@@ -177,16 +214,73 @@ export function interpretarTexto(
     }
   }
 
+  // ── La tabla de lentes ────────────────────────────────────────────────────
+  //
+  // Se lee del documento COMPLETO, no de los trozos por ojo, y eso es una
+  // decisión con motivo: la tabla de modelos de LIO no habla de ojos. En un
+  // informe a dos columnas caería en la columna de un ojo por pura maqueta, y
+  // entonces la misma lente saldría solo para OD; en uno por secciones podría
+  // aparecer repetida bajo cada ojo, y saldría dos veces.
+  //
+  // Leyendo el documento entero y quitando las repeticiones exactas, los dos
+  // formatos dan lo mismo: la lista de lentes que el informe propone. Si la misma
+  // lente aparece con constantes DISTINTAS, eso NO se unifica — se conserva y se
+  // avisa, porque es una contradicción del documento y no del programa.
+  const lentes = leerLentes(completo, texto, documentoId, dispositivo, cuando)
+  const contradictorias = lentesContradictorias(lentes)
+  if (contradictorias.length > 0) {
+    avisos.push(
+      `El informe nombra la misma lente con constantes A distintas: ${contradictorias
+        .map(describirLente)
+        .join(' · ')}. No se ha elegido ninguna — compruébalo en el informe.`,
+    )
+  }
+
   return {
     documentoId,
     dispositivo,
     disposicion: segmentacion.disposicion,
     explicacionOjos: segmentacion.explicacion,
     ojos,
+    lentes,
     avisos,
     proveedor: texto.proveedor,
     metodo: texto.metodo,
   }
+}
+
+/**
+ * Lee la tabla de lentes, si el perfil del aparato dice cómo está montada.
+ *
+ * Con `NINGUNA` no se mira el texto siquiera. Es la guarda que impide que «un
+ * número junto a SRK/T» se convierta en una constante A en cualquier documento.
+ */
+function leerLentes(
+  completo: string,
+  texto: TextoDocumento,
+  documentoId: string,
+  dispositivo: DispositivoDetectado,
+  cuando: string,
+): readonly LenteDetectada[] {
+  const perfil = perfilDe(dispositivo.dispositivo)
+  const leidas = extraerLentes(completo, perfil.tablaDeLentes, 1, texto.confianzaMedia)
+
+  return sinRepetidas(
+    leidas.map((l) => ({
+      modelo: l.modelo,
+      ...(l.fabricante !== undefined ? { fabricante: l.fabricante } : {}),
+      ...(l.constanteA !== undefined ? { constanteA: l.constanteA } : {}),
+      ...(l.etiquetaConstante !== undefined ? { etiquetaConstante: l.etiquetaConstante } : {}),
+      procedencia: {
+        metodo: texto.metodo,
+        documentoId,
+        dispositivoId: dispositivo.dispositivo,
+        ...(texto.confianzaMedia !== undefined ? { confianza: texto.confianzaMedia } : {}),
+        registradoEn: cuando,
+        evidencia: { texto: l.evidencia, pagina: l.pagina, regla: l.regla },
+      },
+    })),
+  )
 }
 
 /** En qué página está la mayor parte de un trozo de texto. */

@@ -37,6 +37,8 @@ import {
   textoDeOrigen,
   loAportaElCirujano,
   origenDe,
+  describirDiscrepancia,
+  discrepanciasDeConstante,
   textoEstado,
 } from '@vilamar/domain'
 
@@ -89,7 +91,12 @@ function etiquetaOrigen(medida: Medida): string {
       ? 'marca-corregido'
       : origen === 'APORTADO'
         ? 'marca-manual'
-        : 'marca-extraido'
+        : // Un dato derivado NO se pinta como uno leído. Meses después, quien
+          // audite este PDF tiene que poder distinguir de un vistazo lo que
+          // ponía el informe de lo que calculó el programa.
+          origen === 'DERIVADO_DEL_INFORME'
+          ? 'marca-derivado'
+          : 'marca-extraido'
   return `<span class="marca ${clase}">${esc(TEXTO_ORIGEN[origen as Exclude<typeof origen, 'NO_CONSTA'>])}</span>`
 }
 
@@ -257,7 +264,24 @@ function seccionAuditoria(caso: Caso): string {
     </tr>`)
     void clave
   }
-  if (filas.length === 0) return ''
+  // La constante A es el único dato que una web puede CAMBIAR por su cuenta:
+  // elegir el modelo de lente en su formulario rellena la suya. Si lo ha hecho,
+  // el resultado es el de SU constante, y eso hay que decirlo aquí mismo — un
+  // informe que lo callara daría por enviado un número que no se usó.
+  const discrepancias = discrepanciasDeConstante(caso)
+  const aviso =
+    discrepancias.length === 0
+      ? ''
+      : `<div class="discrepancia">
+      <strong>La constante A usada no es la que se envió.</strong>
+      <ul>${discrepancias.map((d) => `<li>${esc(describirDiscrepancia(d))}</li>`).join('')}</ul>
+      <p class="nota">
+        No se ha corregido nada: se deja constancia de las dos cifras para que
+        quien lea este informe sepa con cuál se calculó de verdad.
+      </p>
+    </div>`
+
+  if (filas.length === 0 && aviso === '') return ''
   return `<section class="auditoria">
     <h2>Qué dice cada calculadora haber recibido</h2>
     <p class="nota">
@@ -265,8 +289,13 @@ function seccionAuditoria(caso: Caso): string {
       ha mostrado en su propia pantalla como datos de entrada. Permite comprobar
       que entrada y resultado se corresponden.
     </p>
-    <table class="datos"><thead><tr><th>Calculadora</th><th>Ojo</th><th>Entradas según la web</th></tr></thead>
-    <tbody>${filas.join('')}</tbody></table>
+    ${aviso}
+    ${
+      filas.length === 0
+        ? ''
+        : `<table class="datos"><thead><tr><th>Calculadora</th><th>Ojo</th><th>Entradas según la web</th></tr></thead>
+    <tbody>${filas.join('')}</tbody></table>`
+    }
   </section>`
 }
 
@@ -372,6 +401,15 @@ const ESTILOS = `
     .original{color:#6f6f6f;font-style:italic}
     .marca-manual { background: #FFF3D6; color: var(--ambar); }
   .marca-derivado { background: #EFE8F8; color: #5B3B8A; }
+  /* La constante que usó la web frente a la que se le envió. Va destacada
+     porque cambia con qué se calculó de verdad el resultado de arriba. */
+  .discrepancia {
+    border-left: 3pt solid var(--ambar);
+    background: #FFF8E6;
+    padding: 7pt 10pt;
+    margin: 0 0 9pt;
+  }
+  .discrepancia ul { margin: 4pt 0; padding-left: 16pt; }
   .fuente { color: var(--gris); font-size: 9pt; margin: 0 0 8px; }
   code { font-family: Consolas, monospace; font-size: 8.5pt; }
   .tabla-comparativa td, .tabla-comparativa th { font-variant-numeric: tabular-nums; }

@@ -96,7 +96,22 @@ export interface ApiVilamar {
   readonly confirmarCampo: (ojo: Lateralidad, campo: CampoBiometrico) => Promise<Caso>
   readonly confirmarTodo: () => Promise<Caso>
   readonly validar: () => Promise<readonly Aviso[]>
-  readonly elegirLente: (fabricante: string, modelo: string) => Promise<Caso>
+  /**
+   * Elige el modelo de lente y resuelve su constante A desde la tabla del informe.
+   *
+   * Devuelve los avisos junto al caso, y no solo el caso, porque lo importante de
+   * esta operación muchas veces es lo que NO ha hecho: «esa lente no está en el
+   * informe, escribe la constante» o «se ha quitado la constante de la lente
+   * anterior». Sin eso, la pantalla solo vería un hueco y parecería un fallo.
+   */
+  readonly elegirLente: (
+    fabricante: string,
+    modelo: string,
+  ) => Promise<{
+    readonly caso: Caso
+    readonly avisos: readonly string[]
+    readonly emparejamiento: 'ENCONTRADA' | 'AMBIGUA' | 'NO_ESTA'
+  }>
 
   /** Lanza las calculadoras. Los avances llegan por `alProgresar`. */
   readonly calcular: (

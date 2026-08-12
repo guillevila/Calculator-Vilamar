@@ -123,6 +123,26 @@ export function esLecturaAutomatica(p: Procedencia): boolean {
   return p.metodo === 'OCR' || p.metodo === 'VISION'
 }
 
+/**
+ * ¿Tiene que mirar este dato una persona antes de que salga hacia una web?
+ *
+ * Son dos casos, y por motivos distintos:
+ *
+ *  - **Lo ha leído una máquina de una imagen** → puede estar mal y el programa
+ *    no puede saberlo (ver arriba).
+ *  - **Lo ha calculado el programa** → no está mal, pero **nadie lo ha visto**.
+ *    Una ACD obtenida de AQD + CCT es aritmética correcta sobre dos números que
+ *    quizá se leyeran mal, y va a las tres calculadoras. Que la cuenta sea
+ *    exacta no la convierte en un dato revisado.
+ *
+ * Se separa de `esLecturaAutomatica` en vez de meter el derivado ahí porque una
+ * cuenta NO es una lectura, y confundir las dos cosas haría que la pantalla
+ * dijera «leído de la imagen» de algo que no se ha leído de ninguna parte.
+ */
+export function necesitaComprobacionHumana(p: Procedencia): boolean {
+  return esLecturaAutomatica(p) || esDerivado(p)
+}
+
 export function procedenciaManual(cuando: string): Procedencia {
   return { metodo: 'MANUAL', registradoEn: cuando }
 }
@@ -150,6 +170,16 @@ export function procedenciaManual(cuando: string): Procedencia {
 export type OrigenDato =
   /** Lo traía el documento: texto del PDF, OCR o modelo de visión. */
   | 'DEL_INFORME'
+  /**
+   * No lo traía el documento, pero se ha calculado con otros datos suyos.
+   *
+   * El ejemplo real es la ACD de un ANTERION que no la imprime: se obtiene
+   * sumando su AQD y su grosor corneal. **No es lo mismo que «del informe»** —el
+   * papel no lo dice— **ni que «aportado»** —no lo ha escrito una persona—, y
+   * mezclarlo con cualquiera de los dos haría imposible auditar de dónde salió.
+   * Siempre lleva escrita la cuenta que se hizo.
+   */
+  | 'DERIVADO_DEL_INFORME'
   /** No venía en el informe y lo ha escrito una persona. */
   | 'APORTADO'
   /** El informe traía un valor y una persona lo cambió. Se conserva el de antes. */
@@ -178,9 +208,15 @@ export interface DatoConOrigen {
  */
 export function origenDe(dato: DatoConOrigen | undefined): OrigenDato {
   if (!dato) return 'NO_CONSTA'
-  // Un derivado se declara como aportado por el programa, no como leído: no lo
-  // ponía el informe. La explicación de la derivación va aparte.
-  if (dato.procedencia.metodo === 'DERIVADO') return 'APORTADO'
+  // Un dato calculado tiene estado propio. No es «del informe» —el papel no lo
+  // dice— ni «aportado» —no lo ha escrito nadie—, y decir cualquiera de las dos
+  // cosas haría imposible saber después de dónde salió el número.
+  //
+  // Ojo al orden: esto va ANTES que la comprobación de `original`, pero después
+  // de nada más. Si una persona corrige un dato derivado, `corregirMedida` deja
+  // la procedencia en MANUAL y guarda la derivada como original, así que ese
+  // caso no llega hasta aquí y sale como CORREGIDO, que es lo correcto.
+  if (esDerivado(dato.procedencia)) return 'DERIVADO_DEL_INFORME'
   if (esMedido(dato.procedencia)) return 'DEL_INFORME'
   // Manual. Lo que decide entre corregido y aportado es si pisó algo.
   return dato.original !== undefined ? 'CORREGIDO' : 'APORTADO'
@@ -194,6 +230,7 @@ export function origenDe(dato: DatoConOrigen | undefined): OrigenDato {
  */
 export const TEXTO_ORIGEN: Readonly<Record<Exclude<OrigenDato, 'NO_CONSTA'>, string>> = {
   DEL_INFORME: 'Del informe',
+  DERIVADO_DEL_INFORME: 'Derivado del informe',
   APORTADO: 'Aportado',
   CORREGIDO: 'Corregido',
 }

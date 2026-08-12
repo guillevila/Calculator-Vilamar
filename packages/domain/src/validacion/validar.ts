@@ -16,6 +16,7 @@ import { definicionDe, formatearConUnidad } from '../modelo/campos.js'
 import type { Lateralidad } from '../modelo/lateralidad.js'
 import type { OjoBiometrico } from '../modelo/medida.js'
 import { obtener, tiene, valorDe } from '../modelo/medida.js'
+import { comparacionAcd, TOLERANCIA_ACD_MM } from '../normalizacion/normalizar.js'
 
 export type NivelValidacion = 'VALID' | 'WARNING' | 'INVALID' | 'MISSING'
 
@@ -247,6 +248,45 @@ function validarAcdFrenteAAqd(ojo: OjoBiometrico): Aviso[] {
   ]
 }
 
+/**
+ * Si la ACD del informe cuadra con AQD + grosor corneal.
+ *
+ * Es una comprobación DISTINTA de la de arriba, y las dos hacen falta:
+ *
+ *  - La de arriba caza el intercambio: alguien copió la AQD en el sitio de la
+ *    ACD y sale una AQD mayor que la ACD, que es imposible.
+ *  - Esta caza la incoherencia: las dos son plausibles por separado y su
+ *    relación no se sostiene. Con ACD 3.18, AQD 2.10 y CCT 530 µm, los tres
+ *    números son perfectamente normales y **uno de los tres está mal**.
+ *
+ * Es un AVISO, no un bloqueo, y sobre todo **no elige**. El programa no puede
+ * saber cuál de los tres es el equivocado, y quedarse con uno en silencio sería
+ * exactamente lo que este fichero existe para impedir.
+ *
+ * Se comprueba también cuando la ACD es derivada. Recién derivada la diferencia
+ * es cero y no dice nada; el caso que importa es el de después: si alguien
+ * corrige la AQD, la ACD que se calculó con la anterior deja de cuadrar, y eso
+ * hay que verlo.
+ */
+function validarCoherenciaAcd(ojo: OjoBiometrico): Aviso[] {
+  const c = comparacionAcd(ojo)
+  if (c === null || c.diferencia <= TOLERANCIA_ACD_MM) return []
+  return [
+    {
+      nivel: 'WARNING',
+      ojo: ojo.lateralidad,
+      campo: 'ACD',
+      codigo: 'ACD_NO_CUADRA_CON_AQD_MAS_CCT',
+      mensaje:
+        `La ACD (${formatearConUnidad('ACD', c.acd)}) no cuadra con AQD + grosor corneal ` +
+        `(${c.suma.toFixed(3)} mm): se diferencian en ${c.diferencia.toFixed(3)} mm. ` +
+        'Entre la ACD y la AQD debería haber justo el grosor de la córnea.',
+      sugerencia:
+        'Uno de los tres datos está mal leído. El programa no elige ninguno: mira el informe y corrige el que corresponda.',
+    },
+  ]
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Punto de entrada
 // ─────────────────────────────────────────────────────────────────────────────
@@ -262,6 +302,7 @@ export function validarOjo(ojo: OjoBiometrico): readonly Aviso[] {
   avisos.push(...validarPerpendicularidad(ojo, 'K1_EJE', 'K2_EJE'))
   avisos.push(...validarPerpendicularidad(ojo, 'TK1_EJE', 'TK2_EJE'))
   avisos.push(...validarAcdFrenteAAqd(ojo))
+  avisos.push(...validarCoherenciaAcd(ojo))
   return ordenarAvisos(avisos)
 }
 
