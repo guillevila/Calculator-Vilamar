@@ -281,11 +281,11 @@ necesita una clave para ejecutarse.
 | F1   | Carga de imagen/PDF + modelo biométrico normalizado              | ✅ Hecho                                                                                    |
 | F2   | Extracción ANTERION / IOLMaster + pantalla de confirmación       | ⚠️ Construido y probado con documentos sintéticos; **sin validar con informes reales** (O5) |
 | F3   | Primer adapter funcional: EVO                                    | ✅ Hecho y comprobado contra la web real                                                    |
-| F4   | Adapter Kane                                                     | ⚠️ Construido: detecta su pantalla de condiciones y cede el control. **Sin verificar** (O7) |
+| F4   | Adapter Kane                                                     | ✅ Verificado contra su formulario real y ejecutado de punta a punta. Sin su modo tórico    |
 | F5   | Adapter Barrett                                                  | ✅ Hecho y comprobado contra la web real                                                    |
 | F6   | Recogida y comparación de resultados                             | ✅ Hecho                                                                                    |
 | F7   | Informe PDF                                                      | ✅ Hecho                                                                                    |
-| F8   | Robustez, errores, cambios de las webs y tests end-to-end        | ✅ 477 tests y 20 pruebas de interfaz                                                       |
+| F8   | Robustez, errores, cambios de las webs y tests end-to-end        | ✅ 478 tests y 27 pruebas de interfaz                                                       |
 | F9   | Empaquetado sencillo para el ordenador del usuario               | ⬜ Pendiente: falta el instalador `.exe`                                                    |
 
 El orden puede modificarse por razones técnicas documentadas.

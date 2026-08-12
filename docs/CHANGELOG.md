@@ -4,6 +4,74 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.0.0] — 12/08/2026
+
+**Kane funciona.** Verificado contra su formulario real y ejecutado de punta a
+punta: rellena, calcula y lee. ~9 segundos.
+
+```
+Recomendada: 21.5 D · refracción prevista −0.06     ← la que Kane marca
+7 opciones leídas
+[web] AL: 24.07 mm  K1: 41.22 D  K2: 42.52 D  ACD: 3.18 mm
+[web] A-Constant: 119.00  Target Ref: 0.00 D  LT: 4.53 mm  CCT: 530 µm
+```
+
+Ese 21.50 D es **el mismo que dio EVO** en la verificación anterior. Dos fórmulas
+independientes de acuerdo.
+
+### Cuatro cosas que solo se supieron al mirarlo, y estaban mal supuestas
+
+| Se suponía                                      | Es                                                                                         |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| El sexo es una lista que espera «Female»/«Male» | **Dos casillas**, `gender_1` (M) y `gender_2` (F), y se pulsa la etiqueta que las envuelve |
+| El botón de calcular es un `submit`             | `<input type="button" value="Calculate">`                                                  |
+| El nk no se envía a ninguna calculadora         | Es la lista **«Index»** de Kane, que él marca obligatoria                                  |
+| Elegir el modelo de lente es inofensivo         | Una lente **tórica** cambia ese ojo al modo tórico y esconde los campos                    |
+
+La marca `EQUIVALENCIA_KANE_VERIFICADA = false` sirvió para lo que estaba: mientras
+la equivalencia era una suposición, **no se envió nada**. Si se hubiera dado por
+buena, el adaptador habría escrito «Female» en un control que no existe.
+
+### Añadido
+
+- **`MAPA_KANE` con los identificadores reales.** No siguen ningún patrón —hay
+  `al-right`, `A-Constant1` y `right-target` en el mismo formulario—, así que están
+  copiados uno a uno de la captura. Las etiquetas se quedan como respaldo.
+- **Lectura del resultado contra su estructura real**: espera a que su
+  «Processing…» se esconda —señal, no reloj—, lee `table.res_tab3` de la sección de
+  **ese ojo**, y toma la recomendada de `class="table-active"`.
+- **Comprobación de lo escrito antes de calcular.** Se relee el formulario: si un
+  valor no se ha quedado, se dice **qué campo y qué dice el formulario**, en vez de
+  fallar cuatro pasos después como «no hay tabla de resultados».
+- **Guarda contra leer el ojo equivocado**: Kane repite las entradas, y si la AL
+  que enseña no es la que se le envió, el resultado se descarta.
+- El **índice queratométrico** se envía, eligiendo la opción de su lista. Si el
+  informe trae uno que Kane no ofrece, **no se elige ninguno**: coger el más
+  parecido cambiaría lo que significan las K sin avisar.
+
+### Corregido
+
+- La ficha de Kane declaraba **WTW** como opcional. No existe en su formulario.
+- Y los **ejes de K**, que solo aparecen en su modo tórico.
+
+### Lo que Kane NO hace, y queda dicho
+
+**No se rellena su modo tórico.** Elegir una lente tórica lo activa y esconde los
+campos que este adaptador escribe, así que **no se le manda el modelo de lente**:
+se le envía la constante A de esa lente, y el resultado lo dice con esas palabras.
+Para el cálculo tórico están EVO Toric y Barrett Toric.
+
+Y lo de siempre: **no se pulsa «I Agree» y no se toca el reCAPTCHA.**
+
+### Validación
+
+478 tests y **27 pruebas de interfaz** (7 nuevas sobre la lectura del resultado,
+con la estructura real reproducida en una página sintética). lint, formato,
+typecheck y build en verde. Y una ejecución real contra su web, con datos
+sintéticos.
+
+---
+
 ## [0.9.2] — 12/08/2026
 
 La sonda de reconocimiento comparte el perfil del navegador con la aplicación.

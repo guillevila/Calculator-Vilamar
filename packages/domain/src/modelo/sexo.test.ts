@@ -286,22 +286,24 @@ describe('qué calculadoras piden el sexo', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('cómo se le dice el sexo a Kane', () => {
-  it('hay una traducción explícita para cada valor', () => {
-    // El valor canónico del programa y el que espera la web son cosas distintas,
-    // y la equivalencia está escrita en un solo sitio.
-    expect(SEXO_EN_KANE.MUJER).toBe('Female')
-    expect(SEXO_EN_KANE.HOMBRE).toBe('Male')
+  it('la equivalencia es el NOMBRE del control, no un texto', () => {
+    // Verificado contra su formulario real el 12/08/2026: son **dos casillas**,
+    // `gender_1` para M y `gender_2` para F.
+    //
+    // Lo que se había supuesto —un desplegable esperando «Female» y «Male»—
+    // estaba mal en las dos cosas: en el valor y en el tipo de control. Este test
+    // guarda el dato real, y de paso el recordatorio de que suponerlo salió mal.
+    expect(SEXO_EN_KANE.MUJER).toBe('gender_2')
+    expect(SEXO_EN_KANE.HOMBRE).toBe('gender_1')
     for (const s of ['MUJER', 'HOMBRE'] as Sexo[]) {
-      expect(SEXO_EN_KANE[s], s).toBeTruthy()
+      expect(SEXO_EN_KANE[s], s).toMatch(/^gender_[12]$/)
     }
   })
 
-  it('está declarada como NO verificada, y eso importa', () => {
-    // El formulario de Kane vive detrás de un acuerdo de licencia que solo puede
-    // aceptar una persona, así que estos textos son una suposición razonable y no
-    // un dato. Cuando alguien ejecute `pnpm reconocer:kane` y ponga los valores
-    // reales, este test le recuerda que hay que cambiar también la bandera.
-    expect(EQUIVALENCIA_KANE_VERIFICADA).toBe(false)
+  it('y consta como VERIFICADA contra el formulario real', () => {
+    // La marca dejó de ser una suposición. Y sirvió para algo: mientras estuvo en
+    // `false`, el adaptador no envió nada inventado.
+    expect(EQUIVALENCIA_KANE_VERIFICADA).toBe(true)
   })
 
   it('los textos de pantalla están en español y son los dos', () => {

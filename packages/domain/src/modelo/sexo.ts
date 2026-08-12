@@ -301,33 +301,26 @@ export function interpretarSexo(texto: string): Sexo | null {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * El valor que espera Kane para cada sexo.
+ * Cómo se le dice el sexo a Kane. **VERIFICADO contra su formulario real.**
  *
- * ⚠️ **SIN VERIFICAR CONTRA EL FORMULARIO REAL.** El 12/08/2026 se comprobó que
- * `iolformula.com` redirige a `/agreement/`, un documento con **cero campos**:
- * la calculadora no existe hasta que una persona acepta el acuerdo de licencia,
- * y este programa no lo acepta en nombre de nadie.
+ * Capturado el 12/08/2026, después de que una persona aceptara su acuerdo de
+ * licencia: son **dos casillas** con los nombres `gender_1` (M) y `gender_2` (F),
+ * sin `id`.
  *
- * Estos textos son los que se enviarán, y son una **suposición razonable**, no
- * un dato. Lo que sí está garantizado es que la suposición no puede colarse en
- * silencio: el adaptador de Kane busca el campo por su etiqueta y, si no lo
- * encuentra o no admite el valor, **lo dice** en vez de calcular sin él.
+ * Lo que se había supuesto —una lista esperando «Female» y «Male»— **estaba mal en
+ * el valor y en el tipo de control**. Se marcó como no verificado y no se envió
+ * nada hasta verlo, que era exactamente para lo que servía la marca.
  *
- * Para cerrarlo hacen falta dos minutos de una persona:
- *
- *     pnpm reconocer:kane
- *
- * La sonda imprime las opciones REALES de cada lista del formulario —su `value`
- * y su texto—, y con eso se sustituye esta tabla por lo que Kane espera de
- * verdad.
+ * Aquí se guarda el nombre del control, no un texto: es el dato que necesita el
+ * adaptador para marcar la casilla que toca.
  */
 export const SEXO_EN_KANE: Readonly<Record<Sexo, string>> = {
-  MUJER: 'Female',
-  HOMBRE: 'Male',
+  MUJER: 'gender_2',
+  HOMBRE: 'gender_1',
 }
 
-/** ¿Está confirmada la equivalencia con Kane? Hoy no, y se dice en pantalla. */
-export const EQUIVALENCIA_KANE_VERIFICADA = false
+/** Ya está confirmada contra el formulario real. */
+export const EQUIVALENCIA_KANE_VERIFICADA = true
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Construir y corregir el dato

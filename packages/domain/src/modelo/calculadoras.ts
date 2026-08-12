@@ -92,7 +92,14 @@ export const FICHAS: Readonly<Record<Calculadora, FichaCalculadora>> = {
     nombre: 'Kane',
     url: 'https://www.iolformula.com',
     requeridos: ['AL', 'K1', 'K2', 'ACD', 'REFRACCION_OBJETIVO', 'CONSTANTE_A'],
-    opcionales: ['K1_EJE', 'K2_EJE', 'LT', 'CCT', 'WTW'],
+    // Comprobado contra su formulario real el 12/08/2026:
+    //  · WTW NO existe en Kane. Estaba aquí por suposición.
+    //  · Los ejes de K solo aparecen en su modo «Toric», que este producto no
+    //    usa: se marca «Non-toric».
+    //  · El índice queratométrico SÍ: es una lista que Kane marca obligatoria,
+    //    con 1.3375 por defecto. Es opcional PARA NOSOTROS porque si el informe
+    //    no lo trae se deja el de Kane, que es el habitual.
+    opcionales: ['LT', 'CCT', 'INDICE_QUERATOMETRICO'],
     // Su formulario lo pide. Observado por el dueño del proyecto en una prueba
     // manual; no se ha podido confirmar contra el HTML porque la calculadora
     // vive detrás de un acuerdo de licencia que solo puede aceptar una persona.

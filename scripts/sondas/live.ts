@@ -19,6 +19,7 @@
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import type { Calculadora, Caso } from '@vilamar/domain'
@@ -32,7 +33,7 @@ import {
   fichaDe,
   ojoVacio,
 } from '@vilamar/domain'
-import { ejecutarCalculadoras, necesitaVentana } from '@vilamar/integrations'
+import { ejecutarCaso, necesitaVentana } from '@vilamar/integrations'
 
 const CUANDO = new Date().toISOString()
 const SALIDA = join(process.cwd(), 'local', 'live')
@@ -83,6 +84,13 @@ function casoDePrueba(): Caso {
   const base: Caso = {
     ...casoNuevo('live', 'CV-PRUEBA-001', CUANDO),
     lente: { fabricante: 'Alcon', modelo: 'Alcon SN6ATx' },
+    // Kane lo exige. Escrito a mano y confirmado, como lo haría una persona en la
+    // pantalla de revisión. NO es de nadie: el caso entero es sintético.
+    sexo: {
+      valor: 'MUJER',
+      procedencia: { metodo: 'MANUAL', registradoEn: CUANDO },
+      confirmadoPorUsuario: true,
+    },
   }
   return confirmar(conOjo(base, ojo, CUANDO), CUANDO)
 }
@@ -98,11 +106,33 @@ console.log('  Datos        : fixture sintético (no son de ninguna persona)')
 console.log('─'.repeat(70))
 
 const { chromium } = await import('playwright')
-const navegador = await chromium.launch({ headless: !conVentana })
 
-const resultados = await ejecutarCalculadoras({
+/** El perfil del navegador de la aplicación. El mismo, para no repetir acuerdos. */
+function perfilDeLaAplicacion(): string {
+  if (process.env.VILAMAR_PERFIL) return process.env.VILAMAR_PERFIL
+  const base =
+    process.platform === 'win32'
+      ? (process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'))
+      : process.platform === 'darwin'
+        ? join(homedir(), 'Library', 'Application Support')
+        : (process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'))
+  return join(base, 'calculator-vilamar', 'sesion-navegador')
+}
+
+const perfil = perfilDeLaAplicacion()
+console.log(`  Perfil       : ${perfil}`)
+const contextoPersistente = await chromium.launchPersistentContext(perfil, {
+  headless: !conVentana,
+  viewport: { width: 1500, height: 1050 },
+})
+const navegador = {
+  newContext: async () => contextoPersistente,
+  close: async () => contextoPersistente.close(),
+} as unknown as import('playwright').Browser
+
+const resultados = await ejecutarCaso({
   caso,
-  ojo: 'OD',
+  ojos: ['OD'],
   calculadoras,
   navegador,
   progreso: (e) => {

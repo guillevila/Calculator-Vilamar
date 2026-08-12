@@ -38,8 +38,7 @@ Pero **falta lo que lo convertiría en MVP**, y es justo la puerta de entrada:
    abreviaturas y otro orden. **Hasta que no se pruebe con informes reales, el
    dato de entrada del producto no está validado.** Es la limitación más
    importante de esta lista.
-2. **Kane no está verificado** contra su formulario real (ver apartado 4).
-3. **No hay instalador `.exe`.** Se arranca con doble clic en
+2. **No hay instalador `.exe`.** Se arranca con doble clic en
    `Calculator Vilamar.cmd`, que sí funciona, pero no es un programa instalado.
 
 Mientras el paso 1 siga abierto, esto no se puede usar cómodamente cada día, que
@@ -66,9 +65,16 @@ es lo que separa un prototipo de un MVP.
 - **EVO devuelve lo que dice haber recibido** y se guarda. Eso es lo que hace el
   informe auditable: no se apunta lo que creemos haber mandado, sino lo que la
   web enseña en su pantalla.
-- **Kane detecta su puerta.** Al abrirlo aparece su acuerdo de licencia; el
-  programa lo reconoce, avisa con un mensaje claro y espera. No lo acepta por su
-  cuenta.
+- **Kane: funciona de punta a punta.** Ejecutado contra su web el 12/08/2026 con
+  datos sintéticos: rellena, calcula y lee. Medido: **~9 segundos**. Devolvió siete
+  potencias y **la recomendada que Kane marca**, 21.50 D con refracción prevista
+  −0.06 — el mismo 21.50 que dio EVO. Dos fórmulas independientes de acuerdo.
+- **Kane pide su acuerdo de licencia una vez, y solo una.** El programa lo
+  reconoce, avisa y espera; **no lo acepta por su cuenta**. La aceptación queda en
+  el perfil del navegador, así que los cálculos siguientes entran directos.
+- **Kane devuelve lo que dice haber recibido**, y se guarda: «AL: 24.07 mm K1:
+  41.22 D K2: 42.52 D ACD: 3.18 mm» / «A-Constant: 119.00 Target Ref: 0.00 D».
+  Sirve de auditoría y de guarda contra leer el ojo equivocado.
 
 ### Comprobado arrancando la aplicación de verdad
 
@@ -400,38 +406,12 @@ Ampliar ×3 **empeora** —apareció un 24.97 donde ponía 24.07—, así que ha
   importa. Los parsers funcionan sobre textos sintéticos. Con un informe real
   pueden fallar, y el modo de fallo más probable no es un error: es leer un
   número donde no toca.
-- **Kane sigue sin verificar, y ahora se sabe exactamente por qué.** El
-  12/08/2026 se abrió su página **sin aceptar nada**: `iolformula.com` redirige a
-  `/agreement/`, un documento con **cero campos de formulario**. La calculadora no
-  existe hasta que una persona acepta el acuerdo de licencia, así que no hay nada
-  que copiar. Lo que SÍ se ha hecho con eso:
-  - **`pnpm reconocer:kane` ya existe de verdad** (antes se nombraba en mensajes y
-    documentación y no estaba definido). Abre Kane con ventana, te pide que
-    aceptes tú, y espera **a que aparezca el formulario** —campos de entrada y un
-    botón de calcular—, no unos segundos a ver qué hay.
-  - La puerta se detecta por su **dirección** (`/agreement/`), que no depende del
-    idioma ni de cómo esté pintado el botón.
-  - **Se ha quitado la recomendación inventada.** Marcaba como recomendada la fila
-    del medio de la tabla «porque suele ir en el centro». Eso era inventarse una
-    recomendación clínica a partir de una posición. Ahora no se marca ninguna
-    hasta saber cómo la señala Kane, y se conservan todas las opciones.
-  - **La transición tras tu clic estaba mal, y ese era el fallo de verdad.** El
-    programa esperaba a que DESAPARECIERA la pantalla de condiciones y luego
-    dormía 2,5 segundos. Esa espera se cumple en medio de la navegación, cuando la
-    página puede estar en blanco; si el formulario tardaba más, el adaptador no
-    encontraba campos y decía **«el conector está roto»**. Aceptabas bien y el
-    programa te culpaba al conector. Ahora espera a que la calculadora esté
-    delante Y se pueda escribir en ella, sin relojes.
-  - **La aceptación no se podía recordar nunca**, y esto es aparte. El navegador
-    se abría con perfil persistente, pero el orquestador pedía un contexto NUEVO
-    que no lo hereda —medido: 1 cookie en el persistente, 0 en el nuevo—. Se
-    cargaba el perfil y no se usaba. Corregido: ahora el cálculo ocurre en el
-    perfil, así que si Kane recuerda la aceptación, no se repite.
-  - **Aceptar en tu Chrome de siempre no cuenta**, y el programa lo dice con esas
-    palabras: son dos navegadores con cookies distintas.
-  - Lo que sigue pendiente: **los selectores reales, los campos obligatorios
-    reales, la tabla de resultados real y los valores reales del campo de sexo**.
-    Todo eso está detrás de tu clic.
+- **Kane funciona, con una limitación declarada.** Ya no está «sin verificar»: se
+  capturó su formulario real y se ejecutó de punta a punta contra su web. Lo que
+  NO hace es rellenar su **modo tórico** — medido: elegir una lente tórica en su
+  lista cambia el formulario y esconde los campos que se rellenan. Se le envía la
+  constante A de esa lente, y el resultado lo dice. Para el cálculo tórico están
+  EVO Toric y Barrett Toric.
 - **No hay instalador `.exe`.** Hay un lanzador de doble clic
   (`Calculator Vilamar.cmd`) **comprobado: abre la ventana**. El instalador de
   verdad falla en este equipo porque `electron-builder` necesita permiso para
