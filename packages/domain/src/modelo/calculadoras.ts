@@ -12,6 +12,7 @@
 
 import type { CampoBiometrico } from './campos.js'
 import type { Lateralidad } from './lateralidad.js'
+import type { Sexo } from './sexo.js'
 
 export type Calculadora = 'KANE' | 'EVO_TORIC' | 'BARRETT_TORIC'
 
@@ -25,6 +26,15 @@ export interface FichaCalculadora {
   readonly requeridos: readonly CampoBiometrico[]
   /** Mejoran el resultado, pero se puede calcular sin ellos. */
   readonly opcionales: readonly CampoBiometrico[]
+  /**
+   * Si su formulario pide el sexo del paciente.
+   *
+   * Va aparte de `requeridos` porque el sexo NO es un `CampoBiometrico`: no es
+   * una medida del ojo, no tiene unidad ni rango, y es de la persona. Forzarlo
+   * dentro de la lista de campos solo para reutilizar el mecanismo habría metido
+   * un dato que no es del ojo dentro del mapa del ojo.
+   */
+  readonly exigeSexo?: boolean
   /** Qué hace falta de una persona antes de poder automatizar. Vacío si nada. */
   readonly intervencionHumana: readonly string[]
   /** Notas que la interfaz enseña al usuario. */
@@ -46,6 +56,8 @@ export const FICHAS: Readonly<Record<Calculadora, FichaCalculadora>> = {
     url: 'https://www.evoiolcalculator.com/toric.aspx',
     requeridos: ['AL', 'K1', 'K1_EJE', 'K2', 'K2_EJE', 'ACD', 'REFRACCION_OBJETIVO', 'CONSTANTE_A'],
     opcionales: ['LT', 'CCT', 'SIA', 'EJE_INCISION', 'PK1', 'PK1_EJE', 'PK2', 'PK2_EJE'],
+    // Comprobado el 12/08/2026 abriendo su formulario: 36 campos, ninguno de sexo.
+    exigeSexo: false,
     intervencionHumana: [],
     notas: [
       'EVO exige un nombre de paciente. Se le manda el código local del caso, nunca un nombre.',
@@ -68,6 +80,7 @@ export const FICHAS: Readonly<Record<Calculadora, FichaCalculadora>> = {
       'EJE_INCISION',
     ],
     opcionales: ['LT', 'WTW', 'CONSTANTE_A', 'FACTOR_LENTE'],
+    exigeSexo: false,
     intervencionHumana: [],
     notas: [
       'La calculadora vive dentro de la web de la ASCRS y no admite navegador sin ventana: se abre siempre un navegador visible.',
@@ -80,6 +93,10 @@ export const FICHAS: Readonly<Record<Calculadora, FichaCalculadora>> = {
     url: 'https://www.iolformula.com',
     requeridos: ['AL', 'K1', 'K2', 'ACD', 'REFRACCION_OBJETIVO', 'CONSTANTE_A'],
     opcionales: ['K1_EJE', 'K2_EJE', 'LT', 'CCT', 'WTW'],
+    // Su formulario lo pide. Observado por el dueño del proyecto en una prueba
+    // manual; no se ha podido confirmar contra el HTML porque la calculadora
+    // vive detrás de un acuerdo de licencia que solo puede aceptar una persona.
+    exigeSexo: true,
     intervencionHumana: [
       'Aceptar las condiciones de uso de la fórmula de Kane. Es un acuerdo legal: lo tiene que aceptar una persona, no el programa.',
       'La web está protegida por reCAPTCHA. Si aparece una comprobación, la resuelve la persona en el navegador.',
@@ -138,6 +155,8 @@ export interface EntradasCalculadora {
   /** Modelo de lente elegido, tal y como lo llama esa web. */
   readonly modeloLente?: string
   readonly fabricanteLente?: string
+  /** El sexo, solo para la calculadora que lo pide. */
+  readonly sexo?: Sexo
 }
 
 export interface FaltanEntradas {

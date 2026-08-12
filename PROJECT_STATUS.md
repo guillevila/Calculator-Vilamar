@@ -9,8 +9,8 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 12/08/2026 · tras leer las constantes A de la tabla de
-lentes del informe, cada una pegada a su modelo
+**Última actualización:** 12/08/2026 · tras hacer que un solo «Calcular» procese
+los dos ojos, y modelar el sexo del paciente que pide Kane
 
 ---
 
@@ -86,7 +86,7 @@ vertical completa:
 - **Una calculadora que espera no bloquea a las demás:** con Kane esperando a que
   se acepten sus condiciones, se pueden ver los resultados de EVO y Barrett.
 
-### Comprobado con tests automáticos (435, todos en verde)
+### Comprobado con tests automáticos (477, todos en verde)
 
 - **Las diez invariantes clínicas.** Las dos barreras de confirmación se han
   comprobado **rompiéndolas a propósito** y viendo caer el test que las cubre.
@@ -124,6 +124,64 @@ Y con imágenes de distintos tamaños y formatos, comprobado por separado:
 | JPEG 1920×1080 (captura de pantalla) | 90 %               | correctos                                    |
 | JPEG 4032×3024 (foto de móvil)       | 91 %               | correctos                                    |
 | Fichero corrupto                     | —                  | mensaje claro, y la aplicación sigue abierta |
+
+#### Un solo «Calcular» procesa los dos ojos
+
+Comprobado con 14 pruebas automáticas. Antes había que cambiar de pestaña y
+volver a lanzar el flujo para el segundo ojo.
+
+**Y la causa no era la que parecía.** No fallaba EVO: su adaptador abre una
+página nueva por ejecución, marca el ojo que le piden y comprueba el eco de la
+web. Es que **nadie le pedía el segundo** — la pantalla mandaba el ojo de la
+pestaña activa y el orquestador solo sabía de uno.
+
+El recorrido ahora es calculadora a calculadora y, dentro de cada una, los dos
+ojos:
+
+    EVO OD → EVO OS → Barrett OD → Barrett OS → Kane OD → Kane OS
+
+Ese orden no es casual: **Kane pide aceptar sus condiciones**, y así se aceptan
+una vez y sus dos ojos entran seguidos en la misma sesión del navegador.
+
+Lo comprobado:
+
+- Un caso de un solo ojo calcula solo ese, sin inventar el otro.
+- **A cada ojo le llegan sus valores.** Los casos de prueba tienen números
+  distintos en cada uno a propósito: es la única forma de verlo.
+- Si un adaptador devolviera el ojo cambiado, **el resultado se descarta**. Es el
+  fallo más peligroso posible porque parecería válido.
+- Si falla un ojo, el otro se conserva. Si a Barrett le falta el SIA, ni EVO ni
+  Kane ni el otro ojo se bloquean.
+- **«Reintentar» vuelve a significar lo que dice**: repetir lo que falló. Ya no
+  hace falta para conseguir el segundo ojo, y lo que salió bien no se repite.
+
+#### El sexo del paciente
+
+Kane lo pide en su formulario. **EVO no** —comprobado el 12/08/2026 abriendo su
+formulario: 36 campos, ninguno de sexo ni de edad— y Barrett tampoco.
+
+Se guarda en el caso, no en el ojo: es de la persona y es el mismo para los dos.
+Sale de tres sitios, por este orden:
+
+1. **Del informe**, si lo imprime («Sex: Female»), con su evidencia.
+2. **Deducido del nombre del paciente**, si el informe no lo dice.
+3. **Elegido por ti**, si no hay ninguna de las dos.
+
+⚠️ **Sobre la deducción, que la pediste tú y conviene tener claro qué implica.**
+Un nombre no determina el sexo: hay nombres unisex, extranjeros, iniciales, y un
+OCR que lee «Andrea» donde ponía «Andrés». Por eso:
+
+- **Un sexo deducido NO se autoconfirma.** Sale «⚠ compruébalo» y no viaja a Kane
+  hasta que pulsas «Está bien». Es la D32 aplicándose, no una excepción.
+- **Un nombre que no se reconoce no se adivina.** «Alex», «Cruz», «Andrea» y
+  compañía se quedan sin deducir y los eliges tú.
+- **Se dice qué regla lo decidió**: «Deducido del nombre «maría»» pesa más que
+  «Deducido de la terminación del nombre «zoraida» — compruébalo».
+
+Y una consecuencia que hay que decir en voz alta: **el nombre del paciente pasa a
+guardarse**, que hasta ahora no ocurría. Vive solo en el fichero del caso, en tu
+ordenador. **No sale al PDF, no sale a ninguna calculadora** —a las webs se les
+sigue mandando `CV-2026-0042`— y no entra en el repositorio.
 
 #### Cada campo dice cuánta falta hace
 
@@ -341,8 +399,24 @@ Ampliar ×3 **empeora** —apareció un 24.97 donde ponía 24.07—, así que ha
   importa. Los parsers funcionan sobre textos sintéticos. Con un informe real
   pueden fallar, y el modo de fallo más probable no es un error: es leer un
   número donde no toca.
-- **Kane no está verificado.** El adaptador está escrito y busca los campos por
-  su etiqueta, pero no se ha podido ver su formulario (ver apartado 4).
+- **Kane sigue sin verificar, y ahora se sabe exactamente por qué.** El
+  12/08/2026 se abrió su página **sin aceptar nada**: `iolformula.com` redirige a
+  `/agreement/`, un documento con **cero campos de formulario**. La calculadora no
+  existe hasta que una persona acepta el acuerdo de licencia, así que no hay nada
+  que copiar. Lo que SÍ se ha hecho con eso:
+  - **`pnpm reconocer:kane` ya existe de verdad** (antes se nombraba en mensajes y
+    documentación y no estaba definido). Abre Kane con ventana, te pide que
+    aceptes tú, y espera **a que aparezca el formulario** —campos de entrada y un
+    botón de calcular—, no unos segundos a ver qué hay.
+  - La puerta se detecta por su **dirección** (`/agreement/`), que no depende del
+    idioma ni de cómo esté pintado el botón.
+  - **Se ha quitado la recomendación inventada.** Marcaba como recomendada la fila
+    del medio de la tabla «porque suele ir en el centro». Eso era inventarse una
+    recomendación clínica a partir de una posición. Ahora no se marca ninguna
+    hasta saber cómo la señala Kane, y se conservan todas las opciones.
+  - Lo que sigue pendiente: **los selectores reales, los campos obligatorios
+    reales, la tabla de resultados real y los valores reales del campo de sexo**.
+    Todo eso está detrás de tu clic.
 - **No hay instalador `.exe`.** Hay un lanzador de doble clic
   (`Calculator Vilamar.cmd`) **comprobado: abre la ventana**. El instalador de
   verdad falla en este equipo porque `electron-builder` necesita permiso para
@@ -357,8 +431,6 @@ Ampliar ×3 **empeora** —apareció un 24.97 donde ponía 24.07—, así que ha
 - **Un PDF escaneado se lee, pero solo las 5 primeras páginas**, y lo dice.
 - **Sin soporte de córnea post-cirugía refractiva** más allá de guardar los
   campos: no se rellenan las secciones específicas de EVO para post-LASIK.
-- **Los dos ojos se calculan por separado.** Hay que cambiar de ojo y volver a
-  lanzar; no se calculan los dos de una tacada.
 - **El lector de visión no lee la tabla de lentes.** Devuelve la lista vacía y lo
   avisa cuando el aparato es de los que la traen, en vez de inventarla. Con el
   lector de visión encendido hay que escribir la constante A a mano.

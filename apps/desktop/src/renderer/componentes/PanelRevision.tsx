@@ -46,6 +46,7 @@ import {
 } from '@vilamar/domain'
 
 import { api } from '../api.js'
+import { BloqueSexo } from './BloqueSexo.js'
 import { SelectorLente } from './SelectorLente.js'
 
 interface Props {
@@ -188,6 +189,8 @@ export function PanelRevision({
           onCambio={onCambio}
         />
       ))}
+
+      <BloqueSexo caso={caso} onCambio={onCambio} />
 
       <SelectorLente caso={caso} onCambio={onCambio} />
 

@@ -258,12 +258,15 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
     s().editarMedida(ojo, campo, valor),
   )
   ipcMain.handle(CANALES.confirmarCampo, (_e, ojo, campo) => s().confirmarCampo(ojo, campo))
+  ipcMain.handle(CANALES.elegirSexo, (_e, sexo) => s().elegirSexo(sexo))
+  ipcMain.handle(CANALES.confirmarSexo, () => s().confirmarSexo())
   ipcMain.handle(CANALES.confirmarTodo, () => s().confirmarTodo())
   ipcMain.handle(CANALES.validar, () => s().validar())
   ipcMain.handle(CANALES.elegirLente, (_e, fabricante, modelo) =>
     s().elegirLente(fabricante, modelo),
   )
-  ipcMain.handle(CANALES.calcular, (_e, ojo, calculadoras) => s().calcular(ojo, calculadoras))
+  ipcMain.handle(CANALES.calcular, (_e, calculadoras) => s().calcular(calculadoras))
+  ipcMain.handle(CANALES.reintentar, (_e, calculadora, ojo) => s().reintentar(calculadora, ojo))
   ipcMain.handle(CANALES.cancelarCalculo, () => s().cancelarCalculo())
   ipcMain.handle(CANALES.generarPdf, () => s().generarPdf())
   ipcMain.handle(CANALES.abrirCarpetaInformes, () => shell.openPath(carpetas.informes))

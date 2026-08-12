@@ -92,6 +92,11 @@ function casoConLentes(lentes: readonly LenteDetectada[] = LAS_CUATRO): Caso {
   return {
     ...conOjo(casoNuevo('c1', 'CV-2026-0100', CUANDO), ojo, CUANDO),
     lentesDelInforme: lentes,
+    sexo: {
+      valor: 'MUJER' as const,
+      procedencia: { metodo: 'MANUAL' as const, registradoEn: CUANDO },
+      confirmadoPorUsuario: true,
+    },
   }
 }
 

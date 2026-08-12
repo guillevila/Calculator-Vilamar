@@ -163,24 +163,40 @@ export function App(): JSX.Element {
     }
   }, [])
 
-  const calcular = useCallback(
-    async (calculadoras?: readonly Calculadora[]) => {
-      setError(null)
-      setOcupado(true)
-      setEstados((p) =>
-        calculadoras ? p.filter((e) => !calculadoras.includes(e.calculadora)) : [],
-      )
-      try {
-        await api().calcular(ojoActivo, calculadoras)
-        setPaso('RESULTADOS')
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
-      } finally {
-        setOcupado(false)
-      }
-    },
-    [ojoActivo],
-  )
+  const calcular = useCallback(async (calculadoras?: readonly Calculadora[]) => {
+    setError(null)
+    setOcupado(true)
+    setEstados((p) => (calculadoras ? p.filter((e) => !calculadoras.includes(e.calculadora)) : []))
+    try {
+      await api().calcular(calculadoras)
+      setPaso('RESULTADOS')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setOcupado(false)
+    }
+  }, [])
+
+  /**
+   * Reintentar: volver a ejecutar lo que FALLÓ, no conseguir el segundo ojo.
+   *
+   * Los dos ojos entran ya en el mismo ciclo de «Calcular», así que esto vuelve
+   * a ser lo que su nombre dice. Sin argumentos reintenta todo lo pendiente; con
+   * una calculadora y un ojo, esa casilla exacta. Lo que salió bien no se repite.
+   */
+  const reintentar = useCallback(async (calculadora?: Calculadora, ojo?: Lateralidad) => {
+    setError(null)
+    setOcupado(true)
+    setEstados((p) => (calculadora ? p.filter((e) => e.calculadora !== calculadora) : []))
+    try {
+      await api().reintentar(calculadora, ojo)
+      setPaso('RESULTADOS')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setOcupado(false)
+    }
+  }, [])
 
   if (!disponible) {
     return (
@@ -298,7 +314,7 @@ export function App(): JSX.Element {
               onCambiarOjo={setOjoActivo}
               onReintentar={(c) => {
                 setPaso('CALCULANDO')
-                void calcular([c])
+                void reintentar(c, ojoActivo)
               }}
               onVolverARevisar={() => setPaso('REVISION')}
               estados={estados}

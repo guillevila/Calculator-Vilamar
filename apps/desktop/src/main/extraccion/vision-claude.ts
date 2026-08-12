@@ -489,6 +489,8 @@ export function aResultado(
     // que nadie concluya que su informe no la tiene. Ampliar el esquema es una
     // tarea aparte y no se puede medir sin clave (ver O8 en SYSTEM_VISION.md).
     lentes: [],
+    // El lector de visión tampoco pide todavía el sexo ni el nombre.
+    paciente: {},
     avisos,
     // Con qué modelo se leyó este informe queda en el caso, no solo en un log.
     proveedor: `Claude (${modelo})`,

@@ -26,6 +26,15 @@ export type ResultadoPreparacion =
   | { readonly ok: true; readonly entradas: EntradasCalculadora }
   | { readonly ok: false; readonly motivo: 'SIN_CONFIRMAR_EL_CASO' }
   | { readonly ok: false; readonly motivo: 'FALTAN_DATOS'; readonly detalle: FaltanEntradas }
+  /**
+   * Falta el sexo, y esa calculadora lo pide.
+   *
+   * Es un motivo aparte y no un campo más de `faltan` porque el sexo no es un
+   * `CampoBiometrico`: no está en el mapa del ojo y la pantalla lo enseña en
+   * otro sitio. Meterlo en la misma lista habría obligado a inventarle un código
+   * de campo que no existe.
+   */
+  | { readonly ok: false; readonly motivo: 'FALTA_EL_SEXO'; readonly confirmado: boolean }
 
 /**
  * ¿Se puede lanzar esta calculadora para este ojo?
@@ -60,7 +69,18 @@ export function prepararEntradas(
   const ficha = fichaDe(calculadora)
   const datos = ojoDe(caso, ojo)
 
-  // 2 — Los campos obligatorios de ESTA calculadora.
+  // 2 — El sexo, si esta calculadora lo pide. Y tiene que estar REVISADO: un
+  // sexo deducido del nombre que nadie ha mirado no sale hacia ninguna web.
+  if (ficha.exigeSexo === true) {
+    if (caso.sexo === undefined) {
+      return { ok: false, motivo: 'FALTA_EL_SEXO', confirmado: false }
+    }
+    if (!caso.sexo.confirmadoPorUsuario) {
+      return { ok: false, motivo: 'FALTA_EL_SEXO', confirmado: false }
+    }
+  }
+
+  // 3 — Los campos obligatorios de ESTA calculadora.
   const faltan = ficha.requeridos.filter((c) => obtener(datos, c) === undefined)
 
   // 3 — Ningún dato sin revisar viaja, ni siquiera los opcionales.
@@ -94,6 +114,9 @@ export function prepararEntradas(
       valores,
       modeloLente: caso.lente?.modelo,
       fabricanteLente: caso.lente?.fabricante,
+      // Solo viaja si esa calculadora lo pide. No se manda un dato de la persona
+      // a una web que no lo necesita.
+      sexo: ficha.exigeSexo === true ? caso.sexo?.valor : undefined,
     },
   }
 }
@@ -106,6 +129,9 @@ export function prepararEntradas(
  */
 export function explicarBloqueo(resultado: ResultadoPreparacion): string | null {
   if (resultado.ok) return null
+  if (resultado.motivo === 'FALTA_EL_SEXO') {
+    return 'Falta el sexo del paciente, y esta calculadora lo pide en su formulario. Elígelo arriba y márcalo como comprobado.'
+  }
   if (resultado.motivo === 'SIN_CONFIRMAR_EL_CASO') {
     return 'Todavía no has confirmado los datos. Revísalos y confírmalos antes de calcular.'
   }

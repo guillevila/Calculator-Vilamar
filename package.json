@@ -25,6 +25,7 @@
     "probe:evo": "node scripts/sondas/probe.mjs evo",
     "probe:barrett": "node scripts/sondas/probe.mjs barrett",
     "reconocer": "node scripts/sondas/reconocer.mjs",
+    "reconocer:kane": "node scripts/sondas/reconocer-kane.mjs",
     "muestra:informe": "vite-node scripts/muestra-informe.ts",
     "live": "vite-node scripts/sondas/live.ts",
     "verificar:vertical": "pnpm --filter @vilamar/desktop verificar:vertical",

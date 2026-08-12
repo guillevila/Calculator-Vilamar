@@ -697,3 +697,41 @@ Bausch&Lomb enVista MX60   SRK/T: 119.2
     expect(r.lentes[0]!.constanteA).toBe(119.2)
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  El paciente: sexo y nombre
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('sexo y nombre del informe', () => {
+  it('lee el sexo cuando el informe lo imprime, con su evidencia', () => {
+    const r = leer(fx.ANTERION_CON_SEXO)
+    expect(r.paciente.sexo).toBe('MUJER')
+    expect(r.paciente.evidenciaSexo).toContain('Sex')
+    expect(r.paciente.evidenciaSexo).toMatch(/female/i)
+  })
+
+  it('lee el nombre, que es lo único identificativo que este programa lee', () => {
+    const r = leer(fx.ANTERION_CON_SEXO)
+    expect(r.paciente.nombre).toBe('María Ejemplo Sintética')
+  })
+
+  it('si el informe no dice el sexo, el nombre queda para poder deducirlo', () => {
+    const r = leer(fx.ANTERION_SIN_SEXO)
+    expect(r.paciente.sexo).toBeUndefined()
+    expect(r.paciente.nombre).toBe('Antonio Ejemplo Sintético')
+  })
+
+  it('un informe sin ninguno de los dos no inventa nada', () => {
+    const r = leer(fx.ANTERION_OD_OS)
+    expect(r.paciente.sexo).toBeUndefined()
+    expect(r.paciente.nombre).toBeUndefined()
+  })
+
+  it('el sexo y el nombre NO se guardan dentro de un ojo', () => {
+    // Una persona no tiene un sexo por ojo. Guardarlo ahí permitiría que el
+    // derecho y el izquierdo dijeran cosas distintas.
+    const r = leer(fx.ANTERION_CON_SEXO)
+    expect(Object.keys(r.ojos.OD!.medidas)).not.toContain('SEXO')
+    expect(r.paciente.sexo).toBeDefined()
+  })
+})

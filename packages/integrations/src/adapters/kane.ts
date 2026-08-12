@@ -68,10 +68,27 @@ const MAPA_KANE: Partial<Record<keyof EntradasCalculadora['valores'], Localizado
   CONSTANTE_A: { etiquetas: [/a[\s-]*constant/i], decimales: 2 },
 }
 
-/** Señales de que estamos en la pantalla de condiciones y no en la calculadora. */
-const SEL_TERMINOS = {
-  botonAcepto: 'text=/^\\s*I Agree\\s*$/i',
-  textoTerminos: 'text=/Terms of Use/i',
+/**
+ * Cómo se sabe que estamos en la puerta y no en la calculadora.
+ *
+ * Comprobado el 12/08/2026 abriendo la página **sin aceptar nada**:
+ *
+ *  - `iolformula.com` REDIRIGE a `iolformula.com/agreement/`.
+ *  - Ese documento tiene **cero campos de formulario**.
+ *  - Su título es «Terms of Use – Kane Formula» y su texto termina en «I Agree».
+ *  - Dice: «This site is protected by reCAPTCHA».
+ *
+ * Por eso la señal principal es **la dirección**, no el texto del botón: la URL
+ * no depende del idioma ni de cómo esté maquetado el botón, y el botón real lo
+ * pinta JavaScript (en el HTML servido no hay ninguno visible con ese texto).
+ */
+const PUERTA = {
+  /** La dirección de la pantalla de condiciones. Señal principal. */
+  rutaAcuerdo: /\/agreement/i,
+  /** Respaldo por texto, por si algún día cambia la ruta. */
+  textoTerminos: /terms of use/i,
+  /** Lo que aparece cuando YA se ha pasado la puerta. */
+  textoCalculadora: /calculate/i,
 }
 
 export class AdaptadorKane implements AdaptadorCalculadora {
@@ -147,7 +164,11 @@ export class AdaptadorKane implements AdaptadorCalculadora {
   private async pasarCondiciones(pagina: Page, ctx: ContextoEjecucion): Promise<void> {
     const hayCondiciones = async (): Promise<boolean> => {
       try {
-        return (await pagina.locator(SEL_TERMINOS.botonAcepto).count()) > 0
+        // La dirección manda: es lo que no depende del idioma ni de cómo esté
+        // pintado el botón. El texto es solo el respaldo.
+        if (PUERTA.rutaAcuerdo.test(pagina.url())) return true
+        const texto = await pagina.innerText('body')
+        return PUERTA.textoTerminos.test(texto) && !PUERTA.textoCalculadora.test(texto)
       } catch {
         return false
       }
@@ -301,10 +322,17 @@ export class AdaptadorKane implements AdaptadorCalculadora {
       )
     }
 
-    const recomendada = opciones[Math.floor(opciones.length / 2)]
-    if (recomendada)
-      opciones[Math.floor(opciones.length / 2)] = { ...recomendada, recomendada: true }
-
+    // NO se marca ninguna recomendada.
+    //
+    // Antes se marcaba la fila del medio «porque las tablas de potencias suelen
+    // llevar la elegida en el centro». Eso era **inventarse una recomendación
+    // clínica a partir de la posición de una fila**, que es de lo peor que puede
+    // hacer este programa: sale un número destacado que nadie ha recomendado.
+    //
+    // Una opción solo se marca si Kane la señala de verdad —con un texto, una
+    // clase o una marca visual comprobable—, y para saber cómo lo señala hace
+    // falta haber visto su pantalla de resultados. Mientras tanto: `undefined`,
+    // y se conservan TODAS las opciones para que decida quien mira.
     return {
       calculadora: this.calculadora,
       ojo: ctx.entradas.ojo,
@@ -312,9 +340,10 @@ export class AdaptadorKane implements AdaptadorCalculadora {
       obtenidoEn: ctx.ahora(),
       duracionMs: Date.now() - inicio,
       opciones,
-      recomendada: recomendada ? { ...recomendada, recomendada: true } : undefined,
       mensaje:
-        'Resultado leído de Kane con un conector que todavía no se ha podido verificar contra su formulario real. Contrasta estos números con la pantalla del navegador antes de usarlos.',
+        'Resultado leído de Kane con un conector que todavía no se ha podido verificar contra su formulario real. ' +
+        'No se destaca ninguna opción: no se sabe todavía cómo señala Kane la suya, y elegir una por su posición sería inventarla. ' +
+        'Contrasta estos números con la pantalla del navegador antes de usarlos.',
     }
   }
 

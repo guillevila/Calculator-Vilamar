@@ -404,8 +404,22 @@ describe('una ACD derivada sirve para calcular', () => {
     expect(origenDe(obtener(normalizado.ojo, 'ACD'))).toBe('DERIVADO_DEL_INFORME')
 
     // La persona revisa y confirma. Sin eso no sale nada, derivado o no.
+    const base = conOjo(
+      casoNuevo('id', 'CV-2026-0001', CUANDO),
+      confirmarTodas(normalizado.ojo),
+      CUANDO,
+    )
     const caso = confirmar(
-      conOjo(casoNuevo('id', 'CV-2026-0001', CUANDO), confirmarTodas(normalizado.ojo), CUANDO),
+      {
+        ...base,
+        // Kane pide el sexo, así que sin él no calcularía y este test no
+        // estaría comprobando lo que dice comprobar.
+        sexo: {
+          valor: 'MUJER' as const,
+          procedencia: { metodo: 'MANUAL' as const, registradoEn: CUANDO },
+          confirmadoPorUsuario: true,
+        },
+      },
       CUANDO,
     )
 

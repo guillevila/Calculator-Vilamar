@@ -12,6 +12,7 @@ import type {
   Caso,
   Lateralidad,
   CampoBiometrico,
+  Sexo,
   Aviso,
   ResultadoCalculadora,
 } from '@vilamar/domain'
@@ -94,6 +95,11 @@ export interface ApiVilamar {
   ) => Promise<Caso>
 
   readonly confirmarCampo: (ojo: Lateralidad, campo: CampoBiometrico) => Promise<Caso>
+
+  /** El sexo del paciente. Lo pide Kane; EVO y Barrett no. */
+  readonly elegirSexo: (sexo: Sexo) => Promise<Caso>
+  /** Da por bueno un sexo deducido del nombre. Sin esto no sale hacia Kane. */
+  readonly confirmarSexo: () => Promise<Caso>
   readonly confirmarTodo: () => Promise<Caso>
   readonly validar: () => Promise<readonly Aviso[]>
   /**
@@ -113,10 +119,27 @@ export interface ApiVilamar {
     readonly emparejamiento: 'ENCONTRADA' | 'AMBIGUA' | 'NO_ESTA'
   }>
 
-  /** Lanza las calculadoras. Los avances llegan por `alProgresar`. */
+  /**
+   * Calcula el CASO ENTERO: cada calculadora, para cada ojo que tenga datos.
+   *
+   * Ya no recibe un ojo, y ese era el problema: la pantalla mandaba el de la
+   * pestaña activa, así que un caso con OD y OS dejaba el segundo sin calcular.
+   * Los avances llegan por `alProgresar`, y cada uno dice de qué ojo habla.
+   */
   readonly calcular: (
-    ojo: Lateralidad,
     calculadoras?: readonly Calculadora[],
+  ) => Promise<readonly ResultadoCalculadora[]>
+
+  /**
+   * Vuelve a ejecutar lo que falló, y solo lo que falló.
+   *
+   * Sin argumentos, todo lo pendiente. Con `calculadora`, los ojos de esa que no
+   * tengan resultado aprovechable. Con las dos cosas, esa casilla exacta.
+   * Lo que ya salió bien no se repite.
+   */
+  readonly reintentar: (
+    calculadora?: Calculadora,
+    ojo?: Lateralidad,
   ) => Promise<readonly ResultadoCalculadora[]>
 
   readonly cancelarCalculo: () => Promise<void>
@@ -139,10 +162,13 @@ export const CANALES = {
   elegirYCargarDocumentos: 'vilamar:elegir-y-cargar',
   editarMedida: 'vilamar:editar-medida',
   confirmarCampo: 'vilamar:confirmar-campo',
+  elegirSexo: 'vilamar:elegir-sexo',
+  confirmarSexo: 'vilamar:confirmar-sexo',
   confirmarTodo: 'vilamar:confirmar-todo',
   validar: 'vilamar:validar',
   elegirLente: 'vilamar:elegir-lente',
   calcular: 'vilamar:calcular',
+  reintentar: 'vilamar:reintentar',
   cancelarCalculo: 'vilamar:cancelar-calculo',
   generarPdf: 'vilamar:generar-pdf',
   abrirCarpetaInformes: 'vilamar:abrir-carpeta-informes',

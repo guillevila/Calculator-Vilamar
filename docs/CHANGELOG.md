@@ -4,6 +4,87 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [0.9.0] — 12/08/2026
+
+Un solo «Calcular» procesa los dos ojos. Y el sexo del paciente, que pide Kane.
+
+### Por qué EVO solo calculaba un ojo
+
+**No fallaba EVO.** Su adaptador abre una página nueva por ejecución, marca el
+radio del ojo que le piden y comprueba el eco que devuelve la web. Funcionaba
+perfectamente para el ojo que le pedían.
+
+El problema estaba tres capas por encima: `App.calcular()` llamaba a
+`api().calcular(ojoActivo)` —el ojo de la pestaña—, el servicio lo pasaba tal
+cual y el orquestador solo sabía de un ojo. **Nadie pedía el segundo.**
+
+### Añadido
+
+- **Dos capas donde había una.** `ejecutarUnaCalculadoraParaUnOjo` es la
+  primitiva —no sabe que existe otro ojo— y `ejecutarCaso` recorre las casillas.
+  Toda la decisión de «qué hay que ejecutar» vive en un solo sitio.
+- **El orden es calculadora a calculadora, y dentro los dos ojos.** Con eso, las
+  condiciones de Kane se aceptan UNA vez y sus dos ojos entran seguidos en la
+  misma sesión del navegador.
+- **«Reintentar» vuelve a significar repetir lo que falló.** `tareasPendientes`
+  excluye lo que salió bien, y `MISSING_INPUTS` y `ADAPTER_BROKEN` no se
+  reintentan solos: repetirlos daría exactamente el mismo fallo.
+- **Guarda contra el ojo cambiado.** Si un adaptador devolviera un resultado del
+  ojo que no es, se descarta como `ADAPTER_BROKEN`. Es el fallo más peligroso
+  posible porque parecería perfectamente válido.
+- **El sexo del paciente**, en el caso y no en el ojo: es de la persona. Del
+  informe, deducido del nombre o elegido a mano. Bloquea **solo a Kane**.
+- **`pnpm reconocer:kane` existe de verdad.** Se nombraba en mensajes de error y
+  en tres documentos, y no estaba definido en `package.json`. Ahora abre Kane con
+  ventana, pide que aceptes tú, y espera **a que aparezca el formulario** —campos
+  de entrada y un botón de calcular—, no unos segundos a ver qué hay.
+
+### Corregido
+
+- **Kane marcaba como recomendada la fila del medio de la tabla.** Era inventarse
+  una recomendación clínica a partir de una posición. Ahora no se marca ninguna
+  hasta saber cómo la señala Kane, y se conservan todas las opciones.
+- La puerta de las condiciones de Kane se detecta por su **dirección**
+  (`/agreement/`) y no por el texto de un botón que pinta JavaScript.
+- **El guardián de arquitectura no vigilaba «Kane».** Su lista tenía las otras dos
+  calculadoras, así que la extracción podía nombrarlo sin que saltara nada.
+
+### Sobre la deducción del sexo
+
+Se implementa a petición expresa del dueño del proyecto, tomada tras exponerle
+que un nombre no determina el sexo y que obliga a guardar un dato identificativo
+que hasta ahora no entraba en el programa. Las salvaguardas **no se relajan**:
+
+- El nombre **no sale del ordenador**: ni al PDF, ni a ninguna calculadora.
+- Lo deducido es `DERIVADO`, así que **no se autoconfirma** y no viaja a Kane
+  hasta que una persona lo mira.
+- **Un nombre que no se reconoce no se adivina.** «Alex», «Cruz» o «Andrea» se
+  quedan sin deducir.
+- Se dice **qué regla** lo decidió, porque «estaba en la lista» pesa más que
+  «acaba en -a».
+
+### Lo que se ha comprobado abriendo las webs
+
+- **Kane**: `iolformula.com` redirige a `/agreement/`, con **cero campos de
+  formulario**. La calculadora no existe hasta que una persona acepta el acuerdo.
+- **EVO**: 36 campos, **ninguno de sexo ni de edad**. Por eso el sexo no sale como
+  obligatorio para él.
+
+### Sigue pendiente de Kane
+
+Los selectores reales, los campos obligatorios reales, la tabla de resultados
+real y los valores reales del campo de sexo. Todo eso está detrás de un clic
+humano en «I Agree», y este programa no lo da.
+
+### Validación
+
+lint, formato, typecheck y build en verde. **477 tests** (42 nuevos) y **12
+pruebas de interfaz**. Tres mutaciones sobre el recorrido bilateral —volver al
+comportamiento viejo, dejar de comprobar el ojo devuelto, y reintentar también lo
+que salió bien—, tres caídas.
+
+---
+
 ## [0.8.0] — 12/08/2026
 
 Las constantes A que trae el informe, cada una pegada a su modelo de lente.
