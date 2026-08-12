@@ -1,13 +1,18 @@
 name: CI — Verificación del proyecto
 
-# `pull_request` cubre todas las ramas de trabajo: nada llega a master sin pasar
-# por una PR. `push` se limita a master y a las ramas de integración, para no
-# ejecutar cada comprobación dos veces.
+# `pull_request` SIN filtro de ramas, a propósito: se ejecuta en toda PR, sea cual
+# sea su destino. Antes filtraba por `branches: [main, master]`, y eso NO hacía lo
+# que decía este comentario — ese filtro mira la rama DESTINO, así que una PR
+# apilada sobre otra rama de trabajo se quedaba sin ninguna comprobación. Se
+# fusionaba con cero controles en verde, que es exactamente lo que la constitución
+# del proyecto prohíbe.
+#
+# `push` sí se limita a master y a las ramas de integración, para no ejecutar cada
+# comprobación dos veces: una rama de trabajo ya se comprueba por su PR.
 on:
   push:
     branches: [main, master, 'integration/**']
   pull_request:
-    branches: [main, master]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
