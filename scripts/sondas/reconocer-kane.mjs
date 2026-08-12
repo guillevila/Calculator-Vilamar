@@ -40,12 +40,42 @@
  */
 
 import { chromium } from 'playwright'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 const URL = 'https://www.iolformula.com'
 const SALIDA = join(process.cwd(), 'local', 'reconocimiento')
 const ESPERA_MAXIMA_MS = 10 * 60 * 1000
+
+/**
+ * El perfil del navegador de la aplicación. **El mismo**, no uno propio.
+ *
+ * Esto era un fallo y costó una confusión real: la sonda abría un navegador
+ * limpio cada vez, así que había TRES perfiles en juego —el Chrome del usuario,
+ * el de la aplicación y el de la sonda—. Aceptaras donde aceptaras, los otros dos
+ * seguían viendo la pantalla de condiciones.
+ *
+ * Compartiendo perfil pasan las dos cosas que tienen que pasar:
+ *
+ *  - Si ya aceptaste **en la aplicación**, la sonda entra directa.
+ *  - Si aceptas **en la sonda**, la aplicación ya no te lo pide al calcular.
+ *
+ * Es la misma ruta que calcula Electron con `app.getPath('userData')` para el
+ * nombre del paquete, más la carpeta que usa `prepararCarpetas`. Se puede forzar
+ * con VILAMAR_PERFIL si algún día no coincidiera.
+ */
+function perfilDeLaAplicacion() {
+  if (process.env.VILAMAR_PERFIL) return process.env.VILAMAR_PERFIL
+  const nombre = 'calculator-vilamar'
+  const base =
+    process.platform === 'win32'
+      ? (process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'))
+      : process.platform === 'darwin'
+        ? join(homedir(), 'Library', 'Application Support')
+        : (process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'))
+  return join(base, nombre, 'sesion-navegador')
+}
 
 /** Cuántos campos hacen falta para creerse que esto es la calculadora. */
 const CAMPOS_MINIMOS = 4
@@ -160,9 +190,34 @@ async function main() {
   console.log('  ─────────────────────────────────────────')
   console.log('')
 
-  const navegador = await chromium.launch({ headless: false })
-  const contexto = await navegador.newContext({ viewport: { width: 1500, height: 1050 } })
-  const pagina = await contexto.newPage()
+  const perfil = perfilDeLaAplicacion()
+  console.log(`  Perfil del navegador: ${perfil}`)
+  console.log(
+    existsSync(perfil)
+      ? '  (es el mismo que usa la aplicación: si ya aceptaste ahí, se entra directo)'
+      : '  (se crea ahora; es el que usará también la aplicación al calcular)',
+  )
+  console.log('')
+
+  let contexto
+  try {
+    contexto = await chromium.launchPersistentContext(perfil, {
+      headless: false,
+      viewport: { width: 1500, height: 1050 },
+    })
+  } catch (e) {
+    // Chromium bloquea el perfil: dos navegadores no pueden usarlo a la vez.
+    // Es un choque muy concreto y merece un mensaje concreto.
+    console.error('')
+    console.error('  No se ha podido abrir el perfil del navegador.')
+    console.error('  Lo más probable: la aplicación está abierta y lo tiene cogido.')
+    console.error('  Cierra Calculator Vilamar (y cualquier navegador que haya abierto)')
+    console.error('  y vuelve a ejecutar esto.')
+    console.error('')
+    console.error(`  Detalle técnico: ${e instanceof Error ? e.message : e}`)
+    process.exit(1)
+  }
+  const pagina = contexto.pages()[0] ?? (await contexto.newPage())
 
   try {
     console.log(`  Abriendo ${URL} …`)
@@ -244,7 +299,8 @@ async function main() {
     console.log('  MAPA_KANE en packages/integrations/src/adapters/kane.ts')
     console.log('')
   } finally {
-    await navegador.close().catch(() => undefined)
+    // Cerrar el contexto persistente es lo que guarda la aceptación en el perfil.
+    await contexto.close().catch(() => undefined)
   }
 }
 

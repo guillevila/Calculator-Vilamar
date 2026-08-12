@@ -4,6 +4,35 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [0.9.2] — 12/08/2026
+
+La sonda de reconocimiento comparte el perfil del navegador con la aplicación.
+
+### El fallo
+
+Había **tres** perfiles de navegador en juego, no dos:
+
+| Navegador                 | Perfil                         |
+| ------------------------- | ------------------------------ |
+| El Chrome del usuario     | el suyo                        |
+| La aplicación al calcular | en la carpeta de datos         |
+| **La sonda **             | **uno nuevo y vacío cada vez** |
+
+Así que aceptases donde aceptases, los otros dos seguían viendo la pantalla de
+condiciones. En la versión anterior se arregló la confusión entre la aplicación y
+el Chrome del usuario, pero **la sonda se quedó como una tercera isla**.
+
+### Corregido
+
+- abre ahora **el mismo perfil que la aplicación**, calculado
+  igual que lo hace Electron. Con eso: si ya aceptaste en la aplicación, la sonda
+  entra directa; y si aceptas en la sonda, la aplicación no vuelve a pedírtelo.
+- Si el perfil está cogido —la aplicación abierta—, se dice **eso**, en vez de un
+  error de Chromium: dos navegadores no pueden usar el mismo perfil a la vez.
+- Se puede forzar la ruta con si algún día no coincidiera.
+
+---
+
 ## [0.9.1] — 12/08/2026
 
 La transición de Kane después de que tú aceptes. Dos fallos, y ninguno era el
