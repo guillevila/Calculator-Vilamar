@@ -152,7 +152,7 @@ function derivarAcd(
       ojo,
       avisos: [
         `Este informe trae AQD (${formatearConUnidad('AQD', aqd.valor)}) pero no ACD, y las tres calculadoras necesitan la ACD. ` +
-          `No se ha calculado: ${perfil.razon} Compruébalo en el informe y escribe la ACD a mano.`,
+          `No se ha calculado: ${perfil.razonAcd} Compruébalo en el informe y escribe la ACD a mano.`,
       ],
     }
   }

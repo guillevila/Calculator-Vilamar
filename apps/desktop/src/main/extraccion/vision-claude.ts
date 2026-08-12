@@ -48,6 +48,7 @@ import {
   nombreLateralidad,
   normalizarOjo,
   ojoVacio,
+  perfilDe,
 } from '@vilamar/domain'
 import type { DocumentoEntrada, LectorVision, ResultadoExtraccion } from '@vilamar/extraction'
 
@@ -456,6 +457,14 @@ export function aResultado(
     )
   }
 
+  // Si el aparato es de los que imprimen tabla de lentes, se dice que este lector
+  // no la ha buscado. Callarlo haría pensar que el informe no la trae.
+  if (perfilDe(leido.dispositivo).tablaDeLentes !== 'NINGUNA') {
+    avisos.push(
+      'Este informe suele traer una lista de modelos de lente con su constante A, pero el lector de visión todavía no la busca. Escribe la constante A a mano, o vuelve a leer el informe sin el lector de visión.',
+    )
+  }
+
   return {
     documentoId: documento.id,
     dispositivo: {
@@ -471,6 +480,15 @@ export function aResultado(
         ? explicaciones.join(' · ')
         : 'No se ha identificado ningún ojo en el documento.',
     ojos,
+    // ⚠️ **El lector de visión todavía NO lee la tabla de lentes.** Va vacía a
+    // propósito, no por descuido: su esquema de salida no pide los modelos de LIO,
+    // así que no los trae. Devolver una lista vacía es la respuesta correcta —lo
+    // que no se puede hacer es inventarla—.
+    //
+    // El aviso de abajo lo dice cuando se sabe que ese aparato SÍ trae tabla, para
+    // que nadie concluya que su informe no la tiene. Ampliar el esquema es una
+    // tarea aparte y no se puede medir sin clave (ver O8 en SYSTEM_VISION.md).
+    lentes: [],
     avisos,
     // Con qué modelo se leyó este informe queda en el caso, no solo en un log.
     proveedor: `Claude (${modelo})`,

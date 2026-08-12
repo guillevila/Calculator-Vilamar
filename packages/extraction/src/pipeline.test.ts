@@ -529,3 +529,171 @@ describe('ACD: documento completo, de principio a fin', () => {
     }
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  La tabla de lentes: cada constante con su modelo
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('modelos de lente y su constante A', () => {
+  it('lee las cuatro lentes del informe, cada una con la suya', () => {
+    const r = leer(fx.ANTERION_CON_TABLA_DE_LENTES)
+    const porModelo = new Map(r.lentes.map((l) => [l.modelo, l.constanteA]))
+
+    expect(r.lentes).toHaveLength(4)
+    expect(porModelo.get('LUX SMART')).toBe(118.5)
+    expect(porModelo.get('ZEISS AT ELANA 841P')).toBe(119.6)
+    expect(porModelo.get('Bausch&Lomb Akreos AO MI60')).toBe(119.1)
+    expect(porModelo.get('Bausch&Lomb enVista MX60')).toBe(119.2)
+  })
+
+  it('cada constante conserva la evidencia y la etiqueta de la fórmula', () => {
+    const r = leer(fx.ANTERION_CON_TABLA_DE_LENTES)
+    for (const l of r.lentes) {
+      expect(l.etiquetaConstante).toBe('SRK/T')
+      expect(l.procedencia.evidencia?.texto).toContain(l.modelo)
+      expect(l.procedencia.evidencia?.texto).toMatch(/SRK\/T/)
+      expect(l.procedencia.dispositivoId).toBe('ANTERION')
+      expect(l.procedencia.metodo).toBe('TEXTO_PDF')
+    }
+  })
+
+  it('separa el fabricante cuando lo reconoce, sin partir el nombre a ciegas', () => {
+    const r = leer(fx.ANTERION_CON_TABLA_DE_LENTES)
+    const akreos = r.lentes.find((l) => l.modelo.includes('Akreos'))
+    expect(akreos?.fabricante).toBe('Bausch&Lomb')
+    // «LUX SMART» no lleva marca conocida delante: se deja entero, sin inventar.
+    const lux = r.lentes.find((l) => l.modelo === 'LUX SMART')
+    expect(lux?.fabricante).toBeUndefined()
+  })
+
+  it('NINGUNA se convierte en la CONSTANTE_A del ojo', () => {
+    // Es la regla entera: cuatro constantes en el papel y cero en el ojo, porque
+    // cuál vale depende de qué lente se implante y eso no lo decide el programa.
+    const r = leer(fx.ANTERION_CON_TABLA_DE_LENTES)
+    expect(r.lentes).toHaveLength(4)
+    expect(tiene(r.ojos.OD!, 'CONSTANTE_A')).toBe(false)
+  })
+
+  it('las lentes NO se guardan dentro de un ojo', () => {
+    // La tabla de modelos no habla de ojos. Meterla en uno obligaría a decidir
+    // una lateralidad que el documento no da.
+    const r = leer(fx.ANTERION_CON_TABLA_DE_LENTES)
+    expect(r.lentes.length).toBeGreaterThan(0)
+    expect(Object.keys(r.ojos.OD!.medidas)).not.toContain('CONSTANTE_A')
+  })
+
+  it('en un aparato desconocido NO se interpreta «SRK/T»', () => {
+    // El mismo listado sin reconocer el aparato: un número junto a SRK/T puede
+    // ser cualquier cosa si no se sabe cómo está montado el informe.
+    const r = leer(fx.DESCONOCIDO_CON_SRKT)
+    expect(r.dispositivo.dispositivo).toBe('DESCONOCIDO')
+    expect(r.lentes).toHaveLength(0)
+  })
+
+  it('un ANTERION sin tabla de lentes devuelve la lista vacía, no un error', () => {
+    const r = leer(fx.ANTERION_OD_OS)
+    expect(r.dispositivo.dispositivo).toBe('ANTERION')
+    expect(r.lentes).toHaveLength(0)
+  })
+
+  it('no confunde una línea de medidas con un modelo de lente', () => {
+    // La línea de arriba de la primera constante podría ser cualquier cosa del
+    // informe. Si no parece un nombre de lente, no se empareja nada.
+    const r = leer(`HEIDELBERG ENGINEERING ANTERION
+OD
+AL            24.07 mm
+SRK/T: 118.5
+`)
+    expect(r.lentes).toHaveLength(0)
+  })
+
+  it('descarta un número que está FUERA del rango de una constante A', () => {
+    // Fuera de 112–125 no es una constante A, sea lo que sea: será el a0 de otra
+    // fórmula, un porcentaje o un error de lectura. Media relación —un modelo con
+    // una constante imposible— no vale para nada.
+    //
+    // Los dos valores están elegidos para que **lleguen** a la comprobación de
+    // rango: tienen la forma de una constante (dos o tres cifras) y solo fallan
+    // por el valor. Con «1.85» este test pasaría sin que la comprobación
+    // existiera, porque lo descartaría antes la propia forma del número.
+    for (const fuera of ['99.50', '148.00', '87.0']) {
+      const r = leer(`HEIDELBERG ENGINEERING ANTERION
+Cataract App
+
+LUX SMART
+SRK/T: ${fuera}
+`)
+      expect(r.lentes, `${fuera} no puede ser una constante A`).toHaveLength(0)
+    }
+  })
+
+  it('acepta los dos extremos del rango, para no pasarse de estricto', () => {
+    for (const dentro of ['112.00', '125.00']) {
+      const r = leer(`HEIDELBERG ENGINEERING ANTERION
+Cataract App
+
+LUX SMART
+SRK/T: ${dentro}
+`)
+      expect(r.lentes, `${dentro} sí es una constante A posible`).toHaveLength(1)
+    }
+  })
+
+  it('el aviso enumera los modelos, sin elegir ninguno', () => {
+    const r = leer(fx.ANTERION_CON_TABLA_DE_LENTES)
+    const aviso = r.avisos.find((a) => /modelo/i.test(a))
+    // El pipeline no avisa: quien avisa es el servicio, que es quien junta los
+    // documentos. Aquí lo que importa es que los datos estén y no se haya elegido.
+    expect(aviso).toBeUndefined()
+    expect(r.lentes.map((l) => l.constanteA)).toEqual([118.5, 119.6, 119.1, 119.2])
+  })
+})
+
+describe('la criba de nombres de lente', () => {
+  it('no toma otra línea de fórmula por un modelo', () => {
+    // Un informe que lista varias fórmulas por lente. La línea de encima de
+    // «SRK/T» es otra constante, no un modelo, y se reconoce por su FORMA
+    // —«nombre: número»— y no por una lista de nombres de fórmula, que se
+    // quedaría corta en cuanto apareciera una que no estuviera en ella.
+    const r = leer(`HEIDELBERG ENGINEERING ANTERION
+Cataract App
+
+Bausch&Lomb enVista MX60
+Haigis a0: 1.28
+SRK/T: 119.2
+`)
+    // Se empareja con «Bausch&Lomb enVista MX60»… o con nada, pero NUNCA con
+    // «Haigis a0», que es una constante de otra fórmula.
+    for (const l of r.lentes) {
+      expect(l.modelo).not.toMatch(/haigis/i)
+    }
+  })
+
+  it('no toma la cabecera del informe por un modelo de lente', () => {
+    const r = leer(`HEIDELBERG ENGINEERING ANTERION
+SRK/T: 118.5
+`)
+    expect(r.lentes).toHaveLength(0)
+  })
+
+  it('no toma una marca de ojo por un modelo de lente', () => {
+    const r = leer(`HEIDELBERG ENGINEERING ANTERION
+Cataract App
+
+OD
+SRK/T: 118.5
+`)
+    expect(r.lentes).toHaveLength(0)
+  })
+
+  it('lee el modelo y la constante aunque vengan en la misma línea', () => {
+    const r = leer(`HEIDELBERG ENGINEERING ANTERION
+Cataract App
+
+Bausch&Lomb enVista MX60   SRK/T: 119.2
+`)
+    expect(r.lentes).toHaveLength(1)
+    expect(r.lentes[0]!.modelo).toBe('Bausch&Lomb enVista MX60')
+    expect(r.lentes[0]!.constanteA).toBe(119.2)
+  })
+})

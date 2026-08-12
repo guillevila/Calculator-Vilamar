@@ -140,6 +140,66 @@ AQD            2.55 mm
 CCT             540 um
 `
 
+/**
+ * ANTERION con su tabla de lentes: varios modelos, cada uno con su constante.
+ *
+ * ⚠️ Los modelos son nombres comerciales públicos; los números son **inventados**
+ * y no proceden de ningún informe de ninguna persona. Reproducen la FORMA en que
+ * este aparato presenta la tabla, que es lo único que hace falta probar.
+ *
+ * Es el caso que obliga a que la constante viaje con su modelo: hay cuatro
+ * constantes y **ninguna es «la constante A del caso»**. Cuál vale depende de qué
+ * lente se implante, y eso no lo decide el programa.
+ */
+export const ANTERION_CON_TABLA_DE_LENTES = `
+HEIDELBERG ENGINEERING          ANTERION
+Cataract App - Biometry Report
+
+OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+ACD (epi)      3.18 mm
+LT             4.53 mm
+CCT             530 um
+WTW           11.90 mm
+Target Refraction  0.00 D
+
+IOL calculation
+
+LUX SMART
+SRK/T: 118.5
+
+ZEISS AT ELANA 841P
+SRK/T: 119.6
+
+Bausch&Lomb Akreos AO MI60
+SRK/T: 119.1
+
+Bausch&Lomb enVista MX60
+SRK/T: 119.2
+`
+
+/**
+ * El mismo listado, pero sin que se reconozca el aparato.
+ *
+ * Comprueba que «un número junto a SRK/T» NO se interpreta como constante A en
+ * cualquier documento: si no se sabe cómo está montado el informe, emparejar el
+ * número con el texto de arriba inventaría una relación que quizá no existe.
+ */
+export const DESCONOCIDO_CON_SRKT = `
+Resumen de cálculo
+
+OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+ACD            3.18 mm
+
+LUX SMART
+SRK/T: 118.5
+`
+
 /** IOLMaster 700, formato de dos columnas — el más habitual. */
 export const IOLMASTER_DOS_COLUMNAS = `
 ZEISS IOLMaster 700

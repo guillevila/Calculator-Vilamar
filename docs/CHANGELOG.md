@@ -4,6 +4,90 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [0.8.0] — 12/08/2026
+
+Las constantes A que trae el informe, cada una pegada a su modelo de lente.
+
+### El problema
+
+Un ANTERION no siempre imprime «A constant: 119.1». Imprime una **tabla de
+modelos**, y bajo cada uno la constante que usa una fórmula:
+
+```
+LUX SMART                     SRK/T: 118.5
+ZEISS AT ELANA 841P           SRK/T: 119.6
+Bausch&Lomb Akreos AO MI60    SRK/T: 119.1
+Bausch&Lomb enVista MX60      SRK/T: 119.2
+```
+
+La pantalla decía **«Constante A — Pendiente de aportar»** con los cuatro números
+delante.
+
+Pero la solución fácil habría sido peor que el problema: coger 118.5 porque es la
+primera. **Cuatro lentes son cuatro constantes posibles y ninguna es la del caso**
+hasta que se sabe qué se va a implantar. Calcular con la constante de una lente que
+no se pone da un resultado perfectamente creíble y equivocado.
+
+### Añadido
+
+- **`LenteDetectada`**: modelo, fabricante, constante, etiqueta de la fórmula y
+  evidencia. La constante **no se puede representar sin su modelo** — no hay
+  ningún sitio donde guardar una constante suelta salida de una tabla. La relación
+  no se pierde porque no existe la forma de perderla.
+- **`Caso.lentesDelInforme`**, fuera de los ojos: la misma lente lleva la misma
+  constante se implante en el derecho o en el izquierdo.
+- **`elegirLente()` en el dominio**, único sitio donde una constante de la tabla se
+  convierte en la del caso. Cinco caminos y ninguno adivina: la escribe, deja el
+  hueco, **quita la de la lente anterior**, pide revisión si hay ambigüedad, o
+  respeta lo que ha escrito una persona.
+- **`LenteElegida.constanteDeLaTabla`**, que es lo que hace posible cambiar de
+  lente sin arrastrar la constante vieja: distingue «la de la lente que acabo de
+  descartar» de «una constante suelta del informe o escrita a mano».
+- **`perfiles.tablaDeLentes`**: qué aparatos traen tabla y en qué formato. Hoy solo
+  ANTERION. En un documento cualquiera, un número junto a «SRK/T» puede ser el `a0`
+  de otra fórmula o un error de lectura.
+- **Auditoría de la constante frente a la web** (`auditoria-constante.ts`). Elegir
+  el modelo en EVO puede cambiar SU constante; si dice haber calculado con 119.20 y
+  se le envió 119.10, el informe lo dice con las dos cifras. **No se corrige.**
+- La pantalla de lente enseña los modelos del informe con su constante al lado y
+  **ninguno preseleccionado**: marcar el primero sería elegir por el cirujano.
+- Dos informes sintéticos: ANTERION con tabla de lentes, y el mismo listado sin
+  reconocer el aparato.
+
+### Corregido
+
+- El comentario de `SelectorLente.tsx` decía «el modelo de lente no sale del
+  informe de biometría». **Era falso** para los aparatos que traen tabla.
+
+### Sin cambiar
+
+- **Barrett sigue igual**: la constante A le es opcional y puede calcular con el
+  factor de lente. Lo que cambia es de dónde sale cuando está.
+- Ningún adaptador interpreta el informe. Reciben modelo y constante ya resueltos.
+- La lógica de EVO y Barrett de elegir el modelo en la web sigue intacta.
+
+### Lo que NO hace, y está probado
+
+- No elige una lente sola, ni la primera de la lista.
+- No empareja de forma aproximada: `MX60` y `MX60T` son lentes distintas.
+- No hereda la constante de otra lente, ni de otra de la misma marca.
+- No interpreta «SRK/T» en un aparato desconocido.
+- No guarda cuatro constantes como cuatro medidas del ojo.
+
+### Validación
+
+lint, formato, typecheck y build en verde. **435 tests** (59 nuevos) y **12 pruebas
+de interfaz** (1 nueva, de punta a punta: PDF con las cuatro lentes → elegir →
+cambiar → elegir una que no está).
+
+**Siete mutaciones, siete tests caídos** — pero la primera vez fueron seis de
+siete: la comprobación de que una constante esté dentro de 112–125 **no la vigilaba
+nadie**. El test que creía cubrirla usaba «1.85», que se descarta antes por la
+forma del número, así que pasaba sin que la comprobación existiera. Se rehízo con
+valores que sí llegan hasta ella.
+
+---
+
 ## [0.7.0] — 12/08/2026
 
 La ACD, que puede llegar impresa o haber que calcularla. Y una capa nueva entre

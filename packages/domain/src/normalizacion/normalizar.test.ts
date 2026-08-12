@@ -273,7 +273,7 @@ describe('un aparato desconocido no deriva nada', () => {
   it('lo dice, y dice por qué, para que no parezca un fallo del programa', () => {
     const r = normalizarOjo(anterionAntiguo(), 'DESCONOCIDO', LUEGO)
     expect(r.avisos).toHaveLength(1)
-    expect(r.avisos[0]).toContain(perfilDe('DESCONOCIDO').razon)
+    expect(r.avisos[0]).toContain(perfilDe('DESCONOCIDO').razonAcd)
     expect(r.avisos[0]).toMatch(/a mano/i)
   })
 
@@ -292,9 +292,10 @@ describe('un aparato desconocido no deriva nada', () => {
     expect(derivan).toEqual(['ANTERION'])
   })
 
-  it('todos los perfiles explican su decisión', () => {
+  it('todos los perfiles explican sus dos decisiones', () => {
     for (const p of Object.values(PERFILES)) {
-      expect(p.razon.length).toBeGreaterThan(20)
+      expect(p.razonAcd.length).toBeGreaterThan(20)
+      expect(p.razonTablaDeLentes.length).toBeGreaterThan(20)
     }
   })
 })

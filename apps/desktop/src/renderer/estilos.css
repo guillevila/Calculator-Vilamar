@@ -539,3 +539,49 @@ table.comparativa td.na {
   font-weight: 400;
   font-style: italic;
 }
+
+/* ── Lentes que propone el informe ──────────────────────────────────────────
+   Se enseñan como botones y NINGUNO viene marcado: preseleccionar el primero
+   sería elegir por el cirujano qué lente se implanta. La constante va al lado
+   del modelo, nunca sola, porque sola no significa nada. */
+.lentes-informe {
+  list-style: none;
+  margin: 8px 0 4px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lentes-informe button.lente {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  width: 100%;
+  text-align: left;
+  padding: 7px 11px;
+  border: 1px solid var(--linea);
+  border-radius: 7px;
+  background: #fff;
+  cursor: pointer;
+}
+.lentes-informe button.lente:hover {
+  border-color: var(--azul);
+}
+.lentes-informe button.lente.elegida {
+  border-color: var(--azul);
+  background: var(--azul-suave);
+  font-weight: 600;
+}
+.lente-modelo {
+  flex: 1;
+}
+.lente-constante {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--gris);
+  font-size: 12px;
+}
+.lentes-informe button.lente.elegida .lente-constante {
+  color: var(--azul);
+}

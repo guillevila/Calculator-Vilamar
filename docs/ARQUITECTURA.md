@@ -170,6 +170,65 @@ que faltaba un dato que se podía haber escrito antes.
 No bloquea la confirmación a propósito: calcular con dos de tres es un resultado
 legítimo, y puede que el dato que falta sencillamente no se tenga.
 
+### 3.1. La lente y su constante
+
+`packages/domain/src/modelo/lente.ts` · `seleccion-lente.ts`
+
+**La constante A pertenece al MODELO DE LENTE, no al informe** (D33). Algunos
+informes traen una tabla de modelos y, bajo cada uno, la constante que usa una
+fórmula. Cuatro lentes son **cuatro constantes posibles y ninguna es la del caso**
+hasta que alguien elige qué se va a implantar.
+
+```ts
+interface LenteDetectada {
+  modelo: string // el único obligatorio: identifica la lente
+  fabricante?: string
+  constanteA?: number
+  etiquetaConstante?: string // «SRK/T»: una constante A lo es PARA una fórmula
+  procedencia: Procedencia // con evidencia literal y página
+}
+```
+
+Van en `Caso.lentesDelInforme`, **no dentro de un ojo**: la misma lente lleva la
+misma constante se implante en el derecho o en el izquierdo.
+
+**La relación no se puede perder, porque no existe la forma de representarla
+suelta.** No hay ningún sitio donde guardar una constante salida de una tabla sin
+su modelo. No es una regla que alguien tenga que recordar: es la forma del tipo.
+
+`elegirLente()` es el **único** sitio donde una constante de la tabla se convierte
+en la `CONSTANTE_A` del caso, y garantiza cuatro cosas de una vez:
+
+| Situación                      | Qué hace con la constante                      |
+| ------------------------------ | ---------------------------------------------- |
+| La lente está y trae constante | La escribe en los ojos del caso, `DEL_INFORME` |
+| La lente está, sin constante   | Deja el hueco y lo explica                     |
+| La lente NO está en el informe | **Quita** la de la lente anterior              |
+| Varias lentes encajan          | No elige ninguna. Pide revisión                |
+| Lo escribió una persona        | **No lo toca.** Avisa de que quizá ya no vale  |
+
+`LenteElegida.constanteDeLaTabla` guarda de qué modelo salió la constante actual.
+Es lo que permite distinguir «la constante de la lente que acabo de descartar»
+—que sobra— de «una constante suelta del informe o escrita a mano» —que se
+respeta—. Sin ese dato habría que deducirlo mirando la evidencia, que es
+exactamente la clase de deducción frágil que este modelo evita.
+
+**Los nombres se comparan de forma exacta tras normalizar**, nunca aproximada. Se
+ignoran mayúsculas, espacios, puntuación de adorno y el nexo del fabricante
+(«Bausch & Lomb» = «Bausch and Lomb» = «Bausch-Lomb»). Lo que NO se hace es
+distancia de edición ni prefijos: `MX60` y `MX60T` son lentes distintas con
+constantes distintas, y confundirlas produciría un cálculo creíble y equivocado.
+
+#### La constante que dice la web frente a la que se envió
+
+`comparacion/auditoria-constante.ts`. Elegir el modelo en EVO o en Barrett puede
+cambiar la constante que esa web usa. Si dice haber calculado con 119.20 y se le
+envió 119.10, **el resultado es el de 119.20** y el informe lo dice, con las dos
+cifras. No se corrige, no se reintenta y no se decide quién tiene razón (D34).
+
+Que la web **no publique** su constante —Barrett no lo hace— es distinto de que no
+cuadre, y se distinguen: sin eco no hay aviso.
+
 #### Origen y validación son ejes distintos
 
 De dónde salió un número y si alguien lo ha revisado son dos preguntas, y van en
@@ -254,6 +313,24 @@ Los cinco casos:
 | ACD **y** AQD + CCT            | Conserva las tres y comprueba que cuadren     |
 | AQD sin CCT                    | No calcula nada. Dice qué falta               |
 | Aparato que no lo permite      | No calcula nada. Dice **por qué**             |
+
+### La otra regla del perfil: la tabla de lentes
+
+`PerfilDispositivo.tablaDeLentes` dice si ese aparato imprime una lista de modelos
+de LIO con su constante y en qué formato. Hoy solo ANTERION
+(`CONSTANTES_POR_FORMULA`); los demás, `NINGUNA`.
+
+El motivo es el mismo que el de la ACD y merece decirse igual de claro: **un
+número junto a «SRK/T» solo significa «la constante A de la lente de arriba» si
+sabemos que el informe está montado así.** En un documento cualquiera puede ser el
+`a0` de otra fórmula, un porcentaje o un error de lectura, y emparejarlo con el
+texto de encima inventaría una relación que quizá no existe.
+
+La lista se lee del **documento completo**, no de los trozos por ojo. La tabla de
+modelos no habla de ojos: en un informe a dos columnas caería en la columna de uno
+por pura maqueta, y en uno por secciones saldría repetida bajo cada ojo. Leyendo
+todo el documento y quitando las repeticiones exactas, los dos formatos dan lo
+mismo. Ver también el apartado 3.1.
 
 ### Por qué hay una tabla de perfiles y no una regla general
 

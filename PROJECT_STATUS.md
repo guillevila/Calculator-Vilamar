@@ -9,8 +9,8 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 12/08/2026 · tras añadir la capa de normalización por
-aparato — la ACD que puede llegar impresa o haber que calcularla
+**Última actualización:** 12/08/2026 · tras leer las constantes A de la tabla de
+lentes del informe, cada una pegada a su modelo
 
 ---
 
@@ -72,7 +72,7 @@ es lo que separa un prototipo de un MVP.
 
 ### Comprobado arrancando la aplicación de verdad
 
-Once pruebas que abren Electron y pulsan con el ratón, más una verificación
+Doce pruebas que abren Electron y pulsan con el ratón, más una verificación
 vertical completa:
 
 - **La ventana abre** y enseña la pantalla de inicio.
@@ -86,7 +86,7 @@ vertical completa:
 - **Una calculadora que espera no bloquea a las demás:** con Kane esperando a que
   se acepten sus condiciones, se pueden ver los resultados de EVO y Barrett.
 
-### Comprobado con tests automáticos (376, todos en verde)
+### Comprobado con tests automáticos (435, todos en verde)
 
 - **Las diez invariantes clínicas.** Las dos barreras de confirmación se han
   comprobado **rompiéndolas a propósito** y viendo caer el test que las cubre.
@@ -196,6 +196,41 @@ Lo que **no** hace, y también está comprobado:
 
 ⚠️ Sigue siendo lectura sobre documentos **sintéticos**. Que la regla funcione no
 dice que se reconozca la maqueta de un ANTERION real — eso sigue en el punto 1.
+
+#### Las constantes A de las lentes que propone el informe
+
+Comprobado de punta a punta con un PDF de verdad. Un ANTERION que lista modelos con
+su constante ya no deja la constante A en «Pendiente de aportar»:
+
+```
+Modelos encontrados en el informe:
+  LUX SMART                     A 118.5
+  ZEISS AT ELANA 841P           A 119.6
+  Bausch&Lomb Akreos AO MI60    A 119.1
+  Bausch&Lomb enVista MX60      A 119.2
+```
+
+**Ninguna viene marcada, y esa es la parte importante.** Cuatro lentes son cuatro
+constantes posibles y ninguna es la del caso hasta que eliges qué implantas.
+Elegir Akreos pone 119.1 como «Del informe»; cambiar a enVista la cambia a 119.2.
+
+Lo que **no** hace, todo comprobado:
+
+- **No elige sola**, ni siquiera la primera de la lista.
+- **No hereda.** Una lente que no está en el informe se queda sin constante: no se
+  coge la más parecida, ni otra de la misma marca, ni un promedio.
+- **No arrastra.** Al cambiar de lente, la constante de la anterior se quita.
+- **No empareja de forma aproximada.** `MX60` y `MX60T` son lentes distintas.
+- **No interpreta «SRK/T» en un aparato desconocido.** Ahí ese número puede ser
+  cualquier cosa.
+- **No pisa lo que has escrito tú.** Avisa de que quizá ya no corresponde.
+
+Y si una calculadora externa **usa otra constante** —elegir el modelo en su web
+puede cambiarla—, el informe lo dice con las dos cifras. No se corrige: el
+resultado es el de la constante que usó la web, y taparlo sería mentir por omisión.
+
+⚠️ **El lector de visión todavía no lee esta tabla.** Va vacía y lo avisa; no se
+inventa. Ampliarlo es tarea aparte y no se puede medir sin clave (O8).
 
 #### Cuánto acierta el lector local, medido
 
@@ -324,6 +359,12 @@ Ampliar ×3 **empeora** —apareció un 24.97 donde ponía 24.07—, así que ha
   campos: no se rellenan las secciones específicas de EVO para post-LASIK.
 - **Los dos ojos se calculan por separado.** Hay que cambiar de ojo y volver a
   lanzar; no se calculan los dos de una tacada.
+- **El lector de visión no lee la tabla de lentes.** Devuelve la lista vacía y lo
+  avisa cuando el aparato es de los que la traen, en vez de inventarla. Con el
+  lector de visión encendido hay que escribir la constante A a mano.
+- **Solo ANTERION trae tabla de lentes reconocida.** Igual que con la ACD: es una
+  decisión (D33), no un descuido. Añadir otro aparato exige comprobar antes cómo
+  presenta sus constantes.
 - **Solo ANTERION puede derivar la ACD.** Es una decisión, no una carencia (D31),
   pero conviene tenerlo escrito: si un IOLMaster o un Pentacam trae AQD y grosor
   corneal sin ACD, el programa **no la calcula** — no está documentado desde qué
@@ -372,6 +413,11 @@ Ninguno de los tres impide usar lo demás.
   alternativas eran mentira («del informe» de algo que el papel no dice, o
   «aportado» de algo que no ha escrito nadie), y aunque la cuenta sea exacta nadie
   ha visto el resultado.
+- **D33: la constante A pertenece al modelo de lente, no al informe.** Se guarda la
+  relación modelo→constante, nunca una constante suelta, y una lente que no está en
+  el informe no hereda la de otra.
+- **D34: si una web externa dice haber usado otra constante, se registra y se
+  enseña; no se corrige.** El resultado es el de la constante que usó la web.
 
 ---
 

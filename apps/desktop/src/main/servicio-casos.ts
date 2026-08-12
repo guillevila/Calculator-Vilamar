@@ -27,12 +27,15 @@ import {
   conOjo,
   conResultado,
   corregirMedida,
+  describirLente,
+  elegirLente as elegirLenteDelDominio,
   formatoDeNombre,
   necesitaComprobacionHumana,
   NOMBRE_DISPOSITIVO,
   ojoDe,
   ojosDelCaso,
   sinMedida,
+  sinRepetidas,
   validarOjo,
 } from '@vilamar/domain'
 import type { DocumentoEntrada, LectorVision, ProveedorExtraccion } from '@vilamar/extraction'
@@ -271,6 +274,24 @@ export class ServicioCasos {
         ],
       }
 
+      // Las lentes que propone el informe. Se ACUMULAN entre documentos en vez de
+      // pisarse: subir la biometría y luego un informe de topografía no debe hacer
+      // desaparecer los modelos que traía el primero. Las repeticiones exactas se
+      // quitan; una misma lente con constantes distintas se conserva, porque esa
+      // contradicción hay que verla antes de elegir.
+      if (resultado.lentes.length > 0) {
+        caso = {
+          ...caso,
+          lentesDelInforme: sinRepetidas([...(caso.lentesDelInforme ?? []), ...resultado.lentes]),
+        }
+        avisos.push(
+          `El informe propone ${resultado.lentes.length} ${
+            resultado.lentes.length === 1 ? 'modelo de lente' : 'modelos de lente'
+          } con su constante A: ${resultado.lentes.map(describirLente).join(' · ')}. ` +
+            'No se ha elegido ninguna: la constante A depende de qué lente vayas a implantar.',
+        )
+      }
+
       for (const [lado, leido] of Object.entries(resultado.ojos)) {
         const lateralidad = lado as Lateralidad
         const yaHabia = caso.ojos[lateralidad]
@@ -388,13 +409,35 @@ export class ServicioCasos {
     return ojosDelCaso(caso).flatMap((l) => [...validarOjo(ojoDe(caso, l))])
   }
 
-  elegirLente(fabricante: string, modelo: string): Caso {
+  /**
+   * Elige el modelo de lente y, con él, resuelve su constante A.
+   *
+   * Toda la lógica está en el dominio (`elegirLenteDelDominio`), y a propósito: es
+   * el único sitio donde una constante de la tabla del informe se convierte en la
+   * `CONSTANTE_A` del caso. Si este servicio escribiera la constante por su cuenta,
+   * habría dos caminos y uno de ellos podría dejarla emparejada con la lente
+   * equivocada.
+   *
+   * Los avisos **se devuelven con la operación**, no se guardan en el servicio:
+   * explican por qué no se ha puesto una constante o por qué se ha quitado la
+   * anterior, y eso pertenece a esta acción concreta. Guardarlos como estado los
+   * dejaría colgando después de que dejaran de ser verdad.
+   */
+  elegirLente(
+    fabricante: string,
+    modelo: string,
+  ): {
+    caso: Caso
+    avisos: readonly string[]
+    emparejamiento: 'ENCONTRADA' | 'AMBIGUA' | 'NO_ESTA'
+  } {
     const caso = this.exigirCaso()
-    return this.establecer({
-      ...caso,
-      lente: { fabricante, modelo },
-      actualizadoEn: this.iso(),
-    })
+    const r = elegirLenteDelDominio(caso, { fabricante, modelo }, this.iso())
+    return {
+      caso: this.establecer(r.caso),
+      avisos: r.avisos,
+      emparejamiento: r.emparejamiento.estado,
+    }
   }
 
   // ── Cálculo ──────────────────────────────────────────────────────────────

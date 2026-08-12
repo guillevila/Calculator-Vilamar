@@ -330,6 +330,95 @@ CCT             530 um</pre></body>`)
 })
 
 /**
+ * La tabla de lentes del informe, de punta a punta.
+ *
+ * Es el recorrido entero de la regla: un PDF de verdad con cuatro modelos y
+ * cuatro constantes → ninguna elegida → se elige una → aparece SU constante →
+ * se cambia de lente → cambia la constante → se elige una que no está → no hereda
+ * nada.
+ *
+ * Las piezas están probadas en el dominio. Lo que aquí puede fallar es lo que
+ * ninguna prueba de dominio ve: que la constante se lea bien pero no llegue a la
+ * pantalla, o que llegue la de la lente equivocada.
+ */
+test('las lentes del informe: cada constante con su modelo', async () => {
+  test.setTimeout(180_000)
+
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1100, height: 900 } })
+  // ⚠️ Modelos reales pero números INVENTADOS. No sale de ningún informe de
+  // ninguna persona: reproduce la forma en que este aparato presenta la tabla.
+  await p.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <pre>Cataract App
+
+OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+ACD (epi)      3.18 mm
+CCT             530 um
+
+IOL calculation
+
+LUX SMART
+SRK/T: 118.5
+
+ZEISS AT ELANA 841P
+SRK/T: 119.6
+
+Bausch&amp;Lomb Akreos AO MI60
+SRK/T: 119.1
+
+Bausch&amp;Lomb enVista MX60
+SRK/T: 119.2</pre></body>`)
+  const rutaPdf = join(carpetaDatos, 'anterion-lentes.pdf')
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  const resultado = await ventana.evaluate(
+    async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'anterion-lentes.pdf', ruta }]),
+    rutaPdf,
+  )
+
+  // Las cuatro llegan, cada una con la suya.
+  const lentes = resultado?.caso?.lentesDelInforme ?? []
+  expect(lentes.map((l) => l.constanteA)).toEqual([118.5, 119.6, 119.1, 119.2])
+
+  // Y NINGUNA se ha convertido en la constante A del ojo.
+  expect(resultado?.caso?.ojos?.OD?.medidas?.CONSTANTE_A).toBeUndefined()
+  await expect(ventana.getByTestId('lentes-del-informe')).toBeVisible()
+  await expect(ventana.getByTestId('campo-CONSTANTE_A')).toHaveValue('')
+  await ventana.screenshot({ path: 'test-results/12-lentes-informe.png', fullPage: true })
+
+  // Elegir Akreos trae 119.1 —la suya— y sale como dato del informe.
+  await ventana.getByTestId('lente-informe-bausch-lomb-akreos-ao-mi60').click()
+  await expect(ventana.getByTestId('campo-CONSTANTE_A')).toHaveValue('119.1')
+  await expect(ventana.getByTestId('origen-CONSTANTE_A')).toHaveText('Del informe')
+
+  // Cambiar a enVista cambia la constante. No se queda la anterior.
+  await ventana.getByTestId('lente-informe-bausch-lomb-envista-mx60').click()
+  await expect(ventana.getByTestId('campo-CONSTANTE_A')).toHaveValue('119.2')
+
+  // Y LUX SMART, la suya.
+  await ventana.getByTestId('lente-informe-lux-smart').click()
+  await expect(ventana.getByTestId('campo-CONSTANTE_A')).toHaveValue('118.5')
+
+  // Una lente que NO está en el informe no hereda ninguna constante.
+  await ventana.getByTestId('selector-lente').selectOption('Alcon Vivity')
+  await expect(ventana.getByTestId('campo-CONSTANTE_A')).toHaveValue('')
+  await expect(ventana.getByTestId('origen-CONSTANTE_A')).toHaveText('Pendiente de aportar')
+  await expect(ventana.getByTestId('aviso-lente').first()).toContainText(
+    /no aparece en el informe/i,
+  )
+
+  await ventana.screenshot({ path: 'test-results/13-lente-no-esta.png', fullPage: true })
+})
+
+/**
  * El otro camino: el contenido del fichero, que es el que usa el arrastre cuando
  * Electron no da la ruta. Se comprobó que un `Uint8Array` sobrevive íntegro al
  * IPC; esta prueba lo fija para que no se rompa sin que nadie se entere.

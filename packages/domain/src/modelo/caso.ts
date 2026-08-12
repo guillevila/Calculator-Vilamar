@@ -13,6 +13,7 @@
 import type { Calculadora, ResultadoCalculadora } from './calculadoras.js'
 import type { DocumentoCargado } from './documento.js'
 import type { Lateralidad } from './lateralidad.js'
+import type { LenteDetectada } from './lente.js'
 import type { OjoBiometrico } from './medida.js'
 import { ojoVacio, todasConfirmadas } from './medida.js'
 
@@ -59,6 +60,18 @@ export interface Caso {
   readonly resultados: Readonly<Record<string, ResultadoCalculadora>>
   /** Modelo de lente elegido para este caso. */
   readonly lente?: LenteElegida
+  /**
+   * Las lentes que el informe nombra, con la constante que les asocia.
+   *
+   * Van aquí y **no** por ojo porque la constante A pertenece al modelo de lente,
+   * no al ojo: la misma lente se implanta con la misma constante mire quien mire.
+   * Que después se use para calcular OD o OS es otra cosa.
+   *
+   * Ninguna de estas se convierte en `CONSTANTE_A` por su cuenta. Un informe con
+   * cuatro lentes tiene cuatro constantes posibles y **ninguna es la del caso**
+   * hasta que una persona elige el modelo.
+   */
+  readonly lentesDelInforme?: readonly LenteDetectada[]
   /** Notas del usuario. No se envían a ningún sitio. */
   readonly notas?: string
 }
@@ -69,6 +82,18 @@ export interface LenteElegida {
   /** Cómo se llama ese modelo en cada web, cuando difiere. */
   readonly nombreEnEvo?: string
   readonly nombreEnBarrett?: string
+  /**
+   * Si la `CONSTANTE_A` del caso salió de la tabla de lentes del informe, de qué
+   * modelo y con qué valor.
+   *
+   * No es información redundante: es lo que permite **cambiar de lente sin
+   * arrastrar la constante de la anterior**. Al elegir otro modelo hay que saber
+   * si la constante que hay pertenecía a la lente vieja —y entonces sobra— o si
+   * venía de una línea suelta del informe o la escribió una persona —y entonces
+   * se respeta—. Sin esto habría que adivinarlo mirando la evidencia, que es
+   * exactamente la clase de deducción frágil que este modelo evita.
+   */
+  readonly constanteDeLaTabla?: { readonly modelo: string; readonly valor: number }
 }
 
 export function claveResultado(calculadora: Calculadora, ojo: Lateralidad): string {
