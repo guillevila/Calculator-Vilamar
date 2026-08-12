@@ -1,0 +1,129 @@
+/**
+ * Cuánta falta hace cada campo.
+ *
+ * La regla que se prueba aquí es que **«obligatorio» no es una propiedad del
+ * campo**: depende de qué calculadora quieras usar. Sin SIA, Barrett no calcula y
+ * EVO sí. Marcar los dos casos igual haría que alguien rellenara datos que no le
+ * hacen falta, o se dejara sin rellenar uno que sí.
+ *
+ * Todo sale de `FICHAS`, que está comprobada contra los formularios reales. No
+ * hay una segunda lista que mantener.
+ */
+
+import { describe, expect, it } from 'vitest'
+
+import {
+  CALCULADORAS,
+  exigenciaDe,
+  FICHAS,
+  quienNoPuedeCalcular,
+  textoDeExigencia,
+} from './calculadoras.js'
+import { CAMPOS } from './campos.js'
+
+describe('los cuatro niveles', () => {
+  it('AL es obligatorio para las tres', () => {
+    const e = exigenciaDe('AL')
+    expect(e.nivel).toBe('OBLIGATORIO')
+    expect(e.requeridoPor).toHaveLength(CALCULADORAS.length)
+    expect(textoDeExigencia(e)).toBe('Obligatorio')
+  })
+
+  it('el SIA solo es obligatorio para Barrett, y se dice cuál', () => {
+    // Es el caso que hace falsa la etiqueta «obligatorio» a secas.
+    const e = exigenciaDe('SIA')
+    expect(e.nivel).toBe('SEGUN_CALCULADORA')
+    expect(e.requeridoPor).toEqual(['BARRETT_TORIC'])
+    expect(e.opcionalPara).toContain('EVO_TORIC')
+    // El texto NOMBRA la calculadora: es lo que lo hace accionable.
+    expect(textoDeExigencia(e)).toContain('Barrett')
+    expect(textoDeExigencia(e)).toMatch(/^Obligatorio para /)
+  })
+
+  it('el grosor del cristalino es opcional en todas', () => {
+    const e = exigenciaDe('LT')
+    expect(e.nivel).toBe('OPCIONAL')
+    expect(e.requeridoPor).toHaveLength(0)
+    expect(e.opcionalPara.length).toBeGreaterThan(0)
+    expect(textoDeExigencia(e)).toBe('Opcional')
+  })
+
+  it('AQD y nk no se envían a ninguna calculadora, y se dice', () => {
+    // Se leen del informe y quedan en el PDF por trazabilidad, pero no alimentan
+    // ningún cálculo. Callarlo haría pensar que hacen falta.
+    for (const campo of ['AQD', 'INDICE_QUERATOMETRICO'] as const) {
+      const e = exigenciaDe(campo)
+      expect(e.nivel).toBe('INFORMATIVO')
+      expect(e.requeridoPor).toHaveLength(0)
+      expect(e.opcionalPara).toHaveLength(0)
+      expect(textoDeExigencia(e)).toMatch(/no se envía/i)
+    }
+  })
+})
+
+describe('la clasificación cubre todos los campos y no se contradice', () => {
+  it('cada campo cae en exactamente un nivel', () => {
+    for (const campo of CAMPOS) {
+      const e = exigenciaDe(campo)
+      expect(['OBLIGATORIO', 'SEGUN_CALCULADORA', 'OPCIONAL', 'INFORMATIVO']).toContain(e.nivel)
+      // Un campo no puede ser a la vez requerido y opcional para LA MISMA
+      // calculadora: sería una ficha mal escrita.
+      for (const c of e.requeridoPor) expect(e.opcionalPara).not.toContain(c)
+    }
+  })
+
+  it('sale de las fichas, no de una lista escrita a mano', () => {
+    // Si mañana Barrett deja de pedir el SIA, se cambia su ficha y esto cambia
+    // solo. Esta comprobación es la que garantiza que no hay dos verdades.
+    for (const campo of CAMPOS) {
+      const e = exigenciaDe(campo)
+      for (const c of CALCULADORAS) {
+        expect(FICHAS[c].requeridos.includes(campo)).toBe(e.requeridoPor.includes(c))
+        expect(FICHAS[c].opcionales.includes(campo)).toBe(e.opcionalPara.includes(c))
+      }
+    }
+  })
+
+  it('hay al menos un campo de cada nivel: la clasificación sirve para algo', () => {
+    const niveles = new Set(CAMPOS.map((c) => exigenciaDe(c).nivel))
+    expect(niveles.size).toBe(4)
+  })
+})
+
+describe('avisar ANTES de confirmar de quién no va a poder calcular', () => {
+  it('sin nada, ninguna puede, y se dice qué falta a cada una', () => {
+    const r = quienNoPuedeCalcular({})
+    expect(r).toHaveLength(CALCULADORAS.length)
+    for (const x of r) {
+      expect(x.faltan).toEqual(FICHAS[x.calculadora].requeridos)
+    }
+  })
+
+  it('con todo lo que pide cada una, la lista está vacía', () => {
+    const todo: Record<string, number> = {}
+    for (const c of CALCULADORAS) for (const campo of FICHAS[c].requeridos) todo[campo] = 1
+    expect(quienNoPuedeCalcular(todo)).toHaveLength(0)
+  })
+
+  it('falta SOLO el SIA: Barrett no puede, EVO y Kane sí', () => {
+    // Es la razón de ser de todo esto. Un fallo de una calculadora no bloquea a
+    // las demás, y ahora se sabe antes de esperar 47 segundos.
+    const todo: Record<string, number> = {}
+    for (const c of CALCULADORAS) for (const campo of FICHAS[c].requeridos) todo[campo] = 1
+    delete todo['SIA']
+
+    const r = quienNoPuedeCalcular(todo)
+    expect(r).toHaveLength(1)
+    expect(r[0]!.calculadora).toBe('BARRETT_TORIC')
+    expect(r[0]!.faltan).toEqual(['SIA'])
+  })
+
+  it('un valor 0 cuenta como presente, no como hueco', () => {
+    // La refracción objetivo 0.00 es emetropía: un dato real. Si el cero se
+    // tomara por ausencia, el aviso diría que falta algo que sí está.
+    const todo: Record<string, number> = {}
+    for (const c of CALCULADORAS) for (const campo of FICHAS[c].requeridos) todo[campo] = 1
+    todo['REFRACCION_OBJETIVO'] = 0
+    expect(quienNoPuedeCalcular(todo)).toHaveLength(0)
+  })
+})

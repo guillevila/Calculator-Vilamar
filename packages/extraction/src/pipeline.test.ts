@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { valorDe, validarOjo, tiene } from '@vilamar/domain'
+import { origenDe, valorDe, validarOjo, tiene } from '@vilamar/domain'
 
 import { detectarEnTexto } from './deteccion/detector.js'
 import * as fx from './fixtures/sinteticos.js'
@@ -366,5 +366,85 @@ describe('regresión — el hueco entre columnas no es «el hueco más grande»'
     expect(s.porOjo.OS).toMatch(/K1[\s\S]*40\.27[\s\S]*8/)
     expect(s.porOjo.OD).not.toContain('40.27')
     expect(s.porOjo.OS).not.toContain('41.22')
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Datos del ANTERION que antes se tiraban
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// El informe los imprime y el modelo ya tenía los campos; lo que faltaba eran
+// las reglas de lectura. No se ha inventado ninguna equivalencia clínica: cada
+// uno va a su campo y ya está.
+
+describe('ANTERION: refracción objetivo y nk', () => {
+  const r = leer(fx.ANTERION_OD_OS)
+
+  it('lee la refracción objetivo, incluido un 0.00', () => {
+    // 0.00 D es emetropía: un objetivo legítimo, no un hueco. Si el cero se
+    // tratara como ausencia, el programa borraría una decisión clínica real.
+    expect(valorDe(r.ojos.OD!, 'REFRACCION_OBJETIVO')).toBe(0)
+  })
+
+  it('lee una refracción objetivo NEGATIVA con su signo', () => {
+    // Comerse el menos convertiría una miopía buscada en una hipermetropía.
+    expect(valorDe(r.ojos.OS!, 'REFRACCION_OBJETIVO')).toBe(-0.25)
+  })
+
+  it('la refracción objetivo leída viene DEL INFORME, no aportada', () => {
+    // Aunque el campo esté catalogado como decisión del cirujano: el origen
+    // sale del valor concreto, no del tipo de campo.
+    const m = r.ojos.OD!.medidas.REFRACCION_OBJETIVO
+    expect(m).toBeDefined()
+    expect(origenDe(m)).toBe('DEL_INFORME')
+    expect(m!.procedencia.evidencia?.texto).toMatch(/Target/i)
+  })
+
+  it('lee nk = 1.3375 en los dos ojos', () => {
+    expect(valorDe(r.ojos.OD!, 'INDICE_QUERATOMETRICO')).toBe(1.3375)
+    expect(valorDe(r.ojos.OS!, 'INDICE_QUERATOMETRICO')).toBe(1.3375)
+  })
+
+  it('nk queda dentro de su rango válido y no genera aviso', () => {
+    const avisos = validarOjo(r.ojos.OD!).filter((a) => a.campo === 'INDICE_QUERATOMETRICO')
+    expect(avisos.filter((a) => a.nivel === 'INVALID')).toHaveLength(0)
+  })
+
+  it('no se inventa ninguno cuando el informe no los trae', () => {
+    // El IOLMaster de los fixtures no publica ni Target ni nk. Un extractor que
+    // «rellenara» con el valor típico sería justo lo que este programa no hace.
+    const otro = leer(fx.IOLMASTER_DOS_COLUMNAS)
+    expect(tiene(otro.ojos.OD!, 'REFRACCION_OBJETIVO')).toBe(false)
+    expect(tiene(otro.ojos.OD!, 'INDICE_QUERATOMETRICO')).toBe(false)
+  })
+})
+
+describe('AQD no se transforma nunca en ACD', () => {
+  const r = leer(fx.ANTERION_OD_OS)
+
+  it('los dos se leen, y cada uno con su valor', () => {
+    // Es la trampa clásica de este informe: se parecen y no son lo mismo. ACD se
+    // mide desde el epitelio; AQD desde el endotelio.
+    expect(valorDe(r.ojos.OD!, 'ACD')).toBe(3.18)
+    expect(valorDe(r.ojos.OD!, 'AQD')).toBe(2.65)
+    expect(valorDe(r.ojos.OD!, 'ACD')).not.toBe(valorDe(r.ojos.OD!, 'AQD'))
+  })
+
+  it('un informe que solo trae AQD deja ACD sin constar', () => {
+    const soloAqd = leer(`ANTERION
+OD
+AL   24.07 mm
+AQD (endo)  2.65 mm`)
+    expect(valorDe(soloAqd.ojos.OD!, 'AQD')).toBe(2.65)
+    expect(tiene(soloAqd.ojos.OD!, 'ACD')).toBe(false)
+  })
+
+  it('un informe que solo trae ACD deja AQD sin constar', () => {
+    const soloAcd = leer(`ANTERION
+OD
+AL   24.07 mm
+ACD (epi)   3.18 mm`)
+    expect(valorDe(soloAcd.ojos.OD!, 'ACD')).toBe(3.18)
+    expect(tiene(soloAcd.ojos.OD!, 'AQD')).toBe(false)
   })
 })

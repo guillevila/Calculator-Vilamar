@@ -127,6 +127,104 @@ export function procedenciaManual(cuando: string): Procedencia {
   return { metodo: 'MANUAL', registradoEn: cuando }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  De dónde salió el valor, dicho como lo entiende una persona
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * El origen de un dato, tal y como se le enseña a quien revisa.
+ *
+ * Es una lectura del estado del dato, no un campo que se guarde: se deduce de la
+ * procedencia y de si hay un valor original conservado. Guardarlo aparte
+ * permitiría que se desincronizara del dato al que describe.
+ *
+ * **El origen pertenece al VALOR, no al tipo de campo.** El mismo campo puede
+ * venir del informe en un caso y escribirse a mano en otro. Un `TARGET
+ * REFRACTION` impreso en el informe es DEL_INFORME aunque sea, conceptualmente,
+ * una decisión del cirujano.
+ *
+ * Y es información **distinta de la validación**. Que un dato venga del informe
+ * no dice si es correcto, si está confirmado o si está fuera de rango. Son dos
+ * preguntas y se responden por separado.
+ */
+export type OrigenDato =
+  /** Lo traía el documento: texto del PDF, OCR o modelo de visión. */
+  | 'DEL_INFORME'
+  /** No venía en el informe y lo ha escrito una persona. */
+  | 'APORTADO'
+  /** El informe traía un valor y una persona lo cambió. Se conserva el de antes. */
+  | 'CORREGIDO'
+  /** No está en el informe y todavía nadie lo ha aportado. */
+  | 'NO_CONSTA'
+
+/**
+ * Lo mínimo que hace falta para saber el origen de un dato.
+ *
+ * Se declara así, y no pidiendo una `Medida` entera, para que esta función viva
+ * junto a la procedencia y no tenga que importar el módulo de medidas —que ya
+ * importa este—. Evita una dependencia circular sin partir el concepto en dos.
+ */
+export interface DatoConOrigen {
+  readonly procedencia: Procedencia
+  readonly original?: { readonly valor: number } | undefined
+}
+
+/**
+ * De dónde salió este valor.
+ *
+ * `undefined` significa que el dato no está, que es exactamente NO_CONSTA: en
+ * este modelo un dato ausente se representa por su ausencia, no por un valor
+ * especial.
+ */
+export function origenDe(dato: DatoConOrigen | undefined): OrigenDato {
+  if (!dato) return 'NO_CONSTA'
+  // Un derivado se declara como aportado por el programa, no como leído: no lo
+  // ponía el informe. La explicación de la derivación va aparte.
+  if (dato.procedencia.metodo === 'DERIVADO') return 'APORTADO'
+  if (esMedido(dato.procedencia)) return 'DEL_INFORME'
+  // Manual. Lo que decide entre corregido y aportado es si pisó algo.
+  return dato.original !== undefined ? 'CORREGIDO' : 'APORTADO'
+}
+
+/**
+ * Cómo se llama cada origen en pantalla.
+ *
+ * `NO_CONSTA` no está aquí porque **tiene dos textos**, y cuál toca depende de
+ * quién se espera que aporte el campo. Ver `textoDeOrigen`.
+ */
+export const TEXTO_ORIGEN: Readonly<Record<Exclude<OrigenDato, 'NO_CONSTA'>, string>> = {
+  DEL_INFORME: 'Del informe',
+  APORTADO: 'Aportado',
+  CORREGIDO: 'Corregido',
+}
+
+/** Los dos textos posibles cuando no hay valor. */
+export const TEXTO_NO_CONSTA = 'No consta en el informe'
+export const TEXTO_PENDIENTE = 'Pendiente de aportar'
+
+/**
+ * El texto que ve el usuario para el origen de un campo.
+ *
+ * Cuando NO hay valor, el texto depende de **quién se espera que lo aporte**:
+ *
+ *  - Un dato que mide el aparato y no aparece → «No consta en el informe». Es
+ *    información sobre el documento: ese informe no lo trae.
+ *  - Un dato que decide el cirujano y no aparece → «Pendiente de aportar». No es
+ *    un fallo de lectura; sencillamente todavía no lo ha puesto nadie.
+ *
+ * Esa diferencia es la que arregla el problema de fondo: hasta ahora los dos
+ * casos decían «NO ENCONTRADO», y eso hacía parecer que el extractor había
+ * fallado cuando muchas veces el dato simplemente no venía en el documento.
+ *
+ * Ojo: `loAportaElCirujano` describe **quién suele aportar el campo**, y solo se
+ * usa para elegir el texto del hueco. No decide el origen de un valor que sí
+ * existe — eso siempre sale del propio valor.
+ */
+export function textoDeOrigen(origen: OrigenDato, loAportaElCirujano: boolean): string {
+  if (origen !== 'NO_CONSTA') return TEXTO_ORIGEN[origen]
+  return loAportaElCirujano ? TEXTO_PENDIENTE : TEXTO_NO_CONSTA
+}
+
 /**
  * Describe la procedencia en una frase, para la pantalla y para el PDF.
  */

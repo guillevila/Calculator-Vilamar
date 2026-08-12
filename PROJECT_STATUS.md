@@ -125,6 +125,53 @@ Y con imágenes de distintos tamaños y formatos, comprobado por separado:
 | JPEG 4032×3024 (foto de móvil)       | 91 %               | correctos                                    |
 | Fichero corrupto                     | —                  | mensaje claro, y la aplicación sigue abierta |
 
+#### Cada campo dice cuánta falta hace
+
+No todos los datos son obligatorios, y **«obligatorio» depende de qué calculadora
+quieras**. De los 24 campos:
+
+| Cuántos | Qué son                                | Cuáles                                                                                        |
+| ------- | -------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 5       | **Obligatorios** en las tres           | AL, K1, K2, ACD, refracción objetivo                                                          |
+| 5       | **Obligatorios en alguna**             | Ejes de K1/K2 (EVO y Barrett), SIA y eje de incisión (solo Barrett), constante A (EVO y Kane) |
+| 8       | **Opcionales** — mejoran el resultado  | LT, CCT, WTW, córnea posterior, factor de lente                                               |
+| 6       | **No se envían a ninguna calculadora** | AQD, TK1/TK2 y sus ejes, nk                                                                   |
+
+Cada campo lo dice debajo de su nombre. Y antes de confirmar, la pantalla avisa
+de **qué calculadoras no van a poder calcular** con lo que hay y qué les falta —
+hasta ahora eso solo se sabía después de esperar los 47 segundos del recorrido.
+
+No bloquea: calcular con dos de tres es un resultado legítimo, y quizá el dato que
+falta sencillamente no lo tienes.
+
+#### La pantalla de revisión dice de dónde sale cada dato
+
+Antes, un campo que el informe no traía y un campo que tiene que poner el cirujano
+decían lo mismo: «NO ENCONTRADO». Eso hacía parecer que la lectura había fallado.
+Ahora se distinguen cuatro orígenes, y el origen sale del **valor concreto**, no
+del tipo de campo:
+
+| Lo que ves                  | Qué significa                                      |
+| --------------------------- | -------------------------------------------------- |
+| **Del informe**             | Lo traía el documento                              |
+| **Aportado**                | No venía y lo has escrito tú                       |
+| **Corregido**               | El informe traía otro valor. Se enseña cuál        |
+| **No consta en el informe** | Ese informe no publica ese dato                    |
+| **Pendiente de aportar**    | Lo decides tú (SIA, eje de incisión, constante A…) |
+
+Tres cosas que se pueden comprobar:
+
+- **Cualquier dato que no venga en el informe se puede escribir a mano**, y queda
+  marcado como aportado.
+- **Corregir no borra lo que ponía.** Si el informe decía 24.07 y escribes 24.08,
+  la pantalla y el PDF enseñan «Leído originalmente: 24.07 mm», con la línea
+  literal del documento.
+- **Origen y estado van en columnas separadas.** De dónde salió un número y si
+  está revisado son dos preguntas.
+
+También se leen ya dos datos del ANTERION que antes se tiraban: **refracción
+objetivo** (incluido el 0.00, que es emetropía y no un hueco) y **nk = 1.3375**.
+
 #### Cuánto acierta el lector local, medido
 
 `pnpm comparar:lectores` pasa 6 documentos por el lector y cuenta. 20 datos por

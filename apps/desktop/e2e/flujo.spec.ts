@@ -99,17 +99,58 @@ test('se pueden escribir los datos a mano y se validan mientras escribes', async
   await expect(ventana.getByTestId('confirmar')).toBeEnabled()
 })
 
-test('un campo vacío se enseña como NO ENCONTRADO, nunca como cero', async () => {
+test('un campo vacío dice quién lo tiene que aportar, no «no encontrado»', async () => {
+  // Era el problema de fondo: «NO ENCONTRADO» mezclaba «el informe no lo trae»
+  // con «esto lo pones tú», y hacía parecer que la lectura había fallado.
   const wtw = ventana.getByTestId('campo-WTW')
   await expect(wtw).toHaveValue('')
-  await expect(wtw).toHaveAttribute('placeholder', 'NO ENCONTRADO')
+  // WTW lo mide el aparato: si no está, es que ese informe no lo trae.
+  await expect(wtw).toHaveAttribute('placeholder', 'No consta en el informe')
+  await expect(ventana.getByTestId('origen-WTW')).toHaveText('No consta en el informe')
 
-  // Y al escribirlo y borrarlo, vuelve a estar ausente en lugar de quedarse a 0.
+  // El SIA no viene en ninguna biometría: lo decide quien opera.
+  await expect(ventana.getByTestId('origen-SIA')).toHaveText('Pendiente de aportar')
+
+  // Y en ningún sitio se dice ya «no encontrado».
+  await expect(ventana.locator('text=/NO ENCONTRADO/i')).toHaveCount(0)
+})
+
+test('un dato que el informe no traía se puede APORTAR a mano', async () => {
+  // Es lo que se pidió: que los datos que no vengan del informe se puedan meter
+  // a mano. Y al hacerlo, el origen lo dice: aportado, no corregido.
+  const wtw = ventana.getByTestId('campo-WTW')
   await wtw.fill('11.9')
   await ventana.getByTestId('campo-CCT').click()
   await expect(wtw).toHaveValue('11.9')
+  await expect(ventana.getByTestId('origen-WTW')).toHaveText('Aportado')
+  // No se inventa un «leído originalmente»: no había nada que conservar.
+  await expect(ventana.getByTestId('original-WTW')).toHaveCount(0)
+  await ventana.screenshot({ path: 'test-results/09-dato-aportado.png' })
+
+  // Borrarlo lo devuelve a no constar, no lo deja a cero.
   await ventana.getByTestId('borrar-WTW').click()
   await expect(wtw).toHaveValue('')
+  await expect(ventana.getByTestId('origen-WTW')).toHaveText('No consta en el informe')
+})
+
+test('cada campo dice cuánta falta hace, y avisa antes de confirmar', async () => {
+  // «Obligatorio» a secas sería mentira: depende de qué calculadora quieras.
+  await expect(ventana.getByTestId('exigencia-AL')).toHaveText('Obligatorio')
+  // El SIA solo lo pide Barrett, y se nombra: es lo que hace la frase útil.
+  await expect(ventana.getByTestId('exigencia-SIA')).toContainText('Barrett')
+  await expect(ventana.getByTestId('exigencia-LT')).toHaveText('Opcional')
+  // Y lo que sorprende: hay campos que se leen y no se envían a ninguna parte.
+  await expect(ventana.getByTestId('exigencia-AQD')).toContainText(/no se envía/i)
+
+  // El aviso llega ANTES de pulsar. Antes esto solo se sabía después de que el
+  // navegador recorriera las tres webs: 47 segundos para saber que faltaba algo.
+  const aviso = ventana.getByTestId('aviso-faltan-requeridos')
+  await expect(aviso).toBeVisible()
+  await expect(aviso).toContainText('Barrett')
+  await ventana.screenshot({ path: 'test-results/10-exigencia.png' })
+
+  // Y no bloquea: calcular con dos de tres es un resultado legítimo.
+  await expect(ventana.getByTestId('confirmar')).toBeEnabled()
 })
 
 test('el flujo completo llega hasta la pantalla de cálculo', async () => {

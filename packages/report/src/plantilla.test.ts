@@ -8,9 +8,10 @@
 
 import { describe, expect, it } from 'vitest'
 
-import type { Caso, Procedencia, ResultadoCalculadora } from '@vilamar/domain'
+import type { Caso, OjoBiometrico, Procedencia, ResultadoCalculadora } from '@vilamar/domain'
 import {
   casoNuevo,
+  corregirMedida,
   confirmar,
   confirmarTodas,
   conMedida,
@@ -292,5 +293,68 @@ describe('robustez', () => {
       const cierra = (h.match(new RegExp(`</${etiqueta}>`, 'g')) ?? []).length
       expect(abre, `<${etiqueta}> abiertas y cerradas`).toBe(cierra)
     }
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  El informe dice de dónde salió cada dato, con el mismo vocabulario
+//  que la pantalla de revisión
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('el origen de cada dato en el PDF', () => {
+  const DEL_PDF = {
+    metodo: 'TEXTO_PDF' as const,
+    documentoId: 'doc-1',
+    registradoEn: CUANDO,
+    evidencia: { texto: 'AL            24.07 mm', pagina: 1 },
+  }
+
+  function informeCon(construir: (ojo: OjoBiometrico) => OjoBiometrico): string {
+    const ojo = confirmarTodas(construir(ojoVacio('OD')))
+    const caso = confirmar(
+      conOjo(casoNuevo('c-origen', 'CV-2026-0099', CUANDO), ojo, CUANDO),
+      CUANDO,
+    )
+    return generarHtmlInforme({
+      caso,
+      version: '0.0.0',
+      generadoEn: CUANDO,
+      comparativas: [],
+      avisos: [],
+      ausenciasRelevantes: [],
+    })
+  }
+
+  it('un dato leído sale como «Del informe»', () => {
+    const html = informeCon((o) => conMedida(o, crearMedida('AL', 'OD', 24.07, DEL_PDF)))
+    expect(html).toContain('Del informe')
+  })
+
+  it('un dato corregido sale como «Corregido» Y enseña lo que ponía', () => {
+    // Es lo que hace auditable una corrección: sin el valor original, el informe
+    // diría «escrito a mano» sin poder explicar frente a qué.
+    const html = informeCon((o) => {
+      const leido = conMedida(o, crearMedida('AL', 'OD', 24.07, DEL_PDF))
+      return corregirMedida(leido, 'AL', 24.08, CUANDO)
+    })
+    expect(html).toContain('Corregido')
+    expect(html).toContain('Leído originalmente')
+    expect(html).toContain('24.07')
+    expect(html).toContain('24.08')
+    // Y la línea literal del informe sigue ahí.
+    expect(html).toContain('AL            24.07 mm')
+  })
+
+  it('un dato aportado a mano sale como «Aportado», sin original inventado', () => {
+    const html = informeCon((o) => corregirMedida(o, 'SIA', 0.3, CUANDO))
+    expect(html).toContain('Aportado')
+    expect(html).not.toContain('Leído originalmente')
+  })
+
+  it('ya no dice «NO ENCONTRADO» de forma genérica', () => {
+    // El texto viejo mezclaba «el informe no lo trae» con «lo tienes que poner
+    // tú», y eso hacía parecer que la lectura había fallado.
+    const html = informeCon((o) => conMedida(o, crearMedida('AL', 'OD', 24.07, DEL_PDF)))
+    expect(html).not.toContain('NO ENCONTRADO')
   })
 })

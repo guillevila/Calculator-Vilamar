@@ -28,6 +28,8 @@ AQD (endo)     2.65 mm
 LT             4.53 mm
 CCT             530 um
 WTW           11.90 mm
+Target Refraction  0.00 D
+nk = 1.3375
 
 OS
 AL            24.01 mm
@@ -38,6 +40,8 @@ AQD (endo)     2.70 mm
 LT             4.48 mm
 CCT             533 um
 WTW           11.80 mm
+Target Refraction -0.25 D
+nk = 1.3375
 `
 
 /** ANTERION, solo ojo derecho. */

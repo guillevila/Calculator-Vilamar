@@ -218,3 +218,97 @@ export function resultadoVacio(
 ): ResultadoCalculadora {
   return { calculadora, ojo, estado, obtenidoEn, opciones: [], mensaje }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Qué campos hay que rellenar de verdad
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Cuánta falta hace un campo.
+ *
+ * Existe porque «obligatorio» a secas **sería mentira**: ser obligatorio no es
+ * una propiedad del campo, depende de qué calculadora quieras usar. Sin SIA,
+ * Barrett no calcula y EVO sí. Marcar los dos casos igual haría que alguien
+ * rellenara datos que no le hacen falta, o que se dejara sin rellenar uno que sí.
+ *
+ * Y hay un cuarto nivel que conviene decir en voz alta: campos que **no se
+ * envían a ninguna parte**. Se leen del informe y se guardan por trazabilidad,
+ * pero no alimentan ningún cálculo. Callarlo haría pensar que hacen falta.
+ */
+export type NivelExigencia =
+  /** Sin él no calcula NINGUNA de las tres. */
+  | 'OBLIGATORIO'
+  /** Sin él, unas calculan y otras no. */
+  | 'SEGUN_CALCULADORA'
+  /** Todas calculan sin él; mejora el resultado. */
+  | 'OPCIONAL'
+  /** No se envía a ninguna calculadora. Queda en el informe. */
+  | 'INFORMATIVO'
+
+export interface Exigencia {
+  readonly nivel: NivelExigencia
+  /** Calculadoras que NO pueden calcular sin este campo. */
+  readonly requeridoPor: readonly Calculadora[]
+  /** Calculadoras que lo aprovechan si está, pero calculan sin él. */
+  readonly opcionalPara: readonly Calculadora[]
+}
+
+/**
+ * Cuánta falta hace este campo, mirando las tres fichas.
+ *
+ * Se calcula desde `FICHAS`, que está comprobada contra los formularios reales.
+ * No hay una segunda lista que mantener: si mañana Barrett deja de pedir el SIA,
+ * se cambia su ficha y esto cambia solo.
+ */
+export function exigenciaDe(campo: CampoBiometrico): Exigencia {
+  const requeridoPor = CALCULADORAS.filter((c) => FICHAS[c].requeridos.includes(campo))
+  const opcionalPara = CALCULADORAS.filter((c) => FICHAS[c].opcionales.includes(campo))
+  const nivel: NivelExigencia =
+    requeridoPor.length === CALCULADORAS.length
+      ? 'OBLIGATORIO'
+      : requeridoPor.length > 0
+        ? 'SEGUN_CALCULADORA'
+        : opcionalPara.length > 0
+          ? 'OPCIONAL'
+          : 'INFORMATIVO'
+  return { nivel, requeridoPor, opcionalPara }
+}
+
+/**
+ * Cómo se dice en pantalla cuánta falta hace un campo.
+ *
+ * En el caso intermedio **se nombran las calculadoras**, porque es la única
+ * forma de que la frase sea accionable: «Obligatorio para Barrett Toric» dice qué
+ * pierdes si lo dejas vacío. «Puede ser obligatorio» no dice nada.
+ */
+export function textoDeExigencia(e: Exigencia): string {
+  switch (e.nivel) {
+    case 'OBLIGATORIO':
+      return 'Obligatorio'
+    case 'SEGUN_CALCULADORA':
+      return `Obligatorio para ${e.requeridoPor.map((c) => FICHAS[c].nombre).join(' y ')}`
+    case 'OPCIONAL':
+      return 'Opcional'
+    case 'INFORMATIVO':
+      return 'No se envía a ninguna calculadora'
+  }
+}
+
+/**
+ * Qué calculadoras no van a poder calcular con lo que hay, y por qué.
+ *
+ * Sirve para avisar **antes** de confirmar. Hasta ahora esto solo se sabía
+ * después de pulsar el botón y esperar a que el navegador recorriera las tres
+ * webs: cuarenta y siete segundos para enterarse de que faltaba un dato que se
+ * podía haber escrito antes.
+ *
+ * Devuelve solo las que fallan. Si está vacío, las tres pueden calcular.
+ */
+export function quienNoPuedeCalcular(
+  medidas: Readonly<Partial<Record<CampoBiometrico, unknown>>>,
+): readonly { readonly calculadora: Calculadora; readonly faltan: readonly CampoBiometrico[] }[] {
+  return CALCULADORAS.map((calculadora) => ({
+    calculadora,
+    faltan: FICHAS[calculadora].requeridos.filter((c) => medidas[c] === undefined),
+  })).filter((x) => x.faltan.length > 0)
+}

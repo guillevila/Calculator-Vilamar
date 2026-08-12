@@ -24,10 +24,9 @@ import {
   casoNuevo as crearCasoNuevo,
   confirmar,
   confirmarMedida,
-  conMedida,
   conOjo,
   conResultado,
-  crearMedida,
+  corregirMedida,
   esLecturaAutomatica,
   formatoDeNombre,
   NOMBRE_DISPOSITIVO,
@@ -305,24 +304,31 @@ export class ServicioCasos {
   // ── Revisión ─────────────────────────────────────────────────────────────
 
   /**
-   * Cambia o borra un dato a mano.
+   * Escribe o borra un dato a mano.
+   *
+   * Cubre las dos cosas que hace una persona en la pantalla de revisión, y el
+   * dominio las distingue solo:
+   *
+   *  - **Aportar** un dato que el informe no traía. No había nada que conservar.
+   *  - **Corregir** uno que sí traía. Entonces **se guarda lo que decía el
+   *    informe**, con su evidencia, y el dato pasa a enseñarse como corregido.
+   *
+   * Antes esto construía una `Medida` nueva de cero, y eso **destruía el valor
+   * original**: el informe final decía «escrito a mano» sin poder explicar frente
+   * a qué. Ahora lo hace `corregirMedida`, que conserva el rastro.
    *
    * `valor === null` BORRA el dato: es la forma correcta de decir «esto no lo
-   * sabemos». No se pone a cero.
+   * sabemos». No se pone a cero. Y borra también el original, porque el campo
+   * vuelve a no constar.
    *
-   * Un dato editado a mano queda confirmado por definición: lo acaba de
-   * escribir una persona mirándolo.
+   * Un dato escrito a mano queda confirmado por definición: lo acaba de escribir
+   * una persona mirándolo.
    */
   editarMedida(lado: Lateralidad, campo: CampoBiometrico, valor: number | null): Caso {
     const caso = this.exigirCaso()
     const ojo = ojoDe(caso, lado)
     const actualizado =
-      valor === null
-        ? sinMedida(ojo, campo)
-        : conMedida(
-            ojo,
-            crearMedida(campo, lado, valor, { metodo: 'MANUAL', registradoEn: this.iso() }, true),
-          )
+      valor === null ? sinMedida(ojo, campo) : corregirMedida(ojo, campo, valor, this.iso())
     return this.establecer(conOjo(caso, actualizado, this.iso()))
   }
 

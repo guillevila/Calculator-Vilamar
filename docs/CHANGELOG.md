@@ -4,6 +4,107 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [0.6.0] — 11/08/2026
+
+Cada campo dice cuánta falta hace, y la pantalla avisa antes de calcular de qué
+se va a quedar sin resultado.
+
+### La pregunta
+
+«¿Son todos los datos obligatorios?» No. Y **«obligatorio» no es una propiedad
+del campo**: depende de qué calculadora quieras. Sin SIA, Barrett no calcula y
+EVO sí. De los 24 campos:
+
+| Cuántos | Nivel                      | Cuáles                                                                                   |
+| ------- | -------------------------- | ---------------------------------------------------------------------------------------- |
+| 5       | Obligatorios en las tres   | AL, K1, K2, ACD, refracción objetivo                                                     |
+| 5       | Obligatorios en alguna     | Ejes de K1/K2 (EVO y Barrett), SIA y eje de incisión (Barrett), constante A (EVO y Kane) |
+| 8       | Opcionales                 | LT, CCT, WTW, córnea posterior, factor de lente                                          |
+| 6       | **No se envían a ninguna** | AQD, TK1/TK2 y sus ejes, nk                                                              |
+
+Esos seis últimos merecen decirse en voz alta: se leen del informe y quedan en el
+PDF por trazabilidad, pero **no alimentan ningún cálculo**. Callarlo hacía pensar
+que hacían falta. Incluye el `nk` que se añadió en la versión anterior.
+
+### Añadido
+
+- `exigenciaDe(campo)` y `textoDeExigencia()`. Salen de `FICHAS`, comprobada
+  contra los formularios reales: no hay una segunda lista que mantener, y hay un
+  test que lo vigila.
+- Cada campo enseña su nivel debajo del nombre. En el caso intermedio **se
+  nombran las calculadoras** — «Obligatorio para Barrett Toric» dice qué pierdes;
+  «puede ser obligatorio» no dice nada.
+- `quienNoPuedeCalcular()` y el aviso **antes** de confirmar, con qué calculadora
+  se queda fuera y qué le falta. Hasta ahora eso solo se sabía después de que el
+  navegador recorriera las tres webs: 47 segundos para enterarse de un dato que
+  se podía haber escrito antes.
+- 11 tests nuevos y una prueba de interfaz más.
+
+### Lo que NO hace
+
+**No bloquea.** Calcular con dos de tres es un resultado legítimo, y puede que el
+dato que falta sencillamente no se tenga. Se avisa y se sigue.
+
+334 tests y 10 pruebas de interfaz.
+
+---
+
+## [0.5.0] — 11/08/2026
+
+La pantalla de revisión deja de mezclar «el informe no lo trae» con «esto lo
+pones tú». Eran dos cosas muy distintas y las dos decían «NO ENCONTRADO», así
+que un hueco perfectamente normal parecía un fallo del extractor.
+
+### La regla
+
+**El origen pertenece al valor concreto, no al tipo de campo.** El mismo campo
+puede venir del informe en un caso y escribirse a mano en otro.
+
+| Origen        | Cuándo                            | En pantalla                                        |
+| ------------- | --------------------------------- | -------------------------------------------------- |
+| `DEL_INFORME` | Texto del PDF, OCR o visión       | «Del informe»                                      |
+| `APORTADO`    | A mano, y no había nada antes     | «Aportado»                                         |
+| `CORREGIDO`   | A mano, y **pisó un valor leído** | «Corregido» + «Leído originalmente: …»             |
+| `NO_CONSTA`   | No está                           | «No consta en el informe» o «Pendiente de aportar» |
+
+Los dos textos del hueco los decide quién se espera que aporte el campo: lo que
+mide el aparato «no consta en el informe»; lo que decide el cirujano está
+«pendiente de aportar».
+
+Y **origen no es validación**: de dónde salió un número y si alguien lo ha
+revisado van en columnas distintas.
+
+### Añadido
+
+- `Medida.original` conserva el valor anterior **y su evidencia** al corregir. Es
+  la única ampliación de modelo que hacía falta; todo lo demás ya estaba y solo
+  faltaba exponerlo bien.
+- `corregirMedida()`, la única forma correcta de escribir a mano. Al corregir dos
+  veces conserva **lo que decía el papel**, no el paso intermedio.
+- `origenDe()`, `textoDeOrigen()` y `loAportaElCirujano()`.
+- **Dos datos del ANTERION que se estaban tirando**: `Target refraction`
+  —incluido el 0.00, que es emetropía y no un hueco, y los valores negativos con
+  su signo— y `nk` (1.3375). Los dos campos ya existían en el dominio: faltaban
+  las reglas del parser. Sin inventar ninguna equivalencia clínica.
+- 39 tests nuevos y una prueba de interfaz más.
+
+### Corregido
+
+- **Una edición manual destruía la evidencia.** El servicio construía una
+  `Medida` nueva de cero, así que el valor leído del informe desaparecía y el PDF
+  decía «escrito a mano» sin poder explicar frente a qué. Verificado por mutación.
+- El informe PDF usa el mismo vocabulario que la pantalla, y en un dato corregido
+  enseña las dos cosas: el valor usado y el que ponía el informe.
+
+### Lo que NO cambia
+
+`AQD` y `ACD` siguen siendo campos distintos y **nada los convierte**. Hay tests
+que lo comprueban en el dominio y en la extracción.
+
+323 tests y 9 pruebas de interfaz.
+
+---
+
 ## [0.4.0] — 11/08/2026
 
 Un comparador que responde con números a «¿qué lector uso y cuánto cuesta?».

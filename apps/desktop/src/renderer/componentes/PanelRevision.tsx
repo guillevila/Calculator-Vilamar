@@ -6,8 +6,15 @@
  *
  * Reglas que se ven en el diseño:
  *
- *  - Un dato que no está pone «NO ENCONTRADO», en ámbar. No pone 0 ni «—».
- *  - Se distingue lo leído del informe de lo escrito a mano.
+ *  - ORIGEN Y ESTADO VAN EN COLUMNAS DISTINTAS. De dónde salió un número y si
+ *    alguien lo ha revisado son dos preguntas, y mezclarlas fue el error que
+ *    había: un campo que el informe no trae parecía un fallo de lectura.
+ *  - El origen sale del VALOR, no del tipo de campo: «Del informe», «Aportado»
+ *    o «Corregido». Sin valor, el texto depende de quién lo aporta —«No consta
+ *    en el informe» si lo mide el aparato, «Pendiente de aportar» si lo pone el
+ *    cirujano—.
+ *  - Corregir NO borra lo que ponía: se enseña «Leído originalmente: …».
+ *  - Todos los campos se pueden escribir a mano, tengan valor o no.
  *  - Un dato imposible se marca en rojo y bloquea; uno raro avisa y deja pasar.
  *  - Borrar un dato es una acción normal y visible: es la forma de decir
  *    «esto no lo sabemos», y es preferible a dejar un número dudoso.
@@ -19,15 +26,21 @@ import type { JSX } from 'react'
 import type { Aviso, CampoBiometrico, Caso, Lateralidad } from '@vilamar/domain'
 import {
   camposDeCategoria,
+  exigenciaDe,
+  fichaDe,
+  quienNoPuedeCalcular,
+  textoDeExigencia,
   definicionDe,
   esDerivado,
+  formatearConUnidad,
+  loAportaElCirujano,
+  origenDe,
+  textoDeOrigen,
   esLecturaAutomatica,
-  esManual,
   nivelDeCampo,
   nombreLateralidad,
   ojoDe,
   ojosDelCaso,
-  TEXTO_AUSENTE,
 } from '@vilamar/domain'
 
 import { api } from '../api.js'
@@ -64,6 +77,14 @@ export function PanelRevision({
 
   const invalidos = useMemo(() => avisos.filter((a) => a.nivel === 'INVALID'), [avisos])
   const advertencias = useMemo(() => avisos.filter((a) => a.nivel === 'WARNING'), [avisos])
+
+  /**
+   * Calculadoras que, con lo que hay escrito, no van a poder calcular.
+   *
+   * Se mira del ojo que se está revisando: los dos ojos pueden tener datos
+   * distintos, y avisar del otro sería confundir.
+   */
+  const sinDatos = useMemo(() => quienNoPuedeCalcular(ojo.medidas), [ojo])
 
   /**
    * Datos leídos por una máquina que la persona todavía no ha comprobado.
@@ -155,6 +176,34 @@ export function PanelRevision({
           Al confirmar, estos datos —y solo estos— se enviarán a las calculadoras. Nada sin revisar
           sale de aquí.
         </p>
+        {/*
+          Se avisa AQUÍ, antes de pulsar. Hasta ahora esto solo se sabía después:
+          el navegador recorría las tres webs y una decía «faltan datos» — 47
+          segundos para enterarse de algo que se podía haber escrito antes.
+
+          No bloquea. Calcular con dos de tres es un resultado legítimo, y quizá
+          el dato que falta no lo tienes. Pero se dice, y se dice qué falta.
+        */}
+        {sinDatos.length > 0 && (
+          <div className="aviso atencion" data-testid="aviso-faltan-requeridos">
+            <strong>
+              Con los datos de {nombreLateralidad(ojoActivo)},{' '}
+              {sinDatos.length === 1 ? 'una' : sinDatos.length}{' '}
+              {sinDatos.length === 1 ? 'calculadora' : 'calculadoras'} no{' '}
+              {sinDatos.length === 1 ? 'va' : 'van'} a poder calcular.
+            </strong>
+            <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
+              {sinDatos.map((x) => (
+                <li key={x.calculadora}>
+                  <strong>{fichaDe(x.calculadora).nombre}</strong>: falta{' '}
+                  {x.faltan.map((c) => definicionDe(c).etiqueta).join(', ')}
+                </li>
+              ))}
+            </ul>
+            Puedes escribir esos datos arriba, o continuar: las demás calculan igual y el informe
+            dirá cuál se quedó sin resultado.
+          </div>
+        )}
         <div className="fila derecha">
           <button
             className="principal grande"
@@ -255,6 +304,12 @@ function FilaCampo({ campo, caso, ojoActivo, avisos, onCambio }: PropsFila): JSX
   const ojo = ojoDe(caso, ojoActivo)
   const def = definicionDe(campo)
   const medida = ojo.medidas[campo]
+  /**
+   * De dónde salió ESTE valor. Se deduce del dato, no se guarda aparte: un
+   * origen guardado por su cuenta acabaría desincronizado del dato que describe.
+   */
+  const origen = origenDe(medida)
+  const exigencia = exigenciaDe(campo)
   const nivel = nivelDeCampo(avisos, ojo, campo)
   const propios = avisos.filter((a) => a.ojo === ojoActivo && a.campo === campo)
 
@@ -298,11 +353,22 @@ function FilaCampo({ campo, caso, ojoActivo, avisos, onCambio }: PropsFila): JSX
       <tr className={claseFila}>
         <td className="campo" title={def.descripcion}>
           {def.etiqueta}
+          {/*
+            «Obligatorio» a secas sería mentira: depende de qué calculadora
+            quieras. Sin SIA, Barrett no calcula y EVO sí. Cuando solo hace falta
+            para algunas, se nombran — es lo que hace la frase accionable.
+          */}
+          <span
+            className={`exigencia ${exigencia.nivel.toLowerCase()}`}
+            data-testid={`exigencia-${campo}`}
+          >
+            {textoDeExigencia(exigencia)}
+          </span>
         </td>
         <td className="valor">
           <input
             value={mostrado}
-            placeholder={TEXTO_AUSENTE}
+            placeholder={textoDeOrigen('NO_CONSTA', loAportaElCirujano(campo))}
             inputMode="decimal"
             aria-label={def.etiqueta}
             data-testid={`campo-${campo}`}
@@ -315,30 +381,60 @@ function FilaCampo({ campo, caso, ojoActivo, avisos, onCambio }: PropsFila): JSX
         </td>
         <td className="unidad">{def.unidad === 'ninguna' ? '' : def.unidad}</td>
         <td>
-          {!medida && <span className="origen ausente">no encontrado</span>}
-          {medida && esManual(medida.procedencia) && <span className="origen manual">a mano</span>}
-          {medida && esDerivado(medida.procedencia) && (
-            <span className="origen derivado">derivado</span>
+          {/*
+            EL ORIGEN SALE DEL VALOR, no del tipo de campo. El mismo campo puede
+            venir del informe en un caso y escribirse a mano en otro — una
+            refracción objetivo impresa en el informe es «Del informe» aunque sea
+            conceptualmente una decisión del cirujano.
+
+            Cuando NO hay valor, el texto depende de quién se espera que lo
+            aporte: «No consta en el informe» para lo que mide el aparato,
+            «Pendiente de aportar» para lo que pone el cirujano. Antes los dos
+            decían «NO ENCONTRADO», y eso hacía parecer que la lectura había
+            fallado cuando muchas veces el dato sencillamente no venía.
+          */}
+          <span className={`origen ${origen.toLowerCase()}`} data-testid={`origen-${campo}`}>
+            {textoDeOrigen(origen, loAportaElCirujano(campo))}
+          </span>
+          {/*
+            Corregir no borra lo que ponía. Se enseña aquí mismo, porque es el
+            sitio donde alguien se pregunta «¿frente a qué se corrigió esto?».
+          */}
+          {medida?.original && (
+            <div className="origen-original" data-testid={`original-${campo}`}>
+              Leído originalmente: {formatearConUnidad(campo, medida.original.valor)}
+            </div>
           )}
-          {medida && !esManual(medida.procedencia) && !esDerivado(medida.procedencia) && (
-            <span className="origen extraido">del informe</span>
+          {medida && esDerivado(medida.procedencia) && (
+            <div className="origen-original">Derivado, no medido</div>
           )}
         </td>
         <td>
           {/*
-            Un dato leído por OCR NUNCA sale como «correcto», aunque esté dentro
-            de rango. Está medido: el reconocimiento leyó 24.81 donde ponía 24.01
-            con un 93 % de fiabilidad. Como el programa no puede distinguirlo, la
-            pantalla no puede decir que está bien.
+            ESTADO ES OTRA COSA QUE ORIGEN. De dónde salió un número y si alguien
+            lo ha revisado son dos preguntas distintas, y se responden en columnas
+            distintas. Aquí solo va la segunda.
+
+            Un dato leído por una máquina NUNCA sale como «correcto», aunque esté
+            dentro de rango. Está medido: el reconocimiento leyó 24.81 donde ponía
+            24.01 con un 93 % de fiabilidad. Como el programa no puede
+            distinguirlo, la pantalla no puede decir que está bien.
           */}
-          {porComprobar ? (
+          {!medida ? (
+            <span className="estado-campo vacio">—</span>
+          ) : porComprobar ? (
             <span className="estado-campo warning">⚠ compruébalo</span>
           ) : (
             <span className={`estado-campo ${nivel.toLowerCase()}`}>
               {nivel === 'VALID' && '✓ correcto'}
               {nivel === 'WARNING' && '⚠ poco frecuente'}
               {nivel === 'INVALID' && '✕ imposible'}
-              {nivel === 'MISSING' && `⚠ ${TEXTO_AUSENTE}`}
+              {/*
+                MISSING con medida presente es un aviso de validación sobre otra
+                cosa (por ejemplo, falta el eje que acompaña a esta K). El hueco
+                del propio campo ya lo dice la columna de origen.
+              */}
+              {nivel === 'MISSING' && '⚠ falta un dato relacionado'}
             </span>
           )}
         </td>
