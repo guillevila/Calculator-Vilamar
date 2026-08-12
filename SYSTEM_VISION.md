@@ -285,7 +285,7 @@ necesita una clave para ejecutarse.
 | F5   | Adapter Barrett                                                  | ✅ Hecho y comprobado contra la web real                                                    |
 | F6   | Recogida y comparación de resultados                             | ✅ Hecho                                                                                    |
 | F7   | Informe PDF                                                      | ✅ Hecho                                                                                    |
-| F8   | Robustez, errores, cambios de las webs y tests end-to-end        | ✅ 477 tests y 12 pruebas de interfaz                                                       |
+| F8   | Robustez, errores, cambios de las webs y tests end-to-end        | ✅ 477 tests y 20 pruebas de interfaz                                                       |
 | F9   | Empaquetado sencillo para el ordenador del usuario               | ⬜ Pendiente: falta el instalador `.exe`                                                    |
 
 El orden puede modificarse por razones técnicas documentadas.

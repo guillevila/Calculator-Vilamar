@@ -91,6 +91,100 @@ const PUERTA = {
   textoCalculadora: /calculate/i,
 }
 
+/**
+ * Cuántos campos editables hacen falta para creerse que esto es la calculadora.
+ *
+ * Es una señal ESTRUCTURAL y no un identificador, porque el formulario está
+ * detrás del acuerdo y no se ha podido ver. Pero distingue perfectamente lo que
+ * hay que distinguir: la calculadora de la pantalla de condiciones —que tiene
+ * cero campos, medido— y de una página a medio cargar.
+ *
+ * Cuando `pnpm reconocer:kane` dé los identificadores reales, esto se sustituye
+ * por el `id` de un campo concreto y la señal pasa a ser exacta.
+ */
+const CAMPOS_MINIMOS_DEL_FORMULARIO = 4
+
+/**
+ * ¿Estamos en la puerta de las condiciones?
+ *
+ * Se exporta —igual que la de abajo— porque la transición tras la aceptación
+ * humana es la parte que más falla y hay que poder probarla sin abrir Kane, con
+ * páginas sintéticas que imiten las tres pantallas.
+ */
+export async function enLaPuertaDeKane(pagina: Page): Promise<boolean> {
+  try {
+    // La dirección manda: no depende del idioma ni de cómo esté pintado el
+    // botón. Medido: `iolformula.com` redirige a `/agreement/`.
+    if (PUERTA.rutaAcuerdo.test(pagina.url())) return true
+    const texto = await pagina.innerText('body')
+    return PUERTA.textoTerminos.test(texto) && !PUERTA.textoCalculadora.test(texto)
+  } catch {
+    // La página puede estar navegando ahora mismo. Eso NO es «no hay puerta».
+    return false
+  }
+}
+
+/**
+ * ¿Está la CALCULADORA delante, de verdad y lista para escribir?
+ *
+ * **Esta función es la corrección del fallo.** Antes se esperaba a
+ * `!enLaPuerta()` —la NEGACIÓN de la puerta— y después se dormía 2,5 segundos.
+ * Fallaba así:
+ *
+ *  - La negación se cumple **en el instante en que la URL deja de ser
+ *    `/agreement/`**, o sea en medio de la navegación. En ese momento la página
+ *    puede estar en blanco.
+ *  - El `waitForTimeout(2500)` hacía de «ya habrá cargado». Si tardaba más,
+ *    `rellenar()` no encontraba ningún campo, devolvía 0, y el adaptador
+ *    concluía **ADAPTER_BROKEN: «ejecuta pnpm reconocer:kane»**.
+ *
+ * O sea: **una transición lenta se presentaba como un conector roto.** La persona
+ * aceptaba bien y el programa le decía que el conector estaba mal.
+ *
+ * Ahora se exige que se cumplan **las tres** cosas, y ninguna es un reloj:
+ *
+ *  1. La dirección ya NO es la del acuerdo.
+ *  2. Hay campos editables y un control de calcular.
+ *  3. El primer campo **se puede escribir de verdad**.
+ *
+ * La tercera importa: un formulario pintado pero deshabilitado, o tapado por una
+ * capa de carga, daría cero campos rellenados y volvería a parecer un conector
+ * roto.
+ */
+export async function calculadoraDeKaneLista(pagina: Page): Promise<boolean> {
+  try {
+    if (PUERTA.rutaAcuerdo.test(pagina.url())) return false
+
+    const hay = await pagina.evaluate((minimo) => {
+      const visible = (el: Element): boolean => {
+        const r = el.getBoundingClientRect()
+        return r.width > 0 && r.height > 0
+      }
+      const editables = [...document.querySelectorAll('input, select')].filter((el) => {
+        const tipo = el.getAttribute('type')
+        return visible(el) && tipo !== 'hidden' && tipo !== 'submit' && tipo !== 'button'
+      })
+      const calcular = [...document.querySelectorAll('button, input[type=submit], a')].some(
+        (el) => {
+          const texto =
+            (el as HTMLElement).innerText || (el as HTMLInputElement).value || el.textContent || ''
+          return visible(el) && /calculate|calcular/i.test(texto)
+        },
+      )
+      return editables.length >= minimo && calcular
+    }, CAMPOS_MINIMOS_DEL_FORMULARIO)
+
+    if (!hay) return false
+
+    const primero = pagina
+      .locator('input:not([type=hidden]):not([type=submit]):not([type=button])')
+      .first()
+    return await primero.isEditable({ timeout: 2000 }).catch(() => false)
+  } catch {
+    return false
+  }
+}
+
 export class AdaptadorKane implements AdaptadorCalculadora {
   readonly calculadora = 'KANE' as const
   readonly nombre = 'Kane'
@@ -154,49 +248,78 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     }
   }
 
+  private async enLaPuerta(pagina: Page): Promise<boolean> {
+    return enLaPuertaDeKane(pagina)
+  }
+
+  private async formularioListo(pagina: Page): Promise<boolean> {
+    return calculadoraDeKaneLista(pagina)
+  }
+
   /**
    * La puerta de las condiciones de uso.
    *
-   * El programa NO pulsa «I Agree». Detecta que hay que aceptarlas, se lo dice
-   * al usuario con el navegador delante, y espera a que desaparezca la
-   * pantalla. Cuando desaparece, sigue solo.
+   * El programa **NO pulsa «I Agree»** y no lo va a hacer: es un contrato entre
+   * el autor de la fórmula y quien la usa. Tampoco toca el reCAPTCHA.
+   *
+   * Lo que sí hace, y es todo lo que hace: **mantener abierta esta misma ventana
+   * y este mismo contexto**, decirle a la persona que le toca, y esperar a que
+   * la calculadora esté delante. No se abre una pestaña nueva ni se recarga: si
+   * se recargara, se perdería lo que la persona acaba de aceptar.
    */
   private async pasarCondiciones(pagina: Page, ctx: ContextoEjecucion): Promise<void> {
-    const hayCondiciones = async (): Promise<boolean> => {
-      try {
-        // La dirección manda: es lo que no depende del idioma ni de cómo esté
-        // pintado el botón. El texto es solo el respaldo.
-        if (PUERTA.rutaAcuerdo.test(pagina.url())) return true
-        const texto = await pagina.innerText('body')
-        return PUERTA.textoTerminos.test(texto) && !PUERTA.textoCalculadora.test(texto)
-      } catch {
-        return false
-      }
+    if (!(await this.enLaPuerta(pagina))) {
+      // Kane recuerda la aceptación en el perfil del navegador, así que lo normal
+      // a partir de la segunda vez es entrar directo. Aun así se espera a que el
+      // formulario esté listo: entrar directo tampoco es instantáneo.
+      await esperarAlUsuario(pagina, () => this.formularioListo(pagina), {
+        limiteMs: 30_000,
+        cancelado: ctx.cancelado,
+      })
+      return
     }
-
-    if (!(await hayCondiciones())) return
 
     ctx.progreso({
       calculadora: this.calculadora,
       fase: 'ESPERANDO_AL_USUARIO',
       requiereUsuario: true,
       mensaje:
-        'KANE REQUIERE TU INTERVENCIÓN. En el navegador que se ha abierto tienes que leer y aceptar las condiciones de uso de la fórmula de Kane. Es un acuerdo legal y solo puedes aceptarlo tú. Calculator Vilamar continuará automáticamente cuando termines.',
+        'KANE REQUIERE TU INTERVENCIÓN. En la ventana del navegador que se ha abierto —esta, no tu Chrome de siempre— tienes que leer y pulsar «I Agree». ' +
+        'Es un acuerdo legal entre el autor de la fórmula y ti, así que solo puedes aceptarlo tú. ' +
+        'Si además aparece una comprobación anti-robot, resuélvela también tú. ' +
+        'Calculator Vilamar sigue solo en cuanto la calculadora esté en pantalla, y no tendrás que repetirlo en los próximos cálculos.',
     })
 
-    const aceptado = await esperarAlUsuario(pagina, async () => !(await hayCondiciones()), {
+    // Se espera a que el FORMULARIO esté listo, no a que desaparezca la puerta.
+    // Es la diferencia entre «ha empezado a navegar» y «ya puedo escribir».
+    const listo = await esperarAlUsuario(pagina, () => this.formularioListo(pagina), {
       limiteMs: 300_000,
       cancelado: ctx.cancelado,
     })
 
-    if (!aceptado) {
+    if (listo) return
+
+    // No ha llegado a estar listo. Los dos motivos son MUY distintos y no se
+    // pueden presentar igual: uno lo arregla el usuario y el otro no.
+    if (await this.enLaPuerta(pagina)) {
       throw new ErrorAdaptador(
         'NEEDS_USER_ACTION',
-        'Kane sigue esperando a que aceptes sus condiciones de uso. Puedes reintentar solo Kane cuando quieras: el resto de resultados no se pierde.',
+        'Kane sigue en su pantalla de condiciones: no se ha aceptado. Tiene que ser en la ventana que abre Calculator Vilamar — ' +
+          'si lo has aceptado en tu Chrome de siempre, esa aceptación no cuenta aquí, porque es otro navegador con otras cookies. ' +
+          'Puedes reintentar solo Kane cuando quieras: el resto de resultados no se pierde.',
         'ESPERANDO_AL_USUARIO',
       )
     }
-    await pagina.waitForTimeout(2500)
+
+    // Salió del acuerdo y aun así no apareció la calculadora. Eso ya no es cosa
+    // del usuario: la página no coincide con lo que el conector espera.
+    throw new ErrorAdaptador(
+      'ADAPTER_BROKEN',
+      'Se han aceptado las condiciones, pero después no ha aparecido el formulario de la calculadora. ' +
+        'La página puede haber cambiado: ejecuta «pnpm reconocer:kane» para que el conector aprenda cómo es ahora.',
+      'ESPERANDO_AL_USUARIO',
+      'campos del formulario de Kane',
+    )
   }
 
   /**

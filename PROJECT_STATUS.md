@@ -72,7 +72,8 @@ es lo que separa un prototipo de un MVP.
 
 ### Comprobado arrancando la aplicación de verdad
 
-Doce pruebas que abren Electron y pulsan con el ratón, más una verificación
+Veinte pruebas de interfaz —doce abren Electron y pulsan con el ratón, ocho
+comprueban la transición de Kane contra un servidor local—, más una verificación
 vertical completa:
 
 - **La ventana abre** y enseña la pantalla de inicio.
@@ -414,6 +415,20 @@ Ampliar ×3 **empeora** —apareció un 24.97 donde ponía 24.07—, así que ha
     del medio de la tabla «porque suele ir en el centro». Eso era inventarse una
     recomendación clínica a partir de una posición. Ahora no se marca ninguna
     hasta saber cómo la señala Kane, y se conservan todas las opciones.
+  - **La transición tras tu clic estaba mal, y ese era el fallo de verdad.** El
+    programa esperaba a que DESAPARECIERA la pantalla de condiciones y luego
+    dormía 2,5 segundos. Esa espera se cumple en medio de la navegación, cuando la
+    página puede estar en blanco; si el formulario tardaba más, el adaptador no
+    encontraba campos y decía **«el conector está roto»**. Aceptabas bien y el
+    programa te culpaba al conector. Ahora espera a que la calculadora esté
+    delante Y se pueda escribir en ella, sin relojes.
+  - **La aceptación no se podía recordar nunca**, y esto es aparte. El navegador
+    se abría con perfil persistente, pero el orquestador pedía un contexto NUEVO
+    que no lo hereda —medido: 1 cookie en el persistente, 0 en el nuevo—. Se
+    cargaba el perfil y no se usaba. Corregido: ahora el cálculo ocurre en el
+    perfil, así que si Kane recuerda la aceptación, no se repite.
+  - **Aceptar en tu Chrome de siempre no cuenta**, y el programa lo dice con esas
+    palabras: son dos navegadores con cookies distintas.
   - Lo que sigue pendiente: **los selectores reales, los campos obligatorios
     reales, la tabla de resultados real y los valores reales del campo de sexo**.
     Todo eso está detrás de tu clic.

@@ -141,17 +141,31 @@ async function abrirNavegador(conVentana: boolean, perfil: string): Promise<Brow
     headless: !conVentana,
     viewport: { width: 1500, height: 1050 },
   })
-  // `launchPersistentContext` devuelve un contexto, no un navegador. El
-  // orquestador quiere un navegador: se le da el suyo, que es el que lo creó.
-  const navegador = contexto.browser()
-  if (navegador) return navegador
 
-  // Con perfil persistente puede no haber objeto navegador. Se envuelve el
-  // contexto en lo mínimo que el orquestador usa, y se cierra el contexto de
-  // verdad al cerrar.
+  // ⚠️ **NO se devuelve `contexto.browser()`, aunque exista.** Aquí había un
+  // fallo silencioso, y está MEDIDO:
+  //
+  //   Con perfil persistente, `contexto.browser()` SÍ devuelve un navegador. Y
+  //   `navegador.newContext()` —que es lo que llama el orquestador— crea un
+  //   contexto **nuevo y vacío que no hereda el perfil**. Comprobado: una cookie
+  //   puesta en el contexto persistente se ve como 1 en él y como 0 en el nuevo.
+  //
+  // O sea: el perfil se cargaba y no se usaba nunca. Las cookies del cálculo
+  // vivían en un contexto desechable y morían con él, así que **la aceptación de
+  // las condiciones de Kane no podía recordarse jamás** — se pedía otra vez en
+  // cada cálculo, hiciera el usuario lo que hiciera.
+  //
+  // Devolviendo el envoltorio, `newContext()` entrega EL contexto persistente y
+  // todo lo que pase en el cálculo queda en el perfil de la carpeta de datos del
+  // usuario. Ese perfil no sale nunca de la máquina.
   return {
     newContext: async () => contexto,
+    contexts: () => [contexto],
+    // Cerrar el contexto persistente es lo que vuelca cookies y sesión al disco.
+    // Se llama dos veces —el orquestador cierra el contexto y el servicio el
+    // navegador— y la segunda es inofensiva.
     close: async () => contexto.close(),
+    isConnected: () => true,
   } as unknown as Browser
 }
 

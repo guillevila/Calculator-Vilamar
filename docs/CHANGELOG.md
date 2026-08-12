@@ -4,6 +4,79 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [0.9.1] — 12/08/2026
+
+La transición de Kane después de que tú aceptes. Dos fallos, y ninguno era el
+que parecía.
+
+### 1 · La espera se cumplía demasiado pronto
+
+El programa esperaba a que **desapareciera** la pantalla de condiciones —la
+negación— y después dormía 2,5 segundos.
+
+Esa negación se cumple **en el instante en que la URL deja de ser
+`/agreement/`**, o sea en medio de la navegación, cuando la página puede estar en
+blanco. El `waitForTimeout(2500)` hacía de «ya habrá cargado». Si tardaba más,
+`rellenar()` no encontraba ningún campo, devolvía 0 y el adaptador concluía
+**`ADAPTER_BROKEN`: «ejecuta pnpm reconocer:kane»**.
+
+**Aceptabas correctamente y el programa te decía que el conector estaba mal.**
+
+Ahora se espera a **tres condiciones**, y ninguna es un reloj:
+
+1. La dirección ya no es la del acuerdo.
+2. Hay campos editables y un control de calcular.
+3. **El primer campo se puede escribir de verdad** — un formulario pintado pero
+   deshabilitado daría cero campos rellenados y volvería a parecer roto.
+
+Y los dos modos de fallo se separan: si sigue en `/agreement/` es
+`NEEDS_USER_ACTION` («no se ha aceptado»); si salió y no apareció la calculadora
+es `ADAPTER_BROKEN` («la página ha cambiado»). Antes los dos eran lo mismo.
+
+### 2 · La aceptación no se podía recordar nunca
+
+Esto es aparte, y estaba oculto. El navegador se abre con **perfil persistente**
+en la carpeta de datos del usuario — pero `abrirNavegador` devolvía
+`contexto.browser()`, y el orquestador llamaba a `newContext()`, que crea un
+contexto **nuevo y vacío que no hereda el perfil**.
+
+Medido: una cookie puesta en el contexto persistente se ve como **1** en él y
+como **0** en el nuevo. El perfil se cargaba y no se usaba jamás, así que las
+cookies del cálculo morían con el contexto desechable.
+
+Consecuencia: **Kane volvía a pedir la aceptación en cada cálculo**, hiciera el
+usuario lo que hiciera. Y el comentario del código afirmaba lo contrario.
+
+### 3 · Aceptar en otro Chrome no cuenta, y ahora se dice
+
+Si alguien acepta en su navegador de siempre, el que abre Calculator Vilamar
+sigue viendo la puerta: son dos almacenes de cookies distintos. El mensaje de
+espera dice «esta ventana, no tu Chrome de siempre», y el error de tiempo agotado
+lo nombra como causa probable.
+
+### Lo que NO se ha tocado
+
+- **No se pulsa «I Agree».** Ni ahora ni nunca: es un contrato entre el autor de
+  la fórmula y quien la usa.
+- **No se toca el reCAPTCHA.**
+- No se abre pestaña nueva ni se recarga tras aceptar: se sigue en **la misma
+  página y el mismo contexto**, porque recargar perdería lo que acabas de aceptar.
+
+### Validación
+
+**8 pruebas nuevas de interfaz** contra un **servidor local** que imita las tres
+pantallas de Kane con cookies y redirección de verdad. No van a iolformula.com y
+no aceptan nada.
+
+**Tres mutaciones, tres caídas** — pero a la primera fueron dos de tres: la guarda
+de la dirección dentro de `calculadoraDeKaneLista` **no la vigilaba nadie**,
+porque la pantalla del acuerdo ya falla por no tener campos. Hizo falta añadir el
+caso de una página con forma de calculadora servida en la ruta del acuerdo.
+
+477 tests y **20 pruebas de interfaz**, todo en verde.
+
+---
+
 ## [0.9.0] — 12/08/2026
 
 Un solo «Calcular» procesa los dos ojos. Y el sexo del paciente, que pide Kane.
