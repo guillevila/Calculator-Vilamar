@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { CALCULADORAS, FICHAS } from './calculadoras.js'
+import { CALCULADORAS, FICHAS, quienNoPuedeCalcular } from './calculadoras.js'
 import type { Caso } from './caso.js'
 import { casoNuevo, confirmar, conOjo } from './caso.js'
 import { confirmarTodas, conMedida, crearMedida, ojoVacio } from './medida.js'
@@ -309,5 +309,55 @@ describe('cómo se le dice el sexo a Kane', () => {
   it('los textos de pantalla están en español y son los dos', () => {
     expect(TEXTO_SEXO.MUJER).toBe('Mujer')
     expect(TEXTO_SEXO.HOMBRE).toBe('Hombre')
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  6 · El aviso ANTES de confirmar tiene que contar el sexo
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('el aviso previo a confirmar', () => {
+  /** Las medidas de un caso completo, para que solo pueda faltar el sexo. */
+  function todasLasMedidas(): Record<string, number> {
+    const todo: Record<string, number> = {}
+    for (const c of CALCULADORAS) for (const campo of FICHAS[c].requeridos) todo[campo] = 1
+    return todo
+  }
+
+  it('sin sexo, avisa de que Kane no va a poder calcular', () => {
+    // ESTE es el fallo que hizo perder un recorrido entero: el aviso decía que
+    // las tres podían calcular, se confirmaba, se esperaban las tres webs, y solo
+    // entonces salía «falta el sexo». El mismo problema de los 47 segundos que
+    // este aviso existe para evitar, entrando por otra puerta.
+    const r = quienNoPuedeCalcular(todasLasMedidas(), false)
+
+    expect(r).toHaveLength(1)
+    expect(r[0]!.calculadora).toBe('KANE')
+    expect(r[0]!.faltaElSexo).toBe(true)
+    // Y no le falta ningún campo del ojo: solo el sexo.
+    expect(r[0]!.faltan).toHaveLength(0)
+  })
+
+  it('con el sexo confirmado, no avisa de nada', () => {
+    expect(quienNoPuedeCalcular(todasLasMedidas(), true)).toHaveLength(0)
+  })
+
+  it('un sexo SIN confirmar cuenta como que falta', () => {
+    // Un sexo deducido del nombre y sin comprobar no sale hacia Kane, así que el
+    // aviso tiene que contarlo igual que si no estuviera. Si no, el aviso diría
+    // que todo está listo y Kane volvería a quedarse fuera.
+    const deducido = sexoDeducidoDelNombre(deducirSexoDelNombre('María García')!, {}, CUANDO)
+    expect(deducido.confirmadoPorUsuario).toBe(false)
+
+    const r = quienNoPuedeCalcular(todasLasMedidas(), deducido.confirmadoPorUsuario)
+    expect(r).toHaveLength(1)
+    expect(r[0]!.faltaElSexo).toBe(true)
+  })
+
+  it('EVO y Barrett nunca aparecen por el sexo', () => {
+    const r = quienNoPuedeCalcular(todasLasMedidas(), false)
+    for (const x of r) {
+      if (x.calculadora !== 'KANE') expect(x.faltaElSexo, x.calculadora).toBe(false)
+    }
   })
 })

@@ -93,7 +93,7 @@ vertical completa:
 - **Una calculadora que espera no bloquea a las demás:** con Kane esperando a que
   se acepten sus condiciones, se pueden ver los resultados de EVO y Barrett.
 
-### Comprobado con tests automáticos (477, todos en verde)
+### Comprobado con tests automáticos (485, todos en verde)
 
 - **Las diez invariantes clínicas.** Las dos barreras de confirmación se han
   comprobado **rompiéndolas a propósito** y viendo caer el test que las cubre.

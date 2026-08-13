@@ -4,6 +4,63 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.0.1] — 13/08/2026
+
+Kane salía N/A. Tres causas, y la primera era un aviso mío que no avisaba.
+
+### Por qué salía N/A
+
+El caso no tenía sexo, así que Kane devolvía . En el caso real:
+
+    EVO OD + OS        SUCCESS
+    Barrett OD + OS    SUCCESS
+    Kane OD + OS       MISSING_INPUTS — «Falta el sexo del paciente»
+
+El cálculo bilateral funcionaba. Lo que faltaba era un dato.
+
+### 1 · El aviso previo a confirmar no miraba el sexo
+
+solo contaba campos del ojo, y el sexo no es uno. Así que
+el aviso decía que las tres calculadoras podían calcular, se confirmaba, se
+esperaba el recorrido entero de las tres webs, y **solo entonces** salía que a
+Kane le faltaba el sexo.
+
+Es exactamente el problema de los 47 segundos que ese aviso existe para evitar,
+reintroducido por otra puerta al añadir el sexo. Ahora lo cuenta, y distingue los
+dos casos: «falta el sexo del paciente» si no hay ninguno, y «comprobar el sexo
+del paciente» si está deducido y sin confirmar.
+
+### 2 · El informe traía el sexo y no se leía
+
+Es español y está **en columnas**: pone , con espacios y sin dos
+puntos. El patrón exigía , así que no coincidía y no había nada de donde
+deducir — el informe tampoco trae un nombre reconocible.
+
+Los dos puntos pasan a ser opcionales. Aflojar el separador es seguro por una
+razón concreta: **la palabra capturada tiene que ser reconocible**. Si detrás de
+«Sexo» hay cualquier otra cosa, no se traduce y el campo se queda vacío.
+
+### 3 · El fabricante trae un punto y coma
+
+El PDF pone literalmente . Se comprobó extrayendo su texto: el punto
+y coma **está en el documento**, no lo añade el parser. Sin quitarlo al comparar,
+ese modelo no se emparejaba con «Bausch & Lomb» de ninguna lista. Ahora el punto y
+coma cuenta como puntuación de adorno, igual que el punto o el guion.
+
+### Y el fallo al reintentar
+
+Si el perfil del navegador está en uso —una ventana de un cálculo anterior, o la
+sonda abierta—, Chromium no lo deja abrir y salía su error en
+crudo. Ahora se dice qué pasa y qué cerrar. Es un riesgo que apareció al empezar a
+compartir el perfil, que es lo que evita repetir la aceptación.
+
+### Validación
+
+485 tests (7 nuevos) y 27 pruebas de interfaz. lint, formato, typecheck y build en
+verde.
+
+---
+
 ## [1.0.0] — 12/08/2026
 
 **Kane funciona.** Verificado contra su formulario real y ejecutado de punta a

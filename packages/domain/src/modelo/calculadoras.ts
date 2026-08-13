@@ -332,9 +332,25 @@ export function textoDeExigencia(e: Exigencia): string {
  */
 export function quienNoPuedeCalcular(
   medidas: Readonly<Partial<Record<CampoBiometrico, unknown>>>,
-): readonly { readonly calculadora: Calculadora; readonly faltan: readonly CampoBiometrico[] }[] {
+  /**
+   * ¿Hay un sexo confirmado en el caso?
+   *
+   * Va aparte porque el sexo NO es un `CampoBiometrico`: no está en el mapa del
+   * ojo. Y tiene que estar aquí porque si no, este aviso mentía: decía que Kane
+   * podía calcular y después salía «falta el sexo» tras esperar el recorrido
+   * entero. Era el mismo problema de los 47 segundos que este aviso existe para
+   * evitar, reintroducido por otra puerta.
+   */
+  haySexoConfirmado = true,
+): readonly {
+  readonly calculadora: Calculadora
+  readonly faltan: readonly CampoBiometrico[]
+  /** Le falta el sexo del paciente, que no es un campo del ojo. */
+  readonly faltaElSexo: boolean
+}[] {
   return CALCULADORAS.map((calculadora) => ({
     calculadora,
     faltan: FICHAS[calculadora].requeridos.filter((c) => medidas[c] === undefined),
-  })).filter((x) => x.faltan.length > 0)
+    faltaElSexo: FICHAS[calculadora].exigeSexo === true && !haySexoConfirmado,
+  })).filter((x) => x.faltan.length > 0 || x.faltaElSexo)
 }

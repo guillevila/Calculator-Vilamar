@@ -324,3 +324,29 @@ K1            41.22 D @ 175
 K2            42.52 D @ 85
 ACD (epi)      3.18 mm
 `
+
+/**
+ * ANTERION en ESPAÑOL y en columnas, como el informe real de la prueba.
+ *
+ * ⚠️ Datos inventados. Reproduce la FORMA que hizo fallar la lectura: la etiqueta
+ * `Sexo` separada de su valor **por espacios y sin dos puntos**. Con el patrón que
+ * exigía `Sexo:`, el caso se quedaba sin sexo y una de las calculadoras no podía calcular.
+ *
+ * Y trae el punto y coma del fabricante —`Bausch&Lomb;`— tal y como aparece en el
+ * PDF de verdad.
+ */
+export const ANTERION_ESPANOL_EN_COLUMNAS = `
+HEIDELBERG ENGINEERING          ANTERION
+Cataract App
+
+Fecha de nacimiento   1/1/1950   Sexo   Femenino
+
+OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+ACD (epi)      3.18 mm
+
+Bausch&Lomb; Akreos AO MI60
+SRK/T: 119.1
+`

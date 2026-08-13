@@ -84,6 +84,11 @@ export interface DependenciasServicio {
   readonly emitirCaso: (caso: Caso) => void
 }
 
+/** La primera línea de un error. Playwright los trae con traza; no ayuda enseñarla. */
+function primeraLinea(texto: string): string {
+  return texto.split(String.fromCharCode(10))[0] ?? texto
+}
+
 export class ServicioCasos {
   private caso: Caso | null = null
   private cancelar = false
@@ -621,7 +626,19 @@ export class ServicioCasos {
     let navegador: Browser | null = null
 
     try {
-      navegador = await this.dep.abrirNavegador(conVentana)
+      try {
+        navegador = await this.dep.abrirNavegador(conVentana)
+      } catch (error) {
+        // Chromium bloquea el perfil: dos navegadores no pueden usar el mismo a la
+        // vez. Pasa si quedó una ventana abierta de un cálculo anterior o si se
+        // está ejecutando una sonda. Sin esto, el usuario veía un error de
+        // Chromium en crudo y no tenía forma de saber qué hacer.
+        throw new Error(
+          'No se ha podido abrir el navegador porque su perfil está en uso. ' +
+            'Cierra la ventana del navegador que abrió el cálculo anterior —o la sonda «pnpm reconocer:kane» si la tienes abierta— y vuelve a intentarlo. ' +
+            `Detalle: ${error instanceof Error ? primeraLinea(error.message) : String(error)}`,
+        )
+      }
       const resultados = await ejecutarCaso({
         caso,
         tareas,

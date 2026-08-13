@@ -35,15 +35,21 @@ export interface DatosDePaciente {
 /**
  * Cómo escriben el sexo los informes.
  *
- * Se admite una sola palabra detrás de la etiqueta, y esa palabra tiene que ser
- * reconocible por `interpretarSexo`. Si el informe pone otra cosa, **no se
- * traduce**: el campo se queda vacío y lo pone una persona. Traducir mal un
- * dato cerrado es peor que no leerlo.
+ * **Los dos puntos son OPCIONALES**, y eso importa: el informe con el que se
+ * probó esto es español y está en columnas, así que pone `Sexo   Femenino` con
+ * espacios y sin ningún separador. Exigiendo los dos puntos no se leía, el caso
+ * se quedaba sin sexo y una de las calculadoras no podía calcular.
+ *
+ * Aflojar el separador sería peligroso si no fuera por lo siguiente: la palabra
+ * que se captura **tiene que ser reconocible** por `interpretarSexo`. Si detrás
+ * de «Sexo» hay cualquier otra cosa, no se traduce y el campo se queda vacío —
+ * traducir mal un dato cerrado es peor que no leerlo—. Eso es lo que hace que
+ * admitir un espacio no abra la puerta a cualquier palabra.
  */
 const PATRONES_SEXO: readonly RegExp[] = [
-  /\bSex\s*[:=]\s*([A-Za-zäöüÄÖÜ]+)/i,
-  /\bGender\s*[:=]\s*([A-Za-zäöüÄÖÜ]+)/i,
-  /\bSexo\s*[:=]\s*([A-Za-zÁÉÍÓÚáéíóúÑñ]+)/i,
+  /\bSex\s*[:=]?\s+([A-Za-zäöüÄÖÜ]+)/i,
+  /\bGender\s*[:=]?\s+([A-Za-zäöüÄÖÜ]+)/i,
+  /\bSexo\s*[:=]?\s+([A-Za-zÁÉÍÓÚÜáéíóúüÑñ]+)/i,
 ]
 
 /**
