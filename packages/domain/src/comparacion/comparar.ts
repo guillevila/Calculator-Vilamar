@@ -55,17 +55,38 @@ import type { Lateralidad } from '../modelo/lateralidad.js'
  *    entre calculadoras.
  *  - `VARIAS` — la calculadora ha devuelto varias alternativas para este campo y
  *    **no ha señalado ninguna**. No es un error: es que la elección es de quien
- *    opera. Se enseña «N opciones» y el detalle las lista todas.
+ *    opera. El detalle las lista todas.
  *  - `NO_DISPONIBLE` — ninguna de las opciones trae este dato. La calculadora no
  *    lo publica, o no se sabe leer todavía.
  *
  * ⚠️ **`VARIAS` y `NO_DISPONIBLE` no son lo mismo y no se pintan igual.** Poner
- * «3 opciones» en el cilindro cuando ninguna de las tres opciones trae cilindro
- * hace pensar que hay tres cilindros. Era el fallo que había que arreglar.
+ * un recuento en el cilindro cuando ninguna de las opciones trae cilindro hace
+ * pensar que hay tres cilindros. Era el primer fallo que hubo que arreglar.
+ *
+ * ## Por qué `VARIAS` trae su propio texto
+ *
+ * El segundo fallo fue más fino: **«3 opciones» repetido en cinco filas seguidas**
+ * tampoco decía nada. Tres opciones ¿de qué? Puesto en la fila del cilindro
+ * seguía sonando a «tres cilindros», que es justo lo que se quería evitar.
+ *
+ * Ahora una de las filas —la que de verdad IDENTIFICA las alternativas— dice qué
+ * son: «3 alternativas tóricas». Las demás, cuyo valor depende de cuál de las tres
+ * se consulte, dicen «Ver alternativas» y remiten al detalle.
+ *
+ * El texto viaja DENTRO del dato, no lo compone cada pantalla. Así la interfaz y
+ * el PDF no pueden decir cosas distintas de lo mismo, que es exactamente lo que
+ * pasó la primera vez.
  */
 export type DatoComparativo<T = number> =
   | { readonly estado: 'VALOR'; readonly valor: T }
-  | { readonly estado: 'VARIAS'; readonly cuantas: number }
+  | {
+      readonly estado: 'VARIAS'
+      readonly cuantas: number
+      /** Qué poner en la casilla: «3 alternativas tóricas» o «Ver alternativas». */
+      readonly etiqueta: string
+      /** Si esta es la fila que nombra las alternativas. Las demás remiten a ella. */
+      readonly lasNombra: boolean
+    }
   | { readonly estado: 'NO_DISPONIBLE' }
 
 /**
@@ -216,12 +237,76 @@ function datoDe<T>(
     return { estado: 'VALOR', valor: presentes[0] as T }
   }
 
-  return { estado: 'VARIAS', cuantas: presentes.length }
+  // La etiqueta se pone después, cuando se ven todos los campos a la vez: hasta
+  // entonces no se sabe cuál de ellos nombra las alternativas.
+  return { estado: 'VARIAS', cuantas: presentes.length, etiqueta: '', lasNombra: false }
 }
 
 /** El número de una celda, solo si es un VALOR. Para las comparaciones. */
 function soloValor(d: DatoComparativo): number | undefined {
   return d.estado === 'VALOR' ? d.valor : undefined
+}
+
+/** Los campos de una celda que pueden estar en `VARIAS`, y qué clase de alternativa son. */
+const CAMPOS_COMPARADOS = [
+  // El orden importa: el primero que esté en VARIAS es el que las nombra. Va
+  // primero la designación —«Non-toric», «T3», «T4»— porque es lo que de verdad
+  // identifica una alternativa tórica; el cilindro después, por si la web da
+  // potencias tóricas sin ponerles nombre.
+  { campo: 'designacion', clase: 'tóricas' },
+  { campo: 'cilindro', clase: 'tóricas' },
+  { campo: 'eje', clase: 'tóricas' },
+  { campo: 'cilindroResidual', clase: 'tóricas' },
+  { campo: 'ejeResidual', clase: 'tóricas' },
+  { campo: 'esfera', clase: 'de potencia' },
+  { campo: 'refraccionPrevista', clase: 'de potencia' },
+] as const
+
+type CampoComparado = (typeof CAMPOS_COMPARADOS)[number]['campo']
+
+/**
+ * Pone el texto de cada casilla que está en `VARIAS`.
+ *
+ * Existe porque un recuento repetido no informa. Con cinco filas diciendo «3
+ * opciones» seguidas, la pregunta que queda es «tres opciones ¿de qué?», y en la
+ * fila del cilindro se sigue leyendo como «tres cilindros».
+ *
+ * Así que **una fila las nombra y las demás remiten a ella**:
+ *
+ *     Cilindro             Ver alternativas
+ *     Modelo tórico        3 alternativas tóricas     ← la que las nombra
+ *     Cilindro residual    Ver alternativas
+ *     Eje residual         Ver alternativas
+ *
+ * La que las nombra es la primera de `CAMPOS_COMPARADOS` que esté en `VARIAS`, y
+ * de ahí sale también si son tóricas o de potencia. No se inventa nada: si las
+ * alternativas llevan designación, son tóricas; si lo que cambia es la esfera, son
+ * de potencia.
+ */
+function etiquetar(
+  campos: Record<CampoComparado, DatoComparativo<never>>,
+): Record<CampoComparado, DatoComparativo<never>> {
+  const nombradora = CAMPOS_COMPARADOS.find(({ campo }) => campos[campo].estado === 'VARIAS')
+  if (!nombradora) return campos
+
+  const cabecera = campos[nombradora.campo]
+  if (cabecera.estado !== 'VARIAS') return campos
+  const titulo = `${cabecera.cuantas} alternativas ${nombradora.clase}`
+
+  const salida = { ...campos }
+  for (const { campo } of CAMPOS_COMPARADOS) {
+    const d = campos[campo]
+    if (d.estado !== 'VARIAS') continue
+    const lasNombra = campo === nombradora.campo
+    salida[campo] = {
+      ...d,
+      lasNombra,
+      // «Ver alternativas» y no un recuento: el número ya está dicho una vez, y
+      // repetirlo en cada fila es lo que lo volvía ruido.
+      etiqueta: lasNombra ? titulo : 'Ver alternativas',
+    }
+  }
+  return salida
 }
 
 function aCelda(calculadora: Calculadora, r: ResultadoCalculadora | undefined): CeldaComparativa {
@@ -247,19 +332,35 @@ function aCelda(calculadora: Calculadora, r: ResultadoCalculadora | undefined): 
   const seleccion = seleccionDe(r)
   const ops = r.opciones
 
+  // Se calculan todos los campos primero y se etiquetan después: hasta verlos
+  // juntos no se sabe cuál de ellos nombra las alternativas.
+  const campos = etiquetar({
+    designacion: datoDe(seleccion, ops, (o) => o.designacion) as DatoComparativo<never>,
+    cilindro: datoDe(seleccion, ops, (o) => o.cilindro) as DatoComparativo<never>,
+    eje: datoDe(seleccion, ops, (o) => o.eje) as DatoComparativo<never>,
+    cilindroResidual: datoDe(seleccion, ops, (o) => o.cilindroResidual) as DatoComparativo<never>,
+    ejeResidual: datoDe(seleccion, ops, (o) => o.ejeResidual) as DatoComparativo<never>,
+    esfera: datoDe(seleccion, ops, (o) => o.esfera) as DatoComparativo<never>,
+    refraccionPrevista: datoDe(
+      seleccion,
+      ops,
+      (o) => o.refraccionPrevista,
+    ) as DatoComparativo<never>,
+  })
+
   return {
     calculadora,
     nombre,
     ejecutada: true,
     estado: r.estado,
     seleccion,
-    esfera: datoDe(seleccion, ops, (o) => o.esfera),
-    cilindro: datoDe(seleccion, ops, (o) => o.cilindro),
-    eje: datoDe(seleccion, ops, (o) => o.eje),
-    designacion: datoDe(seleccion, ops, (o) => o.designacion),
-    refraccionPrevista: datoDe(seleccion, ops, (o) => o.refraccionPrevista),
-    cilindroResidual: datoDe(seleccion, ops, (o) => o.cilindroResidual),
-    ejeResidual: datoDe(seleccion, ops, (o) => o.ejeResidual),
+    esfera: campos.esfera as DatoComparativo,
+    cilindro: campos.cilindro as DatoComparativo,
+    eje: campos.eje as DatoComparativo,
+    designacion: campos.designacion as DatoComparativo<string>,
+    refraccionPrevista: campos.refraccionPrevista as DatoComparativo,
+    cilindroResidual: campos.cilindroResidual as DatoComparativo,
+    ejeResidual: campos.ejeResidual as DatoComparativo,
     opciones: ops,
     motivo: r.mensaje,
   }
