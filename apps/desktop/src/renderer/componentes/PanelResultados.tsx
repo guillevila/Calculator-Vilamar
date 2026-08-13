@@ -38,14 +38,44 @@ interface Props {
 }
 
 /**
+ * Cuando hay varias alternativas y la web no señala ninguna.
+ *
+ * Una fila las NOMBRA y las demás remiten a ella:
+ *
+ *     Cilindro             Ver alternativas
+ *     Modelo tórico        3 alternativas tóricas     ← la que las nombra
+ *     Cilindro residual    Ver alternativas
+ *     Eje residual         Ver alternativas
+ *
+ * El texto lo trae el propio dato: lo decide el dominio, así que esta pantalla y
+ * el PDF no pueden decir cosas distintas de lo mismo.
+ */
+function CeldaVarias({
+  dato,
+  nombre,
+}: {
+  dato: Extract<DatoComparativo, { estado: 'VARIAS' }>
+  nombre: string
+}): JSX.Element {
+  return (
+    <td
+      className={dato.lasNombra ? 'varias nombra' : 'varias'}
+      title={`${nombre} ha devuelto ${dato.cuantas} alternativas y no ha señalado ninguna. Las tienes todas debajo, en «Opciones devueltas».`}
+    >
+      {dato.etiqueta}
+    </td>
+  )
+}
+
+/**
  * Una casilla de la tabla comparativa.
  *
  * Los tres estados de `DatoComparativo` se pintan distintos a propósito, porque
  * significan cosas distintas:
  *
- *     22.50 D        la web señaló esta opción (o solo devolvió una)
- *     3 opciones     hay tres alternativas y la web no señala ninguna
- *     —              esa calculadora no da este dato
+ *     22.50 D                  la web señaló esta opción (o solo devolvió una)
+ *     3 alternativas tóricas   hay alternativas y la web no señala ninguna
+ *     —                        esa calculadora no da este dato
  *
  * Antes los dos últimos casos eran el mismo «N/A», y eso hacía que una columna
  * perfectamente correcta pareciera rota.
@@ -69,16 +99,7 @@ function CeldaDato({
       </td>
     )
   }
-  if (dato.estado === 'VARIAS') {
-    return (
-      <td
-        className="varias"
-        title={`${nombre} ha devuelto ${dato.cuantas} alternativas y no ha señalado ninguna. Las tienes todas debajo, en «Opciones devueltas».`}
-      >
-        {dato.cuantas} opciones
-      </td>
-    )
-  }
+  if (dato.estado === 'VARIAS') return <CeldaVarias dato={dato} nombre={nombre} />
   return (
     <td className="na" title={`No disponible en el resultado de ${nombre}`}>
       —
@@ -95,16 +116,7 @@ function CeldaTexto({
   nombre: string
 }): JSX.Element {
   if (dato.estado === 'VALOR') return <td>{dato.valor}</td>
-  if (dato.estado === 'VARIAS') {
-    return (
-      <td
-        className="varias"
-        title={`${nombre} ha devuelto ${dato.cuantas} alternativas y no ha señalado ninguna. Las tienes todas debajo, en «Opciones devueltas».`}
-      >
-        {dato.cuantas} opciones
-      </td>
-    )
-  }
+  if (dato.estado === 'VARIAS') return <CeldaVarias dato={dato} nombre={nombre} />
   return (
     <td className="na" title={`No disponible en el resultado de ${nombre}`}>
       —

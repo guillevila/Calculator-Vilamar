@@ -200,19 +200,26 @@ function seccionEntradas(caso: Caso, ojo: OjoBiometrico): string {
  * así que es donde menos se puede confundir «lo dice la calculadora» con «lo ha
  * elegido el programa». Los tres estados se escriben distintos:
  *
- *     22.50 D        la web señaló esta opción
- *     3 opciones     hay tres alternativas y ninguna señalada — están en el detalle
- *     —              esa calculadora no publica este dato
+ *     22.50 D                  la web señaló esta opción
+ *     3 alternativas tóricas   hay alternativas y ninguna señalada — están debajo
+ *     Ver alternativas         el valor depende de cuál de ellas se consulte
+ *     —                        esa calculadora no publica este dato
  */
+function celdaVarias(dato: Extract<DatoComparativo, { estado: 'VARIAS' }>): string {
+  // La que las nombra va en negrita: es la que responde «¿alternativas de qué?».
+  const clase = dato.lasNombra ? 'varias nombra' : 'varias'
+  return `<td class="${clase}">${esc(dato.etiqueta)}</td>`
+}
+
 function celda(dato: DatoComparativo, sufijo = '', decimales = 2): string {
   if (dato.estado === 'VALOR') return `<td>${esc(dato.valor.toFixed(decimales))}${sufijo}</td>`
-  if (dato.estado === 'VARIAS') return `<td class="varias">${dato.cuantas} opciones</td>`
+  if (dato.estado === 'VARIAS') return celdaVarias(dato)
   return '<td class="na">—</td>'
 }
 
 function celdaTexto(dato: DatoComparativo<string>): string {
   if (dato.estado === 'VALOR') return `<td>${esc(dato.valor)}</td>`
-  if (dato.estado === 'VARIAS') return `<td class="varias">${dato.cuantas} opciones</td>`
+  if (dato.estado === 'VARIAS') return celdaVarias(dato)
   return '<td class="na">—</td>'
 }
 
@@ -472,6 +479,8 @@ const ESTILOS = `
    * cursiva y en gris: se ve que es una aclaración, no una cifra.
    */
   td.varias { color: var(--gris); font-style: italic; font-size: 9.5pt; }
+  /* La que nombra las alternativas: es la que dice de QUE son. */
+  td.varias.nombra { color: var(--azul); font-style: normal; font-weight: 600; }
 
   .opciones-devueltas { margin-top: 10pt; }
   .bloque-opciones { margin-top: 8pt; break-inside: avoid; }

@@ -113,7 +113,10 @@ describe('6 · el informe conserva las alternativas sin inventar una elegida', (
   it('la tabla comparativa dice «3 opciones», no una de las tres', () => {
     const h = html()
     const comparativa = soloComparativa(h)
-    expect(comparativa).toContain('3 opciones')
+    // Tres alternativas que solo se diferencian en potencia y refracción: la
+    // fila de la esfera es la que las nombra.
+    expect(comparativa).toContain('3 alternativas de potencia')
+    expect(comparativa).toContain('Ver alternativas')
     // Y dentro de la comparativa no se ha colado ninguna de las tres cifras.
     for (const esfera of ['21.50', '22.00', '22.50']) {
       expect(comparativa).not.toContain(esfera)
@@ -145,7 +148,7 @@ describe('6 bis · si la web SÍ destaca una, el informe lo dice', () => {
     const h = conDestacada()
     const comparativa = soloComparativa(h)
     expect(comparativa).toContain('22.50')
-    expect(comparativa).not.toContain('3 opciones')
+    expect(comparativa).not.toContain('alternativas de potencia')
   })
 
   it('sigue enseñando las tres alternativas', () => {

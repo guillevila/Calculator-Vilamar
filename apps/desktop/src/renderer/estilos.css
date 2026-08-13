@@ -423,6 +423,16 @@ table.comparativa td.varias {
   font-size: 12.5px;
   cursor: help;
 }
+/*
+ * La fila que NOMBRA las alternativas destaca sobre las que remiten a ella. Es la
+ * que responde a «¿alternativas de qué?», y si se ve igual que las demás la
+ * pregunta se queda sin contestar.
+ */
+table.comparativa td.varias.nombra {
+  color: var(--azul);
+  font-style: normal;
+  font-weight: 600;
+}
 table.comparativa td.na {
   cursor: help;
 }

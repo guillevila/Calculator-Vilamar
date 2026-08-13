@@ -140,8 +140,8 @@ describe('2 · un campo ausente en todas las opciones no dice «3 opciones»', (
         { esfera: 22, cilindro: 1.5, designacion: 'T3' },
       ]),
     )
-    expect(k?.cilindro).toEqual({ estado: 'VARIAS', cuantas: 2 })
-    expect(k?.designacion).toEqual({ estado: 'VARIAS', cuantas: 2 })
+    expect(k?.cilindro).toMatchObject({ estado: 'VARIAS', cuantas: 2 })
+    expect(k?.designacion).toMatchObject({ estado: 'VARIAS', cuantas: 2 })
     // La esfera es la misma en las dos: no hay nada que elegir, así que se enseña.
     expect(k?.esfera).toEqual({ estado: 'VALOR', valor: 22 })
   })
@@ -210,7 +210,7 @@ describe('4 · la web destaca una opción de verdad', () => {
     expect(k?.esfera).toEqual({ estado: 'VALOR', valor: 22 })
     // El cilindro no está en la destacada, pero sí en dos opciones: son
     // alternativas de verdad, no un dato que falte.
-    expect(k?.cilindro).toEqual({ estado: 'VARIAS', cuantas: 2 })
+    expect(k?.cilindro).toMatchObject({ estado: 'VARIAS', cuantas: 2 })
     // El eje de la lente no lo trae ninguna: eso sí es «no disponible».
     expect(k?.eje).toEqual({ estado: 'NO_DISPONIBLE' })
   })
