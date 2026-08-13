@@ -36,11 +36,11 @@ Al quitarla, la celda quedaba vacía — y **vacío significaba dos cosas distin
 De ahí el cambio de raíz: `DatoComparativo`, con tres estados que no se pueden
 confundir, y `SeleccionDeLaCalculadora`, que dice de dónde sale la columna.
 
-| Estado          | Cuándo                                    | Se ve       |
-| --------------- | ----------------------------------------- | ----------- |
-| `VALOR`         | La web señaló una opción, o solo dio una  | `22.50 D`   |
-| `VARIAS`        | Varias alternativas, ninguna señalada     | `3 opciones` |
-| `NO_DISPONIBLE` | Ninguna opción trae ese dato              | `—`         |
+| Estado          | Cuándo                                   | Se ve        |
+| --------------- | ---------------------------------------- | ------------ |
+| `VALOR`         | La web señaló una opción, o solo dio una | `22.50 D`    |
+| `VARIAS`        | Varias alternativas, ninguna señalada    | `3 opciones` |
+| `NO_DISPONIBLE` | Ninguna opción trae ese dato             | `—`          |
 
 **No hay forma de escribir un número sin decir de dónde sale.** La pantalla y el
 PDF leen la misma estructura, así que no pueden equivocarse por separado.
