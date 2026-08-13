@@ -69,7 +69,7 @@ describe('comparativa de un ojo', () => {
     })
     const texto = c.observaciones.map((o) => o.texto).join(' | ')
     expect(texto).toMatch(/2 de 3/)
-    expect(texto).toMatch(/rango entre las esferas recomendadas es 0\.50 D/)
+    expect(texto).toMatch(/rango entre las esferas destacadas es 0\.50 D/)
   })
 
   it('marca como discrepancia un rango de media dioptría o más', () => {
@@ -96,10 +96,10 @@ describe('comparativa de un ojo', () => {
     })
     // EVO sigue teniendo su resultado…
     const evo = c.celdas.find((x) => x.calculadora === 'EVO_TORIC')
-    expect(evo?.esfera).toBe(21)
+    expect(evo?.esfera).toEqual({ estado: 'VALOR', valor: 21 })
     // …y Barrett aparece con su motivo, en lenguaje normal.
     const barrett = c.celdas.find((x) => x.calculadora === 'BARRETT_TORIC')
-    expect(barrett?.esfera).toBeUndefined()
+    expect(barrett?.esfera).toEqual({ estado: 'NO_DISPONIBLE' })
     expect(c.observaciones.some((o) => /WTW/.test(o.texto))).toBe(true)
   })
 
@@ -113,7 +113,7 @@ describe('comparativa de un ojo', () => {
 
   it('avisa cuando solo hay un resultado y no hay nada que comparar', () => {
     const c = compararOjo('OD', { EVO_TORIC: resultado('EVO_TORIC', 21) })
-    expect(c.observaciones.some((o) => /No hay nada con lo que compararlo/.test(o.texto))).toBe(
+    expect(c.observaciones.some((o) => /No hay nada con lo que compararla/.test(o.texto))).toBe(
       true,
     )
   })
@@ -125,8 +125,8 @@ describe('comparativa de un ojo', () => {
       EVO_TORIC: resultado('EVO_TORIC', 21, { cilindro: 0.75, eje: 81 }),
     })
     const kane = c.celdas.find((x) => x.calculadora === 'KANE')
-    expect(kane?.cilindro).toBeUndefined()
-    expect(kane?.eje).toBeUndefined()
+    expect(kane?.cilindro).toEqual({ estado: 'NO_DISPONIBLE' })
+    expect(kane?.eje).toEqual({ estado: 'NO_DISPONIBLE' })
   })
 })
 

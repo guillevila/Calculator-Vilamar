@@ -4,6 +4,84 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.0.2] — 13/08/2026
+
+Una calculadora que devuelve varias opciones ya no se representa como si hubiera
+elegido una.
+
+### La línea que elegía una lente
+
+```ts
+const op = r.recomendada ?? r.opciones.find((o) => o.recomendada) ?? r.opciones[0]
+//                                                                 └──────────────┘
+```
+
+Ese último tramo **escogía la primera opción** y la pintaba en la tabla con el
+mismo aspecto que una destacada por la web. Si una calculadora devolvía siete
+potencias sin señalar ninguna, la comparativa enseñaba la primera —la más alta—
+como si fuera su respuesta. Nadie podía distinguir lo que decía la calculadora de
+lo que había decidido el programa.
+
+Con los datos de hoy no llegaba a dispararse, porque Kane sí marca su fila con
+`table-active`. Era una selección implícita esperando a que una web dejara de
+marcar. Fuera.
+
+### Y no bastaba con borrarla
+
+Al quitarla, la celda quedaba vacía — y **vacío significaba dos cosas distintas**:
+
+- la calculadora no publica ese dato;
+- la calculadora da varias alternativas y no señala ninguna.
+
+De ahí el cambio de raíz: `DatoComparativo`, con tres estados que no se pueden
+confundir, y `SeleccionDeLaCalculadora`, que dice de dónde sale la columna.
+
+| Estado          | Cuándo                                    | Se ve       |
+| --------------- | ----------------------------------------- | ----------- |
+| `VALOR`         | La web señaló una opción, o solo dio una  | `22.50 D`   |
+| `VARIAS`        | Varias alternativas, ninguna señalada     | `3 opciones` |
+| `NO_DISPONIBLE` | Ninguna opción trae ese dato              | `—`         |
+
+**No hay forma de escribir un número sin decir de dónde sale.** La pantalla y el
+PDF leen la misma estructura, así que no pueden equivocarse por separado.
+
+### Lo que se veía mal, y por qué
+
+Un campo se decidía por la opción señalada; si esa no lo traía, se daba por
+perdido. Ahora, si la señalada no trae el dato pero **otras opciones sí**, son
+alternativas de verdad y se dicen como tales. Y si no lo trae ninguna, es `—` con
+la ayuda «No disponible en el resultado de Kane».
+
+Eso es lo que separa «3 alternativas de potencia» de «3 cilindros»: se mira si el
+dato **está en las opciones**, no si falta en una.
+
+### El detalle, en pantalla y en el PDF
+
+Debajo de la comparación, cada calculadora con más de una opción enseña **todas**
+las que devolvió, con las columnas que trajo de verdad y ninguna más. Si la web
+señaló una, va marcada como «Destacada por Kane»; si no, se dice que no ha
+señalado ninguna y que la elección no la hace Calculator Vilamar.
+
+Sin alarmismo: **no es un error**. La calculadora ha calculado y ha devuelto
+varias salidas porque la decisión no es suya.
+
+### Comprobado rompiéndolo
+
+Tres formas de reintroducir la selección implícita —la primera, la del medio, y la
+de refracción más cercana a cero—, y **las tres las caza un test**.
+
+37 tests nuevos. 514 en total; lint, tipos, build y las 12 pruebas de interfaz en
+verde.
+
+### Ficheros
+
+- `packages/domain/src/comparacion/comparar.ts` — el modelo de presentación
+- `packages/domain/src/comparacion/opciones.test.ts` — 26 tests
+- `packages/report/src/plantilla.ts` + `opciones-informe.test.ts` — 11 tests
+- `apps/desktop/src/renderer/componentes/PanelResultados.tsx`, `estilos.css`
+
+---
+
 ## [1.0.1] — 13/08/2026
 
 Kane salía N/A. Tres causas, y la primera era un aviso mío que no avisaba.
