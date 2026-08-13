@@ -789,3 +789,47 @@ la elección a quien opera. La tentación era marcar la de menor cilindro residu
 para que la tabla quedara completa. Eso habría sido inventarse una recomendación
 clínica, así que las tres van sin recomendada y la tabla dice «3 opciones, ninguna
 destacada». Una casilla honesta vale más que una tabla bonita.
+
+---
+
+## 13/08/2026 — Un valor sin procedencia miente aunque el número sea correcto
+
+**Qué pasó.** El dueño del proyecto vio la columna de Kane con «Esfera 22.50 D» y
+al mismo tiempo «3 opciones, ninguna destacada», y preguntó qué opción estaba
+escogiendo el programa para ese 22.50.
+
+Pregunta perfecta. Y la respuesta tenía dos mitades, una tranquilizadora y otra no.
+
+**La mitad tranquilizadora.** Ese 22.50 salía de Kane: su fila lleva `table-active`.
+Coincide con la fila central de la escalera porque Kane centra su recomendación,
+pero venía de la marca de la web, no de una regla nuestra.
+
+**La mitad que no.** Buscándolo encontré esto, que llevaba ahí desde el principio:
+
+    const op = r.recomendada ?? r.opciones.find((o) => o.recomendada) ?? r.opciones[0]
+
+Ese último tramo **elegía la primera opción**. No se disparaba con los datos de hoy
+porque Kane sí marca. Era una selección clínica implícita esperando a que una web
+dejara de marcar, y habría pasado desapercibida: el número se habría visto igual
+de creíble que uno legítimo.
+
+**La causa raíz.** El tipo permitía representar un número sin decir de dónde salía.
+Mientras `esfera` fuera `number | undefined`, cualquiera podía rellenarlo con algo
+razonable y nadie notaría la diferencia en pantalla. El comentario que decía «esto
+lo dice la web» no era ejecutable.
+
+**Lo que hago a partir de ahora.**
+
+1. **Un dato que se enseña lleva su procedencia EN EL TIPO**, no en un comentario.
+   `DatoComparativo` tiene tres estados y no hay forma de escribir un número sin
+   declarar si lo dijo la web, si hay varias alternativas, o si no existe.
+2. **Un `?? valorPorDefecto` en la frontera de presentación es sospechoso por
+   definición.** Ahí no hay valores por defecto inocentes: lo que se ponga se lee
+   como si viniera de fuera.
+3. **Cuando dos situaciones distintas se pintan igual, hay un fallo aunque no haya
+   ningún error.** «No hay dato» y «hay varias» eran el mismo hueco, y por eso una
+   columna correcta parecía rota.
+
+**Lo que confirmó que la lección va en serio.** Se rompió la regla a propósito de
+tres formas —la primera, la del medio, la de refracción más cercana a cero— y las
+tres las caza un test. La guarda que nadie ha visto fallar no está demostrada.
