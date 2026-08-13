@@ -29,7 +29,21 @@
  *  - **La lista «Index» es nuestro índice queratométrico**, y Kane la marca
  *    obligatoria. Estaba clasificado como «no se envía a ninguna calculadora».
  *  - **Elegir una lente tórica cambia ese ojo al modo tórico** y esconde los
- *    campos que este adaptador rellena. Por eso no se le manda el modelo.
+ *    campos que este adaptador rellena. Por eso no se le manda el modelo: el modo
+ *    lo conmuta este adaptador a propósito, no la lista de lentes por su cuenta.
+ *
+ * ## El modo tórico — añadido el 13/08/2026
+ *
+ * Kane tiene dos modos por ojo y los dos se usan ahora, según los datos que haya:
+ *
+ *  - **Tórico** cuando están el eje de las dos K, el SIA y el eje de la incisión.
+ *    Sus campos son los mismos con sufijo `-t`, y devuelve dos tablas: las
+ *    potencias esféricas y las opciones tóricas con su cilindro residual.
+ *  - **No tórico** si falta alguno. Da esfera y refracción prevista.
+ *
+ * ⚠️ **En la tabla tórica, Kane no destaca ninguna fila.** Enseña lo que quedaría
+ * con cada potencia tórica y deja elegir a quien opera. Este adaptador NO elige por
+ * él: las devuelve todas con `recomendada: false`.
  *
  * ## Los dos ojos
  *
@@ -110,7 +124,103 @@ const CAMPOS_POR_OJO = {
   Partial<Record<keyof EntradasCalculadora['valores'], LocalizadorCampo>>
 >
 
+/**
+ * Los mismos campos en el MODO TÓRICO de Kane.
+ *
+ * Capturado el 13/08/2026 pulsando su interruptor «Toric». El patrón es el sufijo
+ * `-t`, y aparecen tres campos que en no tórico no existen: el eje de K1, el SIA y
+ * el eje de la incisión.
+ *
+ * ⚠️ **El eje de K2 NO se rellena.** Existe (`#k2-right-t-axis`) pero no admite
+ * escritura: Kane lo deriva perpendicular al de K1, que es lo correcto. Intentar
+ * escribirlo falla, y por eso no está en esta tabla.
+ *
+ * La constante A y la refracción objetivo NO cambian de identificador: viven fuera
+ * del bloque que conmuta.
+ */
+const CAMPOS_TORICOS = {
+  OD: {
+    AL: { selector: '#al-right-t', etiquetas: [/axial\s*length/i], decimales: 2 },
+    K1: { selector: '#k1-right-t', etiquetas: [/^\s*K1/i], decimales: 2 },
+    K1_EJE: { selector: '#k1-right-t-axis', etiquetas: [], decimales: 0 },
+    K2: { selector: '#k2-right-t', etiquetas: [/^\s*K2/i], decimales: 2 },
+    ACD: { selector: '#acd-right-t', etiquetas: [/\bACD\b/i], decimales: 2 },
+    SIA: { selector: '#sia-right', etiquetas: [/\bSIA\b/i], decimales: 2 },
+    EJE_INCISION: { selector: '#inc-right', etiquetas: [/incision/i], decimales: 0 },
+    LT: { selector: '#lt-right-t', etiquetas: [/\bLT\b/i], decimales: 2 },
+    CCT: { selector: '#cct-right-t', etiquetas: [/\bCCT\b/i], decimales: 0 },
+    REFRACCION_OBJETIVO: {
+      selector: '#right-target',
+      etiquetas: [/target\s*refraction/i],
+      decimales: 2,
+    },
+    CONSTANTE_A: { selector: '#A-Constant1', etiquetas: [/a[\s-]*constant/i], decimales: 2 },
+  },
+  OS: {
+    AL: { selector: '#al-left-t', etiquetas: [/axial\s*length/i], decimales: 2 },
+    K1: { selector: '#k1-left-t', etiquetas: [/^\s*K1/i], decimales: 2 },
+    K1_EJE: { selector: '#k1-left-t-axis', etiquetas: [], decimales: 0 },
+    K2: { selector: '#k2-left-t', etiquetas: [/^\s*K2/i], decimales: 2 },
+    ACD: { selector: '#acd-left-t', etiquetas: [/\bACD\b/i], decimales: 2 },
+    SIA: { selector: '#sia-left', etiquetas: [/\bSIA\b/i], decimales: 2 },
+    EJE_INCISION: { selector: '#inc-left', etiquetas: [/incision/i], decimales: 0 },
+    LT: { selector: '#lt-left-t', etiquetas: [/\bLT\b/i], decimales: 2 },
+    CCT: { selector: '#cct-left-t', etiquetas: [/\bCCT\b/i], decimales: 0 },
+    REFRACCION_OBJETIVO: {
+      selector: '#left-target',
+      etiquetas: [/target\s*refraction/i],
+      decimales: 2,
+    },
+    CONSTANTE_A: { selector: '#A-Constant2', etiquetas: [/a[\s-]*constant/i], decimales: 2 },
+  },
+} satisfies Record<
+  'OD' | 'OS',
+  Partial<Record<keyof EntradasCalculadora['valores'], LocalizadorCampo>>
+>
+
+/**
+ * ¿Se le puede pedir a Kane el cálculo TÓRICO?
+ *
+ * Solo si están los cuatro datos que su modo tórico necesita. Con ellos, Kane
+ * devuelve además las opciones tóricas con su cilindro residual, que es lo que
+ * permite comparar su columna con las de EVO y Barrett. Sin ellos, su modo no
+ * tórico funciona igual y da esfera y refracción prevista.
+ *
+ * No se fuerza el tórico cuando faltan datos: **rellenar la mitad de su formulario
+ * tórico daría un resultado peor, no mejor**.
+ */
+export function puedePedirseToricoAKane(valores: EntradasCalculadora['valores']): boolean {
+  return (
+    valores.K1_EJE !== undefined &&
+    valores.K2_EJE !== undefined &&
+    valores.SIA !== undefined &&
+    valores.EJE_INCISION !== undefined
+  )
+}
+
 /** Lo que no es de un ojo, sino de la persona o del caso. */
+export type ModoDeKane = 'NO_TORICO' | 'TORICO'
+
+/**
+ * En qué modo se le pide el cálculo a Kane.
+ *
+ * Se decide por los DATOS, no por una preferencia: si están el eje de las dos K,
+ * el SIA y el eje de la incisión, se le pide el tórico —que es lo que permite
+ * comparar su columna con EVO Toric y Barrett Toric—. Si falta cualquiera de los
+ * cuatro, su modo no tórico da esfera y refracción prevista igual de bien.
+ */
+export function modoParaKane(entradas: Pick<EntradasCalculadora, 'valores'>): ModoDeKane {
+  return puedePedirseToricoAKane(entradas.valores) ? 'TORICO' : 'NO_TORICO'
+}
+
+/** Los campos del formulario que corresponden a ese modo y ese ojo. */
+export function camposDeKane(
+  modo: ModoDeKane,
+  lado: 'OD' | 'OS',
+): Partial<Record<keyof EntradasCalculadora['valores'], LocalizadorCampo>> {
+  return modo === 'TORICO' ? CAMPOS_TORICOS[lado] : CAMPOS_POR_OJO[lado]
+}
+
 const SEL = {
   /** Se le manda el CÓDIGO LOCAL del caso, nunca un nombre (D23). */
   paciente: '#Patient',
@@ -157,6 +267,12 @@ const SEL = {
    * Hay una por ojo, así que se acota por posición: la primera es el derecho.
    */
   esperandoResultado: '.res_tab3_wait',
+  /** El interruptor a modo tórico, por ojo. */
+  etiquetaTorico: {
+    OD: 'label.btn:has(input[name="toric_1"])',
+    OS: 'label.btn:has(input[name="toric_2"])',
+  },
+  radioTorico: { OD: 'input[name="toric_1"]', OS: 'input[name="toric_2"]' },
 } as const
 
 /**
@@ -291,6 +407,114 @@ export async function calculadoraDeKaneLista(pagina: Page): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+/**
+ * Lee una fila de la tabla tórica de Kane.
+ *
+ * Sus dos celdas, tal y como las escribe (capturado el 13/08/2026):
+ *
+ *     "Non-toric (0.00)"   "0.42 D Axis 80"
+ *     "T2 (1.00)"          "0.24 D Axis 170"
+ *     "T3 (1.50)"          "0.57 D Axis 170"
+ *
+ * O sea: **la designación con su cilindro entre paréntesis**, y el astigmatismo que
+ * quedaría con su eje. La primera fila no es una lente tórica: es la opción de no
+ * poner ninguna, y se conserva porque es justo la que dice cuánto astigmatismo se
+ * deja sin corregir.
+ *
+ * Si una celda no encaja con esta forma se devuelve `null` y la fila se descarta.
+ * No se adivina qué quería decir.
+ */
+export function leerFilaToricaDeKane(celdas: readonly (string | undefined)[]): {
+  readonly designacion: string
+  readonly cilindro: number
+  readonly cilindroResidual?: number
+  readonly ejeResidual?: number
+} | null {
+  const izquierda = (celdas[0] ?? '').trim()
+  const derecha = (celdas[1] ?? '').trim()
+
+  const m = /^(.+?)\s*\(\s*([-+]?[\d.,]+)\s*\)\s*$/.exec(izquierda)
+  if (!m?.[1] || m[2] === undefined) return null
+  const cilindro = leerNumeroDeTexto(m[2])
+  if (cilindro === undefined) return null
+
+  // El residual es opcional a propósito: la designación y su cilindro son el dato
+  // principal, y una fila sin residual legible sigue valiendo.
+  const residual = leerNumeroDeTexto(/([-+]?[\d.,]+)\s*D\b/i.exec(derecha)?.[1])
+  const eje = leerNumeroDeTexto(/Axis\s*([\d.,]+)/i.exec(derecha)?.[1])
+
+  return {
+    designacion: m[1].trim(),
+    cilindro,
+    ...(residual !== undefined ? { cilindroResidual: residual } : {}),
+    ...(eje !== undefined ? { ejeResidual: eje } : {}),
+  }
+}
+
+/** Una fila leída de una tabla de resultados de Kane, tal cual sale del DOM. */
+export interface FilaDeKane {
+  readonly celdas: readonly (string | undefined)[]
+  /** Si Kane le ha puesto `table-active`. */
+  readonly destacada: boolean
+}
+
+/**
+ * Convierte las tablas de Kane en opciones de lente.
+ *
+ * Está aparte del adaptador, y a propósito: así la regla que más importa de todo
+ * este fichero se puede **probar sin navegador**. La regla es esta:
+ *
+ *   ⚠️ **Ninguna opción tórica se marca como recomendada. Nunca.**
+ *
+ * No es una precaución teórica. Comprobado contra la web de Kane el 13/08/2026: su
+ * tabla de potencias esféricas lleva `table-active` en una fila, y su tabla tórica
+ * **no la lleva en ninguna**. Kane enseña cuánto astigmatismo quedaría con cada
+ * potencia tórica y deja la elección a quien opera.
+ *
+ * Por eso `destacada` de las filas tóricas **ni se mira**. Si algún día Kane
+ * empezara a marcar una, este código seguiría sin elegirla: preferimos enseñar las
+ * opciones y que decida una persona antes que trasladar una recomendación clínica
+ * que no hemos verificado que signifique lo que parece.
+ */
+export function construirOpcionesDeKane(
+  filasDePotencia: readonly FilaDeKane[],
+  filasToricas: readonly FilaDeKane[],
+): { readonly opciones: readonly OpcionLente[]; readonly toricasLeidas: number } {
+  const opciones: OpcionLente[] = []
+
+  // Las potencias esféricas. Una fila sin número no es una opción.
+  for (const fila of filasDePotencia) {
+    const esfera = leerNumeroDeTexto(fila.celdas[0])
+    if (esfera === undefined) continue
+    opciones.push({
+      esfera,
+      refraccionPrevista: leerNumeroDeTexto(fila.celdas[1]),
+      recomendada: fila.destacada,
+    })
+  }
+
+  // Las tóricas van con la esfera que Kane SÍ destaca, porque las dos tablas
+  // describen el mismo cálculo y no dos alternativos.
+  const esferaDestacada = opciones.find((o) => o.recomendada)?.esfera
+  let toricasLeidas = 0
+  for (const fila of filasToricas) {
+    const t = leerFilaToricaDeKane(fila.celdas)
+    if (t === null) continue
+    toricasLeidas++
+    opciones.push({
+      ...(esferaDestacada !== undefined ? { esfera: esferaDestacada } : {}),
+      cilindro: t.cilindro,
+      designacion: t.designacion,
+      ...(t.cilindroResidual !== undefined ? { cilindroResidual: t.cilindroResidual } : {}),
+      ...(t.ejeResidual !== undefined ? { ejeResidual: t.ejeResidual } : {}),
+      // Aquí está la regla. `fila.destacada` no se usa.
+      recomendada: false,
+    })
+  }
+
+  return { opciones, toricasLeidas }
 }
 
 export class AdaptadorKane implements AdaptadorCalculadora {
@@ -500,7 +724,8 @@ export class AdaptadorKane implements AdaptadorCalculadora {
 
     // Lo que cambia la FORMA del formulario va antes de escribir nada: si se
     // toca después, lo escrito se pierde al repintarse.
-    await this.asegurarNoTorico(pagina, lado)
+    const modo = modoParaKane(entradas)
+    await this.asegurarModo(pagina, lado, modo)
 
     // ⚠️ **NO se elige el modelo de lente en Kane**, y no es un olvido.
     //
@@ -510,15 +735,16 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     // lente no tórica —«Alcon SN60WF»— se queda como estaba.
     //
     // Es comportamiento sensato de Kane, no un fallo suyo: si la lente es tórica,
-    // quiere hacer el cálculo tórico. Pero eso pide el eje de las K, el SIA y el
-    // eje de la incisión, y **este producto no rellena la parte tórica de Kane**
-    // —para eso están EVO Toric y Barrett Toric—.
+    // quiere hacer el cálculo tórico. Y el tórico **sí se rellena** desde el
+    // 13/08/2026 (ver `CAMPOS_TORICOS`), pero conmutando su interruptor «Toric»
+    // nosotros, no dejando que lo conmute su lista de lentes: el modo lo decide
+    // `modoParaKane` a partir de los datos que hay, y tiene que ser predecible.
     //
     // Su propio formulario dice «A-Constant **or** IOL Type»: son alternativas. Se
     // le envía la constante A, que es la de esa lente, y queda dicho en el
     // resultado que el modelo no se le ha pasado.
 
-    for (const [campo, loc] of Object.entries(CAMPOS_POR_OJO[lado])) {
+    for (const [campo, loc] of Object.entries(camposDeKane(modo, lado))) {
       const valor = entradas.valores[campo as keyof typeof entradas.valores]
       if (valor === undefined) continue // ausente no se rellena, ni con un 0
       const destino = await this.localizar(pagina, loc)
@@ -527,7 +753,9 @@ export class AdaptadorKane implements AdaptadorCalculadora {
         await destino.fill(valor.toFixed(loc.decimales), { timeout: 5000 })
         puestos++
       } catch {
-        // Un campo que no admite escritura no tumba el resto.
+        // Un campo que no admite escritura no tumba el resto. En el modo tórico
+        // esto pasa de verdad y está previsto: Kane tiene un campo para el eje de
+        // K2 pero no deja escribirlo, porque lo deriva perpendicular al de K1.
       }
     }
     return puestos
@@ -549,7 +777,8 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     entradas: EntradasCalculadora,
   ): Promise<readonly string[]> {
     const mal: string[] = []
-    for (const [campo, loc] of Object.entries(CAMPOS_POR_OJO[entradas.ojo])) {
+    const campos = camposDeKane(modoParaKane(entradas), entradas.ojo)
+    for (const [campo, loc] of Object.entries(campos)) {
       const esperado = entradas.valores[campo as keyof typeof entradas.valores]
       if (esperado === undefined || !loc.selector) continue
       const puesto = await pagina
@@ -565,13 +794,25 @@ export class AdaptadorKane implements AdaptadorCalculadora {
   }
 
   /**
-   * Deja el ojo en modo «Non-toric», que es el que usa este producto.
+   * Deja el ojo en el modo que se va a usar, «Non-toric» o «Toric».
    *
-   * Casi siempre no hace nada, y eso es lo correcto: **Kane ya viene así**. Solo
-   * pulsa si de verdad estuviera en tórico, porque pulsar por costumbre lo
-   * alternaba y repintaba los campos.
+   * Solo pulsa si hace falta de verdad, porque pulsar por costumbre alterna el
+   * modo y repinta los campos —que es exactamente lo que hay que evitar antes de
+   * escribir—. Kane viene en no tórico, así que en ese modo casi nunca hace nada.
    */
-  private async asegurarNoTorico(pagina: Page, lado: 'OD' | 'OS'): Promise<void> {
+  private async asegurarModo(pagina: Page, lado: 'OD' | 'OS', modo: ModoDeKane): Promise<void> {
+    const radio = modo === 'TORICO' ? SEL.radioTorico[lado] : SEL.radioNoTorico[lado]
+    const etiqueta = modo === 'TORICO' ? SEL.etiquetaTorico[lado] : SEL.etiquetaNoTorico[lado]
+    return this.pulsarModo(pagina, lado, modo, radio, etiqueta)
+  }
+
+  private async pulsarModo(
+    pagina: Page,
+    lado: 'OD' | 'OS',
+    modo: ModoDeKane,
+    radioDelModo: string,
+    etiquetaDelModo: string,
+  ): Promise<void> {
     // ⚠️ NO se pregunta por `isChecked` del radio, y esto costó una ejecución
     // entera de diagnóstico: los dos radios tienen **nombres distintos**
     // (`nontoric_1` y `toric_1`), así que no forman un grupo excluyente. El de no
@@ -579,7 +820,7 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     //
     // La señal de verdad es la CLASE de la etiqueta: `act` en la activa y
     // `not-active` en la otra.
-    const activa = pagina.locator(`label.btn.act:has(${SEL.radioNoTorico[lado]})`)
+    const activa = pagina.locator(`label.btn.act:has(${radioDelModo})`)
     try {
       if ((await activa.count()) > 0) return
 
@@ -587,15 +828,16 @@ export class AdaptadorKane implements AdaptadorCalculadora {
       // aunque nadie lo haya pedido: **Kane recuerda el estado del formulario en
       // el perfil del navegador**, que se comparte entre ejecuciones para no
       // repetir el acuerdo. Un cambio de una vez anterior sigue ahí.
-      await pagina.click(SEL.etiquetaNoTorico[lado], { timeout: 5000 })
+      await pagina.click(etiquetaDelModo, { timeout: 5000 })
       // Y se comprueba que ha cambiado de verdad, en vez de suponerlo.
       await activa.first().waitFor({ state: 'attached', timeout: 5000 })
     } catch {
+      const comoSeLlama = modo === 'TORICO' ? 'Toric' : 'Non-toric'
       throw new ErrorAdaptador(
         'ADAPTER_BROKEN',
-        `No se ha podido dejar el ${lado} en modo «Non-toric» en Kane. El conector necesita actualizarse: ejecuta «pnpm reconocer:kane».`,
+        `No se ha podido dejar el ${lado} en modo «${comoSeLlama}» en Kane. El conector necesita actualizarse: ejecuta «pnpm reconocer:kane».`,
         'RELLENANDO',
-        SEL.etiquetaNoTorico[lado],
+        etiquetaDelModo,
       )
     }
   }
@@ -695,6 +937,7 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     inicio: number,
   ): Promise<ResultadoCalculadora> {
     const indiceDelOjo = ctx.entradas.ojo === 'OD' ? 0 : 1
+    const modo = modoParaKane(ctx.entradas)
 
     // 1 — Esperar a la SEÑAL REAL: que «Processing…» se esconda. No un reloj.
     await pagina
@@ -710,35 +953,50 @@ export class AdaptadorKane implements AdaptadorCalculadora {
         )
       })
 
-    // 2 — Leer la tabla de ESE ojo, y de paso lo que la web dice haber recibido.
+    // 2 — Leer las tablas de ESE ojo, y de paso lo que la web dice haber recibido.
+    //
+    // En tórico la pantalla es distinta: el bloque es `.res_toric` y en vez de una
+    // tabla hay DOS, porque Kane separa las dos decisiones —qué potencia esférica y
+    // qué potencia tórica—.
     const leido = await pagina.evaluate(
-      ({ indice }) => {
-        const bloque = document.querySelectorAll('.res_nontoric')[indice]
+      ({ indice, torico }) => {
+        const bloques = document.querySelectorAll(torico ? '.res_toric' : '.res_nontoric')
+        const bloque = bloques[indice]
         const eco = (clase: string): string => {
           const t = document.querySelectorAll(`table.${clase}`)[indice]
           return t instanceof HTMLElement ? t.innerText.replace(/\s+/g, ' ').trim() : ''
         }
-        const filas = [...(bloque?.querySelectorAll('tbody.res_tab3_lines tr') ?? [])].map((f) => ({
-          celdas: [...(f as HTMLTableRowElement).cells].map((c) => c.innerText.trim()),
-          // Kane marca SU opción con esta clase. Es una marca semántica, no una
-          // posición: por eso se puede usar sin inventar nada.
-          destacada: (f as HTMLElement).classList.contains('table-active'),
-        }))
-        return { filas, entradas: eco('res_tab1'), parametros: eco('res_tab2') }
+        const filasDe = (selector: string) =>
+          [...(bloque?.querySelectorAll(selector) ?? [])].map((f) => ({
+            celdas: [...(f as HTMLTableRowElement).cells].map((c) => c.innerText.trim()),
+            // Kane marca SU opción con esta clase. Es una marca semántica, no una
+            // posición: por eso se puede usar sin inventar nada.
+            destacada: (f as HTMLElement).classList.contains('table-active'),
+          }))
+        return {
+          cuantosBloques: bloques.length,
+          filas: filasDe(torico ? 'table.res_tab32 tbody tr' : 'tbody.res_tab3_lines tr'),
+          filasToricas: torico ? filasDe('table.res_tab42 tbody tr') : [],
+          entradas: eco('res_tab1'),
+          parametros: eco('res_tab2'),
+        }
       },
-      { indice: indiceDelOjo },
+      { indice: indiceDelOjo, torico: modo === 'TORICO' },
     )
 
-    // 3 — Convertir las filas en opciones. Una fila sin número no es una opción.
-    const opciones: OpcionLente[] = []
-    for (const fila of leido.filas) {
-      const esfera = leerNumeroDeTexto(fila.celdas[0])
-      if (esfera === undefined) continue
-      opciones.push({
-        esfera,
-        refraccionPrevista: leerNumeroDeTexto(fila.celdas[1]),
-        recomendada: fila.destacada,
-      })
+    // 3 — Convertir las tablas en opciones. La regla de «ninguna tórica se marca
+    // como recomendada» vive en `construirOpcionesDeKane`, que se prueba sin
+    // navegador.
+    const { opciones, toricasLeidas } = construirOpcionesDeKane(leido.filas, leido.filasToricas)
+
+    if (modo === 'TORICO' && toricasLeidas === 0) {
+      throw new ErrorAdaptador(
+        'ADAPTER_BROKEN',
+        'Se le ha pedido a Kane el cálculo tórico pero no ha devuelto ninguna opción tórica legible. ' +
+          'Su pantalla de resultados puede haber cambiado: ejecuta «pnpm reconocer:kane».',
+        'LEYENDO_RESULTADO',
+        'table.res_tab42 tbody tr',
+      )
     }
 
     if (opciones.length === 0) {
@@ -757,11 +1015,11 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     // mandó, estamos leyendo el otro ojo. Un resultado del ojo equivocado
     // parecería perfectamente válido.
     const alEnviada = ctx.entradas.valores.AL
-    if (alEnviada !== undefined && leido.entradas !== '') {
-      const alSegunKane = /AL:\s*([\d.,]+)/i.exec(leido.entradas)?.[1]
-      const comoNumero =
-        alSegunKane === undefined ? undefined : Number(alSegunKane.replace(',', '.'))
-      if (comoNumero !== undefined && Math.abs(comoNumero - alEnviada) > 0.005) {
+    const alSegunKane = /AL:\s*([\d.,]+)/i.exec(leido.entradas)?.[1]
+    const comoNumero = alSegunKane === undefined ? undefined : Number(alSegunKane.replace(',', '.'))
+
+    if (alEnviada !== undefined && comoNumero !== undefined) {
+      if (Math.abs(comoNumero - alEnviada) > 0.005) {
         throw new ErrorAdaptador(
           'ADAPTER_BROKEN',
           `Kane dice haber calculado con una longitud axial de ${comoNumero} y se le envió ${alEnviada}. No se usa este resultado: podría ser del otro ojo.`,
@@ -769,6 +1027,19 @@ export class AdaptadorKane implements AdaptadorCalculadora {
           'table.res_tab1',
         )
       }
+    } else if (leido.cuantosBloques > 1) {
+      // No se ha podido comprobar el eco Y hay resultados de los dos ojos en la
+      // pantalla. Entonces el índice es la ÚNICA razón para creer que este bloque es
+      // el del ojo que se pidió, y eso no basta: un resultado del ojo equivocado se
+      // vería perfectamente válido. Se para en vez de arriesgarse.
+      throw new ErrorAdaptador(
+        'ADAPTER_BROKEN',
+        'Kane ha devuelto resultados de los dos ojos y no se ha podido comprobar cuál es el de este. ' +
+          'No se usa ninguno: preferimos no darte un resultado antes que darte el del otro ojo. ' +
+          'Ejecuta «pnpm reconocer:kane» para que el conector aprenda cómo es su pantalla ahora.',
+        'LEYENDO_RESULTADO',
+        'table.res_tab1',
+      )
     }
 
     // 5 — La recomendada, SOLO si Kane ha marcado una.
@@ -782,11 +1053,20 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     if (leido.entradas !== '') entradasSegunLaWeb['Biometría'] = leido.entradas
     if (leido.parametros !== '') entradasSegunLaWeb['Parámetros'] = leido.parametros
     entradasSegunLaWeb['Ojo'] = ctx.entradas.ojo === 'OD' ? 'OD (right)' : 'OS (left)'
+    entradasSegunLaWeb['Modo'] = modo === 'TORICO' ? 'Tórico' : 'No tórico'
 
     const aviso =
       ctx.entradas.modeloLente !== undefined
-        ? `A Kane no se le ha indicado el modelo «${ctx.entradas.modeloLente}»: elegir una lente tórica en su lista cambia el formulario al modo tórico, que este producto no rellena. Se le ha enviado la constante A, que es la de esa lente.`
+        ? `A Kane no se le ha indicado el modelo «${ctx.entradas.modeloLente}»: elegir una lente de su lista cambia el modo del formulario por su cuenta, y el modo lo decide Calculator Vilamar según los datos que tiene. Se le ha enviado la constante A, que es la de esa lente.`
         : undefined
+
+    // Lo que hay que decir del tórico, y decirlo bien: Kane da las opciones y NO
+    // elige. Callarlo dejaría las casillas de cilindro vacías sin explicación, y
+    // vacío se lee como «ha fallado» cuando en realidad es «Kane no se pronuncia».
+    const sobreToricas =
+      modo === 'TORICO'
+        ? `Kane da ${toricasLeidas} opciones tóricas con el astigmatismo que quedaría con cada una, pero **no destaca ninguna**: la elección de la potencia tórica la deja a quien opera. Por eso las casillas de cilindro de su columna están vacías y no porque falte el dato.`
+        : 'A Kane se le ha pedido el cálculo NO tórico, porque falta alguno de los datos que su modo tórico necesita (eje de K1, eje de K2, SIA y eje de la incisión). Da esfera y refracción prevista, no cilindro.'
 
     return {
       calculadora: this.calculadora,
@@ -800,14 +1080,15 @@ export class AdaptadorKane implements AdaptadorCalculadora {
       ...(recomendada !== undefined ? { recomendada } : {}),
       entradasSegunLaWeb,
       mensaje:
-        recomendada === undefined
-          ? [
-              aviso,
-              'Kane no ha destacado ninguna potencia, así que no se marca ninguna como recomendada. Están todas.',
-            ]
-              .filter(Boolean)
-              .join(' ')
-          : aviso,
+        [
+          aviso,
+          sobreToricas,
+          recomendada === undefined
+            ? 'Kane no ha destacado ninguna potencia, así que no se marca ninguna como recomendada. Están todas.'
+            : undefined,
+        ]
+          .filter(Boolean)
+          .join(' ') || undefined,
     }
   }
 

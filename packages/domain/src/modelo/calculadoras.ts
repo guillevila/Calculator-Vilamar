@@ -94,12 +94,22 @@ export const FICHAS: Readonly<Record<Calculadora, FichaCalculadora>> = {
     requeridos: ['AL', 'K1', 'K2', 'ACD', 'REFRACCION_OBJETIVO', 'CONSTANTE_A'],
     // Comprobado contra su formulario real el 12/08/2026:
     //  · WTW NO existe en Kane. Estaba aquí por suposición.
-    //  · Los ejes de K solo aparecen en su modo «Toric», que este producto no
-    //    usa: se marca «Non-toric».
     //  · El índice queratométrico SÍ: es una lista que Kane marca obligatoria,
     //    con 1.3375 por defecto. Es opcional PARA NOSOTROS porque si el informe
     //    no lo trae se deja el de Kane, que es el habitual.
-    opcionales: ['LT', 'CCT', 'INDICE_QUERATOMETRICO'],
+    //
+    // Y comprobado contra su modo «Toric» el 13/08/2026: los ejes de las K, el SIA
+    // y el eje de la incisión SÍ existen ahí, y con ellos Kane devuelve además las
+    // opciones tóricas con su cilindro residual. Son OPCIONALES, no requeridos, y
+    // esa distinción es la que hace que Kane siga sirviendo cuando falta alguno:
+    //
+    //  · con los cuatro → se le pide el cálculo tórico, comparable con EVO Toric y
+    //    Barrett Toric;
+    //  · sin alguno → se le pide el no tórico, que da esfera y refracción prevista.
+    //
+    // Ponerlos como requeridos dejaría a Kane sin poder calcular en casos en los que
+    // sí puede, que es peor que darle menos.
+    opcionales: ['LT', 'CCT', 'INDICE_QUERATOMETRICO', 'K1_EJE', 'K2_EJE', 'SIA', 'EJE_INCISION'],
     // Su formulario lo pide. Observado por el dueño del proyecto en una prueba
     // manual; no se ha podido confirmar contra el HTML porque la calculadora
     // vive detrás de un acuerdo de licencia que solo puede aceptar una persona.

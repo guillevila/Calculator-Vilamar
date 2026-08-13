@@ -408,6 +408,20 @@ table.comparativa tbody th {
 table.comparativa td.na {
   color: var(--gris);
 }
+/*
+ * «No elige» no es «no hay dato», y no puede parecerlo.
+ *
+ * Cuando una calculadora da sus opciones tóricas sin destacar ninguna —Kane lo
+ * hace— la casilla explica eso en dos líneas cortas en vez de poner «N/A». Va más
+ * pequeña y con ayuda al pasar el ratón para que se lea como una aclaración y no
+ * como un valor.
+ */
+table.comparativa td.sin-elegir {
+  font-size: 11.5px;
+  line-height: 1.25;
+  font-style: italic;
+  cursor: help;
+}
 
 .observacion {
   padding: 5px 0;

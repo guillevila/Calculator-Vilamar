@@ -165,37 +165,52 @@ Se han usado como límites de validación en el dominio:
 
 **Dirección:** `https://www.iolformula.com`
 **Adaptador:** `packages/integrations/src/adapters/kane.ts`
-**Estado:** ⚠️ **escrito pero NO verificado contra su formulario real**
+**Estado:** ✅ **verificado contra su formulario real**, en sus DOS modos
+(no tórico el 12/08/2026, tórico el 13/08/2026)
 
-### Por qué no está verificado
+### La puerta sigue siendo de la persona
 
 Al abrir la página aparece, **antes** de la calculadora, un acuerdo de licencia
 con un botón «I Agree». Y al pie: «This site is protected by reCAPTCHA».
 
 Calculator Vilamar **no acepta ese acuerdo en nombre de nadie** —es un contrato
-legal entre el autor de la fórmula y quien la usa— y **no rodea el reCAPTCHA**.
-Como consecuencia, no se ha podido ver el formulario de dentro para copiar sus
-identificadores, que es como se han escrito los otros dos adaptadores.
+legal entre el autor de la fórmula y quien la usa— y **no rodea el reCAPTCHA**. Lo
+acepta una persona, en la ventana que abre el programa, **una sola vez**: la
+aceptación queda en el perfil del navegador y los cálculos siguientes entran
+directos. Fue así como se pudo copiar el formulario, con un clic humano.
 
 Las cláusulas relevantes están citadas en [SYSTEM_VISION.md § 7](../SYSTEM_VISION.md),
 junto con la decisión abierta O1 y la recomendación de revisión jurídica.
 
 ### Qué hace el adaptador hoy
 
-1. Abre Kane en un navegador **visible**.
-2. Detecta la pantalla de condiciones.
-3. Avisa: _«KANE REQUIERE TU INTERVENCIÓN. En el navegador que se ha abierto
-   tienes que leer y aceptar las condiciones de uso… Calculator Vilamar
-   continuará automáticamente cuando termines.»_ — **comprobado: este mensaje
-   aparece de verdad.**
-4. Espera hasta cinco minutos a que la pantalla desaparezca.
-5. Busca los campos **por su etiqueta** (`getByLabel`, texto de ayuda, celda
-   anterior en una tabla), que es lo más robusto que se puede hacer sin haber
-   visto el HTML.
-6. Si no los encuentra, lo dice claramente y pide ejecutar `pnpm reconocer:kane`.
-   No se inventa un resultado.
-7. Lo que devuelva se marca como `PARTIAL`, con un mensaje que avisa de que el
-   conector no está verificado y hay que contrastar los números con el navegador.
+1. Abre Kane en un navegador **visible**, y mantiene abierta **esa misma ventana**:
+   recargar perdería lo que la persona acaba de aceptar.
+2. Si está en la puerta, avisa de que le toca a la persona y espera a **la señal
+   real** de que la calculadora está lista —no a un reloj—: que la URL salga de
+   `/agreement/` y haya campos que de verdad admitan escritura.
+3. Elige el modo del ojo **según los datos que hay**:
+   - con eje de K1, eje de K2, SIA y eje de la incisión → **modo tórico**
+     (campos con sufijo `-t`);
+   - si falta alguno → **modo no tórico**.
+4. Rellena con sus identificadores reales, y **vuelve a leerlos antes de calcular**
+   para no pulsar «Calculate» con el formulario a medias.
+5. Lee el resultado esperando a que su «Processing…» se esconda.
+6. Si algo no encaja, lo dice claramente y pide `pnpm reconocer:kane`. No se
+   inventa un resultado.
+
+### Tres cosas de Kane que hay que saber
+
+- **No se le manda el modelo de lente.** Elegir una tórica de su lista cambia el
+  modo del formulario por su cuenta, y el modo lo decide el adaptador. Se le envía
+  la constante A, que es la de esa lente, y el resultado lo dice.
+- **El eje de K2 no se le manda.** Su campo existe pero no admite escritura: Kane
+  lo deriva perpendicular al de K1, que es lo correcto.
+- **En modo tórico, Kane NO destaca ninguna opción tórica.** Da las tres con el
+  astigmatismo que quedaría con cada una y deja la elección a quien opera. El
+  adaptador las devuelve todas sin recomendada — **no elige por él**, ni la de menor
+  residual. Por eso las casillas de cilindro de su columna aparecen como «3
+  opciones, ninguna destacada» y no como un valor.
 
 ### Cómo cerrarlo (dos minutos de una persona)
 

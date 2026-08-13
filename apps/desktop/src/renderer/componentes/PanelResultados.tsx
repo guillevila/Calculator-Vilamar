@@ -5,7 +5,7 @@
  * dicen en qué coinciden y en qué no. No dicen qué implantar, y no lo dirán.
  */
 
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import type { JSX } from 'react'
 
 import type { Calculadora, Caso, Lateralidad } from '@vilamar/domain'
@@ -31,8 +31,32 @@ interface Props {
   readonly estados?: readonly EstadoCalculo[]
 }
 
-function celda(valor: number | undefined, sufijo = ''): JSX.Element {
-  if (valor === undefined) return <td className="na">N/A</td>
+/**
+ * Cuando no hay valor, la casilla tiene que decir POR QUÉ.
+ *
+ * «N/A» a secas se lee como «ha fallado», y así se leyó: la columna de Kane salía
+ * con cinco N/A y parecía un error de lectura cuando en realidad Kane había dado
+ * sus opciones tóricas y se había guardado la elección a propósito.
+ *
+ * `sinElegir` es cuántas opciones tóricas hay sin destacar. Con eso la casilla dice
+ * lo que pasa de verdad en vez de insinuar una avería.
+ */
+function sinDato(sinElegir?: number): JSX.Element {
+  if (sinElegir === undefined) return <td className="na">N/A</td>
+  return (
+    <td
+      className="na sin-elegir"
+      title={`Esta calculadora ha dado ${sinElegir} opciones tóricas con el astigmatismo que quedaría con cada una, pero no destaca ninguna: la elección de la potencia tórica la deja en tus manos. Las tienes todas en el detalle de esta calculadora.`}
+    >
+      {sinElegir} opciones,
+      <br />
+      ninguna destacada
+    </td>
+  )
+}
+
+function celda(valor: number | undefined, sufijo = '', sinElegir?: number): JSX.Element {
+  if (valor === undefined) return sinDato(sinElegir)
   return (
     <td>
       {valor.toFixed(2)}
@@ -41,8 +65,8 @@ function celda(valor: number | undefined, sufijo = ''): JSX.Element {
   )
 }
 
-function celdaEje(valor: number | undefined): JSX.Element {
-  if (valor === undefined) return <td className="na">N/A</td>
+function celdaEje(valor: number | undefined, sinElegir?: number): JSX.Element {
+  if (valor === undefined) return sinDato(sinElegir)
   return <td>{valor.toFixed(0)}°</td>
 }
 
@@ -125,12 +149,20 @@ export function PanelResultados({
             <tr>
               <th>Cilindro</th>
               {comparativa.celdas.map((c) => (
-                <Celda key={c.calculadora} valor={c.cilindro} sufijo=" D" />
+                <Celda
+                  key={c.calculadora}
+                  valor={c.cilindro}
+                  sufijo=" D"
+                  sinElegir={c.toricasSinElegir}
+                />
               ))}
             </tr>
             <tr>
               <th>Eje</th>
               {comparativa.celdas.map((c) => (
+                // Sin `sinElegir` a propósito: en la tabla tórica que leemos de Kane
+                // no viene el eje al que colocar la lente, así que aquí no hay
+                // opciones que enseñar. Es un dato que no da, no uno que no elige.
                 <CeldaEje key={c.calculadora} valor={c.eje} />
               ))}
             </tr>
@@ -140,9 +172,7 @@ export function PanelResultados({
                 c.designacion ? (
                   <td key={c.calculadora}>{c.designacion}</td>
                 ) : (
-                  <td key={c.calculadora} className="na">
-                    N/A
-                  </td>
+                  <Fragment key={c.calculadora}>{sinDato(c.toricasSinElegir)}</Fragment>
                 ),
               )}
             </tr>
@@ -155,13 +185,22 @@ export function PanelResultados({
             <tr>
               <th>Cilindro residual</th>
               {comparativa.celdas.map((c) => (
-                <Celda key={c.calculadora} valor={c.cilindroResidual} sufijo=" D" />
+                <Celda
+                  key={c.calculadora}
+                  valor={c.cilindroResidual}
+                  sufijo=" D"
+                  sinElegir={c.toricasSinElegir}
+                />
               ))}
             </tr>
             <tr>
               <th>Eje residual</th>
               {comparativa.celdas.map((c) => (
-                <CeldaEje key={c.calculadora} valor={c.ejeResidual} />
+                <CeldaEje
+                  key={c.calculadora}
+                  valor={c.ejeResidual}
+                  sinElegir={c.toricasSinElegir}
+                />
               ))}
             </tr>
             <tr>
@@ -253,10 +292,24 @@ export function PanelResultados({
   )
 }
 
-function Celda({ valor, sufijo }: { valor: number | undefined; sufijo?: string }): JSX.Element {
-  return celda(valor, sufijo)
+function Celda({
+  valor,
+  sufijo,
+  sinElegir,
+}: {
+  valor: number | undefined
+  sufijo?: string
+  sinElegir?: number
+}): JSX.Element {
+  return celda(valor, sufijo, sinElegir)
 }
 
-function CeldaEje({ valor }: { valor: number | undefined }): JSX.Element {
-  return celdaEje(valor)
+function CeldaEje({
+  valor,
+  sinElegir,
+}: {
+  valor: number | undefined
+  sinElegir?: number
+}): JSX.Element {
+  return celdaEje(valor, sinElegir)
 }

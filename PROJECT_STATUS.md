@@ -75,6 +75,19 @@ es lo que separa un prototipo de un MVP.
 - **Kane devuelve lo que dice haber recibido**, y se guarda: «AL: 24.07 mm K1:
   41.22 D K2: 42.52 D ACD: 3.18 mm» / «A-Constant: 119.00 Target Ref: 0.00 D».
   Sirve de auditoría y de guarda contra leer el ojo equivocado.
+- **Kane calcula también en su MODO TÓRICO.** Ejecutado contra su web el 13/08/2026
+  con datos sintéticos: `SUCCESS` en **12,7 s**, 8 opciones —5 potencias esféricas y
+  3 tóricas con su cilindro residual—, y el eco confirmando que los ejes llegaron:
+  «K1: 41.22 D @ 175° K2: 42.52 D @ 85°». El modo se elige por los datos: con eje de
+  las dos K, SIA y eje de la incisión se pide el tórico; si falta alguno, el no
+  tórico. Antes de esto su columna salía sin cilindro y parecía un fallo de lectura.
+- **Kane no elige la potencia tórica, y el programa tampoco elige por él.** Su tabla
+  tórica no destaca ninguna fila: enseña cuánto astigmatismo quedaría con cada
+  opción y deja la decisión a quien opera. Comprobado en la ejecución real: **0
+  tóricas marcadas como recomendadas**. La regla está probada rompiéndola.
+- **En la tabla comparativa, «no hay dato» y «no elige» ya no se ven igual.** Donde
+  Kane no se pronuncia, la casilla dice «3 opciones, ninguna destacada» en vez de
+  «N/A». La fila «Eje» sigue como N/A a propósito: ese dato no lo da.
 
 ### Comprobado arrancando la aplicación de verdad
 

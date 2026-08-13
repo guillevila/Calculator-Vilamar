@@ -745,3 +745,47 @@ que yo mismo redacté. Documenté el fallo y lo repetí en la reimplementación.
 
 **Contexto:** Todo hook. Todo script cuyo contrato sea un código de salida. Y toda
 comparación de rutas o URLs.
+
+---
+
+## 13/08/2026 — «N/A» no es una explicación, y una columna a medias no se ve como un fallo de diseño
+
+**Qué pasó.** Con Kane ya funcionando, el dueño del proyecto dijo: «no rellena
+todos los datos de la de kane». Su columna daba esfera y refracción prevista, y
+cinco casillas con «N/A»: cilindro, eje, modelo tórico, cilindro residual y eje
+residual.
+
+Mi primera reacción fue explicar que **no era un fallo de lectura**: a Kane se le
+estaba pidiendo su modo NO tórico, y en ese modo solo devuelve esas dos cosas. Eso
+era cierto. Y era irrelevante.
+
+**La causa raíz.** Se estaban comparando **tres calculadoras tóricas para una lente
+tórica** y una de las tres no daba cilindro. El adaptador hacía exactamente lo que
+estaba escrito que hiciera —«este producto no rellena la parte tórica de Kane»— y lo
+que estaba escrito era una decisión mía de una sesión anterior, tomada cuando
+descubrí que elegir una lente tórica en su lista escondía los campos. Documenté la
+limitación con mucho detalle y **no volví a preguntarme si era aceptable**. Una
+limitación bien comentada sigue siendo una limitación.
+
+**Lo segundo, que era la mitad del problema.** «N/A» significaba dos cosas
+distintas en la misma tabla: «no hay dato» y «la calculadora no se pronuncia». Se
+leyó como «ha fallado», y con razón: nada las distinguía. Un hueco sin explicación
+es una pregunta que el programa le deja al usuario.
+
+**Lo que hago a partir de ahora.**
+
+1. Cuando documente una limitación de un adaptador, dejar escrito **qué haría falta
+   para levantarla** y qué se pierde mientras siga ahí. Si lo que se pierde es justo
+   lo que el producto compara, no es una limitación: es un trabajo pendiente.
+2. **Una casilla vacía tiene que decir por qué está vacía.** Si el motivo no cabe,
+   cabe en la ayuda al pasar el ratón. «N/A» solo vale cuando de verdad no hay nada
+   que explicar.
+3. Cuando el dueño señale un síntoma y yo tenga una explicación técnica correcta,
+   darla en una frase y **seguir hasta lo que él quería**. Tener razón sobre la causa
+   no resuelve nada.
+
+**Lo que NO cambió, y no va a cambiar.** Kane no destaca ninguna opción tórica: deja
+la elección a quien opera. La tentación era marcar la de menor cilindro residual
+para que la tabla quedara completa. Eso habría sido inventarse una recomendación
+clínica, así que las tres van sin recomendada y la tabla dice «3 opciones, ninguna
+destacada». Una casilla honesta vale más que una tabla bonita.

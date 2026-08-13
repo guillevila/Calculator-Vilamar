@@ -145,12 +145,12 @@ una segunda lista que mantener: sale de `FICHAS`, que está comprobada contra lo
 formularios reales, así que si Barrett deja de pedir el SIA se cambia su ficha y
 esto cambia solo. Hay un test que lo vigila.
 
-| Nivel               | Qué significa                         | Ejemplos                                                                                  |
-| ------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `OBLIGATORIO`       | Sin él no calcula ninguna de las tres | AL, K1, K2, ACD, refracción objetivo                                                      |
-| `SEGUN_CALCULADORA` | Unas calculan y otras no              | SIA y eje de incisión (solo Barrett); ejes de K (EVO y Barrett); constante A (EVO y Kane) |
-| `OPCIONAL`          | Todas calculan; mejora el resultado   | LT, CCT, WTW, córnea posterior                                                            |
-| `INFORMATIVO`       | **No se envía a ninguna calculadora** | AQD, TK1/TK2 y sus ejes, nk                                                               |
+| Nivel               | Qué significa                         | Ejemplos                                                                                                                        |
+| ------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `OBLIGATORIO`       | Sin él no calcula ninguna de las tres | AL, K1, K2, ACD, refracción objetivo                                                                                            |
+| `SEGUN_CALCULADORA` | Unas calculan y otras no              | SIA y eje de incisión (Barrett, y Kane en su modo tórico); ejes de K (EVO, Barrett, y Kane en tórico); constante A (EVO y Kane) |
+| `OPCIONAL`          | Todas calculan; mejora el resultado   | LT, CCT, WTW, córnea posterior                                                                                                  |
+| `INFORMATIVO`       | **No se envía a ninguna calculadora** | AQD, TK1/TK2 y sus ejes, nk                                                                                                     |
 
 Dos cosas que no son obvias:
 

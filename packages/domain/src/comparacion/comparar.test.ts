@@ -177,3 +177,77 @@ describe('el producto compara, no recomienda', () => {
     expect(c.observaciones.every((o) => o.tipo === 'AVISO' || o.tipo === 'FALLO')).toBe(true)
   })
 })
+
+describe('«no hay dato» y «no elige» son cosas distintas', () => {
+  /**
+   * Kane devuelve la potencia esférica que destaca y, aparte, las opciones tóricas
+   * SIN destacar ninguna. Esta es la forma exacta de ese resultado.
+   */
+  const KANE_TORICO: ResultadoCalculadora = {
+    calculadora: 'KANE',
+    ojo: 'OD',
+    estado: 'SUCCESS',
+    obtenidoEn: CUANDO,
+    opciones: [
+      { esfera: 21.5, refraccionPrevista: -0.06, recomendada: true },
+      {
+        esfera: 21.5,
+        cilindro: 0,
+        designacion: 'Non-toric',
+        cilindroResidual: 0.42,
+        ejeResidual: 80,
+        recomendada: false,
+      },
+      {
+        esfera: 21.5,
+        cilindro: 1,
+        designacion: 'T2',
+        cilindroResidual: 0.24,
+        ejeResidual: 170,
+        recomendada: false,
+      },
+      {
+        esfera: 21.5,
+        cilindro: 1.5,
+        designacion: 'T3',
+        cilindroResidual: 0.57,
+        ejeResidual: 170,
+        recomendada: false,
+      },
+    ],
+    recomendada: { esfera: 21.5, refraccionPrevista: -0.06, recomendada: true },
+  }
+
+  it('cuenta las tóricas que hay sin destacar, para poder explicar la casilla vacía', () => {
+    const c = compararOjo('OD', { KANE: KANE_TORICO })
+    const kane = c.celdas.find((x) => x.calculadora === 'KANE')
+
+    expect(kane?.esfera).toBe(21.5)
+    expect(kane?.cilindro).toBeUndefined()
+    // Tres opciones tóricas y ninguna elegida por la calculadora.
+    expect(kane?.toricasSinElegir).toBe(3)
+  })
+
+  it('una calculadora que SÍ elige su tórica no sale como «sin elegir»', () => {
+    const c = compararOjo('OD', {
+      EVO_TORIC: resultado('EVO_TORIC', 22, {
+        cilindro: 3,
+        designacion: 'T5',
+        cilindroResidual: 0.31,
+      }),
+    })
+    expect(c.celdas.find((x) => x.calculadora === 'EVO_TORIC')?.toricasSinElegir).toBeUndefined()
+  })
+
+  it('una calculadora que no da cilindro NI opciones tóricas tampoco lo usa', () => {
+    // Aquí la casilla vacía sí significa «no hay dato», y decir «0 opciones,
+    // ninguna destacada» sería peor que no decir nada.
+    const c = compararOjo('OD', { KANE: resultado('KANE', 21.5, { refraccionPrevista: -0.06 }) })
+    expect(c.celdas.find((x) => x.calculadora === 'KANE')?.toricasSinElegir).toBeUndefined()
+  })
+
+  it('un fallo no se disfraza de «no elige»', () => {
+    const c = compararOjo('OD', { KANE: fallo('KANE', 'Falta el sexo.') })
+    expect(c.celdas.find((x) => x.calculadora === 'KANE')?.toricasSinElegir).toBeUndefined()
+  })
+})

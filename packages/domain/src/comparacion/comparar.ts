@@ -34,6 +34,23 @@ export interface CeldaComparativa {
   readonly ejeResidual?: number
   /** Por qué no hay datos, en lenguaje normal. */
   readonly motivo?: string
+  /**
+   * Cuántas opciones tóricas ha dado la calculadora **sin destacar ninguna**.
+   *
+   * Existe para separar dos cosas que en la tabla se veían igual y no lo son:
+   *
+   *  - **No hay dato**: la calculadora no calcula cilindro, o falló. Casilla vacía.
+   *  - **No elige**: da las opciones tóricas con su cilindro residual y deja la
+   *    decisión a quien opera. Kane hace esto —comprobado el 13/08/2026: su tabla
+   *    tórica no lleva `table-active` en ninguna fila—.
+   *
+   * Las dos salían como «N/A», y eso se lee como «ha fallado». Se leyó así de
+   * hecho. Con este número la interfaz puede decir «3 opciones, ninguna destacada»,
+   * que es la verdad, en vez de insinuar un error que no ha habido.
+   *
+   * Se queda `undefined` cuando sí hay una tórica elegida o cuando no hay ninguna.
+   */
+  readonly toricasSinElegir?: number
 }
 
 export type TipoObservacion = 'CONCORDANCIA' | 'DISCREPANCIA' | 'AVISO' | 'FALLO'
@@ -72,6 +89,12 @@ function aCelda(calculadora: Calculadora, r: ResultadoCalculadora | undefined): 
   }
   const op = r.recomendada ?? r.opciones.find((o) => o.recomendada) ?? r.opciones[0]
   const utilizable = (r.estado === 'SUCCESS' || r.estado === 'PARTIAL') && op !== undefined
+
+  // Opciones tóricas que la calculadora ha dado pero sin destacar ninguna. Solo
+  // cuenta si la opción elegida NO trae cilindro: si lo trae, sí ha elegido.
+  const toricas = r.opciones.filter((o) => o.designacion !== undefined || o.cilindro !== undefined)
+  const sinElegir = utilizable && op?.cilindro === undefined && toricas.length > 0
+
   return {
     calculadora,
     nombre,
@@ -85,6 +108,7 @@ function aCelda(calculadora: Calculadora, r: ResultadoCalculadora | undefined): 
     cilindroResidual: utilizable ? op?.cilindroResidual : undefined,
     ejeResidual: utilizable ? op?.ejeResidual : undefined,
     motivo: r.mensaje,
+    ...(sinElegir ? { toricasSinElegir: toricas.length } : {}),
   }
 }
 

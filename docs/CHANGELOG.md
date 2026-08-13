@@ -4,6 +4,92 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.1.0] — 13/08/2026
+
+Kane ya calcula en **modo tórico**, que es lo que se estaba comparando.
+
+### El problema real
+
+Con Kane arreglado y devolviendo `SUCCESS`, su columna seguía a medias:
+
+    Ojo izquierdo        Kane        EVO Toric    Barrett Toric
+    Esfera               22.50 D     22.50 D      22.50 D
+    Cilindro             N/A         3.00 D       3.75 D
+    Eje                  N/A         84°          84°
+    Modelo tórico        N/A         T5           T4
+    Cilindro residual    N/A         0.31 D       0.09 D
+    Eje residual         N/A         174°         6°
+
+No era un fallo de lectura: **a Kane se le estaba pidiendo el cálculo NO tórico**,
+y en ese modo solo devuelve potencia y refracción prevista. Se comparaban tres
+calculadoras tóricas para una lente tórica y una de las tres no daba cilindro.
+
+### 1 · Su modo tórico, capturado y usado
+
+Kane tiene dos modos por ojo. Capturado el 13/08/2026 pulsando su interruptor
+«Toric»: los campos son los mismos con sufijo `-t`, y aparecen tres que en no
+tórico no existen —eje de K1, SIA y eje de la incisión—. Los del ojo izquierdo se
+verificaron uno a uno contra la web, sin dar la simetría por supuesta.
+
+⚠️ **El eje de K2 existe pero no admite escritura**: Kane lo deriva perpendicular
+al de K1, que es lo correcto. No se le manda.
+
+El modo lo decide `modoParaKane` **por los datos**, no por una preferencia: con el
+eje de las dos K, el SIA y el eje de la incisión se pide el tórico; si falta
+cualquiera de los cuatro, el no tórico, que sigue funcionando igual. Esos cuatro
+campos entran en la ficha como **opcionales**, no requeridos: ponerlos requeridos
+dejaría a Kane sin poder calcular en casos en los que sí puede.
+
+### 2 · Kane no elige la tórica, y eso no se tapa
+
+Su resultado tórico son **dos tablas**: las potencias esféricas, con una destacada
+por `table-active`, y las opciones tóricas con su cilindro residual —**sin destacar
+ninguna**—. Kane enseña cuánto astigmatismo quedaría con cada una y deja la
+elección a quien opera.
+
+Así que **ninguna opción tórica sale como recomendada**. Ni la de menor residual,
+que era la tentación: eso sería inventarse una recomendación clínica que Kane se
+guarda a propósito. La regla vive en `construirOpcionesDeKane`, aparte del
+adaptador para poder probarla sin navegador, y está comprobada rompiéndola: al
+cambiar `recomendada: false` por `recomendada: fila.destacada`, un test falla.
+
+### 3 · «N/A» y «no elige» ya no se parecen
+
+Las casillas vacías de la tabla se leían como «ha fallado». Ahora la comparativa
+distingue las dos cosas con `toricasSinElegir`, y la casilla dice «3 opciones,
+ninguna destacada» con la explicación al pasar el ratón. La fila «Eje» sigue como
+N/A a propósito: ese dato Kane no lo da en la tabla que se lee.
+
+### 4 · Una guarda más contra leer el ojo equivocado
+
+El bloque de resultados se elige por posición, y el eco de la web es lo que
+confirma que es el ojo correcto. Si el eco no se puede leer **y** hay resultados de
+los dos ojos en pantalla, ahora se para en vez de arriesgarse.
+
+### Comprobado de verdad
+
+Contra la web real de Kane, ojo derecho, datos sintéticos: `SUCCESS` en 12,7 s, 8
+opciones —5 esféricas y 3 tóricas—, eco `K1: 41.22 D @ 175° K2: 42.52 D @ 85°`,
+modo «Tórico», y **0 tóricas marcadas como recomendadas**.
+
+    ★ esfera 21.5 · refr -0.06
+      esfera 21.5 · «Non-toric» · cil 0    · residual 0.71 D @ 84°
+      esfera 21.5 · «T2»        · cil 1    · residual 0.05 D @ 84°
+      esfera 21.5 · «T3»        · cil 1.5  · residual 0.28 D @ 174°
+
+515 tests unitarios y 27 e2e en verde; lint, tipos y build también.
+
+### Ficheros
+
+- `packages/integrations/src/adapters/kane.ts` — `CAMPOS_TORICOS`, `modoParaKane`,
+  `asegurarModo`, `leerFilaToricaDeKane`, `construirOpcionesDeKane`
+- `packages/integrations/src/adapters/kane-torico.test.ts` — 30 tests nuevos
+- `packages/domain/src/modelo/calculadoras.ts` — los cuatro campos, opcionales
+- `packages/domain/src/comparacion/comparar.ts` — `toricasSinElegir`
+- `apps/desktop/src/renderer/componentes/PanelResultados.tsx`, `estilos.css`
+
+---
+
 ## [1.0.1] — 13/08/2026
 
 Kane salía N/A. Tres causas, y la primera era un aviso mío que no avisaba.
