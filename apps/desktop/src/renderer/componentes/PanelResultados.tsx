@@ -8,7 +8,13 @@
 import { useState } from 'react'
 import type { JSX } from 'react'
 
-import type { Calculadora, Caso, Lateralidad } from '@vilamar/domain'
+import type {
+  Calculadora,
+  Caso,
+  CeldaComparativa,
+  DatoComparativo,
+  Lateralidad,
+} from '@vilamar/domain'
 import {
   CALCULADORAS,
   compararOjo,
@@ -31,19 +37,153 @@ interface Props {
   readonly estados?: readonly EstadoCalculo[]
 }
 
-function celda(valor: number | undefined, sufijo = ''): JSX.Element {
-  if (valor === undefined) return <td className="na">N/A</td>
+/**
+ * Una casilla de la tabla comparativa.
+ *
+ * Los tres estados de `DatoComparativo` se pintan distintos a propósito, porque
+ * significan cosas distintas:
+ *
+ *     22.50 D        la web señaló esta opción (o solo devolvió una)
+ *     3 opciones     hay tres alternativas y la web no señala ninguna
+ *     —              esa calculadora no da este dato
+ *
+ * Antes los dos últimos casos eran el mismo «N/A», y eso hacía que una columna
+ * perfectamente correcta pareciera rota.
+ */
+function CeldaDato({
+  dato,
+  nombre,
+  sufijo = '',
+  decimales = 2,
+}: {
+  dato: DatoComparativo
+  nombre: string
+  sufijo?: string
+  decimales?: number
+}): JSX.Element {
+  if (dato.estado === 'VALOR') {
+    return (
+      <td>
+        {dato.valor.toFixed(decimales)}
+        {sufijo}
+      </td>
+    )
+  }
+  if (dato.estado === 'VARIAS') {
+    return (
+      <td
+        className="varias"
+        title={`${nombre} ha devuelto ${dato.cuantas} alternativas y no ha señalado ninguna. Las tienes todas debajo, en «Opciones devueltas».`}
+      >
+        {dato.cuantas} opciones
+      </td>
+    )
+  }
   return (
-    <td>
-      {valor.toFixed(2)}
-      {sufijo}
+    <td className="na" title={`No disponible en el resultado de ${nombre}`}>
+      —
     </td>
   )
 }
 
-function celdaEje(valor: number | undefined): JSX.Element {
-  if (valor === undefined) return <td className="na">N/A</td>
-  return <td>{valor.toFixed(0)}°</td>
+/** Lo mismo, para un texto —el modelo tórico— en vez de un número. */
+function CeldaTexto({
+  dato,
+  nombre,
+}: {
+  dato: DatoComparativo<string>
+  nombre: string
+}): JSX.Element {
+  if (dato.estado === 'VALOR') return <td>{dato.valor}</td>
+  if (dato.estado === 'VARIAS') {
+    return (
+      <td
+        className="varias"
+        title={`${nombre} ha devuelto ${dato.cuantas} alternativas y no ha señalado ninguna. Las tienes todas debajo, en «Opciones devueltas».`}
+      >
+        {dato.cuantas} opciones
+      </td>
+    )
+  }
+  return (
+    <td className="na" title={`No disponible en el resultado de ${nombre}`}>
+      —
+    </td>
+  )
+}
+
+/** Las columnas del detalle. Solo se enseña la que alguna opción trae de verdad. */
+const COLUMNAS_DE_OPCION = [
+  { clave: 'esfera', titulo: 'Potencia LIO', sufijo: ' D', decimales: 2 },
+  { clave: 'cilindro', titulo: 'Cilindro', sufijo: ' D', decimales: 2 },
+  { clave: 'eje', titulo: 'Eje', sufijo: '°', decimales: 0 },
+  { clave: 'designacion', titulo: 'Modelo tórico', sufijo: '', decimales: 0 },
+  { clave: 'refraccionPrevista', titulo: 'Refracción prevista', sufijo: ' D', decimales: 2 },
+  { clave: 'cilindroResidual', titulo: 'Cilindro residual', sufijo: ' D', decimales: 2 },
+  { clave: 'ejeResidual', titulo: 'Eje residual', sufijo: '°', decimales: 0 },
+] as const
+
+/**
+ * Todas las alternativas que devolvió una calculadora, tal cual vinieron.
+ *
+ * Se enseña cuando hay más de una. No añade ninguna columna que la web no haya
+ * dado: si Kane solo devuelve potencia y refracción, la tabla tiene dos columnas.
+ */
+function OpcionesDevueltas({ celda }: { celda: CeldaComparativa }): JSX.Element | null {
+  if (celda.opciones.length <= 1) return null
+
+  const columnas = COLUMNAS_DE_OPCION.filter((col) =>
+    celda.opciones.some((o) => o[col.clave] !== undefined),
+  )
+  if (columnas.length === 0) return null
+
+  const senalada = celda.seleccion.clase === 'DESTACADA'
+
+  return (
+    <div className="opciones-devueltas">
+      <h3>
+        {celda.nombre} · {celda.opciones.length} alternativas devueltas
+      </h3>
+      <p className="sub">
+        {senalada
+          ? `${celda.nombre} ha señalado una de ellas; va marcada en la tabla y es la que aparece arriba.`
+          : `${celda.nombre} no ha señalado ninguna opción preferente. La elección no la hace Calculator Vilamar.`}
+      </p>
+      <table className="opciones">
+        <thead>
+          <tr>
+            {columnas.map((col) => (
+              <th key={col.clave}>{col.titulo}</th>
+            ))}
+            {senalada && <th></th>}
+          </tr>
+        </thead>
+        <tbody>
+          {celda.opciones.map((o, i) => (
+            <tr key={i} className={o.recomendada ? 'destacada' : ''}>
+              {columnas.map((col) => {
+                const v = o[col.clave]
+                return (
+                  <td key={col.clave}>
+                    {v === undefined ? (
+                      <span className="na">—</span>
+                    ) : typeof v === 'number' ? (
+                      `${v.toFixed(col.decimales)}${col.sufijo}`
+                    ) : (
+                      v
+                    )}
+                  </td>
+                )
+              })}
+              {senalada && (
+                <td className="marca">{o.recomendada ? `Destacada por ${celda.nombre}` : ''}</td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
 }
 
 export function PanelResultados({
@@ -119,49 +259,65 @@ export function PanelResultados({
             <tr>
               <th>Esfera</th>
               {comparativa.celdas.map((c) => (
-                <Celda key={c.calculadora} valor={c.esfera} sufijo=" D" />
+                <CeldaDato key={c.calculadora} dato={c.esfera} nombre={c.nombre} sufijo=" D" />
               ))}
             </tr>
             <tr>
               <th>Cilindro</th>
               {comparativa.celdas.map((c) => (
-                <Celda key={c.calculadora} valor={c.cilindro} sufijo=" D" />
+                <CeldaDato key={c.calculadora} dato={c.cilindro} nombre={c.nombre} sufijo=" D" />
               ))}
             </tr>
             <tr>
               <th>Eje</th>
               {comparativa.celdas.map((c) => (
-                <CeldaEje key={c.calculadora} valor={c.eje} />
+                <CeldaDato
+                  key={c.calculadora}
+                  dato={c.eje}
+                  nombre={c.nombre}
+                  sufijo="°"
+                  decimales={0}
+                />
               ))}
             </tr>
             <tr>
               <th>Modelo tórico</th>
-              {comparativa.celdas.map((c) =>
-                c.designacion ? (
-                  <td key={c.calculadora}>{c.designacion}</td>
-                ) : (
-                  <td key={c.calculadora} className="na">
-                    N/A
-                  </td>
-                ),
-              )}
+              {comparativa.celdas.map((c) => (
+                <CeldaTexto key={c.calculadora} dato={c.designacion} nombre={c.nombre} />
+              ))}
             </tr>
             <tr>
               <th>Refracción prevista</th>
               {comparativa.celdas.map((c) => (
-                <Celda key={c.calculadora} valor={c.refraccionPrevista} sufijo=" D" />
+                <CeldaDato
+                  key={c.calculadora}
+                  dato={c.refraccionPrevista}
+                  nombre={c.nombre}
+                  sufijo=" D"
+                />
               ))}
             </tr>
             <tr>
               <th>Cilindro residual</th>
               {comparativa.celdas.map((c) => (
-                <Celda key={c.calculadora} valor={c.cilindroResidual} sufijo=" D" />
+                <CeldaDato
+                  key={c.calculadora}
+                  dato={c.cilindroResidual}
+                  nombre={c.nombre}
+                  sufijo=" D"
+                />
               ))}
             </tr>
             <tr>
               <th>Eje residual</th>
               {comparativa.celdas.map((c) => (
-                <CeldaEje key={c.calculadora} valor={c.ejeResidual} />
+                <CeldaDato
+                  key={c.calculadora}
+                  dato={c.ejeResidual}
+                  nombre={c.nombre}
+                  sufijo="°"
+                  decimales={0}
+                />
               ))}
             </tr>
             <tr>
@@ -188,6 +344,19 @@ export function PanelResultados({
           </tbody>
         </table>
       </div>
+
+      {/*
+        El detalle de las alternativas. Va aquí, debajo de la comparación, porque
+        es lo primero que hace falta cuando una columna dice «3 opciones»: verlas.
+      */}
+      {comparativa.celdas.some((c) => c.opciones.length > 1) && (
+        <div className="tarjeta">
+          <h2>Opciones devueltas · {nombreLateralidad(ojoActivo)}</h2>
+          {comparativa.celdas.map((c) => (
+            <OpcionesDevueltas key={c.calculadora} celda={c} />
+          ))}
+        </div>
+      )}
 
       <div className="tarjeta">
         <h2>Qué dicen estos resultados</h2>
@@ -251,12 +420,4 @@ export function PanelResultados({
       </div>
     </>
   )
-}
-
-function Celda({ valor, sufijo }: { valor: number | undefined; sufijo?: string }): JSX.Element {
-  return celda(valor, sufijo)
-}
-
-function CeldaEje({ valor }: { valor: number | undefined }): JSX.Element {
-  return celdaEje(valor)
 }
