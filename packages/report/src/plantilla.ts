@@ -37,6 +37,8 @@ import {
   TEXTO_ORIGEN,
   textoDeOrigen,
   loAportaElCirujano,
+  ojoDe,
+  ojosDelCaso,
   origenDe,
   describirDiscrepancia,
   discrepanciasDeConstante,
@@ -419,138 +421,537 @@ function seccionAvisos(avisos: readonly Aviso[]): string {
   </section>`
 }
 
-const ESTILOS = `
-  :root {
-    --azul: #153F74;
-    --gris: #6F6F6F;
-    --linea: #DDE3EA;
-    --fondo-suave: #F5F7FA;
-    --rojo: #A32B2B;
-    --ambar: #8A6100;
+/**
+ * Resumen de un ojo para la portada, **sin elegir nada**.
+ *
+ * La portada necesita un titular por ojo. El diseño original ponía ahí la
+ * «mediana de las calculadoras» —+22.25 D cuando una dijo 22.50 y otra 22.00—, y
+ * eso es un número que **no devolvió ninguna calculadora**: lo calcularía este
+ * programa. Sería la misma selección implícita que se quitó de `comparar.ts`, y
+ * más fuerte, porque además se inventa un valor que no está en ningún sitio.
+ *
+ * Así que el titular es el VALOR cuando todas coinciden, y el RANGO cuando no:
+ *
+ *     coinciden        +21.50            ESFERA · D
+ *     no coinciden     22.00 – 22.50     ESFERA · RANGO 0.50
+ *
+ * El rango describe lo que hay. La mediana lo sustituye por algo nuevo.
+ */
+interface ResumenDeOjo {
+  readonly cuantas: number
+  readonly deAcuerdo: boolean
+  readonly esfera?: { readonly min: number; readonly max: number }
+  readonly cilindro?: { readonly min: number; readonly max: number }
+  readonly eje?: { readonly min: number; readonly max: number }
+  readonly modelos: readonly string[]
+}
+
+function extremos(
+  celdas: readonly Comparativa['celdas'][number][],
+  campo: 'esfera' | 'cilindro' | 'eje',
+): { readonly min: number; readonly max: number } | undefined {
+  const vs = celdas
+    .map((c) => c[campo])
+    .filter((d): d is { estado: 'VALOR'; valor: number } => d.estado === 'VALOR')
+    .map((d) => d.valor)
+  if (vs.length === 0) return undefined
+  return { min: Math.min(...vs), max: Math.max(...vs) }
+}
+
+function resumenDeOjo(c: Comparativa): ResumenDeOjo {
+  const conValor = c.celdas.filter((x) => x.esfera.estado === 'VALOR')
+  const esfera = extremos(c.celdas, 'esfera')
+  const modelos = [
+    ...new Set(
+      c.celdas
+        .map((x) => x.designacion)
+        .filter((d): d is { estado: 'VALOR'; valor: string } => d.estado === 'VALOR')
+        .map((d) => d.valor),
+    ),
+  ]
+  return {
+    cuantas: conValor.length,
+    // «De acuerdo» es un hecho comprobable: el rango de esferas es cero. No es
+    // una valoración nuestra de si la diferencia importa clínicamente.
+    deAcuerdo: esfera !== undefined && esfera.max - esfera.min < 0.005 && conValor.length >= 2,
+    ...(esfera ? { esfera } : {}),
+    ...((): object => {
+      const cil = extremos(c.celdas, 'cilindro')
+      return cil ? { cilindro: cil } : {}
+    })(),
+    ...((): object => {
+      const eje = extremos(c.celdas, 'eje')
+      return eje ? { eje } : {}
+    })(),
+    modelos,
   }
-  * { box-sizing: border-box; }
+}
+
+/** Un valor, o el rango si las calculadoras no dicen lo mismo. */
+function valorORango(
+  r: { readonly min: number; readonly max: number } | undefined,
+  decimales: number,
+  conSigno = false,
+): string {
+  if (!r) return '—'
+  const f = (v: number): string =>
+    `${conSigno && v > 0 ? '+' : ''}${v.toFixed(decimales)}`.replace('-', '−')
+  return r.max - r.min < 0.005 ? f(r.min) : `${f(r.min)} – ${f(r.max)}`
+}
+
+function subEtiqueta(
+  base: string,
+  r: { readonly min: number; readonly max: number } | undefined,
+  decimales: number,
+): string {
+  if (!r || r.max - r.min < 0.005) return base
+  return `${base} · RANGO ${(r.max - r.min).toFixed(decimales)}`
+}
+
+/**
+ * La tarjeta de un ojo en la portada.
+ *
+ * Verde cuando las calculadoras coinciden, ámbar cuando no. El color describe el
+ * acuerdo entre webs, no una valoración clínica del caso.
+ */
+function tarjetaDeOjo(c: Comparativa): string {
+  const r = resumenDeOjo(c)
+  const acento = r.deAcuerdo ? 'var(--verde)' : 'var(--ambar)'
+  const rotulo = r.deAcuerdo
+    ? 'Coinciden'
+    : r.cuantas >= 2
+      ? 'No coinciden'
+      : r.cuantas === 1
+        ? 'Sin comparación'
+        : 'Sin resultado'
+  const cabecera =
+    r.cuantas >= 2
+      ? `Lo que devuelven las calculadoras · ${r.cuantas} de ${c.celdas.length}`
+      : r.cuantas === 1
+        ? `Solo una calculadora ha dado resultado · 1 de ${c.celdas.length}`
+        : 'Ninguna calculadora ha dado resultado'
+
+  const cifra = (valor: string, sub: string, resaltado: boolean): string =>
+    `<div>
+      <div class="cifra" ${resaltado ? 'style="color:var(--ambar)"' : ''}>${esc(valor)}</div>
+      <div class="cifra-pie" ${resaltado ? 'style="color:var(--ambar)"' : ''}>${esc(sub)}</div>
+    </div>`
+
+  const hayRango = (x: { min: number; max: number } | undefined): boolean =>
+    x !== undefined && x.max - x.min >= 0.005
+
+  return `<div class="tarjeta-ojo">
+    <div class="tarjeta-ojo-cab">
+      <div class="tarjeta-ojo-tit">
+        <span class="lat">${esc(c.ojo)}</span>
+        <span class="lat-nombre">${esc(nombreLateralidad(c.ojo))}</span>
+      </div>
+      <span class="pastilla" style="background:${acento}">${esc(rotulo)}</span>
+    </div>
+    <div class="tarjeta-ojo-cuerpo">
+      <div class="rotulo">${esc(cabecera)}</div>
+      <div class="cifras">
+        ${cifra(valorORango(r.esfera, 2, true), subEtiqueta('ESFERA · D', r.esfera, 2), hayRango(r.esfera))}
+        ${cifra(valorORango(r.cilindro, 2), subEtiqueta('CILINDRO · D', r.cilindro, 2), hayRango(r.cilindro))}
+        ${cifra(
+          r.eje ? `${valorORango(r.eje, 0)}°` : '—',
+          r.modelos.length > 0 ? `EJE · ${r.modelos.join(' / ')}` : 'EJE',
+          hayRango(r.eje),
+        )}
+      </div>
+      <div class="pastillas-calc">
+        ${c.celdas
+          .map((x) => {
+            const bien = x.esfera.estado !== 'NO_DISPONIBLE'
+            return `<span class="pastilla-calc ${bien ? 'ok' : 'no'}">${esc(x.nombre)}${
+              bien ? ' ✓' : ` · ${esc(textoEstado(x.estado).toLowerCase())}`
+            }</span>`
+          })
+          .join('')}
+      </div>
+    </div>
+  </div>`
+}
+
+/** Las incidencias que afectan al informe, en la portada. */
+function bloqueIncidencias(datos: DatosInforme): string {
+  const fallos = datos.comparativas.flatMap((c) =>
+    c.celdas
+      .filter((x) => x.seleccion.clase === 'SIN_RESULTADO' && x.estado !== 'NO_EJECUTADA')
+      .map(
+        (x) =>
+          `<strong>${esc(x.nombre)} (${esc(c.ojo)}): ${esc(textoEstado(x.estado).toLowerCase())}.</strong> ${esc(x.motivo ?? '')}`,
+      ),
+  )
+  if (fallos.length === 0) return ''
+  return `<div class="incidencias">
+    <div class="incidencias-tit">Incidencias que afectan a este informe · ${fallos.length}</div>
+    ${fallos.map((f) => `<div class="incidencias-txt">${f}</div>`).join('')}
+  </div>`
+}
+
+/** La banda de la lente elegida, su constante y la refracción objetivo. */
+function bandaDeLente(datos: DatosInforme): string {
+  const { caso } = datos
+  const lente = caso.lente
+  const primerOjo = ojosDelCaso(caso)[0]
+  const ojo = primerOjo ? ojoDe(caso, primerOjo) : undefined
+  const constante = ojo?.medidas.CONSTANTE_A
+  const objetivo = ojo?.medidas.REFRACCION_OBJETIVO
+
+  const dato = (rotulo: string, valor: string, extra = ''): string =>
+    `<div><div class="banda-rot">${esc(rotulo)}</div><div class="banda-val">${esc(valor)}${extra}</div></div>`
+
+  return `<div class="banda">
+    <div class="banda-datos">
+      ${dato('Lente seleccionada', lente ? `${lente.fabricante ? `${lente.fabricante} · ` : ''}${lente.modelo}` : 'Sin seleccionar')}
+      <div class="banda-sep"></div>
+      ${dato('Constante A', constante ? constante.valor.toFixed(2) : '—')}
+      ${dato('Refracción objetivo', objetivo ? `${objetivo.valor.toFixed(2)} D` : '—')}
+    </div>
+  </div>`
+}
+
+const ESTILOS = `
+  /*
+   * El sistema visual del informe, traído del rediseño hecho en Claude Design
+   * («Rediseño informe Calculator Vilamar», 5 hojas A4).
+   *
+   * ⚠️ **Las fuentes NO se piden a la red.** El diseño usa IBM Plex Sans y Mono
+   * desde Google Fonts; aquí no se puede, y no por comodidad: este programa es
+   * local y el PDF se imprime sin conexión garantizada. Una hoja de estilos
+   * remota se quedaría colgada o caería en silencio, y el informe saldría con
+   * otra tipografía sin que nadie se enterase. Se usa la pila del sistema, que
+   * respeta las métricas del diseño (humanista + monoespaciada tabular).
+   */
+  :root {
+    --tinta: #0F1A24;
+    --azul: #12506E;
+    --azul-medio: #1B4C86;
+    --verde: #17694A;
+    --ambar: #8A6100;
+    --teal: #0B5F68;
+    --gris: #5C6B78;
+    --gris-claro: #8B97A2;
+    --linea: #DDE4EA;
+    --linea-suave: #EDF1F4;
+    --fondo-suave: #F7FAFC;
+    --verde-fondo: #E7F3EC;
+    --ambar-fondo: #FDF9EF;
+    --ambar-linea: #E7D9B4;
+  }
+
+  /*
+   * El contrato de página, copiado del componente <doc-page> del lienzo donde se
+   * maquetó: A4 a sangre, márgenes CERO en @page y los márgenes de verdad dentro
+   * de cada hoja. «printToPDF» se llama con margins 0 para que coincida.
+   */
+  @page { size: A4; margin: 0; }
+
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; }
+
   body {
     margin: 0;
-    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-    font-size: 10.5pt;
-    color: #1B1B1B;
+    font-family: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    color: var(--tinta);
+    background: #fff;
+    font-size: 9pt;
     line-height: 1.45;
   }
-  header.principal {
-    border-bottom: 3px solid var(--azul);
-    padding-bottom: 10px;
-    margin-bottom: 18px;
-  }
-  header.principal h1 {
-    margin: 0;
-    font-size: 17pt;
-    color: var(--azul);
-    letter-spacing: -0.2px;
-  }
-  .meta { color: var(--gris); font-size: 9pt; margin-top: 4px; }
-  .meta strong { color: #1B1B1B; }
-  h2 {
-    font-size: 12pt;
-    color: var(--azul);
-    margin: 20px 0 8px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid var(--linea);
-  }
-  h3 { font-size: 10pt; margin: 10px 0 4px; color: var(--azul); }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-  th, td {
-    text-align: left;
-    padding: 5px 7px;
-    border-bottom: 1px solid var(--linea);
-    vertical-align: top;
-  }
-  thead th {
-    background: var(--fondo-suave);
-    color: var(--azul);
-    font-size: 8.5pt;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-  }
-  td.valor { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
-  tr.ausente td.valor { color: var(--ambar); font-weight: 600; }
-  td.na { color: var(--gris); }
-  /*
-   * «Varias alternativas» no es «no hay dato», y no se puede leer igual. Va en
-   * cursiva y en gris: se ve que es una aclaración, no una cifra.
-   */
-  td.varias { color: var(--gris); font-style: italic; font-size: 9.5pt; }
-  /* La que nombra las alternativas: es la que dice de QUE son. */
-  td.varias.nombra { color: var(--azul); font-style: normal; font-weight: 600; }
 
-  .opciones-devueltas { margin-top: 10pt; }
-  .bloque-opciones { margin-top: 8pt; break-inside: avoid; }
-  .bloque-opciones h3 { font-size: 10.5pt; margin: 0 0 2pt; color: var(--azul); }
-  .bloque-opciones .nota { font-size: 9pt; color: var(--gris); margin: 0 0 4pt; }
-  table.tabla-opciones { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
-  table.tabla-opciones th,
-  table.tabla-opciones td { border: 1px solid var(--linea); padding: 3pt 5pt; text-align: center; }
-  table.tabla-opciones th { background: var(--fondo-suave); font-weight: 600; }
-  table.tabla-opciones tr.destacada td { font-weight: 700; background: var(--fondo-suave); }
-  table.tabla-opciones td.marca { font-size: 8.5pt; color: var(--gris); font-style: italic; }
-  .procedencia { color: var(--gris); font-size: 8.5pt; }
-  .evidencia { font-family: Consolas, monospace; font-size: 8pt; color: var(--gris); }
+  .mono, .cifra, .banda-val, .num {
+    font-family: 'Cascadia Mono', Consolas, 'SF Mono', ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Una hoja = una página A4 completa. Nada se reparte entre dos. */
+  section.hoja {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 14mm 13mm 10mm;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    break-after: page;
+    page-break-after: always;
+  }
+  section.hoja:last-of-type { break-after: auto; page-break-after: auto; }
+
+  .cab {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 20px; border-bottom: 2px solid var(--tinta); padding-bottom: 10px;
+  }
+  .cab-marca { display: flex; align-items: center; gap: 11px; }
+  .cab h1 { font-size: 15pt; font-weight: 700; letter-spacing: -0.2px; margin: 0; line-height: 1.05; }
+  .cab .sub {
+    font-size: 8pt; color: var(--gris); letter-spacing: 0.06em;
+    text-transform: uppercase; font-weight: 600; margin-top: 2px;
+  }
+  .cab-meta {
+    text-align: right; font-size: 8pt; color: var(--gris); line-height: 1.6;
+    font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  }
+  .cab-meta .codigo { font-size: 10pt; font-weight: 600; color: var(--tinta); }
+
+  /* Cabecera menor, de las hojas 2 a 5. */
+  .cab-menor {
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--linea); padding-bottom: 8px;
+  }
+  .cab-menor .titulo { font-size: 13pt; font-weight: 700; }
+  .cab-menor .apunte { font-size: 9pt; color: var(--gris); margin-left: 8px; font-weight: 400; }
+  .cab-menor .ref {
+    font-size: 8pt; color: var(--gris);
+    font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  }
+
+  .pie {
+    margin-top: auto; padding-top: 12px; border-top: 1px solid var(--linea);
+    font-size: 7.5pt; color: var(--gris); line-height: 1.5;
+  }
+  .pie strong { color: var(--tinta); }
+
+  /* Banda de la lente */
+  .banda {
+    border: 1px solid var(--linea); border-left: 4px solid var(--azul); border-radius: 10px;
+    padding: 12px 16px; margin-top: 14px; background: var(--fondo-suave);
+  }
+  .banda-datos { display: flex; gap: 26px; align-items: center; }
+  .banda-sep { width: 1px; height: 34px; background: var(--linea); }
+  .banda-rot {
+    font-size: 7.5pt; font-weight: 600; letter-spacing: 0.09em;
+    text-transform: uppercase; color: var(--gris);
+  }
+  .banda-val { font-size: 12pt; font-weight: 600; margin-top: 3px; }
+
+  /* Tarjetas de ojo de la portada */
+  .tarjetas { display: flex; gap: 14px; margin-top: 14px; align-items: stretch; }
+  .tarjeta-ojo {
+    flex: 1; border: 1px solid var(--linea); border-radius: 10px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .tarjeta-ojo-cab {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 14px; background: var(--tinta); color: #fff;
+  }
+  .tarjeta-ojo-tit { display: flex; align-items: baseline; gap: 9px; }
+  .tarjeta-ojo-tit .lat { font-size: 12pt; font-weight: 700; letter-spacing: 0.04em; }
+  .tarjeta-ojo-tit .lat-nombre { font-size: 8pt; opacity: 0.7; }
+  .pastilla {
+    font-size: 7pt; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 12px; color: #fff;
+  }
+  .tarjeta-ojo-cuerpo { padding: 14px; }
+  .rotulo {
+    font-size: 7.5pt; font-weight: 600; letter-spacing: 0.09em;
+    text-transform: uppercase; color: var(--gris);
+  }
+  .cifras { display: flex; gap: 16px; align-items: baseline; margin-top: 6px; }
+  .cifra { font-size: 20pt; font-weight: 600; line-height: 1; letter-spacing: -0.5px; }
+  .cifra-pie { font-size: 7pt; color: var(--gris); font-weight: 600; margin-top: 3px; }
+  .pastillas-calc { display: flex; gap: 6px; margin-top: 14px; }
+  .pastilla-calc {
+    flex: 1; text-align: center; font-size: 7pt; font-weight: 600;
+    padding: 5px 4px; border-radius: 6px; line-height: 1.3;
+  }
+  .pastilla-calc.ok { background: #E6EEF8; color: var(--azul-medio); }
+  .pastilla-calc.no { background: #FAF3E2; color: var(--ambar); }
+
+  /* Incidencias */
+  .incidencias {
+    border: 1px solid var(--ambar-linea); background: var(--ambar-fondo);
+    border-radius: 10px; padding: 10px 14px; margin-top: 14px;
+  }
+  .incidencias-tit { font-size: 8.5pt; font-weight: 700; color: var(--ambar); }
+  .incidencias-txt { font-size: 8.5pt; color: #4A3A18; margin-top: 5px; line-height: 1.5; }
+
+  /* Secciones y tablas */
+  section.comparativa, section.opciones-devueltas, section.ojo,
+  section.auditoria, section.ausencias, section.avisos { margin-top: 14px; }
+  h2 {
+    font-size: 7.5pt; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--gris); margin: 0 0 7px;
+  }
+  h3 { font-size: 10pt; margin: 0 0 2px; color: var(--azul-medio); }
+  .nota, .sub { font-size: 8pt; color: var(--gris); margin: 0 0 6px; line-height: 1.5; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+  th, td { border: 1px solid var(--linea); padding: 4px 7px; text-align: left; vertical-align: top; }
+  thead th {
+    background: var(--linea-suave); font-weight: 600; font-size: 7.5pt;
+    letter-spacing: 0.05em; text-transform: uppercase; color: var(--gris);
+  }
+  tbody th { background: #FBFDFE; font-weight: 600; width: 26%; color: #243642; }
+
+  table.tabla-comparativa td, table.tabla-opciones td { text-align: center; }
+  table.tabla-comparativa .fila-estado td { font-size: 7.5pt; color: var(--gris); }
+  td.na { color: var(--gris-claro); }
+  td.varias { color: var(--gris); font-style: italic; font-size: 8pt; }
+  td.varias.nombra { color: var(--azul-medio); font-style: normal; font-weight: 600; }
+
+  .bloque-opciones { margin-top: 8px; break-inside: avoid; }
+  .bloque-opciones .nota { margin-bottom: 4px; }
+  table.tabla-opciones thead th { text-align: center; }
+  table.tabla-opciones tr.destacada td { font-weight: 700; background: var(--linea-suave); }
+  table.tabla-opciones td.marca { font-size: 7.5pt; color: var(--gris); font-style: italic; }
+
+  /* Origen del dato */
   .marca {
-    display: inline-block;
-    padding: 1px 6px;
-    border-radius: 9px;
-    font-size: 8pt;
-    white-space: nowrap;
+    display: inline-block; font-size: 7pt; font-weight: 600; padding: 1px 6px;
+    border-radius: 9px; letter-spacing: 0.03em; white-space: nowrap;
   }
-  .marca-extraido { background: #E8F0F8; color: var(--azul); }
-  .marca-corregido{background:#fde8cf;color:#8a4b00}
-    .original{color:#6f6f6f;font-style:italic}
-    .marca-manual { background: #FFF3D6; color: var(--ambar); }
+  .marca-extraido { background: #E3EDF6; color: var(--azul-medio); }
   .marca-derivado { background: #EFE8F8; color: #5B3B8A; }
-  /* La constante que usó la web frente a la que se le envió. Va destacada
-     porque cambia con qué se calculó de verdad el resultado de arriba. */
-  .discrepancia {
-    border-left: 3pt solid var(--ambar);
-    background: #FFF8E6;
-    padding: 7pt 10pt;
-    margin: 0 0 9pt;
+  .marca-manual { background: var(--verde-fondo); color: var(--verde); }
+  .marca-corregido { background: #FAF3E2; color: var(--ambar); }
+  tr.ausente td { color: var(--gris-claro); }
+  .valor { font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace; font-weight: 600; }
+  .procedencia, .evidencia, .original { font-size: 7.5pt; color: var(--gris); }
+  .evidencia { font-style: italic; }
+
+  .observacion { padding: 4px 0; font-size: 8.5pt; border-bottom: 1px solid var(--linea-suave); }
+  .observacion:last-child { border-bottom: 0; }
+  .grupo-obs { margin-top: 8px; }
+  .grupo-obs > .titulo {
+    font-size: 8pt; font-weight: 700; letter-spacing: 0.04em; margin-bottom: 3px;
   }
-  .discrepancia ul { margin: 4pt 0; padding-left: 16pt; }
-  .fuente { color: var(--gris); font-size: 9pt; margin: 0 0 8px; }
-  code { font-family: Consolas, monospace; font-size: 8.5pt; }
-  .tabla-comparativa td, .tabla-comparativa th { font-variant-numeric: tabular-nums; }
-  .tabla-comparativa tbody th { width: 30%; font-weight: 600; color: #333; }
-  .fila-estado td { font-size: 8.5pt; color: var(--gris); }
-  .observaciones ul { margin: 4px 0 8px; padding-left: 18px; }
-  .observaciones li { margin-bottom: 2px; }
-  .obs-discrepancia h3 { color: var(--ambar); }
-  .obs-aviso h3, .obs-fallo h3 { color: var(--rojo); }
-  .nivel-invalid { color: var(--rojo); }
-  .nivel-warning { color: var(--ambar); }
-  .nota { color: var(--gris); font-size: 8.5pt; margin: 0 0 8px; }
-  .eco { font-size: 8.5pt; color: #333; }
+  .fuente { font-size: 8pt; color: var(--gris); margin: 0 0 6px; }
   footer.principal {
-    margin-top: 22px;
-    padding-top: 10px;
-    border-top: 1px solid var(--linea);
-    color: var(--gris);
-    font-size: 8.5pt;
+    margin-top: 12px; padding-top: 10px; border-top: 2px solid var(--tinta);
+    font-size: 7.5pt; color: var(--gris); line-height: 1.5;
   }
-  footer.principal strong { color: #1B1B1B; }
-  section { page-break-inside: avoid; }
+  footer.principal p { margin: 0 0 5px; }
+  footer.principal strong { color: var(--tinta); }
+
+  code { font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace; font-size: 8pt; }
 `
 
 /**
- * Genera el HTML del informe.
+ * El informe completo, en cinco hojas A4.
  *
- * El aviso del pie no es un adorno legal: es la frase que evita que este
- * documento se lea como una recomendación de Calculator Vilamar. Los números
- * son de Kane, EVO y Barrett; aquí solo se han puesto juntos.
+ * La paginación es EXPLÍCITA —una hoja por sección, no un flujo que el motor
+ * reparta—, igual que en el diseño. El reparto:
+ *
+ *     1  Portada      lente y constante · un titular por ojo · incidencias
+ *     2  OD           qué devolvió cada calculadora, y sus alternativas
+ *     3  OS           lo mismo del otro ojo
+ *     4  Biometría    los datos confirmados, cada uno con su origen
+ *     5  Trazabilidad qué dice cada web haber recibido, y los avisos
+ *
+ * Un caso de un solo ojo produce cuatro hojas, no cinco con una vacía.
  */
 export function generarHtmlInforme(datos: DatosInforme): string {
-  const { caso, comparativas } = datos
-  const ojos = (['OD', 'OS'] as const)
-    .map((l) => caso.ojos[l])
-    .filter((o): o is OjoBiometrico => o !== undefined)
+  const { caso } = datos
+  const ojos = ojosDelCaso(caso)
+  const hojasDeOjo = datos.comparativas.length
+  const total = 3 + hojasDeOjo
+  let n = 0
+  const meta = (): string => {
+    n += 1
+    return `<div class="cab-meta">
+      <div class="codigo">${esc(caso.codigo)}</div>
+      <div>${esc(fecha(datos.generadoEn))}</div>
+      <div>versión ${esc(datos.version)} · página ${n} de ${total}</div>
+    </div>`
+  }
+  const ref = (extra: string): string => {
+    n += 1
+    return `<div class="ref">${esc(caso.codigo)}${extra} · página ${n} de ${total}</div>`
+  }
+
+  const portada = `<section class="hoja">
+  <div class="cab">
+    <div class="cab-marca">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+        <circle cx="15" cy="15" r="14" fill="none" stroke="#12506E" stroke-width="1.6"></circle>
+        <circle cx="15" cy="15" r="5.4" fill="#12506E"></circle>
+        <path d="M3.4 15 A 13 9 0 0 1 26.6 15" fill="none" stroke="#12506E" stroke-width="1.6"></path>
+        <path d="M3.4 15 A 13 9 0 0 0 26.6 15" fill="none" stroke="#12506E" stroke-width="1.6" opacity="0.35"></path>
+      </svg>
+      <div>
+        <h1>Calculator Vilamar</h1>
+        <div class="sub">Informe comparativo de cálculo de LIO</div>
+      </div>
+    </div>
+    ${meta()}
+  </div>
+  ${bandaDeLente(datos)}
+  <div class="tarjetas">
+    ${datos.comparativas.map((c) => tarjetaDeOjo(c)).join('')}
+  </div>
+  ${bloqueIncidencias(datos)}
+  <div class="pie">
+    Cada cifra de esta portada es lo que han devuelto las webs: el valor cuando
+    coinciden, y el rango cuando no. <strong>Nunca un valor intermedio calculado por
+    este programa.</strong> El detalle por calculadora está en las hojas siguientes;
+    el aviso legal completo, al final del documento.
+  </div>
+</section>`
+
+  const hojasPorOjo = datos.comparativas
+    .map(
+      (c) => `<section class="hoja">
+  <div class="cab-menor">
+    <div class="titulo">${esc(c.ojo)} · ${esc(nombreLateralidad(c.ojo))}<span class="apunte">Resultado por calculadora</span></div>
+    ${ref(` · ${c.ojo}`)}
+  </div>
+  ${tablaComparativa(c)}
+  <div class="pie">
+    Los valores son los devueltos por cada web, sin transformación. Una casilla con
+    «Ver alternativas» significa que la calculadora ha devuelto varias y no ha
+    señalado ninguna: están todas en el detalle.
+  </div>
+</section>`,
+    )
+    .join('')
+
+  const hojaBiometria = `<section class="hoja">
+  <div class="cab-menor">
+    <div class="titulo">Biometría confirmada<span class="apunte">Cada dato, con su origen</span></div>
+    ${ref('')}
+  </div>
+  <p class="nota">
+    Cada valor lleva de dónde salió y, si se corrigió a mano, lo que ponía el
+    informe. Un dato que falta se dice como ausente: nunca se rellena con un cero.
+  </p>
+  ${ojos.map((l) => seccionEntradas(caso, ojoDe(caso, l))).join('')}
+  <div class="pie">
+    «Del informe» lo leyó el programa del documento. «Derivado del informe» lo
+    calculó a partir de otros datos suyos, y lleva la cuenta escrita. «Aportado» y
+    «Corregido» los escribió una persona.
+  </div>
+</section>`
+
+  const hojaTrazabilidad = `<section class="hoja">
+  <div class="cab-menor">
+    <div class="titulo">Trazabilidad<span class="apunte">Qué dice cada calculadora haber recibido</span></div>
+    ${ref('')}
+  </div>
+  ${seccionAuditoria(caso)}
+  ${seccionAusencias(datos)}
+  ${seccionAvisos(datos.avisos)}
+  <div class="pie">
+    Esto no es lo que el programa cree haber enviado: es lo que cada web enseña en
+    su pantalla. Es lo que permite auditar entrada → calculadora → salida meses
+    después, sin saber de quién es el ojo.
+  </div>
+  <footer class="principal">
+    <p>
+      Los resultados de este informe <strong>proceden de las calculadoras externas</strong>
+      Kane (iolformula.com), EVO Toric (evoiolcalculator.com) y Barrett Toric
+      (ASCRS/APACRS). <strong>Calculator Vilamar no calcula potencias de lente</strong>
+      por su cuenta y <strong>no emite ninguna recomendación clínica</strong>: recoge lo
+      que devuelve cada web y lo presenta junto. Cuando las calculadoras no coinciden se
+      enseña el rango de lo que han devuelto, nunca un valor intermedio calculado por
+      este programa. La decisión de qué lente implantar es del cirujano.
+    </p>
+    <p>
+      Este documento <strong>no contiene el nombre, la fecha de nacimiento ni el número
+      de historia</strong> del paciente: el caso se identifica solo por su código local.
+      Se ha generado en este ordenador, sin enviar nada a ningún servidor.
+    </p>
+  </footer>
+</section>`
 
   return `<!doctype html>
 <html lang="es">
@@ -560,51 +961,10 @@ export function generarHtmlInforme(datos: DatosInforme): string {
 <style>${ESTILOS}</style>
 </head>
 <body>
-
-<header class="principal">
-  <h1>Calculator Vilamar</h1>
-  <div class="meta">
-    Versión <strong>${esc(datos.version)}</strong> ·
-    generado el <strong>${esc(fecha(datos.generadoEn))}</strong> ·
-    caso <strong>${esc(caso.codigo)}</strong>
-    ${caso.lente?.modelo ? ` · lente <strong>${esc(caso.lente.modelo)}</strong>` : ''}
-  </div>
-</header>
-
-<h2>Datos confirmados</h2>
-<p class="nota">
-  Todos los datos de esta sección los ha revisado y confirmado una persona antes
-  de enviarse. Se indica de dónde salió cada uno.
-</p>
-${ojos.map((o) => seccionEntradas(caso, o)).join('\n')}
-
-${seccionAvisos(datos.avisos)}
-
-${comparativas.map((c) => tablaComparativa(c)).join('\n')}
-
-${seccionAusencias(datos)}
-
-${seccionAuditoria(caso)}
-
-<footer class="principal">
-  <p>
-    <strong>Los resultados de este informe proceden de las calculadoras externas
-    Kane (iolformula.com), EVO Toric (evoiolcalculator.com) y Barrett Toric
-    (ASCRS / APACRS).</strong>
-    Calculator Vilamar no calcula potencias de lente: rellena esas calculadoras
-    con los datos confirmados, recoge lo que devuelven y lo presenta junto.
-  </p>
-  <p>
-    Las comparaciones de este documento son descriptivas. Calculator Vilamar no
-    emite ninguna recomendación clínica y no sustituye el criterio del cirujano.
-  </p>
-  <p>
-    Documento generado en local. No contiene el nombre, la fecha de nacimiento ni
-    el número de historia de ninguna persona: el caso se identifica por su código
-    local <strong>${esc(caso.codigo)}</strong>.
-  </p>
-</footer>
-
+${portada}
+${hojasPorOjo}
+${hojaBiometria}
+${hojaTrazabilidad}
 </body>
 </html>`
 }

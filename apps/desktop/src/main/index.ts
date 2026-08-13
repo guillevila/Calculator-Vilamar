@@ -119,7 +119,17 @@ async function imprimirPdf(html: string, destino: string): Promise<void> {
     const pdf = await oculta.webContents.printToPDF({
       pageSize: 'A4',
       printBackground: true,
-      margins: { top: 0.5, bottom: 0.5, left: 0.5, right: 0.5 },
+      // ⚠️ **Margen CERO a propósito, y no es un descuido.**
+      //
+      // El informe está paginado a mano: cada `<section class="hoja">` es una hoja
+      // A4 completa que lleva sus propios márgenes dentro (ver `plantilla.ts`). Es
+      // el mismo contrato que usa el lienzo de diseño donde se maquetó —`@page {
+      // margin: 0 }` y la hoja a sangre—, y las dos cosas tienen que coincidir.
+      //
+      // Con los 0.5 pulgadas de antes, cada hoja de 297 mm entraba en una página
+      // de 273 mm útiles: se cortaba el pie y se colaba una página en blanco
+      // detrás de cada una.
+      margins: { top: 0, bottom: 0, left: 0, right: 0 },
     })
     const { writeFileSync } = await import('node:fs')
     writeFileSync(destino, pdf)
