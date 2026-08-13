@@ -231,9 +231,15 @@ describe('«no hay dato» y «no elige» son cosas distintas', () => {
   it('el cilindro son tres alternativas, no un dato que falte', () => {
     // La opción destacada no trae cilindro, pero otras tres sí. Son alternativas
     // de verdad: Kane las da y deja la elección a quien opera.
-    expect(kaneTorico()?.cilindro).toEqual({ estado: 'VARIAS', cuantas: 3 })
-    expect(kaneTorico()?.designacion).toEqual({ estado: 'VARIAS', cuantas: 3 })
-    expect(kaneTorico()?.cilindroResidual).toEqual({ estado: 'VARIAS', cuantas: 3 })
+    expect(kaneTorico()?.cilindro).toMatchObject({ estado: 'VARIAS', cuantas: 3 })
+    expect(kaneTorico()?.designacion).toMatchObject({ estado: 'VARIAS', cuantas: 3 })
+    expect(kaneTorico()?.cilindroResidual).toMatchObject({ estado: 'VARIAS', cuantas: 3 })
+    // Y la designación es la que las NOMBRA: es lo que identifica una tórica.
+    expect(kaneTorico()?.designacion).toMatchObject({
+      lasNombra: true,
+      etiqueta: '3 alternativas tóricas',
+    })
+    expect(kaneTorico()?.cilindro).toMatchObject({ etiqueta: 'Ver alternativas' })
   })
 
   it('el eje de la lente sí es un dato que Kane no da', () => {

@@ -4,6 +4,81 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.1.2] — 13/08/2026
+
+«3 opciones» repetido cinco veces no decía nada. Ahora una fila las nombra.
+
+### El problema
+
+El paso anterior dejó de elegir una alternativa por la calculadora, que era lo
+importante. Pero lo dijo mal:
+
+    Kane
+    Esfera               22.50 D
+    Cilindro             3 opciones
+    Eje                  —
+    Modelo tórico        3 opciones
+    Refracción prevista  -0.17 D
+    Cilindro residual    3 opciones
+    Eje residual         3 opciones
+
+El recuento era cierto, pero no contestaba la única pregunta que deja: **tres
+opciones ¿de qué?** Y puesto en la fila del cilindro se seguía leyendo como «tres
+cilindros», que es justo lo que había que evitar.
+
+### La corrección
+
+**Una fila nombra las alternativas y las demás remiten a ella:**
+
+    Cilindro             Ver alternativas
+    Eje                  —
+    Modelo tórico        3 alternativas tóricas     ← la que las nombra
+    Cilindro residual    Ver alternativas
+    Eje residual         Ver alternativas
+
+La que las nombra es la primera de `CAMPOS_COMPARADOS` que tenga alternativas, y
+de ahí sale también de qué clase son: si llevan designación —«T3», «T4», «T5»—,
+son **tóricas**; si lo que cambia es la esfera, son **de potencia**. No se inventa
+la etiqueta: se deduce de lo que la web devolvió.
+
+**El texto viaja dentro del dato**, no lo compone cada pantalla. Así la interfaz y
+el PDF no pueden decir cosas distintas de lo mismo, que es exactamente lo que pasó
+la primera vez.
+
+### Lo que NO cambia, y es deliberado
+
+- **La esfera 22.50 D y la refracción −0.17 D se quedan.** Está demostrado que
+  salen de la fila que Kane marca con `table-active`, no de una regla nuestra.
+- **Las tres alternativas tóricas se quedan enteras** en el detalle, con su
+  cilindro y su residual. Son datos reales de Kane.
+- **Ninguna se elige.** Ni la de menor residual.
+- El eje sigue siendo `—`: ese dato Kane no lo publica, y ahí no hay alternativas
+  a las que remitir.
+
+### Comprobado
+
+Contra el caso real guardado, ojo izquierdo:
+
+    Kane                                    EVO Toric    Barrett Toric
+    Esfera                22.5              22.5         22
+    Cilindro              Ver alternativas  3            2.25
+    Eje                   —                 100          100
+    Modelo tórico         3 alternativas    T5           T4
+                          tóricas
+    Refracción prevista   -0.17             -0.1         0.08
+
+    Detalle · Kane:  T3 (cil 1.5, residual 0.67 D @ 98°)
+                     T4 (cil 2.25, residual 0.18 D @ 98°)
+                     T5 (cil 3, residual 0.32 D @ 8°)
+
+14 tests de presentación nuevos, 528 en total. Hay uno que falla si el genérico
+«N opciones» vuelve a aparecer en cualquier casilla, y otro que comprueba que
+**solo una** la nombra.
+
+lint, formato, tipos, build y las pruebas de interfaz en verde.
+
+---
+
 ## [1.1.1] — 13/08/2026
 
 Una calculadora que devuelve varias opciones ya no se representa como si hubiera
