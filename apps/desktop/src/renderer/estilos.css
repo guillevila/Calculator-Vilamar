@@ -409,18 +409,64 @@ table.comparativa td.na {
   color: var(--gris);
 }
 /*
- * «No elige» no es «no hay dato», y no puede parecerlo.
+ * Tres estados, tres aspectos. La diferencia importa:
  *
- * Cuando una calculadora da sus opciones tóricas sin destacar ninguna —Kane lo
- * hace— la casilla explica eso en dos líneas cortas en vez de poner «N/A». Va más
- * pequeña y con ayuda al pasar el ratón para que se lea como una aclaración y no
- * como un valor.
+ *   22.50 D      la calculadora señaló esta opción      → cifra normal
+ *   3 opciones   hay alternativas y no señala ninguna   → cursiva, con ayuda
+ *   —            esa calculadora no da este dato        → raya gris, con ayuda
+ *
+ * Antes los dos últimos eran el mismo «N/A» y una columna correcta parecía rota.
  */
-table.comparativa td.sin-elegir {
-  font-size: 11.5px;
-  line-height: 1.25;
+table.comparativa td.varias {
+  color: var(--gris);
   font-style: italic;
+  font-size: 12.5px;
   cursor: help;
+}
+table.comparativa td.na {
+  cursor: help;
+}
+
+/* El detalle: todas las alternativas tal y como vinieron de la web. */
+.opciones-devueltas + .opciones-devueltas {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--linea);
+}
+.opciones-devueltas h3 {
+  font-size: 14px;
+  margin: 0 0 2px;
+  color: var(--azul);
+}
+.opciones-devueltas .sub {
+  margin: 0 0 8px;
+}
+table.opciones {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+table.opciones th,
+table.opciones td {
+  border: 1px solid var(--linea);
+  padding: 5px 8px;
+  text-align: center;
+}
+table.opciones th {
+  background: var(--fondo-suave, #f5f7fa);
+  font-weight: 600;
+}
+table.opciones tr.destacada td {
+  font-weight: 700;
+  background: var(--fondo-suave, #f5f7fa);
+}
+table.opciones td.marca {
+  font-size: 12px;
+  color: var(--gris);
+  font-style: italic;
+}
+table.opciones .na {
+  color: var(--gris);
 }
 
 .observacion {

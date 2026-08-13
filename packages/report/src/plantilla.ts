@@ -20,6 +20,7 @@ import type {
   CampoBiometrico,
   Caso,
   Comparativa,
+  DatoComparativo,
   Lateralidad,
   Medida,
   OjoBiometrico,
@@ -192,14 +193,96 @@ function seccionEntradas(caso: Caso, ojo: OjoBiometrico): string {
   </section>`
 }
 
-function celda(valor: number | undefined, sufijo = ''): string {
-  if (valor === undefined) return '<td class="na">N/A</td>'
-  return `<td>${esc(valor.toFixed(2))}${sufijo}</td>`
+/**
+ * Una casilla del informe. **La misma regla que en pantalla.**
+ *
+ * El informe es la parte que sale del programa y acaba en una historia clínica,
+ * así que es donde menos se puede confundir «lo dice la calculadora» con «lo ha
+ * elegido el programa». Los tres estados se escriben distintos:
+ *
+ *     22.50 D        la web señaló esta opción
+ *     3 opciones     hay tres alternativas y ninguna señalada — están en el detalle
+ *     —              esa calculadora no publica este dato
+ */
+function celda(dato: DatoComparativo, sufijo = '', decimales = 2): string {
+  if (dato.estado === 'VALOR') return `<td>${esc(dato.valor.toFixed(decimales))}${sufijo}</td>`
+  if (dato.estado === 'VARIAS') return `<td class="varias">${dato.cuantas} opciones</td>`
+  return '<td class="na">—</td>'
 }
 
-function celdaEje(valor: number | undefined): string {
-  if (valor === undefined) return '<td class="na">N/A</td>'
-  return `<td>${esc(valor.toFixed(0))}°</td>`
+function celdaTexto(dato: DatoComparativo<string>): string {
+  if (dato.estado === 'VALOR') return `<td>${esc(dato.valor)}</td>`
+  if (dato.estado === 'VARIAS') return `<td class="varias">${dato.cuantas} opciones</td>`
+  return '<td class="na">—</td>'
+}
+
+/** Las columnas del detalle: solo las que alguna opción trae de verdad. */
+const COLUMNAS_DE_OPCION = [
+  { clave: 'esfera', titulo: 'Potencia LIO', sufijo: ' D', decimales: 2 },
+  { clave: 'cilindro', titulo: 'Cilindro', sufijo: ' D', decimales: 2 },
+  { clave: 'eje', titulo: 'Eje', sufijo: '°', decimales: 0 },
+  { clave: 'designacion', titulo: 'Modelo tórico', sufijo: '', decimales: 0 },
+  { clave: 'refraccionPrevista', titulo: 'Refracción prevista', sufijo: ' D', decimales: 2 },
+  { clave: 'cilindroResidual', titulo: 'Cilindro residual', sufijo: ' D', decimales: 2 },
+  { clave: 'ejeResidual', titulo: 'Eje residual', sufijo: '°', decimales: 0 },
+] as const
+
+/**
+ * Las alternativas que devolvió cada calculadora, tal cual vinieron.
+ *
+ * Sin esto, el informe de una calculadora que devuelve varias sin señalar ninguna
+ * sería una tabla con huecos. Con esto, quien lo lea ve exactamente lo mismo que
+ * había en la pantalla de la web.
+ */
+function opcionesDevueltas(c: Comparativa): string {
+  const conVarias = c.celdas.filter((x) => x.opciones.length > 1)
+  if (conVarias.length === 0) return ''
+
+  const bloques = conVarias.map((celdaComp) => {
+    const columnas = COLUMNAS_DE_OPCION.filter((col) =>
+      celdaComp.opciones.some((o) => o[col.clave] !== undefined),
+    )
+    if (columnas.length === 0) return ''
+
+    const senalada = celdaComp.seleccion.clase === 'DESTACADA'
+    const filas = celdaComp.opciones
+      .map((o) => {
+        const celdas = columnas
+          .map((col) => {
+            const v = o[col.clave]
+            if (v === undefined) return '<td class="na">—</td>'
+            return typeof v === 'number'
+              ? `<td>${esc(v.toFixed(col.decimales))}${col.sufijo}</td>`
+              : `<td>${esc(v)}</td>`
+          })
+          .join('')
+        const marca = senalada
+          ? `<td class="marca">${o.recomendada ? `Destacada por ${esc(celdaComp.nombre)}` : ''}</td>`
+          : ''
+        return `<tr class="${o.recomendada ? 'destacada' : ''}">${celdas}${marca}</tr>`
+      })
+      .join('')
+
+    const nota = senalada
+      ? `${esc(celdaComp.nombre)} ha señalado una de ellas; es la que aparece en la comparación.`
+      : `${esc(celdaComp.nombre)} no ha señalado ninguna opción preferente. La elección no la hace Calculator Vilamar.`
+
+    return `<div class="bloque-opciones">
+      <h3>${esc(celdaComp.nombre)} · ${celdaComp.opciones.length} alternativas devueltas</h3>
+      <p class="nota">${nota}</p>
+      <table class="tabla-opciones">
+        <thead><tr>${columnas.map((col) => `<th>${esc(col.titulo)}</th>`).join('')}${
+          senalada ? '<th></th>' : ''
+        }</tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+    </div>`
+  })
+
+  return `<section class="opciones-devueltas">
+    <h2>Opciones devueltas · ${esc(nombreLateralidad(c.ojo))}</h2>
+    ${bloques.join('')}
+  </section>`
 }
 
 function tablaComparativa(c: Comparativa): string {
@@ -213,21 +296,18 @@ function tablaComparativa(c: Comparativa): string {
       <tbody>
         <tr><th>Esfera de la lente</th>${cols.map((x) => celda(x.esfera, ' D')).join('')}</tr>
         <tr><th>Cilindro</th>${cols.map((x) => celda(x.cilindro, ' D')).join('')}</tr>
-        <tr><th>Eje de la lente</th>${cols.map((x) => celdaEje(x.eje)).join('')}</tr>
-        <tr><th>Modelo tórico</th>${cols
-          .map((x) =>
-            x.designacion ? `<td>${esc(x.designacion)}</td>` : '<td class="na">N/A</td>',
-          )
-          .join('')}</tr>
+        <tr><th>Eje de la lente</th>${cols.map((x) => celda(x.eje, '°', 0)).join('')}</tr>
+        <tr><th>Modelo tórico</th>${cols.map((x) => celdaTexto(x.designacion)).join('')}</tr>
         <tr><th>Refracción prevista</th>${cols.map((x) => celda(x.refraccionPrevista, ' D')).join('')}</tr>
         <tr><th>Cilindro residual</th>${cols.map((x) => celda(x.cilindroResidual, ' D')).join('')}</tr>
-        <tr><th>Eje residual</th>${cols.map((x) => celdaEje(x.ejeResidual)).join('')}</tr>
+        <tr><th>Eje residual</th>${cols.map((x) => celda(x.ejeResidual, '°', 0)).join('')}</tr>
         <tr class="fila-estado"><th>Estado</th>${cols
           .map((x) => `<td>${esc(textoEstado(x.estado))}</td>`)
           .join('')}</tr>
       </tbody>
     </table>
 
+    ${opcionesDevueltas(c)}
     ${observaciones(c)}
   </section>`
 }
@@ -387,6 +467,22 @@ const ESTILOS = `
   td.valor { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
   tr.ausente td.valor { color: var(--ambar); font-weight: 600; }
   td.na { color: var(--gris); }
+  /*
+   * «Varias alternativas» no es «no hay dato», y no se puede leer igual. Va en
+   * cursiva y en gris: se ve que es una aclaración, no una cifra.
+   */
+  td.varias { color: var(--gris); font-style: italic; font-size: 9.5pt; }
+
+  .opciones-devueltas { margin-top: 10pt; }
+  .bloque-opciones { margin-top: 8pt; break-inside: avoid; }
+  .bloque-opciones h3 { font-size: 10.5pt; margin: 0 0 2pt; color: var(--azul); }
+  .bloque-opciones .nota { font-size: 9pt; color: var(--gris); margin: 0 0 4pt; }
+  table.tabla-opciones { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+  table.tabla-opciones th,
+  table.tabla-opciones td { border: 1px solid var(--linea); padding: 3pt 5pt; text-align: center; }
+  table.tabla-opciones th { background: var(--fondo-suave); font-weight: 600; }
+  table.tabla-opciones tr.destacada td { font-weight: 700; background: var(--fondo-suave); }
+  table.tabla-opciones td.marca { font-size: 8.5pt; color: var(--gris); font-style: italic; }
   .procedencia { color: var(--gris); font-size: 8.5pt; }
   .evidencia { font-family: Consolas, monospace; font-size: 8pt; color: var(--gris); }
   .marca {
