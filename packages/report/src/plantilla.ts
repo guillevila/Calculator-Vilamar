@@ -316,7 +316,6 @@ function tablaComparativa(c: Comparativa): string {
       </tbody>
     </table>
 
-    ${opcionesDevueltas(c)}
     ${observaciones(c)}
   </section>`
 }
@@ -1175,9 +1174,19 @@ const ESTILOS = `
   .apuntes > div { margin-top: 3px; }
   .apuntes strong { color: var(--tinta); }
 
-  .figura { margin-top: 10px; text-align: center; }
+  .figura { margin-top: 6px; text-align: center; }
+  .figura svg { max-height: 24mm; }
+  /*
+   * La tabla de biometria va compacta a proposito: es la unica hoja que puede
+   * llegar a 24 filas, y con el interlineado general se pasaba de pagina. Medido
+   * con printToPDF, no supuesto.
+   */
+  table.datos { font-size: 7.8pt; line-height: 1.2; }
+  table.datos th,
+  table.datos td { padding: 1.6px 6px; }
+  table.datos .procedencia, table.datos .evidencia, table.datos .original { font-size: 7pt; }
   .pie-figura {
-    font-size: 7.5pt; color: var(--gris); line-height: 1.45; margin: 2px auto 0;
+    font-size: 7pt; color: var(--gris); line-height: 1.45; margin: 2px auto 0;
     max-width: 130mm; text-align: left;
   }
   .pie-figura strong { color: var(--tinta); }
@@ -1193,40 +1202,136 @@ const ESTILOS = `
 `
 
 /**
- * El informe completo, en cinco hojas A4.
+ * Una hoja del informe, antes de saber qué número le toca.
  *
- * La paginación es EXPLÍCITA —una hoja por sección, no un flujo que el motor
- * reparta—, igual que en el diseño. El reparto:
+ * El informe se arma en DOS pasos —primero las hojas, después la numeración— y no
+ * por gusto: el número total depende de cuántas hojas salgan, y eso depende del
+ * caso. Un ojo con tres calculadoras y alternativas saca más hojas que un ojo con
+ * una y sin ellas.
  *
- *     1  Portada      lente y constante · un titular por ojo · incidencias
- *     2  OD           qué devolvió cada calculadora, y sus alternativas
- *     3  OS           lo mismo del otro ojo
- *     4  Biometría    los datos confirmados, cada uno con su origen
- *     5  Trazabilidad qué dice cada web haber recibido, y los avisos
+ * Antes el total era `3 + ojos`, una cuenta fija, y con dos ojos el PDF traía 8
+ * páginas mientras el pie ponía «página 2 de 5». Medido con `printToPDF`, no
+ * supuesto.
+ */
+interface Hoja {
+  /** La portada lleva cabecera grande; el resto, la pequeña. */
+  readonly portada?: boolean
+  readonly titulo?: string
+  readonly apunte?: string
+  /** Lo que se añade al código en la referencia: « · OD». */
+  readonly refExtra?: string
+  readonly cuerpo: string
+  readonly pie: string
+}
+
+/**
+ * El informe completo, una hoja A4 por sección.
  *
- * Un caso de un solo ojo produce cuatro hojas, no cinco con una vacía.
+ * El reparto NO es fijo: se construye según lo que tenga el caso, y cada hoja
+ * lleva una cosa para que quepa. Con dos ojos y tres calculadoras salen nueve:
+ *
+ *     1  Portada            lente y constante · un titular por ojo · incidencias
+ *     2  OD comparación     el ojo dibujado, la tabla y las observaciones
+ *     3  OS comparación
+ *     4  OD alternativas    todas las opciones que devolvió cada calculadora
+ *     5  OS alternativas
+ *     6  OD biometría       el corte del ojo y los datos con su origen
+ *     7  OS biometría
+ *     8  Trazabilidad       qué dice cada web haber recibido, y los avisos
+ *
+ * Las hojas de alternativas **solo salen si hay alternativas**, y la de biometría
+ * es por ojo: juntar los dos era lo que desbordaba la página.
  */
 export function generarHtmlInforme(datos: DatosInforme): string {
   const { caso } = datos
   const ojos = ojosDelCaso(caso)
-  const hojasDeOjo = datos.comparativas.length
-  const total = 3 + hojasDeOjo
-  let n = 0
-  const meta = (): string => {
-    n += 1
-    return `<div class="cab-meta">
-      <div class="codigo">${esc(caso.codigo)}</div>
-      <div>${esc(fecha(datos.generadoEn))}</div>
-      <div>versión ${esc(datos.version)} · página ${n} de ${total}</div>
-    </div>`
-  }
-  const ref = (extra: string): string => {
-    n += 1
-    return `<div class="ref">${esc(caso.codigo)}${extra} · página ${n} de ${total}</div>`
+  const hojas: Hoja[] = []
+
+  // ── 1 · Portada ──────────────────────────────────────────────────────────
+  hojas.push({
+    portada: true,
+    cuerpo: `${bandaDeLente(datos)}
+  <div class="tarjetas">
+    ${datos.comparativas.map((c) => tarjetaDeOjo(c)).join('')}
+  </div>
+  ${bloqueIncidencias(datos)}`,
+    pie: `Cada cifra de esta portada es lo que han devuelto las webs: el valor cuando
+    coinciden, y el rango cuando no. <strong>Nunca un valor intermedio calculado por
+    este programa.</strong> El detalle por calculadora está en las hojas siguientes;
+    el aviso legal completo, al final del documento.`,
+  })
+
+  // ── 2 · Una hoja de comparación por ojo ──────────────────────────────────
+  for (const c of datos.comparativas) {
+    hojas.push({
+      titulo: `${c.ojo} · ${nombreLateralidad(c.ojo)}`,
+      apunte: 'Resultado por calculadora',
+      refExtra: ` · ${c.ojo}`,
+      cuerpo: `${diagramaDeEje(c, ojoDe(caso, c.ojo))}
+  ${tablaComparativa(c)}`,
+      pie: `Los valores son los devueltos por cada web, sin transformación. Una casilla
+      con «Ver alternativas» significa que la calculadora ha devuelto varias y no ha
+      señalado ninguna: están en la hoja de alternativas de este ojo.`,
+    })
   }
 
-  const portada = `<section class="hoja">
-  <div class="cab">
+  // ── 3 · Las alternativas, solo si las hay ────────────────────────────────
+  //
+  // Iban dentro de la hoja de comparación y era una de las tres que desbordaban:
+  // tres calculadoras con ocho opciones cada una no caben debajo de una tabla.
+  for (const c of datos.comparativas) {
+    const detalle = opcionesDevueltas(c)
+    if (detalle === '') continue
+    hojas.push({
+      titulo: `${c.ojo} · Alternativas devueltas`,
+      apunte: 'Todas las opciones, tal y como vinieron de cada web',
+      refExtra: ` · ${c.ojo}`,
+      cuerpo: detalle,
+      pie: `Cuando una calculadora no señala ninguna opción, la elección es de quien
+      opera. Calculator Vilamar no elige, ni la de menor cilindro residual.`,
+    })
+  }
+
+  // ── 4 · Una hoja de biometría por ojo ────────────────────────────────────
+  //
+  // Los dos ojos en la misma hoja no caben: dos figuras del corte y dos tablas de
+  // hasta veinticuatro filas.
+  for (const l of ojos) {
+    hojas.push({
+      titulo: `Biometría confirmada · ${nombreLateralidad(l)}`,
+      apunte: 'Cada dato, con su origen',
+      refExtra: ` · ${l}`,
+      cuerpo: `${figuraBiometrica(ojoDe(caso, l))}
+  ${seccionEntradas(caso, ojoDe(caso, l))}`,
+      pie: `«Del informe» lo leyó el programa del documento. «Derivado del informe» lo
+      calculó a partir de otros datos suyos, y lleva la cuenta escrita. «Aportado» y
+      «Corregido» los escribió una persona. Un dato que falta se dice como ausente:
+      nunca se rellena con un cero.`,
+    })
+  }
+
+  // ── 5 · Trazabilidad, y el pie legal del documento ───────────────────────
+  hojas.push({
+    titulo: 'Trazabilidad',
+    apunte: 'Qué dice cada calculadora haber recibido',
+    cuerpo: `${seccionAuditoria(caso)}
+  ${seccionAusencias(datos)}
+  ${seccionAvisos(datos.avisos)}`,
+    pie: `Esto no es lo que el programa cree haber enviado: es lo que cada web enseña
+    en su pantalla. Es lo que permite auditar entrada → calculadora → salida meses
+    después, sin saber de quién es el ojo.`,
+    // El aviso legal va en la última hoja, en un <footer> de verdad: la frase que
+    // NOMBRA los datos excluidos tiene que quedar fuera del recorrido con el que se
+    // comprueba que el cuerpo no lleva ninguno.
+  })
+
+  const total = hojas.length
+  const cuerpoDelDocumento = hojas
+    .map((h, i) => {
+      const n = i + 1
+      const ultima = n === total
+      const cabecera = h.portada
+        ? `<div class="cab">
     <div class="cab-marca">
       <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
         <circle cx="15" cy="15" r="14" fill="none" stroke="#12506E" stroke-width="1.6"></circle>
@@ -1239,70 +1344,47 @@ export function generarHtmlInforme(datos: DatosInforme): string {
         <div class="sub">Informe comparativo de cálculo de LIO</div>
       </div>
     </div>
-    ${meta()}
-  </div>
-  ${bandaDeLente(datos)}
-  <div class="tarjetas">
-    ${datos.comparativas.map((c) => tarjetaDeOjo(c)).join('')}
-  </div>
-  ${bloqueIncidencias(datos)}
-  <div class="pie">
-    Cada cifra de esta portada es lo que han devuelto las webs: el valor cuando
-    coinciden, y el rango cuando no. <strong>Nunca un valor intermedio calculado por
-    este programa.</strong> El detalle por calculadora está en las hojas siguientes;
-    el aviso legal completo, al final del documento.
-  </div>
+    <div class="cab-meta">
+      <div class="codigo">${esc(caso.codigo)}</div>
+      <div>${esc(fecha(datos.generadoEn))}</div>
+      <div>versión ${esc(datos.version)} · página ${n} de ${total}</div>
+    </div>
+  </div>`
+        : `<div class="cab-menor">
+    <div class="titulo">${esc(h.titulo ?? '')}${h.apunte ? `<span class="apunte">${esc(h.apunte)}</span>` : ''}</div>
+    <div class="ref">${esc(caso.codigo)}${esc(h.refExtra ?? '')} · página ${n} de ${total}</div>
+  </div>`
+
+      return `<section class="hoja">
+  ${cabecera}
+  ${h.cuerpo}
+  <div class="pie">${h.pie}</div>
+  ${ultima ? PIE_LEGAL : ''}
 </section>`
+    })
+    .join('\n')
 
-  const hojasPorOjo = datos.comparativas
-    .map(
-      (c) => `<section class="hoja">
-  <div class="cab-menor">
-    <div class="titulo">${esc(c.ojo)} · ${esc(nombreLateralidad(c.ojo))}<span class="apunte">Resultado por calculadora</span></div>
-    ${ref(` · ${c.ojo}`)}
-  </div>
-  ${diagramaDeEje(c, ojoDe(caso, c.ojo))}
-  ${tablaComparativa(c)}
-  <div class="pie">
-    Los valores son los devueltos por cada web, sin transformación. Una casilla con
-    «Ver alternativas» significa que la calculadora ha devuelto varias y no ha
-    señalado ninguna: están todas en el detalle.
-  </div>
-</section>`,
-    )
-    .join('')
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Calculator Vilamar · ${esc(caso.codigo)}</title>
+<style>${ESTILOS}</style>
+</head>
+<body>
+${cuerpoDelDocumento}
+</body>
+</html>`
+}
 
-  const hojaBiometria = `<section class="hoja">
-  <div class="cab-menor">
-    <div class="titulo">Biometría confirmada<span class="apunte">Cada dato, con su origen</span></div>
-    ${ref('')}
-  </div>
-  <p class="nota">
-    Cada valor lleva de dónde salió y, si se corrigió a mano, lo que ponía el
-    informe. Un dato que falta se dice como ausente: nunca se rellena con un cero.
-  </p>
-  ${ojos.map((l) => `${figuraBiometrica(ojoDe(caso, l))}${seccionEntradas(caso, ojoDe(caso, l))}`).join('')}
-  <div class="pie">
-    «Del informe» lo leyó el programa del documento. «Derivado del informe» lo
-    calculó a partir de otros datos suyos, y lleva la cuenta escrita. «Aportado» y
-    «Corregido» los escribió una persona.
-  </div>
-</section>`
-
-  const hojaTrazabilidad = `<section class="hoja">
-  <div class="cab-menor">
-    <div class="titulo">Trazabilidad<span class="apunte">Qué dice cada calculadora haber recibido</span></div>
-    ${ref('')}
-  </div>
-  ${seccionAuditoria(caso)}
-  ${seccionAusencias(datos)}
-  ${seccionAvisos(datos.avisos)}
-  <div class="pie">
-    Esto no es lo que el programa cree haber enviado: es lo que cada web enseña en
-    su pantalla. Es lo que permite auditar entrada → calculadora → salida meses
-    después, sin saber de quién es el ojo.
-  </div>
-  <footer class="principal">
+/**
+ * El aviso legal y el de privacidad, al final del documento.
+ *
+ * Va en un `<footer>` a propósito: la comprobación de que el informe no lleva datos
+ * identificativos recorre el cuerpo SIN el pie, y la frase que nombra los datos
+ * excluidos tiene que quedar fuera de ese recorrido para no darla por encontrada.
+ */
+const PIE_LEGAL = `<footer class="principal">
     <p>
       Los resultados de este informe <strong>proceden de las calculadoras externas</strong>
       Kane (iolformula.com), EVO Toric (evoiolcalculator.com) y Barrett Toric
@@ -1317,21 +1399,4 @@ export function generarHtmlInforme(datos: DatosInforme): string {
       de historia</strong> del paciente: el caso se identifica solo por su código local.
       Se ha generado en este ordenador, sin enviar nada a ningún servidor.
     </p>
-  </footer>
-</section>`
-
-  return `<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<title>Calculator Vilamar · ${esc(caso.codigo)}</title>
-<style>${ESTILOS}</style>
-</head>
-<body>
-${portada}
-${hojasPorOjo}
-${hojaBiometria}
-${hojaTrazabilidad}
-</body>
-</html>`
-}
+  </footer>`
