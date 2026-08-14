@@ -119,7 +119,17 @@ async function imprimirPdf(html: string, destino: string): Promise<void> {
     const pdf = await oculta.webContents.printToPDF({
       pageSize: 'A4',
       printBackground: true,
-      margins: { top: 0.5, bottom: 0.5, left: 0.5, right: 0.5 },
+      // ⚠️ **Margen CERO a propósito, y no es un descuido.**
+      //
+      // El informe está paginado a mano: cada `<section class="hoja">` es una hoja
+      // A4 completa que lleva sus propios márgenes dentro (ver `plantilla.ts`). Es
+      // el mismo contrato que usa el lienzo de diseño donde se maquetó —`@page {
+      // margin: 0 }` y la hoja a sangre—, y las dos cosas tienen que coincidir.
+      //
+      // Con los 0.5 pulgadas de antes, cada hoja de 297 mm entraba en una página
+      // de 273 mm útiles: se cortaba el pie y se colaba una página en blanco
+      // detrás de cada una.
+      margins: { top: 0, bottom: 0, left: 0, right: 0 },
     })
     const { writeFileSync } = await import('node:fs')
     writeFileSync(destino, pdf)
@@ -141,17 +151,31 @@ async function abrirNavegador(conVentana: boolean, perfil: string): Promise<Brow
     headless: !conVentana,
     viewport: { width: 1500, height: 1050 },
   })
-  // `launchPersistentContext` devuelve un contexto, no un navegador. El
-  // orquestador quiere un navegador: se le da el suyo, que es el que lo creó.
-  const navegador = contexto.browser()
-  if (navegador) return navegador
 
-  // Con perfil persistente puede no haber objeto navegador. Se envuelve el
-  // contexto en lo mínimo que el orquestador usa, y se cierra el contexto de
-  // verdad al cerrar.
+  // ⚠️ **NO se devuelve `contexto.browser()`, aunque exista.** Aquí había un
+  // fallo silencioso, y está MEDIDO:
+  //
+  //   Con perfil persistente, `contexto.browser()` SÍ devuelve un navegador. Y
+  //   `navegador.newContext()` —que es lo que llama el orquestador— crea un
+  //   contexto **nuevo y vacío que no hereda el perfil**. Comprobado: una cookie
+  //   puesta en el contexto persistente se ve como 1 en él y como 0 en el nuevo.
+  //
+  // O sea: el perfil se cargaba y no se usaba nunca. Las cookies del cálculo
+  // vivían en un contexto desechable y morían con él, así que **la aceptación de
+  // las condiciones de Kane no podía recordarse jamás** — se pedía otra vez en
+  // cada cálculo, hiciera el usuario lo que hiciera.
+  //
+  // Devolviendo el envoltorio, `newContext()` entrega EL contexto persistente y
+  // todo lo que pase en el cálculo queda en el perfil de la carpeta de datos del
+  // usuario. Ese perfil no sale nunca de la máquina.
   return {
     newContext: async () => contexto,
+    contexts: () => [contexto],
+    // Cerrar el contexto persistente es lo que vuelca cookies y sesión al disco.
+    // Se llama dos veces —el orquestador cierra el contexto y el servicio el
+    // navegador— y la segunda es inofensiva.
     close: async () => contexto.close(),
+    isConnected: () => true,
   } as unknown as Browser
 }
 
@@ -258,12 +282,15 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
     s().editarMedida(ojo, campo, valor),
   )
   ipcMain.handle(CANALES.confirmarCampo, (_e, ojo, campo) => s().confirmarCampo(ojo, campo))
+  ipcMain.handle(CANALES.elegirSexo, (_e, sexo) => s().elegirSexo(sexo))
+  ipcMain.handle(CANALES.confirmarSexo, () => s().confirmarSexo())
   ipcMain.handle(CANALES.confirmarTodo, () => s().confirmarTodo())
   ipcMain.handle(CANALES.validar, () => s().validar())
   ipcMain.handle(CANALES.elegirLente, (_e, fabricante, modelo) =>
     s().elegirLente(fabricante, modelo),
   )
-  ipcMain.handle(CANALES.calcular, (_e, ojo, calculadoras) => s().calcular(ojo, calculadoras))
+  ipcMain.handle(CANALES.calcular, (_e, calculadoras) => s().calcular(calculadoras))
+  ipcMain.handle(CANALES.reintentar, (_e, calculadora, ojo) => s().reintentar(calculadora, ojo))
   ipcMain.handle(CANALES.cancelarCalculo, () => s().cancelarCalculo())
   ipcMain.handle(CANALES.generarPdf, () => s().generarPdf())
   ipcMain.handle(CANALES.abrirCarpetaInformes, () => shell.openPath(carpetas.informes))

@@ -46,6 +46,7 @@ import {
 } from '@vilamar/domain'
 
 import { api } from '../api.js'
+import { BloqueSexo } from './BloqueSexo.js'
 import { SelectorLente } from './SelectorLente.js'
 
 interface Props {
@@ -86,7 +87,13 @@ export function PanelRevision({
    * Se mira del ojo que se está revisando: los dos ojos pueden tener datos
    * distintos, y avisar del otro sería confundir.
    */
-  const sinDatos = useMemo(() => quienNoPuedeCalcular(ojo.medidas), [ojo])
+  const sinDatos = useMemo(
+    // El sexo entra en la cuenta: lo pide Kane y no es un campo del ojo. Sin
+    // pasarlo, este aviso decía que Kane podía calcular y después salía «falta el
+    // sexo» tras esperar el recorrido entero de las tres webs.
+    () => quienNoPuedeCalcular(ojo.medidas, caso.sexo?.confirmadoPorUsuario === true),
+    [ojo, caso.sexo],
+  )
 
   /**
    * Datos que nadie ha mirado todavía. Bloquean la confirmación.
@@ -189,6 +196,8 @@ export function PanelRevision({
         />
       ))}
 
+      <BloqueSexo caso={caso} onCambio={onCambio} />
+
       <SelectorLente caso={caso} onCambio={onCambio} />
 
       <div className="tarjeta">
@@ -217,7 +226,19 @@ export function PanelRevision({
               {sinDatos.map((x) => (
                 <li key={x.calculadora}>
                   <strong>{fichaDe(x.calculadora).nombre}</strong>: falta{' '}
-                  {x.faltan.map((c) => definicionDe(c).etiqueta).join(', ')}
+                  {[
+                    ...x.faltan.map((c) => definicionDe(c).etiqueta),
+                    // Se nombra como lo que es, y se dice qué hacer: si está
+                    // deducido pero sin comprobar, el hueco no es «ponlo» sino
+                    // «míralo».
+                    ...(x.faltaElSexo
+                      ? [
+                          caso.sexo === undefined
+                            ? 'el sexo del paciente'
+                            : 'comprobar el sexo del paciente',
+                        ]
+                      : []),
+                  ].join(', ')}
                 </li>
               ))}
             </ul>

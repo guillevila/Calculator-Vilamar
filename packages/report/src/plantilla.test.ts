@@ -167,9 +167,12 @@ describe('el informe dice lo que hay', () => {
     expect(html()).toContain('AL 24.07 mm')
   })
 
-  it('un campo que no da la calculadora sale como N/A, no como 0', () => {
+  it('un campo que no da la calculadora sale como raya, no como 0', () => {
     const h = html()
-    expect(h).toContain('N/A')
+    // La raya se lee como «no hay dato». «N/A» se leía como «ha fallado», que es
+    // otra cosa, y por eso ya no se usa.
+    expect(h).toContain('—')
+    expect(h).not.toContain('N/A')
     // Kane no se ejecutó: su columna existe pero sin números inventados.
     expect(h).toContain('Kane')
   })

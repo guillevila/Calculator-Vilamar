@@ -69,7 +69,7 @@ describe('comparativa de un ojo', () => {
     })
     const texto = c.observaciones.map((o) => o.texto).join(' | ')
     expect(texto).toMatch(/2 de 3/)
-    expect(texto).toMatch(/rango entre las esferas recomendadas es 0\.50 D/)
+    expect(texto).toMatch(/rango entre las esferas destacadas es 0\.50 D/)
   })
 
   it('marca como discrepancia un rango de media dioptría o más', () => {
@@ -96,10 +96,10 @@ describe('comparativa de un ojo', () => {
     })
     // EVO sigue teniendo su resultado…
     const evo = c.celdas.find((x) => x.calculadora === 'EVO_TORIC')
-    expect(evo?.esfera).toBe(21)
+    expect(evo?.esfera).toEqual({ estado: 'VALOR', valor: 21 })
     // …y Barrett aparece con su motivo, en lenguaje normal.
     const barrett = c.celdas.find((x) => x.calculadora === 'BARRETT_TORIC')
-    expect(barrett?.esfera).toBeUndefined()
+    expect(barrett?.esfera).toEqual({ estado: 'NO_DISPONIBLE' })
     expect(c.observaciones.some((o) => /WTW/.test(o.texto))).toBe(true)
   })
 
@@ -113,7 +113,7 @@ describe('comparativa de un ojo', () => {
 
   it('avisa cuando solo hay un resultado y no hay nada que comparar', () => {
     const c = compararOjo('OD', { EVO_TORIC: resultado('EVO_TORIC', 21) })
-    expect(c.observaciones.some((o) => /No hay nada con lo que compararlo/.test(o.texto))).toBe(
+    expect(c.observaciones.some((o) => /No hay nada con lo que compararla/.test(o.texto))).toBe(
       true,
     )
   })
@@ -125,8 +125,8 @@ describe('comparativa de un ojo', () => {
       EVO_TORIC: resultado('EVO_TORIC', 21, { cilindro: 0.75, eje: 81 }),
     })
     const kane = c.celdas.find((x) => x.calculadora === 'KANE')
-    expect(kane?.cilindro).toBeUndefined()
-    expect(kane?.eje).toBeUndefined()
+    expect(kane?.cilindro).toEqual({ estado: 'NO_DISPONIBLE' })
+    expect(kane?.eje).toEqual({ estado: 'NO_DISPONIBLE' })
   })
 })
 
@@ -175,5 +175,111 @@ describe('el producto compara, no recomienda', () => {
     const c = compararOjo('OD', {})
     expect(c.conResultado).toBe(0)
     expect(c.observaciones.every((o) => o.tipo === 'AVISO' || o.tipo === 'FALLO')).toBe(true)
+  })
+})
+
+describe('«no hay dato» y «no elige» son cosas distintas', () => {
+  /**
+   * El resultado tórico REAL de Kane: destaca una potencia esférica y, aparte, da
+   * las opciones tóricas SIN destacar ninguna. Los números están copiados de una
+   * ejecución contra su web con datos sintéticos.
+   */
+  const KANE_TORICO: ResultadoCalculadora = {
+    calculadora: 'KANE',
+    ojo: 'OD',
+    estado: 'SUCCESS',
+    obtenidoEn: CUANDO,
+    opciones: [
+      { esfera: 21.5, refraccionPrevista: -0.06, recomendada: true },
+      {
+        esfera: 21.5,
+        cilindro: 0,
+        designacion: 'Non-toric',
+        cilindroResidual: 0.42,
+        ejeResidual: 80,
+        recomendada: false,
+      },
+      {
+        esfera: 21.5,
+        cilindro: 1,
+        designacion: 'T2',
+        cilindroResidual: 0.24,
+        ejeResidual: 170,
+        recomendada: false,
+      },
+      {
+        esfera: 21.5,
+        cilindro: 1.5,
+        designacion: 'T3',
+        cilindroResidual: 0.57,
+        ejeResidual: 170,
+        recomendada: false,
+      },
+    ],
+    recomendada: { esfera: 21.5, refraccionPrevista: -0.06, recomendada: true },
+  }
+
+  const kaneTorico = () =>
+    compararOjo('OD', { KANE: KANE_TORICO }).celdas.find((x) => x.calculadora === 'KANE')
+
+  it('la esfera que Kane destaca sí se enseña', () => {
+    expect(kaneTorico()?.seleccion.clase).toBe('DESTACADA')
+    expect(kaneTorico()?.esfera).toEqual({ estado: 'VALOR', valor: 21.5 })
+    expect(kaneTorico()?.refraccionPrevista).toEqual({ estado: 'VALOR', valor: -0.06 })
+  })
+
+  it('el cilindro son tres alternativas, no un dato que falte', () => {
+    // La opción destacada no trae cilindro, pero otras tres sí. Son alternativas
+    // de verdad: Kane las da y deja la elección a quien opera.
+    expect(kaneTorico()?.cilindro).toMatchObject({ estado: 'VARIAS', cuantas: 3 })
+    expect(kaneTorico()?.designacion).toMatchObject({ estado: 'VARIAS', cuantas: 3 })
+    expect(kaneTorico()?.cilindroResidual).toMatchObject({ estado: 'VARIAS', cuantas: 3 })
+    // Y la designación es la que las NOMBRA: es lo que identifica una tórica.
+    expect(kaneTorico()?.designacion).toMatchObject({
+      lasNombra: true,
+      etiqueta: '3 alternativas tóricas',
+    })
+    expect(kaneTorico()?.cilindro).toMatchObject({ etiqueta: 'Ver alternativas' })
+  })
+
+  it('el eje de la lente sí es un dato que Kane no da', () => {
+    // Ninguna de las cuatro opciones lo trae. Aquí «3 opciones» sería mentira.
+    expect(kaneTorico()?.eje).toEqual({ estado: 'NO_DISPONIBLE' })
+  })
+
+  it('y NINGUNA de las tóricas sale como destacada', () => {
+    const toricas = kaneTorico()?.opciones.filter((o) => o.designacion !== undefined) ?? []
+    expect(toricas).toHaveLength(3)
+    for (const o of toricas) expect(o.recomendada).toBe(false)
+  })
+
+  it('una calculadora que SÍ elige su tórica enseña el valor, no un recuento', () => {
+    const c = compararOjo('OD', {
+      EVO_TORIC: resultado('EVO_TORIC', 22, {
+        cilindro: 3,
+        designacion: 'T5',
+        cilindroResidual: 0.31,
+      }),
+    })
+    const evo = c.celdas.find((x) => x.calculadora === 'EVO_TORIC')
+    expect(evo?.cilindro).toEqual({ estado: 'VALOR', valor: 3 })
+    expect(evo?.designacion).toEqual({ estado: 'VALOR', valor: 'T5' })
+  })
+
+  it('sin cilindro ni opciones tóricas, la casilla es «no disponible»', () => {
+    // Aquí la casilla vacía sí significa «no hay dato», y decir «0 opciones»
+    // sería peor que no decir nada.
+    const c = compararOjo('OD', { KANE: resultado('KANE', 21.5, { refraccionPrevista: -0.06 }) })
+    const kane = c.celdas.find((x) => x.calculadora === 'KANE')
+    expect(kane?.cilindro).toEqual({ estado: 'NO_DISPONIBLE' })
+    expect(kane?.designacion).toEqual({ estado: 'NO_DISPONIBLE' })
+  })
+
+  it('un fallo no se disfraza de «no elige»', () => {
+    const c = compararOjo('OD', { KANE: fallo('KANE', 'Falta el sexo.') })
+    const kane = c.celdas.find((x) => x.calculadora === 'KANE')
+    expect(kane?.seleccion.clase).toBe('SIN_RESULTADO')
+    expect(kane?.cilindro).toEqual({ estado: 'NO_DISPONIBLE' })
+    expect(kane?.esfera).toEqual({ estado: 'NO_DISPONIBLE' })
   })
 })

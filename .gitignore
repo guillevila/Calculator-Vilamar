@@ -126,3 +126,7 @@ __pycache__/
 .venv/
 venv/
 .next/
+
+# El HTML del informe generado para comparar con el diseño: se regenera cuando
+# hace falta y no aporta nada al repositorio.
+local/diseno/

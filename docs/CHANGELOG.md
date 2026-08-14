@@ -4,6 +4,555 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.1.2] — 13/08/2026
+
+«3 opciones» repetido cinco veces no decía nada. Ahora una fila las nombra.
+
+### El problema
+
+El paso anterior dejó de elegir una alternativa por la calculadora, que era lo
+importante. Pero lo dijo mal:
+
+    Kane
+    Esfera               22.50 D
+    Cilindro             3 opciones
+    Eje                  —
+    Modelo tórico        3 opciones
+    Refracción prevista  -0.17 D
+    Cilindro residual    3 opciones
+    Eje residual         3 opciones
+
+El recuento era cierto, pero no contestaba la única pregunta que deja: **tres
+opciones ¿de qué?** Y puesto en la fila del cilindro se seguía leyendo como «tres
+cilindros», que es justo lo que había que evitar.
+
+### La corrección
+
+**Una fila nombra las alternativas y las demás remiten a ella:**
+
+    Cilindro             Ver alternativas
+    Eje                  —
+    Modelo tórico        3 alternativas tóricas     ← la que las nombra
+    Cilindro residual    Ver alternativas
+    Eje residual         Ver alternativas
+
+La que las nombra es la primera de `CAMPOS_COMPARADOS` que tenga alternativas, y
+de ahí sale también de qué clase son: si llevan designación —«T3», «T4», «T5»—,
+son **tóricas**; si lo que cambia es la esfera, son **de potencia**. No se inventa
+la etiqueta: se deduce de lo que la web devolvió.
+
+**El texto viaja dentro del dato**, no lo compone cada pantalla. Así la interfaz y
+el PDF no pueden decir cosas distintas de lo mismo, que es exactamente lo que pasó
+la primera vez.
+
+### Lo que NO cambia, y es deliberado
+
+- **La esfera 22.50 D y la refracción −0.17 D se quedan.** Está demostrado que
+  salen de la fila que Kane marca con `table-active`, no de una regla nuestra.
+- **Las tres alternativas tóricas se quedan enteras** en el detalle, con su
+  cilindro y su residual. Son datos reales de Kane.
+- **Ninguna se elige.** Ni la de menor residual.
+- El eje sigue siendo `—`: ese dato Kane no lo publica, y ahí no hay alternativas
+  a las que remitir.
+
+### Comprobado
+
+Contra el caso real guardado, ojo izquierdo:
+
+    Kane                                    EVO Toric    Barrett Toric
+    Esfera                22.5              22.5         22
+    Cilindro              Ver alternativas  3            2.25
+    Eje                   —                 100          100
+    Modelo tórico         3 alternativas    T5           T4
+                          tóricas
+    Refracción prevista   -0.17             -0.1         0.08
+
+    Detalle · Kane:  T3 (cil 1.5, residual 0.67 D @ 98°)
+                     T4 (cil 2.25, residual 0.18 D @ 98°)
+                     T5 (cil 3, residual 0.32 D @ 8°)
+
+14 tests de presentación nuevos, 528 en total. Hay uno que falla si el genérico
+«N opciones» vuelve a aparecer en cualquier casilla, y otro que comprueba que
+**solo una** la nombra.
+
+lint, formato, tipos, build y las pruebas de interfaz en verde.
+
+---
+
+## [1.1.1] — 13/08/2026
+
+Una calculadora que devuelve varias opciones ya no se representa como si hubiera
+elegido una.
+
+### La línea que elegía una lente
+
+```ts
+const op = r.recomendada ?? r.opciones.find((o) => o.recomendada) ?? r.opciones[0]
+//                                                                 └──────────────┘
+```
+
+Ese último tramo **escogía la primera opción** y la pintaba en la tabla con el
+mismo aspecto que una destacada por la web. Si una calculadora devolvía siete
+potencias sin señalar ninguna, la comparativa enseñaba la primera —la más alta—
+como si fuera su respuesta. Nadie podía distinguir lo que decía la calculadora de
+lo que había decidido el programa.
+
+Con los datos de hoy no llegaba a dispararse, porque Kane sí marca su fila con
+`table-active`. Era una selección implícita esperando a que una web dejara de
+marcar. Fuera.
+
+### Y no bastaba con borrarla
+
+Al quitarla, la celda quedaba vacía — y **vacío significaba dos cosas distintas**:
+
+- la calculadora no publica ese dato;
+- la calculadora da varias alternativas y no señala ninguna.
+
+De ahí el cambio de raíz: `DatoComparativo`, con tres estados que no se pueden
+confundir, y `SeleccionDeLaCalculadora`, que dice de dónde sale la columna.
+
+| Estado          | Cuándo                                   | Se ve        |
+| --------------- | ---------------------------------------- | ------------ |
+| `VALOR`         | La web señaló una opción, o solo dio una | `22.50 D`    |
+| `VARIAS`        | Varias alternativas, ninguna señalada    | `3 opciones` |
+| `NO_DISPONIBLE` | Ninguna opción trae ese dato             | `—`          |
+
+**No hay forma de escribir un número sin decir de dónde sale.** La pantalla y el
+PDF leen la misma estructura, así que no pueden equivocarse por separado.
+
+### Lo que se veía mal, y por qué
+
+Un campo se decidía por la opción señalada; si esa no lo traía, se daba por
+perdido. Ahora, si la señalada no trae el dato pero **otras opciones sí**, son
+alternativas de verdad y se dicen como tales. Y si no lo trae ninguna, es `—` con
+la ayuda «No disponible en el resultado de Kane».
+
+Eso es lo que separa «3 alternativas de potencia» de «3 cilindros»: se mira si el
+dato **está en las opciones**, no si falta en una.
+
+### El detalle, en pantalla y en el PDF
+
+Debajo de la comparación, cada calculadora con más de una opción enseña **todas**
+las que devolvió, con las columnas que trajo de verdad y ninguna más. Si la web
+señaló una, va marcada como «Destacada por Kane»; si no, se dice que no ha
+señalado ninguna y que la elección no la hace Calculator Vilamar.
+
+Sin alarmismo: **no es un error**. La calculadora ha calculado y ha devuelto
+varias salidas porque la decisión no es suya.
+
+### Comprobado rompiéndolo
+
+Tres formas de reintroducir la selección implícita —la primera, la del medio, y la
+de refracción más cercana a cero—, y **las tres las caza un test**.
+
+37 tests nuevos. 514 en total; lint, tipos, build y las 12 pruebas de interfaz en
+verde.
+
+### Ficheros
+
+- `packages/domain/src/comparacion/comparar.ts` — el modelo de presentación
+- `packages/domain/src/comparacion/opciones.test.ts` — 26 tests
+- `packages/report/src/plantilla.ts` + `opciones-informe.test.ts` — 11 tests
+- `apps/desktop/src/renderer/componentes/PanelResultados.tsx`, `estilos.css`
+
+---
+
+---
+
+## [1.1.0] — 13/08/2026
+
+Kane ya calcula en **modo tórico**, que es lo que se estaba comparando.
+
+### El problema real
+
+Con Kane arreglado y devolviendo `SUCCESS`, su columna seguía a medias:
+
+    Ojo izquierdo        Kane        EVO Toric    Barrett Toric
+    Esfera               22.50 D     22.50 D      22.50 D
+    Cilindro             N/A         3.00 D       3.75 D
+    Eje                  N/A         84°          84°
+    Modelo tórico        N/A         T5           T4
+    Cilindro residual    N/A         0.31 D       0.09 D
+    Eje residual         N/A         174°         6°
+
+No era un fallo de lectura: **a Kane se le estaba pidiendo el cálculo NO tórico**,
+y en ese modo solo devuelve potencia y refracción prevista. Se comparaban tres
+calculadoras tóricas para una lente tórica y una de las tres no daba cilindro.
+
+### 1 · Su modo tórico, capturado y usado
+
+Kane tiene dos modos por ojo. Capturado el 13/08/2026 pulsando su interruptor
+«Toric»: los campos son los mismos con sufijo `-t`, y aparecen tres que en no
+tórico no existen —eje de K1, SIA y eje de la incisión—. Los del ojo izquierdo se
+verificaron uno a uno contra la web, sin dar la simetría por supuesta.
+
+⚠️ **El eje de K2 existe pero no admite escritura**: Kane lo deriva perpendicular
+al de K1, que es lo correcto. No se le manda.
+
+El modo lo decide `modoParaKane` **por los datos**, no por una preferencia: con el
+eje de las dos K, el SIA y el eje de la incisión se pide el tórico; si falta
+cualquiera de los cuatro, el no tórico, que sigue funcionando igual. Esos cuatro
+campos entran en la ficha como **opcionales**, no requeridos: ponerlos requeridos
+dejaría a Kane sin poder calcular en casos en los que sí puede.
+
+### 2 · Kane no elige la tórica, y eso no se tapa
+
+Su resultado tórico son **dos tablas**: las potencias esféricas, con una destacada
+por `table-active`, y las opciones tóricas con su cilindro residual —**sin destacar
+ninguna**—. Kane enseña cuánto astigmatismo quedaría con cada una y deja la
+elección a quien opera.
+
+Así que **ninguna opción tórica sale como recomendada**. Ni la de menor residual,
+que era la tentación: eso sería inventarse una recomendación clínica que Kane se
+guarda a propósito. La regla vive en `construirOpcionesDeKane`, aparte del
+adaptador para poder probarla sin navegador, y está comprobada rompiéndola: al
+cambiar `recomendada: false` por `recomendada: fila.destacada`, un test falla.
+
+### 3 · «N/A» y «no elige» ya no se parecen
+
+Las casillas vacías de la tabla se leían como «ha fallado». Ahora la comparativa
+distingue las dos cosas con `toricasSinElegir`, y la casilla dice «3 opciones,
+ninguna destacada» con la explicación al pasar el ratón. La fila «Eje» sigue como
+N/A a propósito: ese dato Kane no lo da en la tabla que se lee.
+
+### 4 · Una guarda más contra leer el ojo equivocado
+
+El bloque de resultados se elige por posición, y el eco de la web es lo que
+confirma que es el ojo correcto. Si el eco no se puede leer **y** hay resultados de
+los dos ojos en pantalla, ahora se para en vez de arriesgarse.
+
+### Comprobado de verdad
+
+Contra la web real de Kane, ojo derecho, datos sintéticos: `SUCCESS` en 12,7 s, 8
+opciones —5 esféricas y 3 tóricas—, eco `K1: 41.22 D @ 175° K2: 42.52 D @ 85°`,
+modo «Tórico», y **0 tóricas marcadas como recomendadas**.
+
+    ★ esfera 21.5 · refr -0.06
+      esfera 21.5 · «Non-toric» · cil 0    · residual 0.71 D @ 84°
+      esfera 21.5 · «T2»        · cil 1    · residual 0.05 D @ 84°
+      esfera 21.5 · «T3»        · cil 1.5  · residual 0.28 D @ 174°
+
+515 tests unitarios y 27 e2e en verde; lint, tipos y build también.
+
+### Ficheros
+
+- `packages/integrations/src/adapters/kane.ts` — `CAMPOS_TORICOS`, `modoParaKane`,
+  `asegurarModo`, `leerFilaToricaDeKane`, `construirOpcionesDeKane`
+- `packages/integrations/src/adapters/kane-torico.test.ts` — 30 tests nuevos
+- `packages/domain/src/modelo/calculadoras.ts` — los cuatro campos, opcionales
+- `packages/domain/src/comparacion/comparar.ts` — `toricasSinElegir`
+- `apps/desktop/src/renderer/componentes/PanelResultados.tsx`, `estilos.css`
+
+---
+
+## [1.0.1] — 13/08/2026
+
+Kane salía N/A. Tres causas, y la primera era un aviso mío que no avisaba.
+
+### Por qué salía N/A
+
+El caso no tenía sexo, así que Kane devolvía `MISSING_INPUTS`. En el caso real:
+
+    EVO OD + OS        SUCCESS
+    Barrett OD + OS    SUCCESS
+    Kane OD + OS       MISSING_INPUTS — «Falta el sexo del paciente»
+
+El cálculo bilateral funcionaba. Lo que faltaba era un dato.
+
+### 1 · El aviso previo a confirmar no miraba el sexo
+
+`quienNoPuedeCalcular` solo contaba campos del ojo, y el sexo no es uno. Así que
+el aviso decía que las tres calculadoras podían calcular, se confirmaba, se
+esperaba el recorrido entero de las tres webs, y **solo entonces** salía que a
+Kane le faltaba el sexo.
+
+Es exactamente el problema de los 47 segundos que ese aviso existe para evitar,
+reintroducido por otra puerta al añadir el sexo. Ahora lo cuenta, y distingue los
+dos casos: «falta el sexo del paciente» si no hay ninguno, y «comprobar el sexo
+del paciente» si está deducido y sin confirmar.
+
+### 2 · El informe traía el sexo y no se leía
+
+Es español y está **en columnas**: pone `Sexo   Femenino`, con espacios y sin dos
+puntos. El patrón exigía `Sexo:`, así que no coincidía y no había nada de donde
+deducir — el informe tampoco trae un nombre reconocible.
+
+Los dos puntos pasan a ser opcionales. Aflojar el separador es seguro por una
+razón concreta: **la palabra capturada tiene que ser reconocible**. Si detrás de
+«Sexo» hay cualquier otra cosa, no se traduce y el campo se queda vacío.
+
+### 3 · El fabricante trae un punto y coma
+
+El PDF pone literalmente `Bausch&Lomb;`. Se comprobó extrayendo su texto: el punto
+y coma **está en el documento**, no lo añade el parser. Sin quitarlo al comparar,
+ese modelo no se emparejaba con «Bausch & Lomb» de ninguna lista. Ahora el punto y
+coma cuenta como puntuación de adorno, igual que el punto o el guion.
+
+### Y el fallo al reintentar
+
+Si el perfil del navegador está en uso —una ventana de un cálculo anterior, o la
+sonda `reconocer:kane` abierta—, Chromium no lo deja abrir y salía su error en
+crudo. Ahora se dice qué pasa y qué cerrar. Es un riesgo que apareció al empezar a
+compartir el perfil, que es lo que evita repetir la aceptación.
+
+### Validación
+
+485 tests (7 nuevos) y 27 pruebas de interfaz. lint, formato, typecheck y build en
+verde.
+
+---
+
+## [1.0.0] — 12/08/2026
+
+**Kane funciona.** Verificado contra su formulario real y ejecutado de punta a
+punta: rellena, calcula y lee. ~9 segundos.
+
+```
+Recomendada: 21.5 D · refracción prevista −0.06     ← la que Kane marca
+7 opciones leídas
+[web] AL: 24.07 mm  K1: 41.22 D  K2: 42.52 D  ACD: 3.18 mm
+[web] A-Constant: 119.00  Target Ref: 0.00 D  LT: 4.53 mm  CCT: 530 µm
+```
+
+Ese 21.50 D es **el mismo que dio EVO** en la verificación anterior. Dos fórmulas
+independientes de acuerdo.
+
+### Cuatro cosas que solo se supieron al mirarlo, y estaban mal supuestas
+
+| Se suponía                                      | Es                                                                                         |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| El sexo es una lista que espera «Female»/«Male» | **Dos casillas**, `gender_1` (M) y `gender_2` (F), y se pulsa la etiqueta que las envuelve |
+| El botón de calcular es un `submit`             | `<input type="button" value="Calculate">`                                                  |
+| El nk no se envía a ninguna calculadora         | Es la lista **«Index»** de Kane, que él marca obligatoria                                  |
+| Elegir el modelo de lente es inofensivo         | Una lente **tórica** cambia ese ojo al modo tórico y esconde los campos                    |
+
+La marca `EQUIVALENCIA_KANE_VERIFICADA = false` sirvió para lo que estaba: mientras
+la equivalencia era una suposición, **no se envió nada**. Si se hubiera dado por
+buena, el adaptador habría escrito «Female» en un control que no existe.
+
+### Añadido
+
+- **`MAPA_KANE` con los identificadores reales.** No siguen ningún patrón —hay
+  `al-right`, `A-Constant1` y `right-target` en el mismo formulario—, así que están
+  copiados uno a uno de la captura. Las etiquetas se quedan como respaldo.
+- **Lectura del resultado contra su estructura real**: espera a que su
+  «Processing…» se esconda —señal, no reloj—, lee `table.res_tab3` de la sección de
+  **ese ojo**, y toma la recomendada de `class="table-active"`.
+- **Comprobación de lo escrito antes de calcular.** Se relee el formulario: si un
+  valor no se ha quedado, se dice **qué campo y qué dice el formulario**, en vez de
+  fallar cuatro pasos después como «no hay tabla de resultados».
+- **Guarda contra leer el ojo equivocado**: Kane repite las entradas, y si la AL
+  que enseña no es la que se le envió, el resultado se descarta.
+- El **índice queratométrico** se envía, eligiendo la opción de su lista. Si el
+  informe trae uno que Kane no ofrece, **no se elige ninguno**: coger el más
+  parecido cambiaría lo que significan las K sin avisar.
+
+### Corregido
+
+- La ficha de Kane declaraba **WTW** como opcional. No existe en su formulario.
+- Y los **ejes de K**, que solo aparecen en su modo tórico.
+
+### Lo que Kane NO hace, y queda dicho
+
+**No se rellena su modo tórico.** Elegir una lente tórica lo activa y esconde los
+campos que este adaptador escribe, así que **no se le manda el modelo de lente**:
+se le envía la constante A de esa lente, y el resultado lo dice con esas palabras.
+Para el cálculo tórico están EVO Toric y Barrett Toric.
+
+Y lo de siempre: **no se pulsa «I Agree» y no se toca el reCAPTCHA.**
+
+### Validación
+
+478 tests y **27 pruebas de interfaz** (7 nuevas sobre la lectura del resultado,
+con la estructura real reproducida en una página sintética). lint, formato,
+typecheck y build en verde. Y una ejecución real contra su web, con datos
+sintéticos.
+
+---
+
+## [0.9.2] — 12/08/2026
+
+La sonda de reconocimiento comparte el perfil del navegador con la aplicación.
+
+### El fallo
+
+Había **tres** perfiles de navegador en juego, no dos:
+
+| Navegador                     | Perfil                           |
+| ----------------------------- | -------------------------------- |
+| El Chrome del usuario         | el suyo                          |
+| La aplicación al calcular     | `sesion-navegador`, en sus datos |
+| **La sonda `reconocer:kane`** | **uno nuevo y vacío cada vez**   |
+
+Así que aceptases donde aceptases, los otros dos seguían viendo la pantalla de
+condiciones. En la versión anterior se arregló la confusión entre la aplicación y
+el Chrome del usuario, pero **la sonda se quedó como una tercera isla**.
+
+### Corregido
+
+- `reconocer:kane` abre ahora **el mismo perfil que la aplicación**, calculado
+  igual que lo hace Electron. Con eso: si ya aceptaste en la aplicación, la sonda
+  entra directa; y si aceptas en la sonda, la aplicación no vuelve a pedírtelo.
+- Si el perfil está cogido —la aplicación abierta—, se dice **eso**, en vez de un
+  error de Chromium: dos navegadores no pueden usar el mismo perfil a la vez.
+- Se puede forzar la ruta con `VILAMAR_PERFIL` si algún día no coincidiera.
+
+---
+
+## [0.9.1] — 12/08/2026
+
+La transición de Kane después de que tú aceptes. Dos fallos, y ninguno era el
+que parecía.
+
+### 1 · La espera se cumplía demasiado pronto
+
+El programa esperaba a que **desapareciera** la pantalla de condiciones —la
+negación— y después dormía 2,5 segundos.
+
+Esa negación se cumple **en el instante en que la URL deja de ser
+`/agreement/`**, o sea en medio de la navegación, cuando la página puede estar en
+blanco. El `waitForTimeout(2500)` hacía de «ya habrá cargado». Si tardaba más,
+`rellenar()` no encontraba ningún campo, devolvía 0 y el adaptador concluía
+**`ADAPTER_BROKEN`: «ejecuta pnpm reconocer:kane»**.
+
+**Aceptabas correctamente y el programa te decía que el conector estaba mal.**
+
+Ahora se espera a **tres condiciones**, y ninguna es un reloj:
+
+1. La dirección ya no es la del acuerdo.
+2. Hay campos editables y un control de calcular.
+3. **El primer campo se puede escribir de verdad** — un formulario pintado pero
+   deshabilitado daría cero campos rellenados y volvería a parecer roto.
+
+Y los dos modos de fallo se separan: si sigue en `/agreement/` es
+`NEEDS_USER_ACTION` («no se ha aceptado»); si salió y no apareció la calculadora
+es `ADAPTER_BROKEN` («la página ha cambiado»). Antes los dos eran lo mismo.
+
+### 2 · La aceptación no se podía recordar nunca
+
+Esto es aparte, y estaba oculto. El navegador se abre con **perfil persistente**
+en la carpeta de datos del usuario — pero `abrirNavegador` devolvía
+`contexto.browser()`, y el orquestador llamaba a `newContext()`, que crea un
+contexto **nuevo y vacío que no hereda el perfil**.
+
+Medido: una cookie puesta en el contexto persistente se ve como **1** en él y
+como **0** en el nuevo. El perfil se cargaba y no se usaba jamás, así que las
+cookies del cálculo morían con el contexto desechable.
+
+Consecuencia: **Kane volvía a pedir la aceptación en cada cálculo**, hiciera el
+usuario lo que hiciera. Y el comentario del código afirmaba lo contrario.
+
+### 3 · Aceptar en otro Chrome no cuenta, y ahora se dice
+
+Si alguien acepta en su navegador de siempre, el que abre Calculator Vilamar
+sigue viendo la puerta: son dos almacenes de cookies distintos. El mensaje de
+espera dice «esta ventana, no tu Chrome de siempre», y el error de tiempo agotado
+lo nombra como causa probable.
+
+### Lo que NO se ha tocado
+
+- **No se pulsa «I Agree».** Ni ahora ni nunca: es un contrato entre el autor de
+  la fórmula y quien la usa.
+- **No se toca el reCAPTCHA.**
+- No se abre pestaña nueva ni se recarga tras aceptar: se sigue en **la misma
+  página y el mismo contexto**, porque recargar perdería lo que acabas de aceptar.
+
+### Validación
+
+**8 pruebas nuevas de interfaz** contra un **servidor local** que imita las tres
+pantallas de Kane con cookies y redirección de verdad. No van a iolformula.com y
+no aceptan nada.
+
+**Tres mutaciones, tres caídas** — pero a la primera fueron dos de tres: la guarda
+de la dirección dentro de `calculadoraDeKaneLista` **no la vigilaba nadie**,
+porque la pantalla del acuerdo ya falla por no tener campos. Hizo falta añadir el
+caso de una página con forma de calculadora servida en la ruta del acuerdo.
+
+477 tests y **20 pruebas de interfaz**, todo en verde.
+
+---
+
+## [0.9.0] — 12/08/2026
+
+Un solo «Calcular» procesa los dos ojos. Y el sexo del paciente, que pide Kane.
+
+### Por qué EVO solo calculaba un ojo
+
+**No fallaba EVO.** Su adaptador abre una página nueva por ejecución, marca el
+radio del ojo que le piden y comprueba el eco que devuelve la web. Funcionaba
+perfectamente para el ojo que le pedían.
+
+El problema estaba tres capas por encima: `App.calcular()` llamaba a
+`api().calcular(ojoActivo)` —el ojo de la pestaña—, el servicio lo pasaba tal
+cual y el orquestador solo sabía de un ojo. **Nadie pedía el segundo.**
+
+### Añadido
+
+- **Dos capas donde había una.** `ejecutarUnaCalculadoraParaUnOjo` es la
+  primitiva —no sabe que existe otro ojo— y `ejecutarCaso` recorre las casillas.
+  Toda la decisión de «qué hay que ejecutar» vive en un solo sitio.
+- **El orden es calculadora a calculadora, y dentro los dos ojos.** Con eso, las
+  condiciones de Kane se aceptan UNA vez y sus dos ojos entran seguidos en la
+  misma sesión del navegador.
+- **«Reintentar» vuelve a significar repetir lo que falló.** `tareasPendientes`
+  excluye lo que salió bien, y `MISSING_INPUTS` y `ADAPTER_BROKEN` no se
+  reintentan solos: repetirlos daría exactamente el mismo fallo.
+- **Guarda contra el ojo cambiado.** Si un adaptador devolviera un resultado del
+  ojo que no es, se descarta como `ADAPTER_BROKEN`. Es el fallo más peligroso
+  posible porque parecería perfectamente válido.
+- **El sexo del paciente**, en el caso y no en el ojo: es de la persona. Del
+  informe, deducido del nombre o elegido a mano. Bloquea **solo a Kane**.
+- **`pnpm reconocer:kane` existe de verdad.** Se nombraba en mensajes de error y
+  en tres documentos, y no estaba definido en `package.json`. Ahora abre Kane con
+  ventana, pide que aceptes tú, y espera **a que aparezca el formulario** —campos
+  de entrada y un botón de calcular—, no unos segundos a ver qué hay.
+
+### Corregido
+
+- **Kane marcaba como recomendada la fila del medio de la tabla.** Era inventarse
+  una recomendación clínica a partir de una posición. Ahora no se marca ninguna
+  hasta saber cómo la señala Kane, y se conservan todas las opciones.
+- La puerta de las condiciones de Kane se detecta por su **dirección**
+  (`/agreement/`) y no por el texto de un botón que pinta JavaScript.
+- **El guardián de arquitectura no vigilaba «Kane».** Su lista tenía las otras dos
+  calculadoras, así que la extracción podía nombrarlo sin que saltara nada.
+
+### Sobre la deducción del sexo
+
+Se implementa a petición expresa del dueño del proyecto, tomada tras exponerle
+que un nombre no determina el sexo y que obliga a guardar un dato identificativo
+que hasta ahora no entraba en el programa. Las salvaguardas **no se relajan**:
+
+- El nombre **no sale del ordenador**: ni al PDF, ni a ninguna calculadora.
+- Lo deducido es `DERIVADO`, así que **no se autoconfirma** y no viaja a Kane
+  hasta que una persona lo mira.
+- **Un nombre que no se reconoce no se adivina.** «Alex», «Cruz» o «Andrea» se
+  quedan sin deducir.
+- Se dice **qué regla** lo decidió, porque «estaba en la lista» pesa más que
+  «acaba en -a».
+
+### Lo que se ha comprobado abriendo las webs
+
+- **Kane**: `iolformula.com` redirige a `/agreement/`, con **cero campos de
+  formulario**. La calculadora no existe hasta que una persona acepta el acuerdo.
+- **EVO**: 36 campos, **ninguno de sexo ni de edad**. Por eso el sexo no sale como
+  obligatorio para él.
+
+### Sigue pendiente de Kane
+
+Los selectores reales, los campos obligatorios reales, la tabla de resultados
+real y los valores reales del campo de sexo. Todo eso está detrás de un clic
+humano en «I Agree», y este programa no lo da.
+
+### Validación
+
+lint, formato, typecheck y build en verde. **477 tests** (42 nuevos) y **12
+pruebas de interfaz**. Tres mutaciones sobre el recorrido bilateral —volver al
+comportamiento viejo, dejar de comprobar el ojo devuelto, y reintentar también lo
+que salió bien—, tres caídas.
+
+---
+
 ## [0.8.0] — 12/08/2026
 
 Las constantes A que trae el informe, cada una pegada a su modelo de lente.

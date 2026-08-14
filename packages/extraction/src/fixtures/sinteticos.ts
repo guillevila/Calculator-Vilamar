@@ -291,3 +291,62 @@ Clinic report
 Page 1 of 1
 Printed on 2026-01-01
 `
+
+/**
+ * ANTERION que imprime el sexo y el nombre del paciente.
+ *
+ * ⚠️ El nombre es INVENTADO y no corresponde a ninguna persona. Está aquí porque
+ * el sexo que pide una de las calculadoras puede deducirse de él cuando el
+ * informe no lo dice — decisión del dueño del proyecto del 12/08/2026.
+ */
+export const ANTERION_CON_SEXO = `
+HEIDELBERG ENGINEERING          ANTERION
+Cataract App - Biometry Report
+Patient Name: María Ejemplo Sintética
+Sex: Female
+
+OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+ACD (epi)      3.18 mm
+`
+
+/** El mismo informe SIN la línea de sexo: hay que deducirlo del nombre. */
+export const ANTERION_SIN_SEXO = `
+HEIDELBERG ENGINEERING          ANTERION
+Cataract App - Biometry Report
+Patient Name: Antonio Ejemplo Sintético
+
+OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+ACD (epi)      3.18 mm
+`
+
+/**
+ * ANTERION en ESPAÑOL y en columnas, como el informe real de la prueba.
+ *
+ * ⚠️ Datos inventados. Reproduce la FORMA que hizo fallar la lectura: la etiqueta
+ * `Sexo` separada de su valor **por espacios y sin dos puntos**. Con el patrón que
+ * exigía `Sexo:`, el caso se quedaba sin sexo y una de las calculadoras no podía calcular.
+ *
+ * Y trae el punto y coma del fabricante —`Bausch&Lomb;`— tal y como aparece en el
+ * PDF de verdad.
+ */
+export const ANTERION_ESPANOL_EN_COLUMNAS = `
+HEIDELBERG ENGINEERING          ANTERION
+Cataract App
+
+Fecha de nacimiento   1/1/1950   Sexo   Femenino
+
+OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+ACD (epi)      3.18 mm
+
+Bausch&Lomb; Akreos AO MI60
+SRK/T: 119.1
+`

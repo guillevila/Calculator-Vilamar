@@ -745,3 +745,91 @@ que yo mismo redacté. Documenté el fallo y lo repetí en la reimplementación.
 
 **Contexto:** Todo hook. Todo script cuyo contrato sea un código de salida. Y toda
 comparación de rutas o URLs.
+
+---
+
+## 13/08/2026 — «N/A» no es una explicación, y una columna a medias no se ve como un fallo de diseño
+
+**Qué pasó.** Con Kane ya funcionando, el dueño del proyecto dijo: «no rellena
+todos los datos de la de kane». Su columna daba esfera y refracción prevista, y
+cinco casillas con «N/A»: cilindro, eje, modelo tórico, cilindro residual y eje
+residual.
+
+Mi primera reacción fue explicar que **no era un fallo de lectura**: a Kane se le
+estaba pidiendo su modo NO tórico, y en ese modo solo devuelve esas dos cosas. Eso
+era cierto. Y era irrelevante.
+
+**La causa raíz.** Se estaban comparando **tres calculadoras tóricas para una lente
+tórica** y una de las tres no daba cilindro. El adaptador hacía exactamente lo que
+estaba escrito que hiciera —«este producto no rellena la parte tórica de Kane»— y lo
+que estaba escrito era una decisión mía de una sesión anterior, tomada cuando
+descubrí que elegir una lente tórica en su lista escondía los campos. Documenté la
+limitación con mucho detalle y **no volví a preguntarme si era aceptable**. Una
+limitación bien comentada sigue siendo una limitación.
+
+**Lo segundo, que era la mitad del problema.** «N/A» significaba dos cosas
+distintas en la misma tabla: «no hay dato» y «la calculadora no se pronuncia». Se
+leyó como «ha fallado», y con razón: nada las distinguía. Un hueco sin explicación
+es una pregunta que el programa le deja al usuario.
+
+**Lo que hago a partir de ahora.**
+
+1. Cuando documente una limitación de un adaptador, dejar escrito **qué haría falta
+   para levantarla** y qué se pierde mientras siga ahí. Si lo que se pierde es justo
+   lo que el producto compara, no es una limitación: es un trabajo pendiente.
+2. **Una casilla vacía tiene que decir por qué está vacía.** Si el motivo no cabe,
+   cabe en la ayuda al pasar el ratón. «N/A» solo vale cuando de verdad no hay nada
+   que explicar.
+3. Cuando el dueño señale un síntoma y yo tenga una explicación técnica correcta,
+   darla en una frase y **seguir hasta lo que él quería**. Tener razón sobre la causa
+   no resuelve nada.
+
+**Lo que NO cambió, y no va a cambiar.** Kane no destaca ninguna opción tórica: deja
+la elección a quien opera. La tentación era marcar la de menor cilindro residual
+para que la tabla quedara completa. Eso habría sido inventarse una recomendación
+clínica, así que las tres van sin recomendada y la tabla dice «3 opciones, ninguna
+destacada». Una casilla honesta vale más que una tabla bonita.
+
+---
+
+## 13/08/2026 — Un valor sin procedencia miente aunque el número sea correcto
+
+**Qué pasó.** El dueño del proyecto vio la columna de Kane con «Esfera 22.50 D» y
+al mismo tiempo «3 opciones, ninguna destacada», y preguntó qué opción estaba
+escogiendo el programa para ese 22.50.
+
+Pregunta perfecta. Y la respuesta tenía dos mitades, una tranquilizadora y otra no.
+
+**La mitad tranquilizadora.** Ese 22.50 salía de Kane: su fila lleva `table-active`.
+Coincide con la fila central de la escalera porque Kane centra su recomendación,
+pero venía de la marca de la web, no de una regla nuestra.
+
+**La mitad que no.** Buscándolo encontré esto, que llevaba ahí desde el principio:
+
+    const op = r.recomendada ?? r.opciones.find((o) => o.recomendada) ?? r.opciones[0]
+
+Ese último tramo **elegía la primera opción**. No se disparaba con los datos de hoy
+porque Kane sí marca. Era una selección clínica implícita esperando a que una web
+dejara de marcar, y habría pasado desapercibida: el número se habría visto igual
+de creíble que uno legítimo.
+
+**La causa raíz.** El tipo permitía representar un número sin decir de dónde salía.
+Mientras `esfera` fuera `number | undefined`, cualquiera podía rellenarlo con algo
+razonable y nadie notaría la diferencia en pantalla. El comentario que decía «esto
+lo dice la web» no era ejecutable.
+
+**Lo que hago a partir de ahora.**
+
+1. **Un dato que se enseña lleva su procedencia EN EL TIPO**, no en un comentario.
+   `DatoComparativo` tiene tres estados y no hay forma de escribir un número sin
+   declarar si lo dijo la web, si hay varias alternativas, o si no existe.
+2. **Un `?? valorPorDefecto` en la frontera de presentación es sospechoso por
+   definición.** Ahí no hay valores por defecto inocentes: lo que se ponga se lee
+   como si viniera de fuera.
+3. **Cuando dos situaciones distintas se pintan igual, hay un fallo aunque no haya
+   ningún error.** «No hay dato» y «hay varias» eran el mismo hueco, y por eso una
+   columna correcta parecía rota.
+
+**Lo que confirmó que la lección va en serio.** Se rompió la regla a propósito de
+tres formas —la primera, la del medio, la de refracción más cercana a cero— y las
+tres las caza un test. La guarda que nadie ha visto fallar no está demostrada.

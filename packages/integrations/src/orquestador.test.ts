@@ -23,7 +23,7 @@ import {
 import type { BrowserContext } from 'playwright'
 
 import type { AdaptadorCalculadora, ContextoEjecucion } from './contrato.js'
-import { ejecutarCalculadoras, necesitaVentana, ORDEN_POR_DEFECTO } from './orquestador.js'
+import { ejecutarCaso, necesitaVentana, ORDEN_POR_DEFECTO } from './orquestador.js'
 
 const CUANDO = '2026-08-10T10:00:00.000Z'
 const ahora = () => CUANDO
@@ -54,7 +54,18 @@ function casoListo(quitar: readonly Parameters<typeof crearMedida>[0][] = []): C
   }
   for (const campo of quitar) ojo = sinMedida(ojo, campo)
   ojo = confirmarTodas(ojo)
-  return confirmar(conOjo(casoNuevo('c1', 'CV-2026-0001', CUANDO), ojo, CUANDO), CUANDO)
+  const caso = confirmar(conOjo(casoNuevo('c1', 'CV-2026-0001', CUANDO), ojo, CUANDO), CUANDO)
+  // Kane pide el sexo del paciente. Sin él no calcularía, y estos tests
+  // comprueban el aislamiento entre calculadoras, no el bloqueo por sexo.
+  const conSexo = {
+    ...caso,
+    sexo: {
+      valor: 'MUJER' as const,
+      procedencia: { metodo: 'MANUAL' as const, registradoEn: CUANDO },
+      confirmadoPorUsuario: true,
+    },
+  }
+  return conSexo
 }
 
 /** Un doble que devuelve un resultado bueno. */
@@ -129,9 +140,9 @@ interface Escenario {
 async function ejecutar(escenario: Escenario) {
   const recibidos: ResultadoCalculadora[] = []
   const diagnosticos: string[] = []
-  const resultados = await ejecutarCalculadoras({
+  const resultados = await ejecutarCaso({
     caso: escenario.caso ?? casoListo(),
-    ojo: 'OD',
+    ojos: ['OD'],
     calculadoras: escenario.calculadoras,
     navegador: {} as never,
     contexto: contextoFalso(),

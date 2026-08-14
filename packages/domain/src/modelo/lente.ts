@@ -73,7 +73,10 @@ export function describirLente(l: LenteDetectada): string {
  *
  *  - mayúsculas y minúsculas;
  *  - espacios de más;
- *  - puntuación de adorno: puntos, comas, guiones, barras, paréntesis;
+ *  - puntuación de adorno: puntos, comas, **puntos y coma**, guiones, barras y
+ *    paréntesis. El punto y coma no es teórico: el informe de prueba trae
+ *    literalmente `Bausch&Lomb;` —así, con punto y coma— y sin quitarlo ese
+ *    modelo no se emparejaría con «Bausch & Lomb» de ninguna lista;
  *  - el nexo del fabricante, que se escribe de tres formas —«Bausch & Lomb»,
  *    «Bausch and Lomb», «Bausch-Lomb»— y no distingue nada. Se QUITA en vez de
  *    unificarlo en «and»: así las tres convergen, y con el guion no habría forma
@@ -89,13 +92,18 @@ export function describirLente(l: LenteDetectada): string {
  * si algún día existiera, saldrían como ambiguos en vez de emparejarse a ciegas.
  */
 export function normalizarNombreLente(nombre: string): string {
-  return nombre
-    .toLowerCase()
-    .replace(/&/g, ' ')
-    .replace(/[.,\-/()[\]]/g, ' ')
-    .replace(/\b(?:and|y)\b/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+  return (
+    nombre
+      .toLowerCase()
+      .replace(/&/g, ' ')
+      // El punto y coma no es teórico: el informe de prueba trae literalmente
+      // `Bausch&Lomb;` —así, con punto y coma, tal cual sale del PDF— y sin quitarlo
+      // ese modelo no se empareja con «Bausch & Lomb» de ninguna lista.
+      .replace(/[.,;:\-/()[\]]/g, ' ')
+      .replace(/\b(?:and|y)\b/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  )
 }
 
 /**

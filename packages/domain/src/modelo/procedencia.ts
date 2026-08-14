@@ -196,7 +196,16 @@ export type OrigenDato =
  */
 export interface DatoConOrigen {
   readonly procedencia: Procedencia
-  readonly original?: { readonly valor: number } | undefined
+  /**
+   * Lo que había antes, si había algo.
+   *
+   * Se declara como «algo o nada» y no con un tipo concreto porque a `origenDe`
+   * solo le importa **si existe**, no qué es: sirve igual para una `Medida`
+   * —cuyo original es un número— que para el sexo del caso —cuyo original es una
+   * de dos opciones—. Fijar aquí `{ valor: number }` obligaba a que todo dato
+   * corregible fuera numérico, y el sexo no lo es.
+   */
+  readonly original?: unknown
 }
 
 /**

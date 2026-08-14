@@ -14,6 +14,7 @@ import type { Calculadora, ResultadoCalculadora } from './calculadoras.js'
 import type { DocumentoCargado } from './documento.js'
 import type { Lateralidad } from './lateralidad.js'
 import type { LenteDetectada } from './lente.js'
+import type { SexoDelCaso } from './sexo.js'
 import type { OjoBiometrico } from './medida.js'
 import { ojoVacio, todasConfirmadas } from './medida.js'
 
@@ -72,6 +73,28 @@ export interface Caso {
    * hasta que una persona elige el modelo.
    */
   readonly lentesDelInforme?: readonly LenteDetectada[]
+  /**
+   * El sexo del paciente. Lo pide Kane; EVO y Barrett no.
+   *
+   * Va en el CASO y no en el ojo porque es de la persona. En el ojo habría que
+   * guardarlo dos veces y podrían acabar diciendo cosas distintas.
+   */
+  readonly sexo?: SexoDelCaso
+  /**
+   * El nombre del paciente, SOLO para deducir el sexo.
+   *
+   * ⚠️ Es el único dato identificativo que este programa guarda, y entró por
+   * decisión expresa del dueño del proyecto (12/08/2026) para poder deducir el
+   * sexo que pide Kane. Las reglas que lo rodean **no se relajan**:
+   *
+   *  - **No sale del ordenador.** A las calculadoras se les sigue mandando el
+   *    código local del caso (D23), nunca esto.
+   *  - **No sale en el PDF.** Hay un test que lo comprueba.
+   *  - **No entra en el repositorio.** Los fixtures son sintéticos.
+   *
+   * Vive en el fichero JSON del caso, en la carpeta de datos del usuario.
+   */
+  readonly nombrePaciente?: string
   /** Notas del usuario. No se envían a ningún sitio. */
   readonly notas?: string
 }

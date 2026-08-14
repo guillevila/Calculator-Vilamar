@@ -14,4 +14,10 @@ export * from './normalizar.js'
 export * from './orquestador.js'
 export { AdaptadorEvoToric } from './adapters/evo.js'
 export { AdaptadorBarrettToric } from './adapters/barrett.js'
-export { AdaptadorKane } from './adapters/kane.js'
+export {
+  AdaptadorKane,
+  // La transición tras la aceptación humana de Kane. Se exporta para poder
+  // probarla con páginas sintéticas, sin abrir Kane ni aceptar nada.
+  calculadoraDeKaneLista,
+  enLaPuertaDeKane,
+} from './adapters/kane.js'

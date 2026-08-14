@@ -408,6 +408,76 @@ table.comparativa tbody th {
 table.comparativa td.na {
   color: var(--gris);
 }
+/*
+ * Tres estados, tres aspectos. La diferencia importa:
+ *
+ *   22.50 D      la calculadora señaló esta opción      → cifra normal
+ *   3 opciones   hay alternativas y no señala ninguna   → cursiva, con ayuda
+ *   —            esa calculadora no da este dato        → raya gris, con ayuda
+ *
+ * Antes los dos últimos eran el mismo «N/A» y una columna correcta parecía rota.
+ */
+table.comparativa td.varias {
+  color: var(--gris);
+  font-style: italic;
+  font-size: 12.5px;
+  cursor: help;
+}
+/*
+ * La fila que NOMBRA las alternativas destaca sobre las que remiten a ella. Es la
+ * que responde a «¿alternativas de qué?», y si se ve igual que las demás la
+ * pregunta se queda sin contestar.
+ */
+table.comparativa td.varias.nombra {
+  color: var(--azul);
+  font-style: normal;
+  font-weight: 600;
+}
+table.comparativa td.na {
+  cursor: help;
+}
+
+/* El detalle: todas las alternativas tal y como vinieron de la web. */
+.opciones-devueltas + .opciones-devueltas {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--linea);
+}
+.opciones-devueltas h3 {
+  font-size: 14px;
+  margin: 0 0 2px;
+  color: var(--azul);
+}
+.opciones-devueltas .sub {
+  margin: 0 0 8px;
+}
+table.opciones {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+table.opciones th,
+table.opciones td {
+  border: 1px solid var(--linea);
+  padding: 5px 8px;
+  text-align: center;
+}
+table.opciones th {
+  background: var(--fondo-suave, #f5f7fa);
+  font-weight: 600;
+}
+table.opciones tr.destacada td {
+  font-weight: 700;
+  background: var(--fondo-suave, #f5f7fa);
+}
+table.opciones td.marca {
+  font-size: 12px;
+  color: var(--gris);
+  font-style: italic;
+}
+table.opciones .na {
+  color: var(--gris);
+}
 
 .observacion {
   padding: 5px 0;

@@ -139,7 +139,16 @@ describe('los selectores no salen de los adaptadores', () => {
     expect(ficheros.length).toBeGreaterThan(0)
     for (const fichero of ficheros) {
       const contenido = readFileSync(fichero, 'utf8')
-      for (const nombre of ['evoiolcalculator', 'iolformula', 'apacrs', 'Barrett', 'EVO_TORIC']) {
+      // 'Kane' faltaba en esta lista, así que la extracción podía nombrarlo sin
+      // que saltara nada. La guarda vale lo que vale su lista.
+      for (const nombre of [
+        'evoiolcalculator',
+        'iolformula',
+        'apacrs',
+        'Barrett',
+        'Kane',
+        'EVO_TORIC',
+      ]) {
         expect(contenido, `${fichero} menciona «${nombre}»`).not.toContain(nombre)
       }
     }
