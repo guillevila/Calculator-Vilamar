@@ -31,6 +31,8 @@ import type { DocumentoEntrada, ProveedorExtraccion, TextoDocumento } from './co
 import { detectarDispositivo } from './deteccion/detector.js'
 import { reglasDe } from './parsers/dispositivos.js'
 import { extraerLentes } from './parsers/lentes.js'
+import type { DatosDePaciente } from './parsers/paciente.js'
+import { extraerDatosDePaciente } from './parsers/paciente.js'
 import type { Extraido } from './parsers/nucleo.js'
 import { aplicarReglas } from './parsers/nucleo.js'
 import type { Disposicion } from './parsers/segmentar.js'
@@ -55,6 +57,14 @@ export interface ResultadoExtraccion {
    * cuál vale lo decide quien elige la lente.
    */
   readonly lentes: readonly LenteDetectada[]
+  /**
+   * El sexo y el nombre, cuando el informe los trae.
+   *
+   * Fuera de `ojos` por lo mismo que las lentes: una persona no tiene un sexo
+   * por ojo. El nombre entra solo para poder deducir el sexo que pide una de las
+   * calculadoras, y **no sale de este ordenador** — ver `parsers/paciente.ts`.
+   */
+  readonly paciente: DatosDePaciente
   /** Cosas que el usuario tiene que saber, en lenguaje normal. */
   readonly avisos: readonly string[]
   readonly proveedor: string
@@ -243,6 +253,7 @@ export function interpretarTexto(
     explicacionOjos: segmentacion.explicacion,
     ojos,
     lentes,
+    paciente: extraerDatosDePaciente(completo),
     avisos,
     proveedor: texto.proveedor,
     metodo: texto.metodo,

@@ -19,6 +19,7 @@ import type {
   Lateralidad,
   Aviso,
   ResultadoCalculadora,
+  Sexo,
 } from '@vilamar/domain'
 import {
   casoNuevo as crearCasoNuevo,
@@ -27,8 +28,13 @@ import {
   conOjo,
   conResultado,
   corregirMedida,
+  aportarSexo,
+  confirmarSexo as confirmarSexoDelDominio,
+  deducirSexoDelNombre,
   describirLente,
   elegirLente as elegirLenteDelDominio,
+  sexoDeducidoDelNombre,
+  sexoDelInforme,
   formatoDeNombre,
   necesitaComprobacionHumana,
   NOMBRE_DISPOSITIVO,
@@ -41,7 +47,13 @@ import {
 import type { DocumentoEntrada, LectorVision, ProveedorExtraccion } from '@vilamar/extraction'
 import { extraerDocumento } from '@vilamar/extraction'
 import type { EventoProgreso } from '@vilamar/integrations'
-import { ejecutarCalculadoras, necesitaVentana } from '@vilamar/integrations'
+import type { TareaCalculo } from '@vilamar/integrations'
+import {
+  ejecutarCaso,
+  necesitaVentana,
+  planificarCaso,
+  tareasPendientes,
+} from '@vilamar/integrations'
 import { generarHtmlInforme, recopilarInforme } from '@vilamar/report'
 import type { Browser } from 'playwright'
 
@@ -70,6 +82,11 @@ export interface DependenciasServicio {
   /** Avisos hacia la interfaz. */
   readonly emitirProgreso: (estado: EstadoCalculo) => void
   readonly emitirCaso: (caso: Caso) => void
+}
+
+/** La primera línea de un error. Playwright los trae con traza; no ayuda enseñarla. */
+function primeraLinea(texto: string): string {
+  return texto.split(String.fromCharCode(10))[0] ?? texto
 }
 
 export class ServicioCasos {
@@ -292,6 +309,14 @@ export class ServicioCasos {
         )
       }
 
+      // ── El paciente: sexo y, solo para deducirlo, el nombre ──────────────
+      //
+      // El nombre es el único dato identificativo que este programa guarda, y
+      // entró por decisión expresa del dueño del proyecto (12/08/2026) para
+      // poder deducir el sexo que pide Kane. No sale del ordenador: a las webs
+      // se les sigue mandando el código local del caso.
+      caso = this.conDatosDePaciente(caso, resultado, avisos)
+
       for (const [lado, leido] of Object.entries(resultado.ojos)) {
         const lateralidad = lado as Lateralidad
         const yaHabia = caso.ojos[lateralidad]
@@ -351,6 +376,97 @@ export class ServicioCasos {
     const actualizado =
       valor === null ? sinMedida(ojo, campo) : corregirMedida(ojo, campo, valor, this.iso())
     return this.establecer(conOjo(caso, actualizado, this.iso()))
+  }
+
+  /**
+   * Resuelve el sexo del paciente a partir de lo que traiga el documento.
+   *
+   * Por orden, y el orden es la fiabilidad:
+   *
+   *  1. **Lo que imprime el informe** («Sex: Female»). Es un dato leído.
+   *  2. **Deducido del nombre**, si el informe no lo dice. Queda marcado como
+   *     derivado y SIN confirmar, así que no sale hacia Kane hasta que una
+   *     persona lo mire — es la D32 aplicándose, no una excepción.
+   *
+   * Lo que ya hubiera en el caso NO se pisa: si una persona ya lo eligió, manda
+   * ella.
+   */
+  private conDatosDePaciente(
+    caso: Caso,
+    resultado: Awaited<ReturnType<typeof extraerDocumento>>,
+    avisos: string[],
+  ): Caso {
+    const p = resultado.paciente
+    let salida = caso
+
+    if (p.nombre !== undefined && salida.nombrePaciente === undefined) {
+      salida = { ...salida, nombrePaciente: p.nombre }
+    }
+
+    if (salida.sexo !== undefined) return salida
+
+    if (p.sexo !== undefined) {
+      salida = {
+        ...salida,
+        sexo: sexoDelInforme(p.sexo, {
+          metodo: resultado.metodo,
+          documentoId: resultado.documentoId,
+          dispositivoId: resultado.dispositivo.dispositivo,
+          registradoEn: this.iso(),
+          ...(p.evidenciaSexo !== undefined
+            ? { evidencia: { texto: p.evidenciaSexo, pagina: 1 } }
+            : {}),
+        }),
+      }
+      return salida
+    }
+
+    const nombre = salida.nombrePaciente
+    if (nombre === undefined) return salida
+
+    const deducido = deducirSexoDelNombre(nombre)
+    if (deducido === null) {
+      // No se adivina. Un nombre unisex o poco común se queda sin deducir, y esa
+      // es la respuesta correcta: lo elige una persona.
+      avisos.push(
+        'No se ha podido deducir el sexo del nombre del informe, y Kane lo pide. Elígelo tú en la pantalla de revisión.',
+      )
+      return salida
+    }
+
+    salida = {
+      ...salida,
+      sexo: sexoDeducidoDelNombre(
+        deducido,
+        { documentoId: resultado.documentoId, dispositivoId: resultado.dispositivo.dispositivo },
+        this.iso(),
+      ),
+    }
+    avisos.push(
+      `El informe no dice el sexo, así que se ha deducido del nombre. Sale sin confirmar a propósito: compruébalo antes de calcular, porque un nombre no siempre lo determina.`,
+    )
+    return salida
+  }
+
+  /** Elige el sexo a mano. Conserva lo que hubiera antes, como cualquier dato. */
+  elegirSexo(sexo: Sexo): Caso {
+    const caso = this.exigirCaso()
+    return this.establecer({
+      ...caso,
+      sexo: aportarSexo(caso.sexo, sexo, this.iso()),
+      actualizadoEn: this.iso(),
+    })
+  }
+
+  /** Da por bueno el sexo que se dedujo. Es lo que abre la puerta hacia Kane. */
+  confirmarSexo(): Caso {
+    const caso = this.exigirCaso()
+    if (!caso.sexo) return caso
+    return this.establecer({
+      ...caso,
+      sexo: confirmarSexoDelDominio(caso.sexo),
+      actualizadoEn: this.iso(),
+    })
   }
 
   confirmarCampo(lado: Lateralidad, campo: CampoBiometrico): Caso {
@@ -442,37 +558,102 @@ export class ServicioCasos {
 
   // ── Cálculo ──────────────────────────────────────────────────────────────
 
-  async calcular(
-    lado: Lateralidad,
-    calculadoras?: readonly Calculadora[],
+  /**
+   * Calcula el CASO ENTERO: cada calculadora, para cada ojo que tenga datos.
+   *
+   * Antes esto recibía un `lado` y calculaba solo ese, así que un caso con los
+   * dos ojos confirmados dejaba el segundo sin calcular y había que volver a
+   * lanzar el flujo. No era un fallo de ninguna web: es que **nadie pedía el
+   * segundo ojo**. Ahora la lista de casillas la construye el orquestador a
+   * partir del caso.
+   */
+  async calcular(calculadoras?: readonly Calculadora[]): Promise<readonly ResultadoCalculadora[]> {
+    const caso = this.exigirCaso()
+    return this.ejecutar(
+      planificarCaso(caso, calculadoras !== undefined ? { calculadoras } : undefined),
+    )
+  }
+
+  /**
+   * Vuelve a ejecutar lo que falló, y solo lo que falló.
+   *
+   * Es la semántica que faltaba: «Reintentar» significa **repetir una casilla
+   * que no salió**, no conseguir el segundo ojo. Sin argumentos reintenta todo
+   * lo pendiente; con `calculadora` reintenta los ojos de esa que no tengan
+   * resultado aprovechable; con las dos cosas, esa casilla exacta.
+   *
+   * Un resultado que ya salió bien **no se repite**, así que no se puede
+   * duplicar ni perder por reintentar al lado.
+   */
+  async reintentar(
+    calculadora?: Calculadora,
+    ojo?: Lateralidad,
+  ): Promise<readonly ResultadoCalculadora[]> {
+    const caso = this.exigirCaso()
+
+    // Una casilla concreta se ejecuta aunque su estado no sea de los que se
+    // reintentan solos: si el usuario la señala, es que quiere justo esa.
+    if (calculadora !== undefined && ojo !== undefined) {
+      return this.ejecutar([{ calculadora, ojo }])
+    }
+
+    return this.ejecutar(
+      tareasPendientes(
+        caso,
+        calculadora !== undefined ? { calculadoras: [calculadora] } : undefined,
+      ),
+    )
+  }
+
+  /**
+   * El motor común: abre el navegador, ejecuta las casillas y va guardando.
+   *
+   * Cada resultado se guarda **en cuanto llega**. Si algo revienta a mitad, lo
+   * ya obtenido no se pierde — que es lo que hace posible reintentar solo lo que
+   * falló en vez de empezar de cero.
+   */
+  private async ejecutar(
+    tareas: readonly TareaCalculo[],
   ): Promise<readonly ResultadoCalculadora[]> {
     let caso = this.exigirCaso()
     this.cancelar = false
 
-    const lista = calculadoras ?? (['EVO_TORIC', 'BARRETT_TORIC', 'KANE'] as const)
+    if (tareas.length === 0) return []
+
     caso = this.establecer({ ...caso, estado: 'CALCULANDO', actualizadoEn: this.iso() })
 
-    const conVentana = necesitaVentana(lista)
+    const conVentana = necesitaVentana([...new Set(tareas.map((t) => t.calculadora))])
     let navegador: Browser | null = null
 
     try {
-      navegador = await this.dep.abrirNavegador(conVentana)
-      const resultados = await ejecutarCalculadoras({
+      try {
+        navegador = await this.dep.abrirNavegador(conVentana)
+      } catch (error) {
+        // Chromium bloquea el perfil: dos navegadores no pueden usar el mismo a la
+        // vez. Pasa si quedó una ventana abierta de un cálculo anterior o si se
+        // está ejecutando una sonda. Sin esto, el usuario veía un error de
+        // Chromium en crudo y no tenía forma de saber qué hacer.
+        throw new Error(
+          'No se ha podido abrir el navegador porque su perfil está en uso. ' +
+            'Cierra la ventana del navegador que abrió el cálculo anterior —o la sonda «pnpm reconocer:kane» si la tienes abierta— y vuelve a intentarlo. ' +
+            `Detalle: ${error instanceof Error ? primeraLinea(error.message) : String(error)}`,
+        )
+      }
+      const resultados = await ejecutarCaso({
         caso,
-        ojo: lado,
-        calculadoras: lista,
+        tareas,
         navegador,
         progreso: (evento: EventoProgreso) =>
           this.dep.emitirProgreso({
             calculadora: evento.calculadora,
-            ojo: lado,
+            // El ojo lo pone el orquestador en cada aviso. Sin eso, la pantalla
+            // enseñaría «Calculando en EVO…» dos veces sin decir de cuál.
+            ojo: evento.ojo ?? tareas[0]!.ojo,
             fase: evento.fase,
             mensaje: evento.mensaje,
             requiereUsuario: evento.requiereUsuario ?? false,
           }),
         alTerminarUna: (resultado) => {
-          // Se guarda en cuanto llega. Si algo revienta después, lo ya obtenido
-          // no se pierde: es la base de poder reintentar solo una.
           caso = this.establecer(conResultado(this.caso ?? caso, resultado, this.iso()))
         },
         ahora: () => this.iso(),

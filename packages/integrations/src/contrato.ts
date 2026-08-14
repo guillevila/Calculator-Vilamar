@@ -14,6 +14,7 @@ import type {
   Calculadora,
   EntradasCalculadora,
   EstadoAdaptador,
+  Lateralidad,
   ResultadoCalculadora,
 } from '@vilamar/domain'
 import type { BrowserContext, Page } from 'playwright'
@@ -31,6 +32,15 @@ export type FaseAdaptador =
 /** Lo que el adaptador va contando mientras trabaja, para enseñarlo en pantalla. */
 export interface EventoProgreso {
   readonly calculadora: Calculadora
+  /**
+   * De qué ojo habla este aviso.
+   *
+   * Lo rellena el orquestador, no el adaptador: un adaptador solo sabe que está
+   * rellenando un formulario. Sin este dato, un caso con los dos ojos enseñaría
+   * «Calculando en EVO…» dos veces seguidas sin decir de cuál de los dos, que es
+   * justo cuando el usuario necesita saberlo.
+   */
+  readonly ojo?: Lateralidad
   readonly fase: FaseAdaptador
   /** En lenguaje normal. Es lo que lee el usuario. */
   readonly mensaje: string

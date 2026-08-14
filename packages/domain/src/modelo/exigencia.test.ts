@@ -48,16 +48,32 @@ describe('los cuatro niveles', () => {
     expect(textoDeExigencia(e)).toBe('Opcional')
   })
 
-  it('AQD y nk no se envían a ninguna calculadora, y se dice', () => {
+  it('AQD no se envía a ninguna calculadora, y se dice', () => {
     // Se leen del informe y quedan en el PDF por trazabilidad, pero no alimentan
     // ningún cálculo. Callarlo haría pensar que hacen falta.
-    for (const campo of ['AQD', 'INDICE_QUERATOMETRICO'] as const) {
+    // El nk ESTABA aquí, y era un error mío: al capturar el formulario real de
+    // Kane el 12/08/2026 resultó que su lista «Index» es justo ese dato, y que la
+    // marca como obligatoria. Ahora es opcional para nosotros —si el informe no lo
+    // trae, Kane usa su 1.3375 por defecto—, pero desde luego se envía.
+    for (const campo of ['AQD'] as const) {
       const e = exigenciaDe(campo)
       expect(e.nivel).toBe('INFORMATIVO')
       expect(e.requeridoPor).toHaveLength(0)
       expect(e.opcionalPara).toHaveLength(0)
       expect(textoDeExigencia(e)).toMatch(/no se envía/i)
     }
+  })
+
+  it('el nk SÍ se envía: es la lista «Index» de Kane', () => {
+    // Este test existe por un error concreto: durante un tiempo el nk estaba
+    // clasificado como «no se envía a ninguna calculadora», y se le dijo así al
+    // dueño del proyecto. Al capturar el formulario real de Kane resultó que su
+    // lista «Index» es exactamente ese dato, con cinco valores y 1.3375 por
+    // defecto, y que él la marca obligatoria.
+    const e = exigenciaDe('INDICE_QUERATOMETRICO')
+    expect(e.nivel).toBe('OPCIONAL')
+    expect(e.opcionalPara).toEqual(['KANE'])
+    expect(e.requeridoPor).toHaveLength(0)
   })
 })
 

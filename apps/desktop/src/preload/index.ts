@@ -31,11 +31,14 @@ const api: ApiVilamar = {
 
   editarMedida: (ojo, campo, valor) => ipcRenderer.invoke(CANALES.editarMedida, ojo, campo, valor),
   confirmarCampo: (ojo, campo) => ipcRenderer.invoke(CANALES.confirmarCampo, ojo, campo),
+  elegirSexo: (sexo) => ipcRenderer.invoke(CANALES.elegirSexo, sexo),
+  confirmarSexo: () => ipcRenderer.invoke(CANALES.confirmarSexo),
   confirmarTodo: () => ipcRenderer.invoke(CANALES.confirmarTodo),
   validar: () => ipcRenderer.invoke(CANALES.validar),
   elegirLente: (fabricante, modelo) => ipcRenderer.invoke(CANALES.elegirLente, fabricante, modelo),
 
-  calcular: (ojo, calculadoras) => ipcRenderer.invoke(CANALES.calcular, ojo, calculadoras),
+  calcular: (calculadoras) => ipcRenderer.invoke(CANALES.calcular, calculadoras),
+  reintentar: (calculadora, ojo) => ipcRenderer.invoke(CANALES.reintentar, calculadora, ojo),
   cancelarCalculo: () => ipcRenderer.invoke(CANALES.cancelarCalculo),
 
   generarPdf: () => ipcRenderer.invoke(CANALES.generarPdf),

@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { origenDe, valorDe, validarOjo, tiene } from '@vilamar/domain'
+import { claveLente, origenDe, valorDe, validarOjo, tiene } from '@vilamar/domain'
 
 import { detectarEnTexto } from './deteccion/detector.js'
 import * as fx from './fixtures/sinteticos.js'
@@ -695,5 +695,77 @@ Bausch&Lomb enVista MX60   SRK/T: 119.2
     expect(r.lentes).toHaveLength(1)
     expect(r.lentes[0]!.modelo).toBe('Bausch&Lomb enVista MX60')
     expect(r.lentes[0]!.constanteA).toBe(119.2)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  El paciente: sexo y nombre
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('sexo y nombre del informe', () => {
+  it('lee el sexo cuando el informe lo imprime, con su evidencia', () => {
+    const r = leer(fx.ANTERION_CON_SEXO)
+    expect(r.paciente.sexo).toBe('MUJER')
+    expect(r.paciente.evidenciaSexo).toContain('Sex')
+    expect(r.paciente.evidenciaSexo).toMatch(/female/i)
+  })
+
+  it('lee el nombre, que es lo único identificativo que este programa lee', () => {
+    const r = leer(fx.ANTERION_CON_SEXO)
+    expect(r.paciente.nombre).toBe('María Ejemplo Sintética')
+  })
+
+  it('si el informe no dice el sexo, el nombre queda para poder deducirlo', () => {
+    const r = leer(fx.ANTERION_SIN_SEXO)
+    expect(r.paciente.sexo).toBeUndefined()
+    expect(r.paciente.nombre).toBe('Antonio Ejemplo Sintético')
+  })
+
+  it('un informe sin ninguno de los dos no inventa nada', () => {
+    const r = leer(fx.ANTERION_OD_OS)
+    expect(r.paciente.sexo).toBeUndefined()
+    expect(r.paciente.nombre).toBeUndefined()
+  })
+
+  it('el sexo y el nombre NO se guardan dentro de un ojo', () => {
+    // Una persona no tiene un sexo por ojo. Guardarlo ahí permitiría que el
+    // derecho y el izquierdo dijeran cosas distintas.
+    const r = leer(fx.ANTERION_CON_SEXO)
+    expect(Object.keys(r.ojos.OD!.medidas)).not.toContain('SEXO')
+    expect(r.paciente.sexo).toBeDefined()
+  })
+})
+
+describe('el informe español, en columnas y sin dos puntos', () => {
+  it('lee el sexo aunque la etiqueta vaya separada por espacios', () => {
+    // Es el caso que falló de verdad: el patrón exigía «Sexo:» y el informe pone
+    // «Sexo   Femenino». El caso se quedaba sin sexo y una de las calculadoras no podía calcular.
+    const r = leer(fx.ANTERION_ESPANOL_EN_COLUMNAS)
+    expect(r.paciente.sexo).toBe('MUJER')
+    expect(r.paciente.evidenciaSexo).toMatch(/sexo/i)
+  })
+
+  it('aflojar el separador NO abre la puerta a cualquier palabra', () => {
+    // Lo que hace segura la regla: la palabra tiene que ser reconocible. Si detrás
+    // de «Sexo» hay otra cosa, no se traduce y el campo se queda vacío.
+    const r = leer(`HEIDELBERG ENGINEERING ANTERION
+Cataract App
+Sexo   pendiente de revisar
+
+OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+`)
+    expect(r.paciente.sexo).toBeUndefined()
+  })
+
+  it('el punto y coma del fabricante no impide emparejar la lente', () => {
+    // El PDF real trae literalmente «Bausch&Lomb;». Sin quitar el punto y coma,
+    // ese modelo no se emparejaría con «Bausch & Lomb» de ninguna lista.
+    const r = leer(fx.ANTERION_ESPANOL_EN_COLUMNAS)
+    const lente = r.lentes.find((l) => /Akreos/.test(l.modelo))
+    expect(lente?.constanteA).toBe(119.1)
+    expect(claveLente(lente!)).toBe(claveLente({ modelo: 'Bausch & Lomb Akreos AO MI60' }))
   })
 })
