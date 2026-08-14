@@ -232,8 +232,18 @@ function datoDe<T>(
   const presentes = opciones.map(leer).filter((v): v is T => v !== undefined)
   if (presentes.length === 0) return SIN_DATO
 
+  // Si TODAS las que traen el dato dicen lo mismo, no hay nada que elegir: sea la
+  // que sea la opción, el dato es ese. No hace falta que lo traigan todas.
+  //
+  // Esto lo destapó un informe real de EVO: da el eje de la lente **solo en sus
+  // filas tóricas** —las tres decían 70°— y la potencia esférica que destaca no lo
+  // trae. Exigiendo que lo trajeran las ocho opciones, un eje perfectamente
+  // unánime salía como «Ver alternativas» y el diagrama no dibujaba ninguno.
+  //
+  // Sigue siendo seguro: si dos opciones dieran ejes DISTINTOS, `distintos.size`
+  // sería mayor que uno y esto no se aplicaría.
   const distintos = new Set(presentes.map((v) => String(v)))
-  if (distintos.size === 1 && presentes.length === opciones.length) {
+  if (distintos.size === 1) {
     return { estado: 'VALOR', valor: presentes[0] as T }
   }
 

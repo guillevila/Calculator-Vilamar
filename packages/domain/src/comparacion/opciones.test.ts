@@ -269,3 +269,71 @@ describe('5 · no se escoge la del medio, ni la primera, ni la última', () => {
     expect(c.observaciones.some((o) => /coinciden/.test(o.texto))).toBe(false)
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  6 · Un dato que solo traen ALGUNAS opciones, y todas de acuerdo
+//
+//  Lo destapó un informe real de EVO (Pentacam, ojo izquierdo): devuelve cinco
+//  potencias esféricas y tres opciones tóricas, y el EJE de la lente solo viene en
+//  las tóricas — las tres con 70°. La potencia que destaca no lo trae.
+//
+//  Con la regla anterior —«que lo traigan TODAS»— un eje unánime salía como «Ver
+//  alternativas» y el diagrama del ojo no dibujaba ninguna lente.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('6 · el dato solo está en algunas opciones, pero todas coinciden', () => {
+  /** La forma exacta del resultado real, con sus números. */
+  const EVO_REAL: readonly Partial<OpcionLente>[] = [
+    { esfera: 19.5, refraccionPrevista: 0.74 },
+    { esfera: 20, refraccionPrevista: 0.43 },
+    { esfera: 20.5, refraccionPrevista: 0.11 },
+    { esfera: 21, refraccionPrevista: -0.21 },
+    { esfera: 21.5, refraccionPrevista: -0.52 },
+    {
+      esfera: 20.5,
+      cilindro: 0,
+      eje: 70,
+      designacion: 'Non-toric',
+      cilindroResidual: -0.41,
+      ejeResidual: 160,
+    },
+    {
+      esfera: 20.5,
+      cilindro: 1,
+      eje: 70,
+      designacion: 'T2',
+      cilindroResidual: -0.23,
+      ejeResidual: 70,
+    },
+    {
+      esfera: 20.5,
+      cilindro: 1.5,
+      eje: 70,
+      designacion: 'T3',
+      cilindroResidual: -0.55,
+      ejeResidual: 70,
+    },
+  ]
+  const celda = () => kaneDe(conOpciones('KANE', EVO_REAL, 2))
+
+  it('el eje sale como VALOR, porque las tres que lo traen dicen 70°', () => {
+    expect(celda()?.eje).toEqual({ estado: 'VALOR', valor: 70 })
+  })
+
+  it('la esfera y la refracción son las de la opción que la web destaca', () => {
+    expect(celda()?.esfera).toEqual({ estado: 'VALOR', valor: 20.5 })
+    expect(celda()?.refraccionPrevista).toEqual({ estado: 'VALOR', valor: 0.11 })
+  })
+
+  it('el cilindro SÍ es ambiguo: tres valores distintos', () => {
+    expect(celda()?.cilindro).toMatchObject({ estado: 'VARIAS', cuantas: 3 })
+    expect(celda()?.designacion).toMatchObject({ estado: 'VARIAS', cuantas: 3 })
+  })
+
+  it('y si dos opciones dieran ejes DISTINTOS, vuelve a ser ambiguo', () => {
+    // La regla no es «con que alguna lo traiga, vale»: es «todas las que lo traen
+    // dicen lo mismo». Un eje discrepante lo hace ambiguo otra vez.
+    const conflicto = EVO_REAL.map((o, i) => (i === 7 ? { ...o, eje: 100 } : o))
+    expect(kaneDe(conOpciones('KANE', conflicto, 2))?.eje).toMatchObject({ estado: 'VARIAS' })
+  })
+})

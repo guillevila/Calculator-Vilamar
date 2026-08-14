@@ -15,7 +15,13 @@ import { describe, expect, it } from 'vitest'
 import type { Comparativa, OjoBiometrico } from '@vilamar/domain'
 import { conMedida, crearMedida, ojoVacio } from '@vilamar/domain'
 
-import { diagramaDeEje, extremosDelEje, meridianoCurvo } from './plantilla.js'
+import {
+  corteDelOjo,
+  diagramaDeEje,
+  extremosDelEje,
+  figuraBiometrica,
+  meridianoCurvo,
+} from './plantilla.js'
 
 const CUANDO = '2026-08-14T10:00:00.000Z'
 const DEL_PDF = {
@@ -242,5 +248,105 @@ describe('el diagrama dibujado', () => {
     // Sin queratometrías no puede haber ni meridiano ni astigmatismo.
     expect(h).not.toContain('Meridiano corneal curvo')
     expect(h).not.toContain('Astigmatismo corneal')
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  4 · El ojo de frente con la lente dentro
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('la lente dibujada sobre el ojo', () => {
+  it('se gira por el ángulo NEGADO, porque SVG gira al contrario', () => {
+    // En notación oftalmológica el ángulo crece en sentido antihorario; el rotate
+    // de SVG gira en el horario. Sin el signo, una lente a 70° se dibujaría a 110°
+    // —simétrica respecto a la vertical— y nadie lo notaría de un vistazo.
+    const h = diagramaDeEje(comparativa([{ calculadora: 'EVO_TORIC', eje: 70 }]), OJO_REAL)
+    expect(h).toContain('rotate(-70.00')
+    expect(h).not.toContain('rotate(70.00')
+  })
+
+  it('dibuja una lente por calculadora cuando no coinciden', () => {
+    const h = diagramaDeEje(
+      comparativa([
+        { calculadora: 'EVO_TORIC', eje: 70 },
+        { calculadora: 'BARRETT_TORIC', eje: 100 },
+      ]),
+      OJO_REAL,
+    )
+    expect(h).toContain('rotate(-70.00')
+    expect(h).toContain('rotate(-100.00')
+  })
+
+  it('el ojo lleva limbo, iris y pupila, no un círculo pelado', () => {
+    const h = diagramaDeEje(comparativa([{ calculadora: 'EVO_TORIC', eje: 70 }]), OJO_REAL)
+    expect(h).toContain('la lente intraocular orientada')
+    // Tres círculos concéntricos: limbo, iris, pupila.
+    expect((h.match(/<circle cx="82" cy="82"/g) ?? []).length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('avisa de que es un esquema y no está a escala', () => {
+    const h = diagramaDeEje(comparativa([{ calculadora: 'EVO_TORIC', eje: 70 }]), OJO_REAL)
+    expect(h).toContain('las proporciones no son las de este ojo')
+  })
+
+  it('el WTW se acota sobre el limbo cuando el caso lo trae', () => {
+    let o = OJO_REAL
+    o = conMedida(o, crearMedida('WTW', 'OS', 11.63, DEL_PDF))
+    const h = diagramaDeEje(comparativa([{ calculadora: 'EVO_TORIC', eje: 70 }]), o)
+    expect(h).toContain('WTW 11.63 mm')
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  5 · El corte del ojo con la biometría anotada
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('el corte del ojo', () => {
+  function ojoBiometrico(): OjoBiometrico {
+    let o = ojoVacio('OS')
+    for (const [campo, valor] of [
+      ['AL', 24.01],
+      ['ACD', 3.334],
+      ['LT', 4.5],
+      ['CCT', 543],
+    ] as const) {
+      o = conMedida(o, crearMedida(campo, 'OS', valor, DEL_PDF))
+    }
+    return o
+  }
+
+  it('anota cada medida con su unidad, sobre la parte que mide', () => {
+    const h = corteDelOjo(ojoBiometrico())
+    expect(h).toContain('AL 24.01 mm')
+    expect(h).toContain('ACD 3.33 mm')
+    expect(h).toContain('LT 4.50 mm')
+    expect(h).toContain('CCT 543 µm')
+  })
+
+  it('una medida que falta NO se dibuja, y no se pone un cero', () => {
+    let o = ojoVacio('OS')
+    o = conMedida(o, crearMedida('AL', 'OS', 24.01, DEL_PDF))
+    const h = corteDelOjo(o)
+    expect(h).toContain('AL 24.01 mm')
+    expect(h).not.toContain('ACD')
+    expect(h).not.toContain('LT')
+    expect(h).not.toContain('0.00')
+  })
+
+  it('sin ninguna medida de profundidad no se dibuja nada', () => {
+    expect(corteDelOjo(ojoVacio('OS'))).toBe('')
+    expect(figuraBiometrica(ojoVacio('OS'))).toBe('')
+  })
+
+  it('dice que es el ojo ANTES de la cirugía y que el LT es el cristalino', () => {
+    // Importa: el LT es el grosor del cristalino, que la lente sustituye. Dibujar
+    // aquí la lente y a la vez acotar el LT sería contradictorio.
+    const h = figuraBiometrica(ojoBiometrico())
+    expect(h).toContain('antes de la cirugía')
+    expect(h).toContain('grosor del cristalino')
+  })
+
+  it('dice que las proporciones no son reales', () => {
+    expect(figuraBiometrica(ojoBiometrico())).toContain('proporciones del dibujo no son')
   })
 })

@@ -699,8 +699,9 @@ export function diagramaDeEje(c: Comparativa, ojo: OjoBiometrico | undefined): s
   const curvo = ojo ? meridianoCurvo(ojo) : undefined
   const incision = ojo?.medidas.EJE_INCISION
   const sia = ojo?.medidas.SIA
+  const wtw = ojo?.medidas.WTW
 
-  // Sin ningún eje que dibujar no se pinta un círculo vacío: se dice que no lo hay.
+  // Sin ningún eje que dibujar no se pinta un ojo vacío: se dice que no lo hay.
   if (ejes.length === 0 && curvo?.eje === undefined) {
     return `<section class="diagrama">
       <h2>Eje de la lente · ${esc(nombreLateralidad(c.ojo))}</h2>
@@ -708,61 +709,12 @@ export function diagramaDeEje(c: Comparativa, ojo: OjoBiometrico | undefined): s
     </section>`
   }
 
-  const cx = 76
-  const cy = 76
-  const r = 62
-
-  // La escala de grados, cada 15°. Las marcas de 45 en 45 van rotuladas.
-  const marcas: string[] = []
-  for (let g = 0; g < 180; g += 15) {
-    const e = extremosDelEje(g, cx, cy, r)
-    const dentro = extremosDelEje(g, cx, cy, r - (g % 45 === 0 ? 7 : 4))
-    marcas.push(
-      `<line x1="${e.x1.toFixed(1)}" y1="${e.y1.toFixed(1)}" x2="${dentro.x1.toFixed(1)}" y2="${dentro.y1.toFixed(1)}" stroke="#C2CBD3" stroke-width="1"></line>`,
-      `<line x1="${e.x2.toFixed(1)}" y1="${e.y2.toFixed(1)}" x2="${dentro.x2.toFixed(1)}" y2="${dentro.y2.toFixed(1)}" stroke="#C2CBD3" stroke-width="1"></line>`,
-    )
-  }
-  const rotulos = [0, 45, 90, 135, 180, 225, 270, 315]
-    .map((g) => {
-      const p = extremosDelEje(g, cx, cy, r + 9)
-      return `<text x="${p.x1.toFixed(1)}" y="${(p.y1 + 2.4).toFixed(1)}" text-anchor="middle" font-size="6.4" fill="#8B97A2" font-family="Consolas, ui-monospace, monospace">${g}</text>`
-    })
-    .join('')
-
-  const lineaCurvo =
-    curvo?.eje === undefined
-      ? ''
-      : (() => {
-          const e = extremosDelEje(curvo.eje, cx, cy, r - 3)
-          return `<line x1="${e.x1.toFixed(1)}" y1="${e.y1.toFixed(1)}" x2="${e.x2.toFixed(1)}" y2="${e.y2.toFixed(1)}" stroke="#8B97A2" stroke-width="1.4" stroke-dasharray="5 4"></line>`
-        })()
-
-  const lineaIncision =
-    incision === undefined
-      ? ''
-      : (() => {
-          const p = extremosDelEje(incision.valor, cx, cy, r)
-          const dentro = extremosDelEje(incision.valor, cx, cy, r - 11)
-          return `<line x1="${p.x1.toFixed(1)}" y1="${p.y1.toFixed(1)}" x2="${dentro.x1.toFixed(1)}" y2="${dentro.y1.toFixed(1)}" stroke="#0F1A24" stroke-width="3.2" stroke-linecap="round"></line>`
-        })()
-
-  // Un eje por calculadora. Con dos que coincidan, la segunda va discontinua para
-  // que se vea que hay dos y no una.
-  const lineasEjes = ejes
-    .map((ej, i) => {
-      const e = extremosDelEje(ej.grados, cx, cy, r - 8)
-      const guion = i === 0 ? '' : ' stroke-dasharray="7 6"'
-      return `<line x1="${e.x1.toFixed(1)}" y1="${e.y1.toFixed(1)}" x2="${e.x2.toFixed(1)}" y2="${e.y2.toFixed(1)}" stroke="${ej.color}" stroke-width="3"${guion} stroke-linecap="round" opacity="0.9"></line>`
-    })
-    .join('')
-
   const iguales = ejes.length >= 2 && ejes.every((e) => separacion(e.grados, ejes[0]!.grados) < 0.5)
+
+  // El número va en el centro SOLO si no hay nada que elegir: una sola calculadora,
+  // o varias de acuerdo. Con ejes distintos el centro se queda vacío a propósito.
   const centro =
-    ejes.length === 0
-      ? ''
-      : iguales || ejes.length === 1
-        ? `<text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="13" font-weight="600" fill="#0F1A24" font-family="Consolas, ui-monospace, monospace">${ejes[0]!.grados.toFixed(0)}°</text>`
-        : ''
+    ejes.length === 0 ? '' : iguales || ejes.length === 1 ? `${ejes[0]!.grados.toFixed(0)}°` : ''
 
   const leyenda = [
     ...ejes.map(
@@ -801,27 +753,204 @@ export function diagramaDeEje(c: Comparativa, ojo: OjoBiometrico | undefined): s
       `<strong>Las calculadoras no proponen el mismo eje.</strong> Se dibujan los ${ejes.length}; elegir uno no le corresponde a este programa.`,
     )
   }
+  apuntes.push('Esquema orientativo: las proporciones no son las de este ojo, los números sí.')
 
   return `<section class="diagrama">
-    <h2>Eje de la lente · ${esc(nombreLateralidad(c.ojo))}</h2>
+    <h2>La lente en el ojo · ${esc(nombreLateralidad(c.ojo))}</h2>
     <div class="diagrama-caja">
-      <svg width="170" height="170" viewBox="0 0 152 152" role="img" aria-label="Diagrama del eje de la lente, ojo ${esc(nombreLateralidad(c.ojo))}">
-        <circle cx="${cx}" cy="${cy}" r="${r}" fill="#FBFDFE" stroke="#DDE4EA" stroke-width="1"></circle>
-        <circle cx="${cx}" cy="${cy}" r="${r - 20}" fill="none" stroke="#EDF1F4" stroke-width="1"></circle>
-        ${marcas.join('')}
-        ${rotulos}
-        ${lineaCurvo}
-        ${lineasEjes}
-        ${lineaIncision}
-        <circle cx="${cx}" cy="${cy}" r="2.6" fill="#0F1A24"></circle>
-        ${centro}
-      </svg>
+      ${ojoDeFrente(ejes, curvo?.eje, incision?.valor, wtw?.valor, centro)}
       <div class="diagrama-lado">
         <div class="leyenda">${leyenda}</div>
         ${apuntes.length > 0 ? `<div class="apuntes">${apuntes.map((a) => `<div>${a}</div>`).join('')}</div>` : ''}
       </div>
     </div>
   </section>`
+}
+
+/**
+ * El ojo de frente, con la lente tórica dentro.
+ *
+ * Sustituye al círculo con rayas: la escala de grados sigue estando, pero ahora
+ * sobre un ojo —limbo, iris, pupila— y con la lente dibujada dentro, con sus
+ * hápticos y sus marcas de alineación puestas en el eje que devuelve la
+ * calculadora. Es lo que se mira para orientar la lente en quirófano.
+ *
+ * ⚠️ **Es un ESQUEMA: las proporciones no son las del ojo de nadie.** Los números
+ * anotados sí son los del caso; el dibujo es la referencia para leerlos. Un dibujo
+ * que pareciera a escala invitaría a medir sobre el papel, y eso no se puede hacer.
+ */
+function ojoDeFrente(
+  ejes: readonly { readonly nombre: string; readonly color: string; readonly grados: number }[],
+  curvoEje: number | undefined,
+  incisionEje: number | undefined,
+  wtw: number | undefined,
+  centro: string,
+): string {
+  const cx = 82
+  const cy = 82
+  const rLimbo = 66
+  const rIris = 54
+  const rOptica = 34
+  const rPupila = 21
+
+  // La escala, cada 15°, con rótulo cada 45°. Fuera del limbo, para no taparlo.
+  const marcas: string[] = []
+  for (let g = 0; g < 180; g += 15) {
+    const largo = g % 45 === 0 ? 7 : 4
+    const a = extremosDelEje(g, cx, cy, rLimbo + 8)
+    const b = extremosDelEje(g, cx, cy, rLimbo + 8 - largo)
+    marcas.push(
+      `<line x1="${a.x1.toFixed(1)}" y1="${a.y1.toFixed(1)}" x2="${b.x1.toFixed(1)}" y2="${b.y1.toFixed(1)}" stroke="#C2CBD3" stroke-width="1"></line>`,
+      `<line x1="${a.x2.toFixed(1)}" y1="${a.y2.toFixed(1)}" x2="${b.x2.toFixed(1)}" y2="${b.y2.toFixed(1)}" stroke="#C2CBD3" stroke-width="1"></line>`,
+    )
+  }
+  const rotulos = [0, 45, 90, 135, 180, 225, 270, 315]
+    .map((g) => {
+      const p = extremosDelEje(g, cx, cy, rLimbo + 17)
+      return `<text x="${p.x1.toFixed(1)}" y="${(p.y1 + 2.4).toFixed(1)}" text-anchor="middle" font-size="6.2" fill="#8B97A2" font-family="Consolas, ui-monospace, monospace">${g}</text>`
+    })
+    .join('')
+
+  /**
+   * La lente, girada al eje que toca.
+   *
+   * En notación oftalmológica el ángulo crece en sentido antihorario y en SVG
+   * `rotate` gira en el horario, así que se gira por el ángulo NEGADO. Es el mismo
+   * cambio de signo que en `extremosDelEje`, y por eso está dicho en los dos.
+   */
+  const lente = (grados: number, color: string, segunda: boolean): string => {
+    const g = (-grados).toFixed(2)
+    const guion = segunda ? ' stroke-dasharray="6 5"' : ''
+    return `<g transform="rotate(${g} ${cx} ${cy})" fill="none" stroke="${color}">
+      <path d="M ${cx - rOptica} ${cy} C ${cx - rOptica - 26} ${cy - 24}, ${cx - rOptica - 34} ${cy + 16}, ${cx - rOptica - 12} ${cy + 21}" stroke-width="2.6" stroke-linecap="round" opacity="0.75"></path>
+      <path d="M ${cx + rOptica} ${cy} C ${cx + rOptica + 26} ${cy + 24}, ${cx + rOptica + 34} ${cy - 16}, ${cx + rOptica + 12} ${cy - 21}" stroke-width="2.6" stroke-linecap="round" opacity="0.75"></path>
+      <circle cx="${cx}" cy="${cy}" r="${rOptica}" stroke-width="1.8"${guion} opacity="0.95"></circle>
+      <line x1="${cx - rOptica + 3}" y1="${cy}" x2="${cx - rOptica + 13}" y2="${cy}" stroke-width="3.4" stroke-linecap="round"></line>
+      <line x1="${cx + rOptica - 13}" y1="${cy}" x2="${cx + rOptica - 3}" y2="${cy}" stroke-width="3.4" stroke-linecap="round"></line>
+    </g>`
+  }
+
+  const lineaCurvo =
+    curvoEje === undefined
+      ? ''
+      : (() => {
+          const e = extremosDelEje(curvoEje, cx, cy, rLimbo - 2)
+          return `<line x1="${e.x1.toFixed(1)}" y1="${e.y1.toFixed(1)}" x2="${e.x2.toFixed(1)}" y2="${e.y2.toFixed(1)}" stroke="#8B97A2" stroke-width="1.4" stroke-dasharray="5 4"></line>`
+        })()
+
+  const marcaIncision =
+    incisionEje === undefined
+      ? ''
+      : (() => {
+          const fuera = extremosDelEje(incisionEje, cx, cy, rLimbo + 4)
+          const dentro = extremosDelEje(incisionEje, cx, cy, rLimbo - 7)
+          return `<line x1="${fuera.x1.toFixed(1)}" y1="${fuera.y1.toFixed(1)}" x2="${dentro.x1.toFixed(1)}" y2="${dentro.y1.toFixed(1)}" stroke="#0F1A24" stroke-width="3.4" stroke-linecap="round"></line>`
+        })()
+
+  // El WTW es un diámetro: se acota sobre el limbo, que es lo que mide.
+  const acotaWtw =
+    wtw === undefined
+      ? ''
+      : `<g stroke="#B7C4CE" stroke-width="0.9" fill="none">
+      <line x1="${cx - rLimbo}" y1="${cy + rLimbo + 22}" x2="${cx + rLimbo}" y2="${cy + rLimbo + 22}"></line>
+      <line x1="${cx - rLimbo}" y1="${cy + rLimbo + 18}" x2="${cx - rLimbo}" y2="${cy + rLimbo + 26}"></line>
+      <line x1="${cx + rLimbo}" y1="${cy + rLimbo + 18}" x2="${cx + rLimbo}" y2="${cy + rLimbo + 26}"></line>
+    </g>
+    <text x="${cx}" y="${cy + rLimbo + 34}" text-anchor="middle" font-size="6.6" fill="#5C6B78" font-family="Consolas, ui-monospace, monospace">WTW ${wtw.toFixed(2)} mm</text>`
+
+  return `<svg width="205" height="${wtw === undefined ? 205 : 222}" viewBox="0 0 164 ${wtw === undefined ? 164 : 178}" role="img" aria-label="Esquema del ojo de frente con la lente intraocular orientada">
+    <circle cx="${cx}" cy="${cy}" r="${rLimbo}" fill="#F2F7FA" stroke="#C9D3DB" stroke-width="1.2"></circle>
+    <circle cx="${cx}" cy="${cy}" r="${rIris}" fill="#E3EDF6" stroke="#B9CFE4" stroke-width="1"></circle>
+    <circle cx="${cx}" cy="${cy}" r="${rPupila}" fill="#243642"></circle>
+    ${marcas.join('')}
+    ${rotulos}
+    ${lineaCurvo}
+    ${ejes.map((e, i) => lente(e.grados, e.color, i > 0)).join('')}
+    ${marcaIncision}
+    ${centro === '' ? '' : `<text x="${cx}" y="${cy + 4.5}" text-anchor="middle" font-size="12.5" font-weight="600" fill="#fff" font-family="Consolas, ui-monospace, monospace">${centro}</text>`}
+    ${acotaWtw}
+  </svg>`
+}
+
+/**
+ * El corte del ojo, con la biometría anotada encima.
+ *
+ * Aquí van los datos que se miden en profundidad —AL, CCT, ACD, LT— cada uno con
+ * su cota sobre la parte del ojo que mide. Es la figura que traen los informes de
+ * los biómetros, y sirve para lo mismo: leer los números sabiendo a qué se
+ * refieren, sin tener que recordar qué era cada sigla.
+ *
+ * ⚠️ **Es el ojo ANTES de la cirugía**, con su cristalino: el LT es el grosor de
+ * ese cristalino, no de la lente que se va a implantar. Dibujar aquí la lente
+ * intraocular y a la vez acotar el LT sería contradictorio — la lente sustituye al
+ * cristalino—. La lente va en la otra figura, la de frente.
+ *
+ * ⚠️ **Esquema, no a escala.** Las cotas llevan el número del caso; el dibujo es la
+ * referencia. Un ojo a escala con la AL entera dejaría el CCT en medio píxel.
+ */
+export function corteDelOjo(ojo: OjoBiometrico): string {
+  const m = ojo.medidas
+  const hay = (c: 'AL' | 'CCT' | 'ACD' | 'LT') => m[c] !== undefined
+  if (!hay('AL') && !hay('ACD') && !hay('LT') && !hay('CCT')) return ''
+
+  // Geometría del esquema. Nada de esto depende de los valores: es un dibujo fijo
+  // sobre el que se anotan, para que dos ojos se puedan comparar de un vistazo.
+  const xCornea = 34
+  const xIris = 74
+  const xCristalinoIni = 76
+  const xCristalinoFin = 116
+  const xRetina = 340
+  const yc = 96
+
+  const cota = (
+    x1: number,
+    x2: number,
+    y: number,
+    etiqueta: string,
+    valor: string,
+    color: string,
+  ): string => `<g stroke="${color}" stroke-width="0.9" fill="none">
+      <line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}"></line>
+      <line x1="${x1}" y1="${y - 4}" x2="${x1}" y2="${y + 4}"></line>
+      <line x1="${x2}" y1="${y - 4}" x2="${x2}" y2="${y + 4}"></line>
+    </g>
+    <text x="${(x1 + x2) / 2}" y="${y - 7}" text-anchor="middle" font-size="7.4" font-weight="600" fill="${color}" font-family="Consolas, ui-monospace, monospace">${etiqueta} ${valor}</text>`
+
+  const cotaFina = (x: number, y: number, etiqueta: string, valor: string): string =>
+    `<line x1="${x}" y1="${y}" x2="${x - 16}" y2="${y - 22}" stroke="#8B97A2" stroke-width="0.8"></line>
+     <text x="${x - 17}" y="${y - 25}" text-anchor="end" font-size="7.2" fill="#5C6B78" font-family="Consolas, ui-monospace, monospace">${etiqueta} ${valor}</text>`
+
+  return `<svg width="470" height="176" viewBox="0 0 372 140" role="img" aria-label="Esquema del corte del ojo con la biometría anotada">
+    <path d="M ${xRetina} ${yc} A 120 74 0 1 1 ${xCornea + 26} ${yc - 40} " fill="#FBFDFE" stroke="#C9D3DB" stroke-width="1.2"></path>
+    <path d="M ${xRetina} ${yc} A 120 74 0 1 0 ${xCornea + 26} ${yc + 40}" fill="#FBFDFE" stroke="#C9D3DB" stroke-width="1.2"></path>
+    <path d="M ${xCornea + 26} ${yc - 40} C ${xCornea - 6} ${yc - 30}, ${xCornea - 6} ${yc + 30}, ${xCornea + 26} ${yc + 40}" fill="#EAF3F8" stroke="#12506E" stroke-width="1.6"></path>
+    <path d="M ${xIris} ${yc - 38} L ${xIris} ${yc - 15}" stroke="#1B4C86" stroke-width="3.2" stroke-linecap="round"></path>
+    <path d="M ${xIris} ${yc + 38} L ${xIris} ${yc + 15}" stroke="#1B4C86" stroke-width="3.2" stroke-linecap="round"></path>
+    <path d="M ${xCristalinoIni + 20} ${yc - 30} C ${xCristalinoFin + 4} ${yc - 22}, ${xCristalinoFin + 4} ${yc + 22}, ${xCristalinoIni + 20} ${yc + 30} C ${xCristalinoIni - 22} ${yc + 22}, ${xCristalinoIni - 22} ${yc - 22}, ${xCristalinoIni + 20} ${yc - 30} Z" fill="#EDF1F4" stroke="#5C6B78" stroke-width="1.2"></path>
+    <line x1="${xCornea + 26}" y1="${yc}" x2="${xRetina}" y2="${yc}" stroke="#C2CBD3" stroke-width="0.8" stroke-dasharray="4 4"></line>
+    ${hay('AL') ? cota(xCornea + 26, xRetina, 22, 'AL', `${m.AL!.valor.toFixed(2)} mm`, '#12506E') : ''}
+    ${hay('ACD') ? cota(xCornea + 26, xCristalinoIni - 2, 128, 'ACD', `${m.ACD!.valor.toFixed(2)} mm`, '#1B4C86') : ''}
+    ${hay('LT') ? cota(xCristalinoIni - 2, xCristalinoFin + 24, 60, 'LT', `${m.LT!.valor.toFixed(2)} mm`, '#5B3B8A') : ''}
+    ${hay('CCT') ? cotaFina(xCornea + 6, yc - 30, 'CCT', `${m.CCT!.valor.toFixed(0)} µm`) : ''}
+    <text x="${xCornea + 26}" y="${yc + 52}" font-size="6.8" fill="#8B97A2" font-family="Consolas, ui-monospace, monospace">córnea</text>
+    <text x="${xCristalinoIni + 2}" y="${yc + 52}" font-size="6.8" fill="#8B97A2" font-family="Consolas, ui-monospace, monospace">cristalino</text>
+    <text x="${xRetina - 34}" y="${yc + 52}" font-size="6.8" fill="#8B97A2" font-family="Consolas, ui-monospace, monospace">retina</text>
+  </svg>`
+}
+
+/** La figura del corte con su rótulo, para la hoja de biometría. */
+export function figuraBiometrica(ojo: OjoBiometrico): string {
+  const svg = corteDelOjo(ojo)
+  if (svg === '') return ''
+  return `<div class="figura">
+    ${svg}
+    <p class="pie-figura">
+      Esquema del ojo <strong>antes de la cirugía</strong>, con las medidas de
+      profundidad anotadas donde se toman. El LT es el grosor del cristalino, que la
+      lente sustituye. Las proporciones del dibujo no son las del ojo: los números
+      sí. <span class="marca marca-derivado">Esquema</span>
+    </p>
+  </div>`
 }
 
 const ESTILOS = `
@@ -1046,6 +1175,13 @@ const ESTILOS = `
   .apuntes > div { margin-top: 3px; }
   .apuntes strong { color: var(--tinta); }
 
+  .figura { margin-top: 10px; text-align: center; }
+  .pie-figura {
+    font-size: 7.5pt; color: var(--gris); line-height: 1.45; margin: 2px auto 0;
+    max-width: 130mm; text-align: left;
+  }
+  .pie-figura strong { color: var(--tinta); }
+
   footer.principal {
     margin-top: 12px; padding-top: 10px; border-top: 2px solid var(--tinta);
     font-size: 7.5pt; color: var(--gris); line-height: 1.5;
@@ -1145,7 +1281,7 @@ export function generarHtmlInforme(datos: DatosInforme): string {
     Cada valor lleva de dónde salió y, si se corrigió a mano, lo que ponía el
     informe. Un dato que falta se dice como ausente: nunca se rellena con un cero.
   </p>
-  ${ojos.map((l) => seccionEntradas(caso, ojoDe(caso, l))).join('')}
+  ${ojos.map((l) => `${figuraBiometrica(ojoDe(caso, l))}${seccionEntradas(caso, ojoDe(caso, l))}`).join('')}
   <div class="pie">
     «Del informe» lo leyó el programa del documento. «Derivado del informe» lo
     calculó a partir de otros datos suyos, y lleva la cuenta escrita. «Aportado» y
