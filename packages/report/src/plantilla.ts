@@ -612,6 +612,218 @@ function bandaDeLente(datos: DatosInforme): string {
   </div>`
 }
 
+/**
+ * El diagrama del eje. **Con los datos que ya había.**
+ *
+ * Las calculadoras de verdad lo traen —el Pentacam, EVO, Barrett—: un círculo con
+ * la escala de grados y el eje al que va la lente. No es adorno: es lo que se mira
+ * en quirófano para orientar la lente, y un informe comparativo sin él obliga a
+ * volver a las webs.
+ *
+ * Se dibuja con cuatro cosas que el caso YA tiene, y ninguna hay que inventar:
+ *
+ *   eje de la LIO          lo devuelve cada calculadora en su resultado
+ *   meridiano curvo        el eje de la K mayor (K2 @ 81° en el informe de arriba)
+ *   astigmatismo corneal   la diferencia entre las dos K
+ *   eje de la incisión     campo del caso, y el SIA con él
+ *
+ * ⚠️ **Se dibuja UN eje por calculadora, no «el» eje.** Si dos webs proponen ejes
+ * distintos, salen las dos líneas con su color y su leyenda. Dibujar una sola
+ * obligaría a elegir cuál, que es justo lo que este producto no hace.
+ *
+ * ⚠️ **El astigmatismo corneal se calcula aquí y NO se guarda como medida.** Es
+ * aritmética sobre dos medidas confirmadas y se marca como derivado en su leyenda.
+ * Convertirlo en un campo del modelo biométrico sería otra cosa —haría falta
+ * decidirlo con perfil de dispositivo, como se hizo con la ACD— y no se hace de
+ * tapadillo desde la capa de presentación.
+ */
+
+/** Color de cada calculadora en el diagrama y su leyenda. */
+const COLOR_CALCULADORA: Readonly<Record<Calculadora, string>> = {
+  EVO_TORIC: '#0B5F68',
+  BARRETT_TORIC: '#1B4C86',
+  KANE: '#5B3B8A',
+}
+
+/**
+ * Los dos extremos de un eje dentro del círculo.
+ *
+ * Notación oftalmológica, la misma del dibujo de las webs: 0° a la derecha, 90°
+ * arriba, y creciendo en sentido antihorario. En SVG la Y crece hacia abajo, así
+ * que el seno va restado.
+ */
+export function extremosDelEje(
+  grados: number,
+  cx: number,
+  cy: number,
+  r: number,
+): { x1: number; y1: number; x2: number; y2: number } {
+  const rad = (grados * Math.PI) / 180
+  const dx = Math.cos(rad) * r
+  const dy = Math.sin(rad) * r
+  return { x1: cx + dx, y1: cy - dy, x2: cx - dx, y2: cy + dy }
+}
+
+/** La K más curva del ojo, con su eje. Sin suponer que K2 sea siempre la mayor. */
+export function meridianoCurvo(
+  ojo: OjoBiometrico,
+): { readonly poder: number; readonly eje?: number; readonly astigmatismo: number } | undefined {
+  const k1 = ojo.medidas.K1
+  const k2 = ojo.medidas.K2
+  if (!k1 || !k2) return undefined
+  // No se da por hecho el convenio K1 plana / K2 curva: se mira cuál es mayor.
+  const curva = k2.valor >= k1.valor ? k2 : k1
+  const ejeCurva = k2.valor >= k1.valor ? ojo.medidas.K2_EJE : ojo.medidas.K1_EJE
+  return {
+    poder: curva.valor,
+    ...(ejeCurva ? { eje: ejeCurva.valor } : {}),
+    astigmatismo: Math.abs(k2.valor - k1.valor),
+  }
+}
+
+/** Distancia entre dos ejes entendidos como orientación (0–90). */
+function separacion(a: number, b: number): number {
+  const bruta = Math.abs(a - b) % 180
+  return bruta > 90 ? 180 - bruta : bruta
+}
+
+export function diagramaDeEje(c: Comparativa, ojo: OjoBiometrico | undefined): string {
+  const ejes = c.celdas
+    .filter((x) => x.eje.estado === 'VALOR')
+    .map((x) => ({
+      nombre: x.nombre,
+      color: COLOR_CALCULADORA[x.calculadora],
+      grados: (x.eje as { estado: 'VALOR'; valor: number }).valor,
+      modelo: x.designacion.estado === 'VALOR' ? x.designacion.valor : undefined,
+    }))
+  const curvo = ojo ? meridianoCurvo(ojo) : undefined
+  const incision = ojo?.medidas.EJE_INCISION
+  const sia = ojo?.medidas.SIA
+
+  // Sin ningún eje que dibujar no se pinta un círculo vacío: se dice que no lo hay.
+  if (ejes.length === 0 && curvo?.eje === undefined) {
+    return `<section class="diagrama">
+      <h2>Eje de la lente · ${esc(nombreLateralidad(c.ojo))}</h2>
+      <p class="nota">Ninguna calculadora ha devuelto un eje para este ojo, y el informe no trae el eje de las queratometrías. No hay nada que dibujar.</p>
+    </section>`
+  }
+
+  const cx = 76
+  const cy = 76
+  const r = 62
+
+  // La escala de grados, cada 15°. Las marcas de 45 en 45 van rotuladas.
+  const marcas: string[] = []
+  for (let g = 0; g < 180; g += 15) {
+    const e = extremosDelEje(g, cx, cy, r)
+    const dentro = extremosDelEje(g, cx, cy, r - (g % 45 === 0 ? 7 : 4))
+    marcas.push(
+      `<line x1="${e.x1.toFixed(1)}" y1="${e.y1.toFixed(1)}" x2="${dentro.x1.toFixed(1)}" y2="${dentro.y1.toFixed(1)}" stroke="#C2CBD3" stroke-width="1"></line>`,
+      `<line x1="${e.x2.toFixed(1)}" y1="${e.y2.toFixed(1)}" x2="${dentro.x2.toFixed(1)}" y2="${dentro.y2.toFixed(1)}" stroke="#C2CBD3" stroke-width="1"></line>`,
+    )
+  }
+  const rotulos = [0, 45, 90, 135, 180, 225, 270, 315]
+    .map((g) => {
+      const p = extremosDelEje(g, cx, cy, r + 9)
+      return `<text x="${p.x1.toFixed(1)}" y="${(p.y1 + 2.4).toFixed(1)}" text-anchor="middle" font-size="6.4" fill="#8B97A2" font-family="Consolas, ui-monospace, monospace">${g}</text>`
+    })
+    .join('')
+
+  const lineaCurvo =
+    curvo?.eje === undefined
+      ? ''
+      : (() => {
+          const e = extremosDelEje(curvo.eje, cx, cy, r - 3)
+          return `<line x1="${e.x1.toFixed(1)}" y1="${e.y1.toFixed(1)}" x2="${e.x2.toFixed(1)}" y2="${e.y2.toFixed(1)}" stroke="#8B97A2" stroke-width="1.4" stroke-dasharray="5 4"></line>`
+        })()
+
+  const lineaIncision =
+    incision === undefined
+      ? ''
+      : (() => {
+          const p = extremosDelEje(incision.valor, cx, cy, r)
+          const dentro = extremosDelEje(incision.valor, cx, cy, r - 11)
+          return `<line x1="${p.x1.toFixed(1)}" y1="${p.y1.toFixed(1)}" x2="${dentro.x1.toFixed(1)}" y2="${dentro.y1.toFixed(1)}" stroke="#0F1A24" stroke-width="3.2" stroke-linecap="round"></line>`
+        })()
+
+  // Un eje por calculadora. Con dos que coincidan, la segunda va discontinua para
+  // que se vea que hay dos y no una.
+  const lineasEjes = ejes
+    .map((ej, i) => {
+      const e = extremosDelEje(ej.grados, cx, cy, r - 8)
+      const guion = i === 0 ? '' : ' stroke-dasharray="7 6"'
+      return `<line x1="${e.x1.toFixed(1)}" y1="${e.y1.toFixed(1)}" x2="${e.x2.toFixed(1)}" y2="${e.y2.toFixed(1)}" stroke="${ej.color}" stroke-width="3"${guion} stroke-linecap="round" opacity="0.9"></line>`
+    })
+    .join('')
+
+  const iguales = ejes.length >= 2 && ejes.every((e) => separacion(e.grados, ejes[0]!.grados) < 0.5)
+  const centro =
+    ejes.length === 0
+      ? ''
+      : iguales || ejes.length === 1
+        ? `<text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="13" font-weight="600" fill="#0F1A24" font-family="Consolas, ui-monospace, monospace">${ejes[0]!.grados.toFixed(0)}°</text>`
+        : ''
+
+  const leyenda = [
+    ...ejes.map(
+      (ej) =>
+        `<div><span class="clave" style="background:${ej.color}"></span>Eje LIO ${esc(ej.nombre)} ${ej.grados.toFixed(0)}°${ej.modelo ? ` · ${esc(ej.modelo)}` : ''}</div>`,
+    ),
+    curvo?.eje === undefined
+      ? ''
+      : `<div><span class="clave discontinua"></span>Meridiano corneal curvo ${curvo.eje.toFixed(0)}° · ${curvo.poder.toFixed(2)} D</div>`,
+    incision === undefined
+      ? ''
+      : `<div><span class="clave" style="background:#0F1A24"></span>Incisión ${incision.valor.toFixed(0)}°${sia ? ` · SIA ${sia.valor.toFixed(2)} D` : ''}</div>`,
+  ]
+    .filter(Boolean)
+    .join('')
+
+  const apuntes: string[] = []
+  if (curvo) {
+    apuntes.push(
+      `Astigmatismo corneal <strong>${curvo.astigmatismo.toFixed(2)} D</strong> <span class="marca marca-derivado">Derivado</span>, de la diferencia entre las dos queratometrías confirmadas.`,
+    )
+  }
+  if (curvo?.eje !== undefined && ejes.length > 0) {
+    const seps = ejes.map((e) => ({
+      nombre: e.nombre,
+      d: separacion(e.grados, curvo.eje as number),
+    }))
+    apuntes.push(
+      `Separación entre el meridiano curvo y el eje de la lente: ${seps
+        .map((s) => `${esc(s.nombre)} ${s.d.toFixed(0)}°`)
+        .join(' · ')}.`,
+    )
+  }
+  if (ejes.length >= 2 && !iguales) {
+    apuntes.push(
+      `<strong>Las calculadoras no proponen el mismo eje.</strong> Se dibujan los ${ejes.length}; elegir uno no le corresponde a este programa.`,
+    )
+  }
+
+  return `<section class="diagrama">
+    <h2>Eje de la lente · ${esc(nombreLateralidad(c.ojo))}</h2>
+    <div class="diagrama-caja">
+      <svg width="170" height="170" viewBox="0 0 152 152" role="img" aria-label="Diagrama del eje de la lente, ojo ${esc(nombreLateralidad(c.ojo))}">
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="#FBFDFE" stroke="#DDE4EA" stroke-width="1"></circle>
+        <circle cx="${cx}" cy="${cy}" r="${r - 20}" fill="none" stroke="#EDF1F4" stroke-width="1"></circle>
+        ${marcas.join('')}
+        ${rotulos}
+        ${lineaCurvo}
+        ${lineasEjes}
+        ${lineaIncision}
+        <circle cx="${cx}" cy="${cy}" r="2.6" fill="#0F1A24"></circle>
+        ${centro}
+      </svg>
+      <div class="diagrama-lado">
+        <div class="leyenda">${leyenda}</div>
+        ${apuntes.length > 0 ? `<div class="apuntes">${apuntes.map((a) => `<div>${a}</div>`).join('')}</div>` : ''}
+      </div>
+    </div>
+  </section>`
+}
+
 const ESTILOS = `
   /*
    * El sistema visual del informe, traído del rediseño hecho en Claude Design
@@ -816,6 +1028,24 @@ const ESTILOS = `
     font-size: 8pt; font-weight: 700; letter-spacing: 0.04em; margin-bottom: 3px;
   }
   .fuente { font-size: 8pt; color: var(--gris); margin: 0 0 6px; }
+  section.diagrama { margin-top: 14px; }
+  .diagrama-caja { display: flex; gap: 22px; align-items: center; }
+  .diagrama-lado { flex: 1; }
+  .leyenda { font-size: 8pt; color: var(--gris); line-height: 1.75; }
+  .leyenda .clave {
+    display: inline-block; width: 16px; height: 3px; vertical-align: middle;
+    margin-right: 6px; border-radius: 2px;
+  }
+  .leyenda .clave.discontinua {
+    height: 0; border-top: 1.5px dashed var(--gris-claro); background: none;
+  }
+  .apuntes {
+    margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--linea-suave);
+    font-size: 8pt; color: var(--gris); line-height: 1.5;
+  }
+  .apuntes > div { margin-top: 3px; }
+  .apuntes strong { color: var(--tinta); }
+
   footer.principal {
     margin-top: 12px; padding-top: 10px; border-top: 2px solid var(--tinta);
     font-size: 7.5pt; color: var(--gris); line-height: 1.5;
@@ -895,6 +1125,7 @@ export function generarHtmlInforme(datos: DatosInforme): string {
     <div class="titulo">${esc(c.ojo)} · ${esc(nombreLateralidad(c.ojo))}<span class="apunte">Resultado por calculadora</span></div>
     ${ref(` · ${c.ojo}`)}
   </div>
+  ${diagramaDeEje(c, ojoDe(caso, c.ojo))}
   ${tablaComparativa(c)}
   <div class="pie">
     Los valores son los devueltos por cada web, sin transformación. Una casilla con
