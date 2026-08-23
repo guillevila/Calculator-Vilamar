@@ -5,7 +5,7 @@
  * dicen en qué coinciden y en qué no. No dicen qué implantar, y no lo dirán.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 
 import type {
@@ -14,10 +14,13 @@ import type {
   CeldaComparativa,
   DatoComparativo,
   Lateralidad,
+  LenteDeCatalogo,
 } from '@vilamar/domain'
 import {
   CALCULADORAS,
   compararOjo,
+  describirLenteDeCatalogo,
+  lentesQueCubren,
   nombreLateralidad,
   ojosDelCaso,
   resultadoDe,
@@ -124,6 +127,50 @@ function CeldaTexto({
   )
 }
 
+/**
+ * Qué lentes del catálogo propio cubren la potencia de esta columna.
+ *
+ * Es un cruce contra inventario, no una elección: si varias cubren la misma
+ * potencia, se enseñan todas juntas y sin distinguir ninguna — la misma regla
+ * que ya rige el resto de esta tabla (`comparar.ts`, D14).
+ */
+function CeldaCatalogo({
+  celda,
+  catalogo,
+}: {
+  celda: CeldaComparativa
+  catalogo: readonly LenteDeCatalogo[]
+}): JSX.Element {
+  if (catalogo.length === 0) {
+    return (
+      <td className="na" title="Todavía no has añadido ninguna lente en Ajustes">
+        —
+      </td>
+    )
+  }
+  if (celda.esfera.estado !== 'VALOR') {
+    return (
+      <td className="na" title={`No hay una potencia de ${celda.nombre} con la que cruzar el catálogo`}>
+        —
+      </td>
+    )
+  }
+  const cilindro = celda.cilindro.estado === 'VALOR' ? celda.cilindro.valor : undefined
+  const coinciden = lentesQueCubren(catalogo, celda.esfera.valor, cilindro)
+  if (coinciden.length === 0) {
+    return (
+      <td className="na" title="Ninguna lente de tu catálogo cubre esta potencia">
+        Ninguna
+      </td>
+    )
+  }
+  return (
+    <td title="Lentes de tu catálogo que cubren esta potencia. No se elige ninguna por ti.">
+      {coinciden.map(describirLenteDeCatalogo).join(' · ')}
+    </td>
+  )
+}
+
 /** Las columnas del detalle. Solo se enseña la que alguna opción trae de verdad. */
 const COLUMNAS_DE_OPCION = [
   { clave: 'esfera', titulo: 'Potencia LIO', sufijo: ' D', decimales: 2 },
@@ -210,6 +257,13 @@ export function PanelResultados({
   const [pdf, setPdf] = useState<string | null>(null)
   const [generando, setGenerando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [catalogo, setCatalogo] = useState<readonly LenteDeCatalogo[]>([])
+
+  useEffect(() => {
+    void api()
+      .catalogoLentes()
+      .then(setCatalogo)
+  }, [])
 
   const resultados: Partial<Record<Calculadora, ReturnType<typeof resultadoDe>>> = {}
   for (const c of CALCULADORAS) {
@@ -330,6 +384,12 @@ export function PanelResultados({
                   sufijo="°"
                   decimales={0}
                 />
+              ))}
+            </tr>
+            <tr>
+              <th>De tu catálogo</th>
+              {comparativa.celdas.map((c) => (
+                <CeldaCatalogo key={c.calculadora} celda={c} catalogo={catalogo} />
               ))}
             </tr>
             <tr>

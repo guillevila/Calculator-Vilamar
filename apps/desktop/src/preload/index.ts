@@ -44,6 +44,11 @@ const api: ApiVilamar = {
   generarPdf: () => ipcRenderer.invoke(CANALES.generarPdf),
   abrirCarpetaInformes: () => ipcRenderer.invoke(CANALES.abrirCarpetaInformes),
 
+  catalogoLentes: () => ipcRenderer.invoke(CANALES.catalogoLentes),
+  guardarLenteEnCatalogo: (id, lente) =>
+    ipcRenderer.invoke(CANALES.guardarLenteEnCatalogo, id, lente),
+  borrarLenteDelCatalogo: (id) => ipcRenderer.invoke(CANALES.borrarLenteDelCatalogo, id),
+
   alProgresar: (escucha) => {
     const manejador = (_e: unknown, estado: Parameters<typeof escucha>[0]): void => escucha(estado)
     ipcRenderer.on(CANALES.progreso, manejador)

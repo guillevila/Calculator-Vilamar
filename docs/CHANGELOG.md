@@ -4,6 +4,34 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.0] — 23/08/2026
+
+Catálogo de lentes propio: qué tienes tú, no solo qué dicen las tres webs.
+
+### Añadido
+
+- **Ajustes → «Tu catálogo de lentes».** Cada lente guarda su modelo, si es
+  tórica, el rango de esfera (y de cilindro, en las tóricas) y **una
+  constante A por calculadora** — Kane, EVO y Barrett usan fórmulas
+  distintas, así que una lente puede tener tres constantes válidas y
+  distintas a la vez. Ver `packages/domain/src/modelo/catalogo-lentes.ts`.
+- **Pantalla de Resultados: fila «De tu catálogo».** Por cada calculadora,
+  cruza la potencia obtenida contra el catálogo y dice qué lentes la cubren.
+  Es un filtro por rango, no una elección: si varias lentes cubren la misma
+  potencia, se enseñan todas y en el mismo orden del catálogo — nunca se
+  destaca ninguna. Concreta D14 (compara, no recomienda) en el inventario
+  propio; ver SYSTEM_VISION.md D37.
+- El cilindro de una lente tórica se guarda **siempre en plano de la LIO**,
+  nunca en plano corneal — las fichas de fabricante suelen traer las dos
+  escalas y no son intercambiables. Ver el log de lecciones aprendidas
+  (23/08/2026).
+
+### Cómo se guarda
+
+Un único fichero, `catalogo-lentes.json`, en la carpeta de datos de la
+aplicación — igual que los casos, nunca en el repositorio. No es un dato
+clínico de paciente: es el inventario del cirujano.
+
 ## [1.1.2] — 13/08/2026
 
 «3 opciones» repetido cinco veces no decía nada. Ahora una fila las nombra.

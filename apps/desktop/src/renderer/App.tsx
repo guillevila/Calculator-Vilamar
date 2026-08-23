@@ -21,6 +21,7 @@ import { PanelRevision } from './componentes/PanelRevision.js'
 import { PanelCalculo } from './componentes/PanelCalculo.js'
 import { PanelResultados } from './componentes/PanelResultados.js'
 import { Avisos } from './componentes/Avisos.js'
+import { Ajustes } from './componentes/Ajustes.js'
 
 type Paso = 'INICIO' | 'CARGANDO' | 'REVISION' | 'CALCULANDO' | 'RESULTADOS'
 
@@ -34,6 +35,7 @@ export function App(): JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [ojoActivo, setOjoActivo] = useState<Lateralidad>('OD')
   const [ocupado, setOcupado] = useState(false)
+  const [ajustesAbiertos, setAjustesAbiertos] = useState(false)
 
   const disponible = hayApi()
 
@@ -222,6 +224,9 @@ export function App(): JSX.Element {
         </div>
         <div className="fila">
           {caso && <span className="caso">Caso {caso.codigo}</span>}
+          <button onClick={() => setAjustesAbiertos(true)} disabled={ocupado}>
+            Ajustes
+          </button>
           <button onClick={() => void nuevoCalculo()} disabled={ocupado}>
             Nuevo cálculo
           </button>
@@ -251,13 +256,15 @@ export function App(): JSX.Element {
 
       <main className="contenido">
         <div className="centrado">
-          {error && (
+          {ajustesAbiertos && <Ajustes onCerrar={() => setAjustesAbiertos(false)} />}
+
+          {error && !ajustesAbiertos && (
             <div className="aviso error" role="alert">
               <strong>No se ha podido continuar.</strong> {error}
             </div>
           )}
 
-          {paso === 'INICIO' && (
+          {!ajustesAbiertos && paso === 'INICIO' && (
             <ZonaSoltar
               onArchivos={(a) => void cargarArchivos(a)}
               onElegir={() => void elegirYcargar()}
@@ -266,7 +273,7 @@ export function App(): JSX.Element {
             />
           )}
 
-          {paso === 'CARGANDO' && (
+          {!ajustesAbiertos && paso === 'CARGANDO' && (
             <div className="tarjeta">
               <div className="cargando">
                 Leyendo el informe…
@@ -278,7 +285,7 @@ export function App(): JSX.Element {
             </div>
           )}
 
-          {paso === 'REVISION' && caso && (
+          {!ajustesAbiertos && paso === 'REVISION' && caso && (
             <>
               <Avisos resumenes={resumenes} />
               <PanelRevision
@@ -295,7 +302,7 @@ export function App(): JSX.Element {
             </>
           )}
 
-          {paso === 'CALCULANDO' && caso && (
+          {!ajustesAbiertos && paso === 'CALCULANDO' && caso && (
             <PanelCalculo
               caso={caso}
               ojo={ojoActivo}
@@ -307,7 +314,7 @@ export function App(): JSX.Element {
             />
           )}
 
-          {paso === 'RESULTADOS' && caso && (
+          {!ajustesAbiertos && paso === 'RESULTADOS' && caso && (
             <PanelResultados
               caso={caso}
               ojoActivo={ojoActivo}

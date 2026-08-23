@@ -24,6 +24,7 @@ import { ProveedorDocumentos } from './extraccion/proveedor.js'
 import { crearLectorVision } from './extraccion/vision-claude.js'
 import { cargarEnv } from './ajustes.js'
 import { ServicioCasos } from './servicio-casos.js'
+import { ServicioCatalogo } from './servicio-catalogo.js'
 
 const carpetaActual = join(fileURLToPath(import.meta.url), '..')
 
@@ -249,6 +250,10 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
     return servicio
   }
 
+  // Independiente del caso en curso: el catálogo existe aunque no haya ningún
+  // cálculo abierto, así que no pasa por `ServicioCasos` ni por `s()`.
+  const catalogo = new ServicioCatalogo(carpetas)
+
   ipcMain.handle(CANALES.version, () => version)
   ipcMain.handle(CANALES.casoNuevo, () => s().nuevo())
   ipcMain.handle(CANALES.casoActual, () => s().obtener())
@@ -294,6 +299,10 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   ipcMain.handle(CANALES.cancelarCalculo, () => s().cancelarCalculo())
   ipcMain.handle(CANALES.generarPdf, () => s().generarPdf())
   ipcMain.handle(CANALES.abrirCarpetaInformes, () => shell.openPath(carpetas.informes))
+
+  ipcMain.handle(CANALES.catalogoLentes, () => catalogo.listar())
+  ipcMain.handle(CANALES.guardarLenteEnCatalogo, (_e, id, lente) => catalogo.guardar(id, lente))
+  ipcMain.handle(CANALES.borrarLenteDelCatalogo, (_e, id) => catalogo.borrar(id))
 }
 
 instalarRedDeSeguridad()

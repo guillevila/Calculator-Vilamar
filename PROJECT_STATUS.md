@@ -414,6 +414,15 @@ Ampliar ×3 **empeora** —apareció un 24.97 donde ponía 24.07—, así que ha
 
 ## 3. ⚠️ Qué NO funciona todavía
 
+- **Catálogo de lentes propio: construido y probado con datos sintéticos, sin
+  usar todavía con un inventario real.** Ajustes → «Tu catálogo de lentes»
+  guarda modelo, constante A y rango de esfera/cilindro; los resultados
+  cruzan la potencia calculada contra ese catálogo y dicen qué lentes lo
+  cubren — nunca cuál implantar (concreta D14, ver SYSTEM_VISION.md D37). Los
+  13 tests de dominio y los 4 de interfaz (añadir, editar, borrar, tórica sin
+  rango de cilindro) pasan, y se ha visto la pantalla funcionando de verdad.
+  Lo que falta: que el dueño del proyecto meta su inventario real y compruebe
+  que el cruce con los resultados de Kane/EVO/Barrett dice lo que espera.
 - **DOCUMENT EXTRACTION NOT YET VALIDATED ON REAL REPORTS.** Lo repito en inglés
   porque es la frase que pidió el pliego y porque es la limitación que más
   importa. Los parsers funcionan sobre textos sintéticos. Con un informe real

@@ -833,3 +833,33 @@ lo dice la web» no era ejecutable.
 **Lo que confirmó que la lección va en serio.** Se rompió la regla a propósito de
 tres formas —la primera, la del medio, la de refracción más cercana a cero— y las
 tres las caza un test. La guarda que nadie ha visto fallar no está demostrada.
+
+---
+
+## 23/08/2026 — El cilindro de una lente tórica tiene dos escalas, y no son intercambiables
+
+**Qué pasó.** Al añadir la primera lente tórica al catálogo propio (D37), la ficha
+del fabricante (Bausch + Lomb enVista ENVY TORIC) traía **dos columnas de potencia
+cilíndrica**, con números distintos para la misma lente: «plano de la LIO» (+0,90 a
++5,75 D) y «plano corneal» (+0,64 a +4,03 D). Eran claramente escalas distintas —
+0,90 en una fila, 0,64 en la fila de al lado— y meter la equivocada habría hecho que
+`lentesQueCubren` dijera «cubre» sobre un cilindro que en realidad no cubre.
+
+**Decisión del dueño del proyecto:** el catálogo usa **siempre el plano de la LIO**,
+nunca el plano corneal. Es la escala que usan los fabricantes para nombrar sus
+modelos (T2, T3, T4…) y la que aparece primero en la mayoría de fichas.
+
+**Lección:**
+
+1. **Cuando una ficha de lente dé el cilindro en más de una escala, parar y
+   preguntar cuál usar — no asumir la primera que aparece.** Los números se parecen
+   lo suficiente como para no notar el error a simple vista.
+2. **La regla ya está decidida y no hay que volver a preguntarla**: plano de la LIO,
+   siempre, para toda lente tórica que se añada al catálogo (D37 en
+   `SYSTEM_VISION.md`).
+3. Si algún día hace falta comparar contra un dato en plano corneal —por ejemplo si
+   una calculadora empezara a devolver el cilindro en esa escala—, eso es una
+   conversión explícita que hay que escribir y probar, no una elección libre al
+   rellenar el catálogo.
+
+**Contexto:** Añadir o editar cualquier lente tórica al catálogo propio.

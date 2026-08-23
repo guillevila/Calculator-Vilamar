@@ -15,7 +15,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import type { Caso } from '@vilamar/domain'
+import type { Caso, LenteDeCatalogo } from '@vilamar/domain'
 
 export interface Carpetas {
   readonly raiz: string
@@ -111,4 +111,30 @@ export function leerDocumento(ruta: string): Uint8Array | null {
   } catch {
     return null
   }
+}
+
+/**
+ * El catálogo de lentes propio del usuario.
+ *
+ * Un único fichero, no una carpeta: a diferencia de los casos, es una lista
+ * pequeña que gestiona una persona a mano en Ajustes, no un registro que crece
+ * solo. No pertenece a ningún caso — vive junto a ellos, en la raíz de los
+ * datos de la aplicación.
+ */
+export function leerCatalogo(carpetas: Carpetas): readonly LenteDeCatalogo[] {
+  try {
+    return JSON.parse(
+      readFileSync(join(carpetas.raiz, 'catalogo-lentes.json'), 'utf8'),
+    ) as readonly LenteDeCatalogo[]
+  } catch {
+    return []
+  }
+}
+
+export function guardarCatalogo(carpetas: Carpetas, catalogo: readonly LenteDeCatalogo[]): void {
+  writeFileSync(
+    join(carpetas.raiz, 'catalogo-lentes.json'),
+    JSON.stringify(catalogo, null, 2),
+    'utf8',
+  )
 }
