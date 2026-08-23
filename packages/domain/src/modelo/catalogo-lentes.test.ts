@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  constanteDelCatalogoPara,
   describirLenteDeCatalogo,
   erroresDeLenteCatalogo,
   lentesQueCubren,
@@ -97,6 +98,26 @@ describe('erroresDeLenteCatalogo', () => {
     })
     expect(errores).toHaveLength(4)
   })
+
+  it('no exige rango de esfera: una lente puede añadirse solo para el desplegable', () => {
+    expect(
+      erroresDeLenteCatalogo({
+        modelo: 'B&L Envy',
+        constantesA: { EVO_TORIC: 119.24 },
+        torica: false,
+      }),
+    ).toEqual([])
+  })
+
+  it('sigue exigiendo el rango de cilindro en una tórica sin rango de esfera', () => {
+    expect(
+      erroresDeLenteCatalogo({
+        modelo: 'enVista ENVY TORIC',
+        constantesA: { EVO_TORIC: 119.24 },
+        torica: true,
+      }),
+    ).toEqual(['Una lente tórica necesita su rango de cilindro.'])
+  })
 })
 
 describe('describirLenteDeCatalogo', () => {
@@ -159,5 +180,49 @@ describe('lentesQueCubren', () => {
     const otraEsferica = lente({ id: 'otra', modelo: 'Akreos', rangoEsfera: { min: 10, max: 30 } })
     const resultado = lentesQueCubren([esferica, otraEsferica], 21.5)
     expect(resultado).toEqual([esferica, otraEsferica])
+  })
+
+  it('una lente sin rango de esfera no cubre nada — no se inventa un rango', () => {
+    const sinRango = lente({ id: 'sin-rango', modelo: 'B&L Envy', rangoEsfera: undefined })
+    expect(lentesQueCubren([sinRango], 21.5)).toEqual([])
+  })
+})
+
+describe('constanteDelCatalogoPara', () => {
+  const envy = lente({
+    id: 'envy',
+    modelo: 'enVista ENVY',
+    fabricante: 'Bausch & Lomb',
+    constantesA: { BARRETT_TORIC: 119.28, KANE: 119.33 },
+  })
+  const catalogo = [envy]
+
+  it('da la constante de la calculadora pedida, no la de otra', () => {
+    expect(
+      constanteDelCatalogoPara(catalogo, { fabricante: 'Bausch & Lomb', modelo: 'enVista ENVY' }, 'BARRETT_TORIC'),
+    ).toBe(119.28)
+    expect(
+      constanteDelCatalogoPara(catalogo, { fabricante: 'Bausch & Lomb', modelo: 'enVista ENVY' }, 'KANE'),
+    ).toBe(119.33)
+  })
+
+  it('no da nada si esa calculadora no tiene constante declarada para esa lente', () => {
+    expect(
+      constanteDelCatalogoPara(catalogo, { fabricante: 'Bausch & Lomb', modelo: 'enVista ENVY' }, 'EVO_TORIC'),
+    ).toBeUndefined()
+  })
+
+  it('no da nada si la lente no está en el catálogo', () => {
+    expect(constanteDelCatalogoPara(catalogo, { modelo: 'Otra lente' }, 'BARRETT_TORIC')).toBeUndefined()
+  })
+
+  it('no da nada si no hay ninguna lente elegida', () => {
+    expect(constanteDelCatalogoPara(catalogo, undefined, 'BARRETT_TORIC')).toBeUndefined()
+  })
+
+  it('empareja igual que emparejarLente: sin mayúsculas, sin puntuación de adorno', () => {
+    expect(
+      constanteDelCatalogoPara(catalogo, { fabricante: 'BAUSCH & LOMB', modelo: 'ENVISTA ENVY' }, 'KANE'),
+    ).toBe(119.33)
   })
 })

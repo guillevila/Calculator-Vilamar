@@ -29,6 +29,7 @@
 
 import type { Calculadora } from './calculadoras.js'
 import { fichaDe } from './calculadoras.js'
+import { claveLente } from './lente.js'
 
 /** Un intervalo cerrado: `min` y `max` incluidos. */
 export interface RangoPotencia {
@@ -41,23 +42,29 @@ export function rangoValido(r: RangoPotencia): boolean {
   return Number.isFinite(r.min) && Number.isFinite(r.max) && r.min <= r.max
 }
 
+/** Una constante A por cada calculadora que la publique. Ninguna es obligatoria por sí sola. */
+export type ConstantesPorCalculadora = Partial<Record<Calculadora, number>>
+
 /**
  * Una lente del inventario propio.
+ *
+ * `rangoEsfera` es OPCIONAL a propósito: hay lentes que se añaden solo para que
+ * aparezcan en el desplegable de elección y presten su constante A a Barrett y
+ * Kane, sin que se sepa (o se necesite todavía) qué rango de potencias cubren.
+ * Una lente sin rango sencillamente no participa en `lentesQueCubren` — no se
+ * inventa un rango para que participe.
  *
  * `rangoCilindro` solo existe en las tóricas: una lente esférica no tiene rango
  * de cilindro que declarar, y dejarlo vacío en vez de en `{0,0}` evita que un
  * cero se confunda con «cubre cilindro cero».
  */
-/** Una constante A por cada calculadora que la publique. Ninguna es obligatoria por sí sola. */
-export type ConstantesPorCalculadora = Partial<Record<Calculadora, number>>
-
 export interface LenteDeCatalogo {
   readonly id: string
   readonly modelo: string
   readonly fabricante?: string
   readonly constantesA: ConstantesPorCalculadora
   readonly torica: boolean
-  readonly rangoEsfera: RangoPotencia
+  readonly rangoEsfera?: RangoPotencia
   readonly rangoCilindro?: RangoPotencia
   readonly notas?: string
 }
@@ -93,7 +100,7 @@ export function erroresDeLenteCatalogo(l: LenteDeCatalogoEntrada): readonly stri
     }
   }
 
-  if (!rangoValido(l.rangoEsfera)) {
+  if (l.rangoEsfera && !rangoValido(l.rangoEsfera)) {
     errores.push('El rango de esfera no es válido: el mínimo no puede ser mayor que el máximo.')
   }
   if (l.torica) {
@@ -130,11 +137,38 @@ export function lentesQueCubren(
   cilindro?: number,
 ): readonly LenteDeCatalogo[] {
   return catalogo.filter((l) => {
+    // Sin rango de esfera declarado, no se sabe si cubre o no — y no cubrir
+    // por defecto es lo seguro. No es lo mismo que «no cubre»: simplemente no
+    // se puede saber todavía.
+    if (!l.rangoEsfera) return false
     if (!dentroDe(esfera, l.rangoEsfera)) return false
     if (cilindro === undefined) return true
     if (!l.torica || !l.rangoCilindro) return false
     return dentroDe(cilindro, l.rangoCilindro)
   })
+}
+
+/**
+ * La constante A que declara, en el catálogo, la lente elegida en el caso —
+ * para UNA calculadora en concreto.
+ *
+ * Es lo que permite que Barrett y Kane usen cada uno su propia constante para
+ * la misma lente, en vez de compartir un único número: se busca la lente por
+ * su nombre (la misma comparación que `emparejarLente`, sin aproximaciones) y
+ * se lee su entrada para esa calculadora. Si la lente no está en el catálogo,
+ * o no tiene declarada la constante de esa calculadora en concreto, no hay
+ * nada que sustituir — quien llama sigue con lo que ya tuviera.
+ */
+export function constanteDelCatalogoPara(
+  catalogo: Catalogo,
+  eleccion: { readonly fabricante?: string; readonly modelo: string } | undefined,
+  calculadora: Calculadora,
+): number | undefined {
+  if (!eleccion || eleccion.modelo.trim() === '') return undefined
+  const buscada = claveLente(eleccion)
+  if (buscada === '') return undefined
+  const encontrada = catalogo.find((l) => claveLente(l) === buscada)
+  return encontrada?.constantesA[calculadora]
 }
 
 /** Las constantes declaradas, en el orden fijo de `CALCULADORAS`, para no reordenarlas al azar. */

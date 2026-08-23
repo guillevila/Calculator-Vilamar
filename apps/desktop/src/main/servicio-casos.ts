@@ -59,7 +59,7 @@ import type { Browser } from 'playwright'
 
 import type { ArchivoEntrante, EstadoCalculo, ResumenExtraccion } from '../compartido/ipc.js'
 import type { Carpetas } from './almacen.js'
-import { guardarCaso, guardarDocumento, nuevoId, siguienteCodigo } from './almacen.js'
+import { guardarCaso, guardarDocumento, leerCatalogo, nuevoId, siguienteCodigo } from './almacen.js'
 import type { Diagnosticador } from './diagnostico.js'
 
 export interface DependenciasServicio {
@@ -643,6 +643,11 @@ export class ServicioCasos {
         caso,
         tareas,
         navegador,
+        // Barrett y Kane usan, cada uno, su propia constante para la lente
+        // elegida si está en el catálogo (ver orquestador.ts). Se lee del
+        // disco en cada cálculo porque el usuario puede haberlo editado en
+        // Ajustes entre un caso y el siguiente.
+        catalogo: leerCatalogo(this.dep.carpetas),
         progreso: (evento: EventoProgreso) =>
           this.dep.emitirProgreso({
             calculadora: evento.calculadora,

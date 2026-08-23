@@ -12,9 +12,12 @@
  *    `#txtK1`…). No hay iframes, ni login, ni comprobación anti-robot.
  *  - Exige un nombre de paciente. Se le manda el CÓDIGO LOCAL del caso.
  *    El identificador de paciente y el cirujano se quedan VACÍOS.
- *  - Elegir el modelo de lente puede sobrescribir la constante A. Por eso se
- *    elige el modelo PRIMERO y la constante DESPUÉS, y al terminar se lee lo
- *    que la web dice haber usado.
+ *  - Elegir el modelo de lente RELLENA SOLA la constante A — comprobado en
+ *    vivo, «B&L Envy» pone 119.24 sin que se le mande nada. Si EVO reconoce
+ *    el modelo, esa es SU constante y no se pisa con la del caso: es mejor
+ *    que cualquier número que pudiéramos darle nosotros. Solo se manda la
+ *    constante del caso cuando el modelo no está en su lista. Al terminar se
+ *    lee lo que la web dice haber usado, sea cual sea el camino.
  *  - Tras calcular, la web repite las entradas en pantalla (`#Labelpara1` y
  *    `#Labelpara2`). Se leen y se guardan: es lo que hace auditable el informe,
  *    porque se apunta lo que ella dice haber recibido, no lo que creemos
@@ -149,16 +152,23 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
 
     await pagina.check(entradas.ojo === 'OD' ? SEL.ojoDerecho : SEL.ojoIzquierdo)
 
-    // El modelo va ANTES que la constante A: elegirlo puede sobrescribirla.
+    // El modelo va ANTES que la constante A. Si EVO reconoce el modelo,
+    // RELLENA SOLA su propia constante para esa lente — comprobado en vivo:
+    // «B&L Envy» pone 119.24 sin que se le mande nada. Esa constante es la
+    // que EVO publica para su fórmula, y es mejor que cualquier número que
+    // pudiéramos mandarle nosotros, así que si el modelo se ha encontrado NO
+    // se pisa: se deja que sea EVO quien decida. Solo se manda la constante
+    // del caso cuando EVO no tiene esa lente en su lista, que es la única
+    // situación en la que no tiene ninguna propia que ofrecer.
+    let modeloEncontrado = false
     if (entradas.modeloLente) {
-      const elegido = await this.elegirModelo(pagina, entradas.modeloLente)
-      if (!elegido) {
-        // No es motivo para abortar: EVO calcula igual con la constante A.
-        // Queda dicho en el resultado.
-      }
+      modeloEncontrado = await this.elegirModelo(pagina, entradas.modeloLente)
+      // No encontrarlo no es motivo para abortar: EVO calcula igual con la
+      // constante A que se le mande a continuación. Queda dicho en el resultado.
     }
 
     for (const [campo, config] of Object.entries(CAMPOS)) {
+      if (campo === 'CONSTANTE_A' && modeloEncontrado) continue
       const valor = entradas.valores[campo as keyof typeof entradas.valores]
       // Un campo que no está NO se rellena. No se manda un 0 en su lugar.
       if (valor === undefined) continue

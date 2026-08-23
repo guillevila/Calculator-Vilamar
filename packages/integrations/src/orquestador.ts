@@ -39,8 +39,16 @@
  *  - El usuario tiene que poder VER qué está pasando.
  */
 
-import type { Calculadora, Caso, Lateralidad, ResultadoCalculadora } from '@vilamar/domain'
+import type {
+  Calculadora,
+  Caso,
+  Catalogo,
+  EntradasCalculadora,
+  Lateralidad,
+  ResultadoCalculadora,
+} from '@vilamar/domain'
 import {
+  constanteDelCatalogoPara,
   explicarBloqueo,
   fichaDe,
   ojosDelCaso,
@@ -147,6 +155,8 @@ export interface OpcionesCaso {
   readonly tareas?: readonly TareaCalculo[]
   readonly calculadoras?: readonly Calculadora[]
   readonly ojos?: readonly Lateralidad[]
+  /** El catálogo de lentes propio. Ver `OpcionesUnaCasilla.catalogo`. */
+  readonly catalogo?: Catalogo
   readonly navegador: Browser
   /**
    * Contexto reutilizable. Si se pasa, las sesiones y las cookies se conservan
@@ -211,6 +221,7 @@ export async function ejecutarCaso(
         ahora: opciones.ahora,
         guardarDiagnostico: opciones.guardarDiagnostico,
         cancelado: opciones.cancelado,
+        catalogo: opciones.catalogo,
       })
 
       resultados.push(resultado)
@@ -231,6 +242,12 @@ export interface OpcionesUnaCasilla {
   readonly ahora: () => string
   readonly guardarDiagnostico: (d: DatosDiagnostico) => Promise<string>
   readonly cancelado: () => boolean
+  /**
+   * El catálogo de lentes propio, para que Barrett y Kane usen cada uno su
+   * propia constante para la lente elegida. Opcional porque el cálculo tiene
+   * que poder seguir funcionando sin catálogo, exactamente como antes.
+   */
+  readonly catalogo?: Catalogo
 }
 
 /**
@@ -252,6 +269,29 @@ export interface OpcionesUnaCasilla {
  * Presentar un selector roto como si faltara un dato clínico mandaría al usuario
  * a buscar en su informe un número que ya tiene.
  */
+
+/**
+ * Cambia la constante A por la del catálogo, si la lente elegida está ahí y
+ * trae una para esta calculadora en concreto. Si no, devuelve `entradas` tal
+ * cual: la constante compartida del ojo sigue siendo el valor por defecto.
+ */
+function sustituirConstanteDelCatalogo(
+  entradas: EntradasCalculadora,
+  caso: Caso,
+  calculadora: Calculadora,
+  catalogo: Catalogo | undefined,
+): EntradasCalculadora {
+  const modelo = caso.lente?.modelo
+  if (!catalogo || !modelo) return entradas
+  const constante = constanteDelCatalogoPara(
+    catalogo,
+    { fabricante: caso.lente?.fabricante, modelo },
+    calculadora,
+  )
+  if (constante === undefined) return entradas
+  return { ...entradas, valores: { ...entradas.valores, CONSTANTE_A: constante } }
+}
+
 export async function ejecutarUnaCalculadoraParaUnOjo(
   adaptador: AdaptadorCalculadora,
   contexto: BrowserContext,
@@ -272,8 +312,19 @@ export async function ejecutarUnaCalculadoraParaUnOjo(
     }
   }
 
+  // 1b — Barrett y Kane: si la lente elegida está en el catálogo propio y trae
+  // su propia constante para ESTA calculadora, se usa esa en vez de la
+  // constante compartida del ojo. EVO queda fuera a propósito: reconoce el
+  // modelo por su cuenta y rellena SU constante, y es mejor que la nuestra
+  // (ver evo.ts). Sin esto, un único número compartido no podría ser a la vez
+  // 119.15 para Barrett y 119.33 para Kane en la misma lente.
+  const entradas =
+    adaptador.calculadora === 'EVO_TORIC'
+      ? preparacion.entradas
+      : sustituirConstanteDelCatalogo(preparacion.entradas, caso, adaptador.calculadora, opciones.catalogo)
+
   // 2 — Comprobaciones propias de esa web.
-  const problemas = adaptador.validarEntradas(preparacion.entradas)
+  const problemas = adaptador.validarEntradas(entradas)
   if (problemas.length > 0) {
     return resultadoVacio(
       adaptador.calculadora,
@@ -288,7 +339,7 @@ export async function ejecutarUnaCalculadoraParaUnOjo(
   try {
     const resultado = await adaptador.ejecutar({
       contexto,
-      entradas: preparacion.entradas,
+      entradas,
       progreso: opciones.progreso,
       ahora,
       guardarDiagnostico: opciones.guardarDiagnostico,

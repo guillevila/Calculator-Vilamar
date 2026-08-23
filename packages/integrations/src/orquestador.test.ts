@@ -9,7 +9,13 @@
 
 import { describe, expect, it, vi } from 'vitest'
 
-import type { Calculadora, Caso, EntradasCalculadora, ResultadoCalculadora } from '@vilamar/domain'
+import type {
+  Calculadora,
+  Caso,
+  Catalogo,
+  EntradasCalculadora,
+  ResultadoCalculadora,
+} from '@vilamar/domain'
 import {
   casoNuevo,
   confirmar,
@@ -135,6 +141,7 @@ interface Escenario {
   readonly adaptadores: Record<Calculadora, AdaptadorCalculadora>
   readonly caso?: Caso
   readonly calculadoras?: readonly Calculadora[]
+  readonly catalogo?: Catalogo
 }
 
 async function ejecutar(escenario: Escenario) {
@@ -144,6 +151,7 @@ async function ejecutar(escenario: Escenario) {
     caso: escenario.caso ?? casoListo(),
     ojos: ['OD'],
     calculadoras: escenario.calculadoras,
+    catalogo: escenario.catalogo,
     navegador: {} as never,
     contexto: contextoFalso(),
     progreso: () => undefined,
@@ -334,6 +342,111 @@ describe('decisiones de ejecución', () => {
     expect(resultados).toHaveLength(1)
     expect(resultados[0]?.calculadora).toBe('BARRETT_TORIC')
     expect(resultados[0]?.estado).toBe('SUCCESS')
+  })
+})
+
+describe('la constante A del catálogo, una por calculadora', () => {
+  /** Caso listo, con la lente elegida y su constante compartida en 119 D. */
+  function casoConLente(): Caso {
+    return { ...casoListo(), lente: { fabricante: 'Bausch & Lomb', modelo: 'enVista ENVY' } }
+  }
+
+  const catalogo: Catalogo = [
+    {
+      id: 'envy',
+      modelo: 'enVista ENVY',
+      fabricante: 'Bausch & Lomb',
+      torica: false,
+      constantesA: { BARRETT_TORIC: 119.15, KANE: 119.33 },
+    },
+  ]
+
+  /** Un adaptador que solo captura las entradas que le llegan. */
+  function capturador(calculadora: Calculadora, capturadas: { valor?: EntradasCalculadora }) {
+    return {
+      ...adaptadorOk(calculadora, 21),
+      ejecutar: async (ctx: Parameters<AdaptadorCalculadora['ejecutar']>[0]) => {
+        capturadas.valor = ctx.entradas
+        return adaptadorOk(calculadora, 21).ejecutar(ctx)
+      },
+    }
+  }
+
+  it('Barrett usa la constante del catálogo para la lente elegida, no la del ojo', async () => {
+    const capturadas: { valor?: EntradasCalculadora } = {}
+    await ejecutar({
+      caso: casoConLente(),
+      catalogo,
+      calculadoras: ['BARRETT_TORIC'],
+      adaptadores: {
+        EVO_TORIC: adaptadorOk('EVO_TORIC', 21),
+        BARRETT_TORIC: capturador('BARRETT_TORIC', capturadas),
+        KANE: adaptadorOk('KANE', 21),
+      },
+    })
+    expect(capturadas.valor?.valores.CONSTANTE_A).toBe(119.15)
+  })
+
+  it('Kane usa SU PROPIA constante, distinta de la de Barrett para la misma lente', async () => {
+    const capturadas: { valor?: EntradasCalculadora } = {}
+    await ejecutar({
+      caso: casoConLente(),
+      catalogo,
+      calculadoras: ['KANE'],
+      adaptadores: {
+        EVO_TORIC: adaptadorOk('EVO_TORIC', 21),
+        BARRETT_TORIC: adaptadorOk('BARRETT_TORIC', 21),
+        KANE: capturador('KANE', capturadas),
+      },
+    })
+    expect(capturadas.valor?.valores.CONSTANTE_A).toBe(119.33)
+  })
+
+  it('EVO NO se toca: sigue recibiendo la constante compartida del ojo, no la del catálogo', async () => {
+    const capturadas: { valor?: EntradasCalculadora } = {}
+    await ejecutar({
+      caso: casoConLente(),
+      // El catálogo también trae una constante de EVO para esta lente, y aun
+      // así no debe usarse aquí: EVO reconoce el modelo por su cuenta y
+      // rellena la suya sola (ver evo.ts). Sustituirla aquí la pisaría.
+      catalogo: [{ ...catalogo[0]!, constantesA: { ...catalogo[0]!.constantesA, EVO_TORIC: 999 } }],
+      calculadoras: ['EVO_TORIC'],
+      adaptadores: {
+        EVO_TORIC: capturador('EVO_TORIC', capturadas),
+        BARRETT_TORIC: adaptadorOk('BARRETT_TORIC', 21),
+        KANE: adaptadorOk('KANE', 21),
+      },
+    })
+    expect(capturadas.valor?.valores.CONSTANTE_A).toBe(119)
+  })
+
+  it('sin catálogo, Barrett y Kane siguen usando la constante compartida del ojo — nada cambia', async () => {
+    const capturadas: { valor?: EntradasCalculadora } = {}
+    await ejecutar({
+      caso: casoConLente(),
+      calculadoras: ['BARRETT_TORIC'],
+      adaptadores: {
+        EVO_TORIC: adaptadorOk('EVO_TORIC', 21),
+        BARRETT_TORIC: capturador('BARRETT_TORIC', capturadas),
+        KANE: adaptadorOk('KANE', 21),
+      },
+    })
+    expect(capturadas.valor?.valores.CONSTANTE_A).toBe(119)
+  })
+
+  it('si la lente elegida no está en el catálogo, se queda con la constante del ojo', async () => {
+    const capturadas: { valor?: EntradasCalculadora } = {}
+    await ejecutar({
+      caso: { ...casoListo(), lente: { modelo: 'Una lente que no está en ningún sitio' } },
+      catalogo,
+      calculadoras: ['BARRETT_TORIC'],
+      adaptadores: {
+        EVO_TORIC: adaptadorOk('EVO_TORIC', 21),
+        BARRETT_TORIC: capturador('BARRETT_TORIC', capturadas),
+        KANE: adaptadorOk('KANE', 21),
+      },
+    })
+    expect(capturadas.valor?.valores.CONSTANTE_A).toBe(119)
   })
 })
 

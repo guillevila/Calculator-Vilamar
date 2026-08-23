@@ -4,6 +4,39 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.1] — 23/08/2026
+
+Barrett y Kane usan cada uno su propia constante A del catálogo; EVO usa la suya.
+
+### El problema
+
+Un único campo `CONSTANTE_A` por ojo se mandaba, igual, a las tres
+calculadoras. Comprobado en vivo contra EVO y Barrett: para la misma lente
+(Bausch & Lomb enVista ENVY), EVO publica 119.24, Barrett 119.15 (o 119.28 si
+no tiene el modelo) y Kane 119.33. Un solo número no puede ser los tres a la
+vez.
+
+### La corrección
+
+- **El desplegable de «Lente»** (en la pantalla de revisión) sale ahora del
+  catálogo propio, no de una lista fija en el código.
+- **El catálogo admite lentes sin rango de esfera**: una lente puede añadirse
+  solo para aparecer en ese desplegable y prestar su constante, sin que se
+  sepa todavía qué potencias cubre. Sin rango, sencillamente no participa en
+  el cruce «De tu catálogo» de Resultados — no se inventa un rango.
+- **Barrett y Kane leen, cada uno, su propia constante** del catálogo para la
+  lente elegida (`packages/integrations/src/orquestador.ts`,
+  `sustituirConstanteDelCatalogo`). Si el catálogo no tiene esa calculadora
+  para esa lente, se usa la constante compartida del ojo, como hasta ahora.
+- **EVO queda fuera a propósito.** Reconoce el modelo en su propio
+  desplegable y rellena su constante sola; ya no se pisa con la del caso
+  (antes sí, siempre). Solo si EVO no tiene esa lente se le manda la
+  constante disponible, igual que antes.
+
+Ver SYSTEM_VISION.md D38 y el log de lecciones aprendidas (23/08/2026).
+
+---
+
 ## [1.2.0] — 23/08/2026
 
 Catálogo de lentes propio: qué tienes tú, no solo qué dicen las tres webs.

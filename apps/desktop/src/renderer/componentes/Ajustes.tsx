@@ -52,10 +52,13 @@ const CAMPO_CONSTANTE = {
   KANE: 'constanteKane',
 } as const
 
-function aEntrada(f: Formulario): LenteDeCatalogoEntrada | null {
-  const esferaMin = Number(f.esferaMin)
-  const esferaMax = Number(f.esferaMax)
-  if (f.esferaMin.trim() === '' || f.esferaMax.trim() === '') return null
+function aEntrada(f: Formulario): LenteDeCatalogoEntrada {
+  // El rango de esfera es opcional: una lente puede añadirse solo para el
+  // desplegable de elección, sin que se sepa todavía qué potencias cubre.
+  const hayRangoEsfera = f.esferaMin.trim() !== '' && f.esferaMax.trim() !== ''
+  const rangoEsfera = hayRangoEsfera
+    ? { min: Number(f.esferaMin), max: Number(f.esferaMax) }
+    : undefined
 
   const constantesA: Record<string, number> = {}
   for (const { clave } of CALCULADORAS_FORM) {
@@ -68,7 +71,7 @@ function aEntrada(f: Formulario): LenteDeCatalogoEntrada | null {
     ...(f.fabricante.trim() !== '' ? { fabricante: f.fabricante.trim() } : {}),
     constantesA,
     torica: f.torica,
-    rangoEsfera: { min: esferaMin, max: esferaMax },
+    ...(rangoEsfera ? { rangoEsfera } : {}),
     ...(f.torica && f.cilindroMin.trim() !== '' && f.cilindroMax.trim() !== ''
       ? { rangoCilindro: { min: Number(f.cilindroMin), max: Number(f.cilindroMax) } }
       : {}),
@@ -85,8 +88,8 @@ function deLente(l: LenteDeCatalogo): Formulario {
       l.constantesA.BARRETT_TORIC !== undefined ? String(l.constantesA.BARRETT_TORIC) : '',
     constanteKane: l.constantesA.KANE !== undefined ? String(l.constantesA.KANE) : '',
     torica: l.torica,
-    esferaMin: String(l.rangoEsfera.min),
-    esferaMax: String(l.rangoEsfera.max),
+    esferaMin: l.rangoEsfera ? String(l.rangoEsfera.min) : '',
+    esferaMax: l.rangoEsfera ? String(l.rangoEsfera.max) : '',
     cilindroMin: l.rangoCilindro ? String(l.rangoCilindro.min) : '',
     cilindroMax: l.rangoCilindro ? String(l.rangoCilindro.max) : '',
     notas: l.notas ?? '',
@@ -130,10 +133,6 @@ export function Ajustes({ onCerrar }: Props): JSX.Element {
 
   async function guardar(): Promise<void> {
     const entrada = aEntrada(form)
-    if (!entrada) {
-      setErrores(['Falta el rango de esfera: mínimo y máximo son obligatorios.'])
-      return
-    }
     const propios = erroresDeLenteCatalogo(entrada)
     if (propios.length > 0) {
       setErrores(propios)
@@ -196,7 +195,9 @@ export function Ajustes({ onCerrar }: Props): JSX.Element {
                     <td>{describirLenteDeCatalogo(l)}</td>
                     <td>{l.torica ? 'Tórica' : 'Esférica'}</td>
                     <td>
-                      {l.rangoEsfera.min.toFixed(2)} – {l.rangoEsfera.max.toFixed(2)} D
+                      {l.rangoEsfera
+                        ? `${l.rangoEsfera.min.toFixed(2)} – ${l.rangoEsfera.max.toFixed(2)} D`
+                        : '—'}
                     </td>
                     <td>
                       {l.rangoCilindro
