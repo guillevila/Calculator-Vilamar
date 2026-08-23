@@ -378,6 +378,21 @@ SRK/T: 119.2</pre></body>`)
   await nav.close()
 
   await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+
+  // El desplegable de «Lente» sale del catálogo propio (ver SelectorLente.tsx),
+  // y solo lo carga una vez al montarse: se añade ANTES de llegar a la pantalla
+  // de revisión, no después.
+  await ventana.evaluate(
+    async () =>
+      window.vilamar?.guardarLenteEnCatalogo(undefined, {
+        modelo: 'Alcon Vivity',
+        fabricante: 'Alcon',
+        constantesA: { EVO_TORIC: 119.3 },
+        torica: false,
+        rangoEsfera: { min: 6, max: 30 },
+      }),
+  )
+
   await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
   const resultado = await ventana.evaluate(
     async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'anterion-lentes.pdf', ruta }]),
