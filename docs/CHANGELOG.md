@@ -4,6 +4,42 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.2] — 24/08/2026
+
+Kane también elige el modelo en su propia lista, como EVO.
+
+### El problema
+
+Kane sí tiene una lista completa de modelos («B+L enVista Envy», «B+L
+LuxSmart»…) en su propio desplegable «IOL Type», con su propia constante A
+detrás — pero el adaptador nunca la usaba, a propósito: una lente tórica le
+cambia el modo del formulario («Toric»/«Non-toric») por su cuenta, y hacerlo
+en el momento equivocado podía borrar los datos ya escritos.
+
+### La corrección
+
+- `packages/integrations/src/adapters/kane.ts`: el modelo se elige LO PRIMERO
+  de todo, antes de decidir el modo o escribir ningún número. El modo que se
+  usa a partir de ahí es el que Kane haya dejado tras elegir el modelo —leído
+  con `modoActivo`, la misma señal de la clase `act` que ya usaba
+  `pulsarModo`—, y solo si el modelo no se encuentra se decide como antes,
+  con `modoParaKane`.
+- Si Kane reconoce el modelo, no se pisa su constante A —igual que EVO desde
+  la versión anterior—. Si no lo reconoce, se le manda la del catálogo o la
+  del ojo, como hasta ahora.
+- `comprobarLoEscrito` y `leerResultado` reciben el modo REAL usado, en vez de
+  volver a calcularlo: si no, comprobarían o leerían la sección equivocada
+  cuando el modelo hubiera cambiado el modo.
+- Barrett se queda como estaba: su lista es mucho más corta (comprobado en
+  vivo) y sigue usando siempre la constante del catálogo.
+
+**Sin validar contra la web real todavía** — ver PROJECT_STATUS.md y
+SYSTEM_VISION.md D38. lint, typecheck y toda la suite (604 unitarios + 31
+e2e) en verde, pero esta pieza concreta necesita un cálculo de verdad contra
+iolformula.com para confirmarse.
+
+---
+
 ## [1.2.1] — 23/08/2026
 
 Barrett y Kane usan cada uno su propia constante A del catálogo; EVO usa la suya.

@@ -423,6 +423,18 @@ Ampliar ×3 **empeora** —apareció un 24.97 donde ponía 24.07—, así que ha
   rango de cilindro) pasan, y se ha visto la pantalla funcionando de verdad.
   Lo que falta: que el dueño del proyecto meta su inventario real y compruebe
   que el cruce con los resultados de Kane/EVO/Barrett dice lo que espera.
+- **Selección de modelo en Kane: construida, sin ejecutar todavía contra la
+  web real.** Kane ahora también elige el modelo en su desplegable «IOL Type»
+  —igual que EVO y Barrett— y usa la constante que rellena solo si lo
+  encuentra. Antes de este cambio Kane nunca elegía modelo a propósito, por un
+  problema medido: una lente tórica le cambia el modo del formulario y podía
+  borrar lo ya escrito. La solución (elegir el modelo LO PRIMERO de todo, y
+  leer el modo que resulte con `modoActivo` en vez de suponerlo) tipa bien,
+  pasa lint y no rompe ningún test existente — pero, como con las tres
+  calculadoras, **no hay tests automáticos contra la web real** (D25): hace
+  falta ejecutar un cálculo de verdad, con el acuerdo de Kane ya aceptado en
+  el navegador de la aplicación, para confirmar que el modo se lee bien y que
+  no se pierde ningún dato al cambiar de modelo a mitad de formulario.
 - **DOCUMENT EXTRACTION NOT YET VALIDATED ON REAL REPORTS.** Lo repito en inglés
   porque es la frase que pidió el pliego y porque es la limitación que más
   importa. Los parsers funcionan sobre textos sintéticos. Con un informe real
