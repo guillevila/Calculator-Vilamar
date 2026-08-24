@@ -11,6 +11,7 @@ import {
   constanteDelCatalogoPara,
   describirLenteDeCatalogo,
   erroresDeLenteCatalogo,
+  esToricaSegunCatalogo,
   lentesQueCubren,
   modeloDelCatalogoPara,
   rangoValido,
@@ -268,5 +269,24 @@ describe('modeloDelCatalogoPara', () => {
 
   it('sin ninguna lente elegida, no da nada', () => {
     expect(modeloDelCatalogoPara(catalogo, undefined, 'KANE')).toBeUndefined()
+  })
+})
+
+describe('esToricaSegunCatalogo', () => {
+  const esferica = lente({ id: 'e', modelo: 'Lux Life', torica: false })
+  const torica = lente({ id: 't', modelo: 'Lux Life Toric', torica: true })
+  const catalogo = [esferica, torica]
+
+  it('dice si la lente elegida es tórica, o no, según el catálogo', () => {
+    expect(esToricaSegunCatalogo(catalogo, { modelo: 'Lux Life' })).toBe(false)
+    expect(esToricaSegunCatalogo(catalogo, { modelo: 'Lux Life Toric' })).toBe(true)
+  })
+
+  it('no confunde «no está en el catálogo» con «no es tórica»: da undefined, no false', () => {
+    expect(esToricaSegunCatalogo(catalogo, { modelo: 'Otra lente' })).toBeUndefined()
+  })
+
+  it('sin ninguna lente elegida, no da nada', () => {
+    expect(esToricaSegunCatalogo(catalogo, undefined)).toBeUndefined()
   })
 })

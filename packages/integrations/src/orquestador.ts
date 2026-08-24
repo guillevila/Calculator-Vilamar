@@ -49,6 +49,7 @@ import type {
 } from '@vilamar/domain'
 import {
   constanteDelCatalogoPara,
+  esToricaSegunCatalogo,
   explicarBloqueo,
   fichaDe,
   modeloDelCatalogoPara,
@@ -286,10 +287,11 @@ export interface OpcionesUnaCasilla {
 
 /**
  * Ajusta las entradas con lo que sepa el catálogo de la lente elegida, para
- * ESTA calculadora en concreto: su constante A, si la trae, y el nombre EXACTO
+ * ESTA calculadora en concreto: su constante A, si la trae; el nombre EXACTO
  * que hay que buscar en el desplegable de esa web, si es distinto del nombre
- * bonito del catálogo (ver `NombresEnWeb`). Sin catálogo, o sin la lente en
- * él, devuelve `entradas` tal cual.
+ * bonito del catálogo (ver `NombresEnWeb`); y si es tórica, que Kane necesita
+ * saber ANTES de buscar el modelo (ver kane.ts). Sin catálogo, o sin la lente
+ * en él, devuelve `entradas` tal cual.
  */
 function conDatosDelCatalogo(
   entradas: EntradasCalculadora,
@@ -302,10 +304,12 @@ function conDatosDelCatalogo(
   const eleccion = { fabricante: caso.lente?.fabricante, modelo }
   const constante = constanteDelCatalogoPara(catalogo, eleccion, calculadora)
   const nombreEnWeb = modeloDelCatalogoPara(catalogo, eleccion, calculadora)
+  const torica = esToricaSegunCatalogo(catalogo, eleccion)
 
   return {
     ...entradas,
     ...(nombreEnWeb !== undefined ? { modeloLente: nombreEnWeb } : {}),
+    ...(torica !== undefined ? { lenteTorica: torica } : {}),
     ...(constante !== undefined
       ? { valores: { ...entradas.valores, CONSTANTE_A: constante } }
       : {}),

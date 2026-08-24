@@ -527,6 +527,30 @@ describe('el nombre de la lente que se busca en el desplegable de cada web', () 
     })
     expect(capturadas.valor?.modeloLente).toBe('Lux Life')
   })
+
+  it('a Kane también le llega si la lente elegida es tórica, para que decida el modo antes de buscarla', async () => {
+    const capturadas: { valor?: EntradasCalculadora } = {}
+    await ejecutar({
+      caso: { ...casoListo(), lente: { fabricante: 'Bausch & Lomb', modelo: 'Lux Life Toric' } },
+      catalogo: [
+        {
+          id: 'luxlife-toric',
+          modelo: 'Lux Life Toric',
+          fabricante: 'Bausch & Lomb',
+          torica: true,
+          constantesA: {},
+          nombresEnWeb: { KANE: 'B+L LuxLife Toric' },
+        },
+      ],
+      calculadoras: ['KANE'],
+      adaptadores: {
+        EVO_TORIC: adaptadorOk('EVO_TORIC', 21),
+        BARRETT_TORIC: adaptadorOk('BARRETT_TORIC', 21),
+        KANE: capturador('KANE', capturadas),
+      },
+    })
+    expect(capturadas.valor?.lenteTorica).toBe(true)
+  })
 })
 
 describe('lo que se envía a una web', () => {

@@ -172,6 +172,16 @@ export interface EntradasCalculadora {
   /** Modelo de lente elegido, tal y como lo llama esa web. */
   readonly modeloLente?: string
   readonly fabricanteLente?: string
+  /**
+   * Si la lente elegida es tórica, según el catálogo propio. `undefined` si
+   * no está en el catálogo — entonces no hay nada que decir sobre ella.
+   *
+   * Kane lo necesita para decidir el modo del formulario ANTES de buscar el
+   * modelo en su desplegable: sus opciones tóricas («B+L Aspire Toric») solo
+   * aparecen ahí cuando el ojo ya está en modo Toric — buscarlas en modo
+   * No-tórico no las encuentra aunque existan. Ver `kane.ts`.
+   */
+  readonly lenteTorica?: boolean
   /** El sexo, solo para la calculadora que lo pide. */
   readonly sexo?: Sexo
 }

@@ -4,6 +4,37 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.8] — 24/08/2026
+
+Kane: el modo (Toric/No-tórico) lo decide la lente elegida, antes de buscarla.
+
+### El problema
+
+Segundo fallo real el mismo día, ya con el nombre corregido (1.2.7): «enVista
+Aspire Toric» seguía sin encontrarse en Kane. Causa distinta: el desplegable
+«IOL Type» de Kane está **filtrado por modo** — sus opciones tóricas solo
+aparecen cuando ese ojo ya está en modo Toric. El programa decidía el modo
+mirando los DATOS del caso (`modoParaKane`), no la lente que iba a buscar, así
+que podía intentar buscar una opción tórica estando en modo No-tórico — y no
+la encontraba, aunque existiera.
+
+### La corrección
+
+- `EntradasCalculadora.lenteTorica` (nuevo, opcional): si la lente elegida es
+  tórica, según el catálogo. Se rellena en el orquestador
+  (`esToricaSegunCatalogo`) junto al nombre y la constante.
+- `kane.ts`: si se sabe que la lente es tórica, el ojo se pone en modo Toric
+  **antes** de buscar el modelo. Si no se sabe (la lente no está en el
+  catálogo), se prueba primero en el modo que darían los datos y, si ahí no
+  aparece, una vez en el otro modo antes de rendirse.
+- Catálogo real actualizado con las constantes propias de Kane para las 10
+  lentes (de su propia tabla interna), como red de seguridad adicional.
+
+Ver SYSTEM_VISION.md D43. 4 tests nuevos. lint, typecheck, tests unitarios y
+31 e2e en verde.
+
+---
+
 ## [1.2.7] — 24/08/2026
 
 El catálogo guarda el nombre exacto que usa cada web, no solo el bonito.

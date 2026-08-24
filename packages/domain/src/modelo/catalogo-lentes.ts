@@ -188,6 +188,25 @@ export function constanteDelCatalogoPara(
 }
 
 /**
+ * Si la lente elegida en el caso es tórica, según el catálogo. `undefined` si
+ * no hay ninguna elegida o no está en el catálogo — no se sabe, y no es lo
+ * mismo que «no es tórica».
+ *
+ * Existe para Kane: sus opciones tóricas del desplegable de modelo solo
+ * aparecen cuando el ojo ya está en modo Toric, así que hace falta saber si
+ * hay que ponerlo ANTES de buscar el modelo, no después.
+ */
+export function esToricaSegunCatalogo(
+  catalogo: Catalogo,
+  eleccion: { readonly fabricante?: string; readonly modelo: string } | undefined,
+): boolean | undefined {
+  if (!eleccion || eleccion.modelo.trim() === '') return undefined
+  const buscada = claveLente(eleccion)
+  if (buscada === '') return undefined
+  return catalogo.find((l) => claveLente(l) === buscada)?.torica
+}
+
+/**
  * Qué nombre hay que buscar en el desplegable de ESTA calculadora para la
  * lente elegida en el caso.
  *

@@ -51,7 +51,8 @@
       "fabricante": "Bausch & Lomb",
       "constantesA": {
         "EVO_TORIC": 119.1,
-        "BARRETT_TORIC": 119.1
+        "BARRETT_TORIC": 119.1,
+        "KANE": 119.1
       },
       "torica": false,
       "rangoEsfera": {
@@ -69,7 +70,8 @@
       "fabricante": "Bausch & Lomb",
       "constantesA": {
         "EVO_TORIC": 119.1,
-        "BARRETT_TORIC": 119.1
+        "BARRETT_TORIC": 119.1,
+        "KANE": 119.1
       },
       "torica": true,
       "rangoEsfera": {
@@ -92,7 +94,8 @@
       "fabricante": "Bausch & Lomb",
       "constantesA": {
         "EVO_TORIC": 118.62,
-        "BARRETT_TORIC": 118.63
+        "BARRETT_TORIC": 118.63,
+        "KANE": 118.69
       },
       "torica": false,
       "rangoEsfera": {
@@ -110,7 +113,8 @@
       "fabricante": "Bausch & Lomb",
       "constantesA": {
         "EVO_TORIC": 118.62,
-        "BARRETT_TORIC": 118.63
+        "BARRETT_TORIC": 118.63,
+        "KANE": 118.69
       },
       "torica": true,
       "rangoEsfera": {
@@ -133,7 +137,8 @@
       "fabricante": "Bausch & Lomb",
       "constantesA": {
         "EVO_TORIC": 118.45,
-        "BARRETT_TORIC": 118.4
+        "BARRETT_TORIC": 118.4,
+        "KANE": 118.45
       },
       "torica": false,
       "rangoEsfera": {
@@ -152,7 +157,8 @@
       "fabricante": "Bausch & Lomb",
       "constantesA": {
         "EVO_TORIC": 118.45,
-        "BARRETT_TORIC": 118.4
+        "BARRETT_TORIC": 118.4,
+        "KANE": 118.45
       },
       "torica": true,
       "rangoEsfera": {
@@ -175,7 +181,8 @@
       "fabricante": "Bausch & Lomb",
       "constantesA": {
         "EVO_TORIC": 119.1,
-        "BARRETT_TORIC": 119.1
+        "BARRETT_TORIC": 119.1,
+        "KANE": 119.31
       },
       "torica": false,
       "rangoEsfera": {
@@ -193,7 +200,8 @@
       "fabricante": "Bausch & Lomb",
       "constantesA": {
         "EVO_TORIC": 119.1,
-        "BARRETT_TORIC": 119.1
+        "BARRETT_TORIC": 119.1,
+        "KANE": 119.25
       },
       "torica": true,
       "rangoEsfera": {

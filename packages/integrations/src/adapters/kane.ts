@@ -740,26 +740,50 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     // ── El lado del ojo que toca ──────────────────────────────────────────
     const lado = entradas.ojo
 
-    // El modelo va PRIMERO de todo lo que cambia la forma del formulario.
+    // ⚠️ El desplegable «IOL Type» está FILTRADO POR MODO: sus opciones
+    // tóricas —«B+L Aspire Toric», por ejemplo— solo aparecen cuando ese ojo
+    // YA está en modo Toric. Buscarlas en modo No-tórico no las encuentra,
+    // aunque existan — comprobado el 24/08/2026 con «enVista Aspire Toric»,
+    // que Kane decía no tener teniéndola.
     //
-    // Elegir una lente TÓRICA —«B+L enVista Envy Toric», por ejemplo— hace que
-    // Kane cambie ese ojo a su modo tórico por su cuenta, y con una no tórica se
-    // queda como estaba. Antes esto era la razón para NO elegir nunca el
-    // modelo: hacerlo después de fijar el modo o de escribir números podía
-    // repintar la pantalla y perder lo ya escrito. La solución no es evitarlo,
-    // es hacerlo LO PRIMERO de todo, antes de decidir nada más — así el modo
-    // que se use a partir de aquí es el que Kane haya dejado, se lea con
-    // `modoActivo`, y todo lo que viene después ya cuenta con la forma final
-    // del formulario.
-    const modeloEncontrado = entradas.modeloLente
+    // Por eso el modo se decide y se fija ANTES de buscar el modelo, no
+    // después: si el catálogo sabe que la lente elegida es tórica
+    // (`lenteTorica`), se pone ese modo directamente. Si no lo sabe —la
+    // lente no está en el catálogo—, se prueba primero en el modo que darían
+    // los datos (`modoParaKane`) y, si ahí no aparece, se prueba una vez en
+    // el otro modo antes de rendirse.
+    let modo: ModoDeKane =
+      entradas.lenteTorica !== undefined
+        ? entradas.lenteTorica
+          ? 'TORICO'
+          : 'NO_TORICO'
+        : modoParaKane(entradas)
+    await this.asegurarModo(pagina, lado, modo)
+
+    let modeloEncontrado = entradas.modeloLente
       ? await this.elegirModelo(pagina, lado, entradas.modeloLente)
       : false
 
-    // Si el modelo se encontró, el modo es el que Kane haya decidido —puede
-    // que distinto del que darían los datos—. Si no, el modo lo sigue
-    // decidiendo `modoParaKane`, exactamente como cuando no había modelo.
-    const modo = modeloEncontrado ? await this.modoActivo(pagina, lado) : modoParaKane(entradas)
-    await this.asegurarModo(pagina, lado, modo)
+    if (!modeloEncontrado && entradas.modeloLente && entradas.lenteTorica === undefined) {
+      const otroModo: ModoDeKane = modo === 'TORICO' ? 'NO_TORICO' : 'TORICO'
+      await this.asegurarModo(pagina, lado, otroModo)
+      modeloEncontrado = await this.elegirModelo(pagina, lado, entradas.modeloLente)
+      if (modeloEncontrado) {
+        modo = otroModo
+      } else {
+        // No estaba en ninguno de los dos: se vuelve al modo que darían los
+        // datos, que es el que se va a usar para el resto del formulario.
+        await this.asegurarModo(pagina, lado, modo)
+      }
+    }
+
+    // Si el modelo se encontró, se lee el modo que Kane haya dejado de
+    // verdad —puede que elegirlo lo haya cambiado también él, además del
+    // filtrado del desplegable— en vez de suponer el que se fijó antes.
+    if (modeloEncontrado) {
+      modo = await this.modoActivo(pagina, lado)
+      await this.asegurarModo(pagina, lado, modo)
+    }
 
     for (const [campo, loc] of Object.entries(camposDeKane(modo, lado))) {
       // La constante A no se escribe si Kane ya la ha rellenado sola al elegir
