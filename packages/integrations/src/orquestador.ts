@@ -313,7 +313,7 @@ export async function ejecutarUnaCalculadoraParaUnOjo(
   const { caso, ojo, ahora } = opciones
 
   // 1 — El dominio decide si esto puede salir. El adaptador no puede saltárselo.
-  const preparacion = prepararEntradas(caso, adaptador.calculadora, ojo)
+  const preparacion = prepararEntradas(caso, adaptador.calculadora, ojo, opciones.catalogo)
   if (!preparacion.ok) {
     const motivo = explicarBloqueo(preparacion) ?? 'Faltan datos.'
     return {
@@ -325,16 +325,21 @@ export async function ejecutarUnaCalculadoraParaUnOjo(
     }
   }
 
-  // 1b — Barrett y Kane: si la lente elegida está en el catálogo propio y trae
-  // su propia constante para ESTA calculadora, se usa esa en vez de la
-  // constante compartida del ojo. EVO queda fuera a propósito: reconoce el
-  // modelo por su cuenta y rellena SU constante, y es mejor que la nuestra
-  // (ver evo.ts). Sin esto, un único número compartido no podría ser a la vez
-  // 119.15 para Barrett y 119.33 para Kane en la misma lente.
-  const entradas =
-    adaptador.calculadora === 'EVO_TORIC'
-      ? preparacion.entradas
-      : sustituirConstanteDelCatalogo(preparacion.entradas, caso, adaptador.calculadora, opciones.catalogo)
+  // 1b — Si la lente elegida está en el catálogo propio y trae su propia
+  // constante para ESTA calculadora, se usa esa en vez de la constante
+  // compartida del ojo. Sin esto, un único número compartido no podría ser a
+  // la vez 119.15 para Barrett y 119.33 para Kane en la misma lente.
+  //
+  // Para EVO y Kane esto es solo un FALLBACK: si reconocen el modelo en su
+  // propia web, rellenan SU constante y no se pisa (ver evo.ts y kane.ts) —
+  // este valor sustituido únicamente entra en juego si no lo reconocen, y
+  // entonces es mejor la del catálogo que un hueco vacío.
+  const entradas = sustituirConstanteDelCatalogo(
+    preparacion.entradas,
+    caso,
+    adaptador.calculadora,
+    opciones.catalogo,
+  )
 
   // 2 — Comprobaciones propias de esa web.
   const problemas = adaptador.validarEntradas(entradas)

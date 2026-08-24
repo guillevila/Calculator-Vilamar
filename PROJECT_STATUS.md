@@ -435,6 +435,10 @@ Ampliar ×3 **empeora** —apareció un 24.97 donde ponía 24.07—, así que ha
   falta ejecutar un cálculo de verdad, con el acuerdo de Kane ya aceptado en
   el navegador de la aplicación, para confirmar que el modo se lee bien y que
   no se pierde ningún dato al cambiar de modelo a mitad de formulario.
+  **Ya se encontró y se arregló un fallo real probando esto a mano**: la
+  pantalla de revisión seguía pidiendo escribir la constante A aunque la
+  lente elegida ya la diera (D40) — señal de que probar a mano, aunque sea
+  parcial, encuentra cosas que lint y los tests no ven.
 - **PDF por calculadora: construido, sin ejecutar todavía contra las webs
   reales.** «Generar PDF» crea ahora una carpeta con el informe comparativo
   de siempre y, junto a él, un PDF de una hoja por cada calculadora con la

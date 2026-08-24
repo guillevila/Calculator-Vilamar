@@ -403,13 +403,15 @@ describe('la constante A del catálogo, una por calculadora', () => {
     expect(capturadas.valor?.valores.CONSTANTE_A).toBe(119.33)
   })
 
-  it('EVO NO se toca: sigue recibiendo la constante compartida del ojo, no la del catálogo', async () => {
+  it('EVO también recibe la del catálogo como reserva, pero es un FALLBACK: usarla o no lo decide el propio adaptador', async () => {
     const capturadas: { valor?: EntradasCalculadora } = {}
     await ejecutar({
       caso: casoConLente(),
-      // El catálogo también trae una constante de EVO para esta lente, y aun
-      // así no debe usarse aquí: EVO reconoce el modelo por su cuenta y
-      // rellena la suya sola (ver evo.ts). Sustituirla aquí la pisaría.
+      // A este nivel (orquestador) la sustitución es igual para las tres
+      // calculadoras: aquí solo se decide QUÉ NÚMERO viaja en `entradas`. Que
+      // EVO acabe usándolo de verdad o lo ignore porque reconoce el modelo en
+      // su propia web y rellena la suya es una decisión de `evo.ts`, no de
+      // este orquestador — y por eso no se puede comprobar aquí con un doble.
       catalogo: [{ ...catalogo[0]!, constantesA: { ...catalogo[0]!.constantesA, EVO_TORIC: 999 } }],
       calculadoras: ['EVO_TORIC'],
       adaptadores: {
@@ -418,7 +420,7 @@ describe('la constante A del catálogo, una por calculadora', () => {
         KANE: adaptadorOk('KANE', 21),
       },
     })
-    expect(capturadas.valor?.valores.CONSTANTE_A).toBe(119)
+    expect(capturadas.valor?.valores.CONSTANTE_A).toBe(999)
   })
 
   it('sin catálogo, Barrett y Kane siguen usando la constante compartida del ojo — nada cambia', async () => {

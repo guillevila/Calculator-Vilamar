@@ -539,7 +539,11 @@ export class AdaptadorKane implements AdaptadorCalculadora {
   validarEntradas(entradas: EntradasCalculadora): readonly string[] {
     const problemas: string[] = []
     if (entradas.valores.AL === undefined) problemas.push('Falta la longitud axial.')
-    if (entradas.valores.CONSTANTE_A === undefined) problemas.push('Falta la constante A.')
+    // Sin constante escrita, hace falta al menos un modelo que Kane pueda
+    // reconocer en su lista «IOL Type» y rellenar solo (ver `rellenar`, D38).
+    if (entradas.valores.CONSTANTE_A === undefined && !entradas.modeloLente) {
+      problemas.push('Falta la constante A.')
+    }
     return problemas
   }
 
@@ -566,6 +570,18 @@ export class AdaptadorKane implements AdaptadorCalculadora {
           'No se han encontrado los campos de la calculadora de Kane. El conector necesita actualizarse: ejecuta «pnpm reconocer:kane» para que aprenda el formulario actual.',
           'RELLENANDO',
           'campos por etiqueta',
+        )
+      }
+
+      // Sin constante escrita y sin que Kane haya reconocido el modelo, su
+      // campo de constante se ha quedado con lo que hubiera antes. Mejor parar
+      // aquí, con un mensaje claro, que dejar que calcule con un número que
+      // nadie ha puesto.
+      if (!modeloEncontrado && ctx.entradas.valores.CONSTANTE_A === undefined) {
+        throw new ErrorAdaptador(
+          'MISSING_INPUTS',
+          `Kane no tiene «${ctx.entradas.modeloLente}» en su lista de lentes, así que no ha podido rellenar la constante A sola. Escríbela a mano y reinténtalo.`,
+          'RELLENANDO',
         )
       }
 

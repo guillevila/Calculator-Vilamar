@@ -358,6 +358,14 @@ export function quienNoPuedeCalcular(
    * evitar, reintroducido por otra puerta.
    */
   haySexoConfirmado = true,
+  /**
+   * Qué calculadoras tienen, en el catálogo propio, la constante A de la
+   * lente elegida — o van a rellenarla ellas solas al reconocer el modelo
+   * (EVO y Kane, ver D38). Sin esto, este aviso volvería a mentir: diría
+   * «falta la constante A» de una lente cuya constante ya se sabe, solo que
+   * no está escrita a mano en el ojo.
+   */
+  tieneConstanteDeOtroSitio: Readonly<Partial<Record<Calculadora, boolean>>> = {},
 ): readonly {
   readonly calculadora: Calculadora
   readonly faltan: readonly CampoBiometrico[]
@@ -366,7 +374,11 @@ export function quienNoPuedeCalcular(
 }[] {
   return CALCULADORAS.map((calculadora) => ({
     calculadora,
-    faltan: FICHAS[calculadora].requeridos.filter((c) => medidas[c] === undefined),
+    faltan: FICHAS[calculadora].requeridos.filter((c) => {
+      if (medidas[c] !== undefined) return false
+      if (c === 'CONSTANTE_A' && tieneConstanteDeOtroSitio[calculadora] === true) return false
+      return true
+    }),
     faltaElSexo: FICHAS[calculadora].exigeSexo === true && !haySexoConfirmado,
   })).filter((x) => x.faltan.length > 0 || x.faltaElSexo)
 }

@@ -22,11 +22,12 @@
  *    «esto no lo sabemos», y es preferible a dejar un número dudoso.
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { JSX } from 'react'
 
-import type { Aviso, CampoBiometrico, Caso, Lateralidad, Medida } from '@vilamar/domain'
+import type { Aviso, Calculadora, CampoBiometrico, Caso, Lateralidad, LenteDeCatalogo, Medida } from '@vilamar/domain'
 import {
+  CALCULADORAS,
   camposDeCategoria,
   exigenciaDe,
   fichaDe,
@@ -43,6 +44,7 @@ import {
   nombreLateralidad,
   ojoDe,
   ojosDelCaso,
+  tieneConstanteFueraDelOjo,
 } from '@vilamar/domain'
 
 import { api } from '../api.js'
@@ -81,19 +83,36 @@ export function PanelRevision({
   const invalidos = useMemo(() => avisos.filter((a) => a.nivel === 'INVALID'), [avisos])
   const advertencias = useMemo(() => avisos.filter((a) => a.nivel === 'WARNING'), [avisos])
 
+  const [catalogo, setCatalogo] = useState<readonly LenteDeCatalogo[]>([])
+  useEffect(() => {
+    void api()
+      .catalogoLentes()
+      .then(setCatalogo)
+  }, [])
+
   /**
    * Calculadoras que, con lo que hay escrito, no van a poder calcular.
    *
    * Se mira del ojo que se está revisando: los dos ojos pueden tener datos
    * distintos, y avisar del otro sería confundir.
    */
-  const sinDatos = useMemo(
+  const sinDatos = useMemo(() => {
+    // La constante A puede venir de fuera del ojo: EVO y Kane la rellenan
+    // solos al reconocer el modelo, y Barrett la lee del catálogo. Sin esto,
+    // el aviso pedía escribir a mano una constante que ya se sabe de otro
+    // sitio (ver D38 y `tieneConstanteFueraDelOjo`).
+    const constantePorCalculadora = Object.fromEntries(
+      CALCULADORAS.map((c) => [c, tieneConstanteFueraDelOjo(caso, c, catalogo)]),
+    ) as Readonly<Record<Calculadora, boolean>>
     // El sexo entra en la cuenta: lo pide Kane y no es un campo del ojo. Sin
     // pasarlo, este aviso decía que Kane podía calcular y después salía «falta el
     // sexo» tras esperar el recorrido entero de las tres webs.
-    () => quienNoPuedeCalcular(ojo.medidas, caso.sexo?.confirmadoPorUsuario === true),
-    [ojo, caso.sexo],
-  )
+    return quienNoPuedeCalcular(
+      ojo.medidas,
+      caso.sexo?.confirmadoPorUsuario === true,
+      constantePorCalculadora,
+    )
+  }, [ojo, caso, catalogo])
 
   /**
    * Datos que nadie ha mirado todavía. Bloquean la confirmación.

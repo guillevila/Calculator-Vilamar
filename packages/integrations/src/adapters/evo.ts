@@ -86,7 +86,12 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
     if (entradas.valores.K1 === undefined || entradas.valores.K2 === undefined) {
       problemas.push('Faltan las queratometrías.')
     }
-    if (entradas.valores.CONSTANTE_A === undefined) problemas.push('Falta la constante A.')
+    // Sin constante escrita, hace falta al menos un modelo que EVO pueda
+    // reconocer en su propia lista y rellenar solo (ver `rellenar`, D38). Sin
+    // ninguna de las dos cosas, no hay ninguna constante posible.
+    if (entradas.valores.CONSTANTE_A === undefined && !entradas.modeloLente) {
+      problemas.push('Falta la constante A.')
+    }
     return problemas
   }
 
@@ -115,7 +120,19 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
         fase: 'RELLENANDO',
         mensaje: 'Rellenando los datos en EVO…',
       })
-      await this.rellenar(pagina, entradas)
+      const { modeloEncontrado } = await this.rellenar(pagina, entradas)
+
+      // Sin constante escrita y sin que EVO haya reconocido el modelo, el
+      // campo de constante se ha quedado con lo que hubiera antes —vacío o de
+      // un cálculo previo—. Mejor parar aquí, con un mensaje claro, que dejar
+      // que EVO calcule con un número que nadie ha puesto.
+      if (!modeloEncontrado && entradas.valores.CONSTANTE_A === undefined) {
+        throw new ErrorAdaptador(
+          'MISSING_INPUTS',
+          `EVO no tiene «${entradas.modeloLente}» en su lista de lentes, así que no ha podido rellenar la constante A sola. Escríbela a mano y reinténtalo.`,
+          'RELLENANDO',
+        )
+      }
 
       progreso({ calculadora: this.calculadora, fase: 'CALCULANDO', mensaje: 'Calculando en EVO…' })
       await pagina.click(SEL.calcular)
@@ -145,7 +162,10 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
     }
   }
 
-  private async rellenar(pagina: Page, entradas: EntradasCalculadora): Promise<void> {
+  private async rellenar(
+    pagina: Page,
+    entradas: EntradasCalculadora,
+  ): Promise<{ modeloEncontrado: boolean }> {
     // EVO exige un nombre. Se le da el código local del caso, que es un
     // identificador de este programa y no un dato del paciente.
     await pagina.fill(SEL.nombre, entradas.codigoCaso)
@@ -174,6 +194,8 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
       if (valor === undefined) continue
       await pagina.fill(config.selector, valor.toFixed(config.decimales))
     }
+
+    return { modeloEncontrado }
   }
 
   /** Elige el modelo si esta web lo tiene en su lista. Devuelve si lo encontró. */

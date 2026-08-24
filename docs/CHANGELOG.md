@@ -4,6 +4,41 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.4] — 24/08/2026
+
+La pantalla de revisión ya no pide una constante A que ya se sabe.
+
+### El problema
+
+Tras D38 (EVO y Kane reconocen el modelo y rellenan su propia constante),
+la pantalla de revisión seguía diciendo «EVO Toric: falta Constante A» y
+«Kane: falta Constante A» con una lente ya elegida. `prepararEntradas` y el
+aviso de la pantalla solo miraban si había una medida `CONSTANTE_A` escrita
+en el ojo — no sabían nada del catálogo ni de que esas dos webs la rellenan
+solas.
+
+### La corrección
+
+- `tieneConstanteFueraDelOjo` (nuevo, en `preparar-entradas.ts`): para EVO y
+  Kane basta con haber elegido una lente; para Barrett hace falta que el
+  catálogo tenga su constante para esa lente en concreto.
+- `prepararEntradas`, `camposQueFaltan`, `sePuedeCalcular` y
+  `quienNoPuedeCalcular` aceptan ahora el catálogo (o un mapa ya resuelto) y
+  dejan de contar la constante A como «falta» cuando viene de fuera del ojo.
+- Red de seguridad en los adaptadores: si al final EVO o Kane no reconocen
+  el modelo en su propia web y no hay ninguna constante de ningún sitio, se
+  para con un aviso claro («no ha podido rellenar la constante A sola.
+  Escríbela a mano y reinténtalo») en vez de calcular con el campo vacío.
+- `sustituirConstanteDelCatalogo` deja de excluir a EVO: ahora las tres
+  calculadoras reciben la constante del catálogo como reserva, y es cada
+  adaptador quien decide si la usa de verdad o la ignora porque ya tiene la
+  suya (EVO y Kane) o la usa siempre (Barrett).
+
+Ver SYSTEM_VISION.md D40. lint, typecheck, 611 tests unitarios (7 nuevos en
+`preparar-entradas.test.ts`) y 31 e2e en verde.
+
+---
+
 ## [1.2.3] — 24/08/2026
 
 Cada informe trae, además del comparativo, un PDF de cada calculadora.
