@@ -9,7 +9,7 @@
  * llama a `prepararEntradas` como todo el mundo.
  */
 
-import { readFileSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type {
@@ -33,6 +33,7 @@ import {
   deducirSexoDelNombre,
   describirLente,
   elegirLente as elegirLenteDelDominio,
+  fichaDe,
   sexoDeducidoDelNombre,
   sexoDelInforme,
   formatoDeNombre,
@@ -59,7 +60,15 @@ import type { Browser } from 'playwright'
 
 import type { ArchivoEntrante, EstadoCalculo, ResumenExtraccion } from '../compartido/ipc.js'
 import type { Carpetas } from './almacen.js'
-import { guardarCaso, guardarDocumento, leerCatalogo, nuevoId, siguienteCodigo } from './almacen.js'
+import {
+  guardarCaptura,
+  guardarCaso,
+  guardarDocumento,
+  leerCaptura,
+  leerCatalogo,
+  nuevoId,
+  siguienteCodigo,
+} from './almacen.js'
 import type { Diagnosticador } from './diagnostico.js'
 
 export interface DependenciasServicio {
@@ -663,6 +672,8 @@ export class ServicioCasos {
         },
         ahora: () => this.iso(),
         guardarDiagnostico: this.dep.diagnosticador.guardar,
+        guardarCaptura: async (calculadora, ojo, datos) =>
+          guardarCaptura(this.dep.carpetas, caso.codigo, calculadora, ojo, datos),
         cancelado: () => this.cancelar,
       })
 
@@ -683,6 +694,14 @@ export class ServicioCasos {
 
   // ── Informe ──────────────────────────────────────────────────────────────
 
+  /**
+   * Genera el informe comparativo y, junto a él en la misma carpeta, un PDF de
+   * una hoja por cada calculadora que haya terminado bien: la captura de SU
+   * propia pantalla de resultados, tal cual la enseñó.
+   *
+   * Es la prueba de que la web dijo eso, más allá de lo que el informe
+   * comparativo resume. Petición del dueño del proyecto (24/08/2026).
+   */
   async generarPdf(): Promise<{ ruta: string }> {
     const caso = this.exigirCaso()
     const datos = recopilarInforme(caso, {
@@ -692,11 +711,29 @@ export class ServicioCasos {
     const html = generarHtmlInforme(datos)
 
     const marca = this.iso().replace(/[:.]/g, '-').slice(0, 19)
-    const destino = join(this.dep.carpetas.informes, `${caso.codigo}_${marca}.pdf`)
+    const carpetaCaso = join(this.dep.carpetas.informes, `${caso.codigo}_${marca}`)
+    mkdirSync(carpetaCaso, { recursive: true })
 
+    const destino = join(carpetaCaso, 'informe-comparativo.pdf')
     // Se guarda también el HTML: si el PDF falla, el informe no se pierde.
     writeFileSync(destino.replace(/\.pdf$/, '.html'), html, 'utf8')
     await this.dep.imprimirPdf(html, destino)
-    return { ruta: destino }
+
+    // Una captura solo existe si esa calculadora terminó con SUCCESS o
+    // PARTIAL —ver evo.ts, barrett.ts y kane.ts—, así que basta con mirar si
+    // hay `capturaId`: no hace falta repetir aquí qué estados cuentan.
+    for (const resultado of Object.values(caso.resultados)) {
+      if (!resultado.capturaId) continue
+      const png = leerCaptura(this.dep.carpetas, caso.codigo, resultado.capturaId)
+      if (!png) continue
+      const nombreArchivo = `${fichaDe(resultado.calculadora).nombre} - ${resultado.ojo}.pdf`
+        .replace(/[\\/:*?"<>|]/g, '-')
+      const htmlCaptura = `<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0"><img src="data:image/png;base64,${Buffer.from(png).toString('base64')}" style="width:100%;display:block"></body></html>`
+      await this.dep
+        .imprimirPdf(htmlCaptura, join(carpetaCaso, nombreArchivo))
+        .catch(() => undefined) // que falle un PDF suelto no tumba el informe entero
+    }
+
+    return { ruta: carpetaCaso }
   }
 }

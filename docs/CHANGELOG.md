@@ -4,6 +4,29 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.3] — 24/08/2026
+
+Cada informe trae, además del comparativo, un PDF de cada calculadora.
+
+### Añadido
+
+- **`Generar PDF` crea ahora una carpeta**, no un único fichero:
+  `informe-comparativo.pdf` (el de siempre) y, junto a él, un PDF de una hoja
+  por cada calculadora que haya terminado con éxito o parcialmente —
+  `EVO Toric - OD.pdf`, `Barrett Toric - OD.pdf`, `Kane - OD.pdf`—, con la
+  captura de SU propia pantalla de resultados. Es la prueba de que la web dijo
+  eso, más allá de lo que resume el comparativo.
+- La captura se toma en el único momento posible: justo al leer el resultado,
+  con la página todavía abierta (`ContextoEjecucion.guardarCaptura`, mismo
+  patrón que `guardarDiagnostico` pero para un éxito). Se guarda en
+  `capturas/<código del caso>/` y se convierte en PDF de una hoja al generar
+  el informe.
+
+Ver SYSTEM_VISION.md D39. lint, typecheck, 604 tests unitarios y 31 e2e en
+verde.
+
+---
+
 ## [1.2.2] — 24/08/2026
 
 Kane también elige el modelo en su propia lista, como EVO.

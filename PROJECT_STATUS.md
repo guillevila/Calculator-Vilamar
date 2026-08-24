@@ -435,6 +435,15 @@ Ampliar ×3 **empeora** —apareció un 24.97 donde ponía 24.07—, así que ha
   falta ejecutar un cálculo de verdad, con el acuerdo de Kane ya aceptado en
   el navegador de la aplicación, para confirmar que el modo se lee bien y que
   no se pierde ningún dato al cambiar de modelo a mitad de formulario.
+- **PDF por calculadora: construido, sin ejecutar todavía contra las webs
+  reales.** «Generar PDF» crea ahora una carpeta con el informe comparativo
+  de siempre y, junto a él, un PDF de una hoja por cada calculadora con la
+  captura de su propia pantalla de resultados (ver SYSTEM_VISION.md D39).
+  tipa bien y no rompe ningún test, pero la captura solo se puede probar
+  calculando de verdad contra EVO, Barrett y Kane —no hay forma de
+  simularla— y generando el PDF después. Falta comprobar a mano que las tres
+  capturas salen legibles y que la carpeta se abre bien desde «Abrir la
+  carpeta».
 - **DOCUMENT EXTRACTION NOT YET VALIDATED ON REAL REPORTS.** Lo repito en inglés
   porque es la frase que pidió el pliego y porque es la limitación que más
   importa. Los parsers funcionan sobre textos sintéticos. Con un informe real

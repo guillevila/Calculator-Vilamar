@@ -169,6 +169,7 @@ async function ejecutar(
     alTerminarUna: () => undefined,
     ahora,
     guardarDiagnostico: async () => 'diag-1',
+    guardarCaptura: async () => 'captura-1',
     cancelado: () => false,
     adaptadores,
   })

@@ -407,6 +407,14 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
     const entradasSegunLaWeb: Record<string, string> = {}
     if (neto) entradasSegunLaWeb['Astigmatismo neto'] = `${neto.magnitud} D @ ${neto.eje}°`
 
+    // La prueba de que la web dijo esto: una captura de SU pantalla de
+    // resultados, convertida en PDF al generar el informe. Que falle no puede
+    // tumbar un cálculo que ya ha salido bien — por eso no lleva `throw`.
+    const capturaId = await pagina
+      .screenshot({ fullPage: true })
+      .then((datos) => ctx.guardarCaptura(this.calculadora, ctx.entradas.ojo, datos))
+      .catch(() => undefined)
+
     return {
       calculadora: this.calculadora,
       ojo: ctx.entradas.ojo,
@@ -417,6 +425,7 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
       recomendada,
       astigmatismoNeto: neto,
       entradasSegunLaWeb,
+      ...(capturaId !== undefined ? { capturaId } : {}),
       mensaje: recomendada
         ? undefined
         : 'Barrett ha calculado, pero no se ha podido leer la opción destacada.',

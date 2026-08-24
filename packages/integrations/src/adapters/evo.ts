@@ -255,6 +255,14 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
 
     const completo = esfera !== undefined && eje !== undefined
 
+    // La prueba de que la web dijo esto: una captura de SU pantalla de
+    // resultados, convertida en PDF al generar el informe. Que falle no puede
+    // tumbar un cálculo que ya ha salido bien — por eso no lleva `throw`.
+    const capturaId = await pagina
+      .screenshot({ fullPage: true })
+      .then((datos) => ctx.guardarCaptura(this.calculadora, ctx.entradas.ojo, datos))
+      .catch(() => undefined)
+
     return {
       calculadora: this.calculadora,
       ojo: ctx.entradas.ojo,
@@ -264,6 +272,7 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
       opciones: [recomendada, ...alternativas],
       recomendada,
       entradasSegunLaWeb,
+      ...(capturaId !== undefined ? { capturaId } : {}),
       mensaje: completo
         ? undefined
         : 'EVO ha calculado, pero no se han podido leer todos los campos del resultado.',

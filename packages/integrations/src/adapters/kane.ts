@@ -1127,6 +1127,14 @@ export class AdaptadorKane implements AdaptadorCalculadora {
         ? `Kane da ${toricasLeidas} opciones tóricas con el astigmatismo que quedaría con cada una, pero **no destaca ninguna**: la elección de la potencia tórica la deja a quien opera. Por eso las casillas de cilindro de su columna están vacías y no porque falte el dato.`
         : 'A Kane se le ha pedido el cálculo NO tórico, porque falta alguno de los datos que su modo tórico necesita (eje de K1, eje de K2, SIA y eje de la incisión). Da esfera y refracción prevista, no cilindro.'
 
+    // La prueba de que la web dijo esto: una captura de SU pantalla de
+    // resultados, convertida en PDF al generar el informe. Que falle no puede
+    // tumbar un cálculo que ya ha salido bien — por eso no lleva `throw`.
+    const capturaId = await pagina
+      .screenshot({ fullPage: true })
+      .then((datos) => ctx.guardarCaptura(this.calculadora, ctx.entradas.ojo, datos))
+      .catch(() => undefined)
+
     return {
       calculadora: this.calculadora,
       ojo: ctx.entradas.ojo,
@@ -1137,6 +1145,7 @@ export class AdaptadorKane implements AdaptadorCalculadora {
       duracionMs: Date.now() - inicio,
       opciones,
       ...(recomendada !== undefined ? { recomendada } : {}),
+      ...(capturaId !== undefined ? { capturaId } : {}),
       entradasSegunLaWeb,
       mensaje:
         [

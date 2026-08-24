@@ -467,13 +467,14 @@ export function PanelResultados({
       <div className="tarjeta">
         <h2>Informe</h2>
         <p className="sub">
-          Un PDF con los datos confirmados, de dónde salió cada uno, los tres resultados y las
-          diferencias entre ellos.
+          Una carpeta con el informe comparativo —los datos confirmados, de dónde salió cada uno,
+          los tres resultados y las diferencias entre ellos— y, junto a él, un PDF de una hoja por
+          cada calculadora: la captura de su propia pantalla de resultados.
         </p>
         {error && <div className="aviso error">{error}</div>}
         {pdf && (
           <div className="aviso exito">
-            <strong>Informe generado.</strong> Está en <code>{pdf}</code>
+            <strong>Informes generados.</strong> Carpeta: <code>{pdf}</code>
           </div>
         )}
         <div className="fila derecha">

@@ -168,6 +168,12 @@ export interface OpcionesCaso {
   readonly alTerminarUna: (resultado: ResultadoCalculadora) => void
   readonly ahora: () => string
   readonly guardarDiagnostico: (d: DatosDiagnostico) => Promise<string>
+  /** Ver `ContextoEjecucion.guardarCaptura`. */
+  readonly guardarCaptura: (
+    calculadora: Calculadora,
+    ojo: Lateralidad,
+    datos: Uint8Array,
+  ) => Promise<string>
   readonly cancelado: () => boolean
   /**
    * Los adaptadores a usar. Se puede sustituir para probar el aislamiento de
@@ -220,6 +226,7 @@ export async function ejecutarCaso(
         progreso: (e) => opciones.progreso({ ...e, ojo: tarea.ojo }),
         ahora: opciones.ahora,
         guardarDiagnostico: opciones.guardarDiagnostico,
+        guardarCaptura: opciones.guardarCaptura,
         cancelado: opciones.cancelado,
         catalogo: opciones.catalogo,
       })
@@ -241,6 +248,12 @@ export interface OpcionesUnaCasilla {
   readonly progreso: (evento: EventoProgreso) => void
   readonly ahora: () => string
   readonly guardarDiagnostico: (d: DatosDiagnostico) => Promise<string>
+  /** Ver `ContextoEjecucion.guardarCaptura`. */
+  readonly guardarCaptura: (
+    calculadora: Calculadora,
+    ojo: Lateralidad,
+    datos: Uint8Array,
+  ) => Promise<string>
   readonly cancelado: () => boolean
   /**
    * El catálogo de lentes propio, para que Barrett y Kane usen cada uno su
@@ -343,6 +356,7 @@ export async function ejecutarUnaCalculadoraParaUnOjo(
       progreso: opciones.progreso,
       ahora,
       guardarDiagnostico: opciones.guardarDiagnostico,
+      guardarCaptura: opciones.guardarCaptura,
       cancelado: opciones.cancelado,
     })
 

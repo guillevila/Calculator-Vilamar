@@ -24,6 +24,8 @@ export interface Carpetas {
   readonly informes: string
   readonly diagnostico: string
   readonly sesiones: string
+  /** Capturas de éxito de cada calculadora, una subcarpeta por caso. */
+  readonly capturas: string
 }
 
 export function prepararCarpetas(rutaDatos: string): Carpetas {
@@ -35,6 +37,7 @@ export function prepararCarpetas(rutaDatos: string): Carpetas {
     diagnostico: join(rutaDatos, 'diagnostico'),
     // El perfil del navegador: cookies y sesiones. Local y solo local.
     sesiones: join(rutaDatos, 'sesion-navegador'),
+    capturas: join(rutaDatos, 'capturas'),
   }
   for (const ruta of Object.values(carpetas)) mkdirSync(ruta, { recursive: true })
   return carpetas
@@ -137,4 +140,34 @@ export function guardarCatalogo(carpetas: Carpetas, catalogo: readonly LenteDeCa
     JSON.stringify(catalogo, null, 2),
     'utf8',
   )
+}
+
+/**
+ * La captura de la pantalla de resultados de una calculadora, para un caso.
+ *
+ * Una carpeta por caso — no un fichero por captura suelto en la raíz — para
+ * que borrar un caso viejo también se lleve sus capturas, el día que haga
+ * falta. El nombre del fichero es su propio identificador
+ * (`${calculadora}-${ojo}`): no hace falta guardar un índice aparte.
+ */
+export function guardarCaptura(
+  carpetas: Carpetas,
+  codigoCaso: string,
+  calculadora: string,
+  ojo: string,
+  datos: Uint8Array,
+): string {
+  const id = `${calculadora}-${ojo}`
+  const destino = join(carpetas.capturas, codigoCaso)
+  mkdirSync(destino, { recursive: true })
+  writeFileSync(join(destino, `${id}.png`), datos)
+  return id
+}
+
+export function leerCaptura(carpetas: Carpetas, codigoCaso: string, id: string): Uint8Array | null {
+  try {
+    return new Uint8Array(readFileSync(join(carpetas.capturas, codigoCaso, `${id}.png`)))
+  } catch {
+    return null
+  }
 }

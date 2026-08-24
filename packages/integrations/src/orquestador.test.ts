@@ -161,6 +161,7 @@ async function ejecutar(escenario: Escenario) {
       diagnosticos.push(d.errorTecnico)
       return 'diag-1'
     },
+    guardarCaptura: async () => 'captura-1',
     cancelado: () => false,
     adaptadores: escenario.adaptadores,
   })

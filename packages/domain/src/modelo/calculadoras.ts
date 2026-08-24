@@ -243,6 +243,12 @@ export interface ResultadoCalculadora {
   readonly faltan?: readonly CampoBiometrico[]
   /** Referencia al diagnóstico técnico guardado en local, si lo hubo. */
   readonly diagnosticoId?: string
+  /**
+   * Referencia a la captura de la pantalla de resultados de esta web, si se
+   * pudo guardar. Es la prueba de que la web dijo esto: se convierte en un PDF
+   * de una hoja al generar el informe (ver `packages/report`).
+   */
+  readonly capturaId?: string
 }
 
 export function resultadoVacio(
