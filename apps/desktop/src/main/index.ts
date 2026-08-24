@@ -215,11 +215,6 @@ function crearVentana(): void {
 function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   const version = versionDelProducto()
 
-  // Antes que nada: si hay un `.env`, se carga. Tiene que ir aquí arriba porque
-  // el lector de visión mira `ANTHROPIC_API_KEY` al construirse, y una clave
-  // cargada después no la vería nadie.
-  cargarEnv(carpetas.raiz)
-
   const proveedor = new ProveedorDocumentos({
     lectorPdf: crearLectorPdf(),
     motorOcr: crearMotorOcr({ carpetaDatos: join(carpetas.raiz, 'datos-ocr') }),
@@ -308,6 +303,11 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
 instalarRedDeSeguridad()
 
 void app.whenReady().then(() => {
+  // Antes que nada: si hay un `.env`, se carga. Tiene que ir aquí, antes de
+  // preparar las carpetas, porque `VILAMAR_CARPETA_INFORMES` cambia dónde se
+  // crean — y el lector de visión mira `ANTHROPIC_API_KEY` más abajo, así que
+  // cargarlo tarde tampoco le serviría a él.
+  cargarEnv(app.getPath('userData'))
   const carpetas = prepararCarpetas(app.getPath('userData'))
   registrarCanales(carpetas)
   crearVentana()

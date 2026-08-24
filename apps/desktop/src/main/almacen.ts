@@ -33,7 +33,12 @@ export function prepararCarpetas(rutaDatos: string): Carpetas {
     raiz: rutaDatos,
     casos: join(rutaDatos, 'casos'),
     documentos: join(rutaDatos, 'documentos'),
-    informes: join(rutaDatos, 'informes'),
+    // Dónde se guardan los informes es lo único que se puede cambiar desde
+    // fuera: es lo que se quiere poder ver a simple vista, sin entrar en la
+    // carpeta de datos de la aplicación (que en Windows está oculta). El resto
+    // —casos, documentos, sesión del navegador— se queda siempre en local,
+    // porque puede llevar biometría o cookies y no tiene sentido moverlo.
+    informes: process.env['VILAMAR_CARPETA_INFORMES'] || join(rutaDatos, 'informes'),
     diagnostico: join(rutaDatos, 'diagnostico'),
     // El perfil del navegador: cookies y sesiones. Local y solo local.
     sesiones: join(rutaDatos, 'sesion-navegador'),

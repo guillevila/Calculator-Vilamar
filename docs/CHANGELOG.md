@@ -4,6 +4,28 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.5] — 24/08/2026
+
+La carpeta de informes se puede cambiar con `VILAMAR_CARPETA_INFORMES`.
+
+### Añadido
+
+- Nueva variable de entorno `VILAMAR_CARPETA_INFORMES` (ver `.env.example`):
+  si se pone, los informes —el comparativo y el de cada calculadora— se
+  guardan ahí en vez de en la carpeta de datos de la aplicación (oculta en
+  Windows). El resto de los datos —casos, documentos, sesión del
+  navegador— no se mueve: sigue siempre en local.
+- `cargarEnv` pasa a llamarse antes de `prepararCarpetas`, porque ahora una
+  variable de entorno puede decidir dónde se crea una carpeta, no solo qué
+  clave usa el lector de visión.
+
+Ver SYSTEM_VISION.md D41. lint, typecheck, 611 tests unitarios y 31 e2e en
+verde; comprobado a mano que la variable se lee y las carpetas van al sitio
+que toca (`carpetas.informes` a la ruta nueva, `carpetas.casos` sigue en
+local).
+
+---
+
 ## [1.2.4] — 24/08/2026
 
 La pantalla de revisión ya no pide una constante A que ya se sabe.
