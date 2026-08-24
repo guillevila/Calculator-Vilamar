@@ -51,6 +51,7 @@ import {
   constanteDelCatalogoPara,
   explicarBloqueo,
   fichaDe,
+  modeloDelCatalogoPara,
   ojosDelCaso,
   prepararEntradas,
   resultadoDe,
@@ -284,11 +285,13 @@ export interface OpcionesUnaCasilla {
  */
 
 /**
- * Cambia la constante A por la del catálogo, si la lente elegida está ahí y
- * trae una para esta calculadora en concreto. Si no, devuelve `entradas` tal
- * cual: la constante compartida del ojo sigue siendo el valor por defecto.
+ * Ajusta las entradas con lo que sepa el catálogo de la lente elegida, para
+ * ESTA calculadora en concreto: su constante A, si la trae, y el nombre EXACTO
+ * que hay que buscar en el desplegable de esa web, si es distinto del nombre
+ * bonito del catálogo (ver `NombresEnWeb`). Sin catálogo, o sin la lente en
+ * él, devuelve `entradas` tal cual.
  */
-function sustituirConstanteDelCatalogo(
+function conDatosDelCatalogo(
   entradas: EntradasCalculadora,
   caso: Caso,
   calculadora: Calculadora,
@@ -296,13 +299,17 @@ function sustituirConstanteDelCatalogo(
 ): EntradasCalculadora {
   const modelo = caso.lente?.modelo
   if (!catalogo || !modelo) return entradas
-  const constante = constanteDelCatalogoPara(
-    catalogo,
-    { fabricante: caso.lente?.fabricante, modelo },
-    calculadora,
-  )
-  if (constante === undefined) return entradas
-  return { ...entradas, valores: { ...entradas.valores, CONSTANTE_A: constante } }
+  const eleccion = { fabricante: caso.lente?.fabricante, modelo }
+  const constante = constanteDelCatalogoPara(catalogo, eleccion, calculadora)
+  const nombreEnWeb = modeloDelCatalogoPara(catalogo, eleccion, calculadora)
+
+  return {
+    ...entradas,
+    ...(nombreEnWeb !== undefined ? { modeloLente: nombreEnWeb } : {}),
+    ...(constante !== undefined
+      ? { valores: { ...entradas.valores, CONSTANTE_A: constante } }
+      : {}),
+  }
 }
 
 export async function ejecutarUnaCalculadoraParaUnOjo(
@@ -325,16 +332,16 @@ export async function ejecutarUnaCalculadoraParaUnOjo(
     }
   }
 
-  // 1b — Si la lente elegida está en el catálogo propio y trae su propia
-  // constante para ESTA calculadora, se usa esa en vez de la constante
-  // compartida del ojo. Sin esto, un único número compartido no podría ser a
-  // la vez 119.15 para Barrett y 119.33 para Kane en la misma lente.
+  // 1b — Si la lente elegida está en el catálogo propio: su constante A para
+  // ESTA calculadora (si la trae) y el nombre EXACTO que hay que buscar en su
+  // desplegable (si es distinto del nombre bonito del catálogo — casi
+  // siempre lo es: Kane dice «B+L LuxLife», no «Lux Life»).
   //
-  // Para EVO y Kane esto es solo un FALLBACK: si reconocen el modelo en su
-  // propia web, rellenan SU constante y no se pisa (ver evo.ts y kane.ts) —
-  // este valor sustituido únicamente entra en juego si no lo reconocen, y
-  // entonces es mejor la del catálogo que un hueco vacío.
-  const entradas = sustituirConstanteDelCatalogo(
+  // La constante es un FALLBACK para EVO y Kane: si reconocen el modelo en su
+  // propia web, rellenan la suya y no se pisa (ver evo.ts y kane.ts). El
+  // nombre, en cambio, hace falta siempre que quiera intentarse el
+  // reconocimiento — sin el nombre correcto no hay nada que reconocer.
+  const entradas = conDatosDelCatalogo(
     preparacion.entradas,
     caso,
     adaptador.calculadora,

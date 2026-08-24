@@ -15,6 +15,10 @@
       "rangoEsfera": {
         "min": 6,
         "max": 34
+      },
+      "nombresEnWeb": {
+        "KANE": "B+L enVista Envy",
+        "EVO_TORIC": "B&L Envy"
       }
     },
     {
@@ -35,7 +39,11 @@
         "min": 0.9,
         "max": 5.75
       },
-      "notas": "Cilindro en plano de la LIO (no plano corneal). Mismas constantes que enVista ENVY: la ficha no da unas distintas para la version torica."
+      "notas": "Cilindro en plano de la LIO (no plano corneal). Mismas constantes que enVista ENVY: la ficha no da unas distintas para la version torica.",
+      "nombresEnWeb": {
+        "KANE": "B+L enVista Envy Toric",
+        "EVO_TORIC": "B&L Envy"
+      }
     },
     {
       "id": "02b29e0e-3255-4e2d-b611-0413a541fb41",
@@ -49,6 +57,10 @@
       "rangoEsfera": {
         "min": 6,
         "max": 34
+      },
+      "nombresEnWeb": {
+        "KANE": "B+L enVista Aspire",
+        "EVO_TORIC": "B&L Aspire"
       }
     },
     {
@@ -68,7 +80,11 @@
         "min": 0.9,
         "max": 5.75
       },
-      "notas": "Cilindro en plano de la LIO."
+      "notas": "Cilindro en plano de la LIO.",
+      "nombresEnWeb": {
+        "KANE": "B+L enVista Aspire Toric",
+        "EVO_TORIC": "B&L Aspire"
+      }
     },
     {
       "id": "3336e4d2-6111-4d44-b26b-615dae797323",
@@ -82,6 +98,10 @@
       "rangoEsfera": {
         "min": 5,
         "max": 32
+      },
+      "nombresEnWeb": {
+        "KANE": "B+L LuxLife",
+        "EVO_TORIC": "B&L LuxLife"
       }
     },
     {
@@ -101,7 +121,11 @@
         "min": 0.75,
         "max": 6
       },
-      "notas": "Cilindro en plano de la LIO."
+      "notas": "Cilindro en plano de la LIO.",
+      "nombresEnWeb": {
+        "KANE": "B+L LuxLife Toric",
+        "EVO_TORIC": "B&L LuxLife"
+      }
     },
     {
       "id": "e2fc6a30-165e-4851-b22b-924557ae33ee",
@@ -116,7 +140,11 @@
         "min": 6,
         "max": 34
       },
-      "notas": "La ficha da EVO A 118.5, pero en vivo (23/08/2026) la web de EVO rellena 118.45 para B&L LuxSmart: se usa la de la web, no la de la ficha."
+      "notas": "La ficha da EVO A 118.5, pero en vivo (23/08/2026) la web de EVO rellena 118.45 para B&L LuxSmart: se usa la de la web, no la de la ficha.",
+      "nombresEnWeb": {
+        "KANE": "B+L LuxSmart",
+        "EVO_TORIC": "B&L LuxSmart"
+      }
     },
     {
       "id": "69268081-440a-4bc7-b681-080df26aadd4",
@@ -135,7 +163,11 @@
         "min": 0.75,
         "max": 6
       },
-      "notas": "Cilindro en plano de la LIO. La ficha da EVO A 118.5, pero en vivo la web de EVO rellena 118.45 para B&L LuxSmart: se usa la de la web."
+      "notas": "Cilindro en plano de la LIO. La ficha da EVO A 118.5, pero en vivo la web de EVO rellena 118.45 para B&L LuxSmart: se usa la de la web.",
+      "nombresEnWeb": {
+        "KANE": "B+L LuxSmart Toric",
+        "EVO_TORIC": "B&L LuxSmart"
+      }
     },
     {
       "id": "6214e9dc-4b07-4b36-91e6-986c46899da6",
@@ -150,7 +182,10 @@
         "min": 6,
         "max": 34
       },
-      "notas": "Mismos parametros que enVista Aspire (confirmado por el dueno del proyecto, 24/08/2026). Ojo: en vivo, B&L MX60T dio 119.20 en EVO -- no se usa ese valor aqui a proposito."
+      "notas": "Mismos parametros que enVista Aspire (confirmado por el dueno del proyecto, 24/08/2026). Ojo: en vivo, B&L MX60T dio 119.20 en EVO -- no se usa ese valor aqui a proposito.",
+      "nombresEnWeb": {
+        "KANE": "B+L enVista"
+      }
     },
     {
       "id": "cb614fd6-c70a-450a-a967-578c82658c02",
@@ -169,7 +204,10 @@
         "min": 0.9,
         "max": 5.75
       },
-      "notas": "Mismos parametros que enVista Aspire Toric. Cilindro en plano de la LIO. Ojo: en vivo, B&L MX60T dio 119.20 en EVO -- no se usa ese valor aqui a proposito."
+      "notas": "Mismos parametros que enVista Aspire Toric. Cilindro en plano de la LIO. Ojo: en vivo, B&L MX60T dio 119.20 en EVO -- no se usa ese valor aqui a proposito.",
+      "nombresEnWeb": {
+        "KANE": "B+L enVista Toric"
+      }
     }
   ]
 }

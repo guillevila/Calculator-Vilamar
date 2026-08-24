@@ -4,6 +4,39 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.7] — 24/08/2026
+
+El catálogo guarda el nombre exacto que usa cada web, no solo el bonito.
+
+### El problema
+
+Fallo real, probando «Lux Life» de verdad: Kane decía «no tiene la lente»
+teniéndola. El catálogo guardaba «Lux Life», y Kane la llama «B+L LuxLife»
+en su desplegable — sin espacio, con el prefijo del fabricante. Comparando
+esos dos textos, nunca coinciden. EVO tenía el mismo problema de fondo,
+pero no se notaba: su constante de reserva del catálogo ya daba el número
+correcto sin necesitar reconocer nada.
+
+### La corrección
+
+- `LenteDeCatalogo.nombresEnWeb` (nuevo, opcional, por calculadora): el
+  nombre EXACTO que hay que buscar en el desplegable de esa web, cuando es
+  distinto del nombre del catálogo.
+- `modeloDelCatalogoPara` (domain) y `conDatosDelCatalogo` (orquestador,
+  antes `sustituirConstanteDelCatalogo`) sustituyen ese nombre antes de que
+  el adaptador busque el modelo — igual que ya se hacía con la constante.
+- El catálogo real se ha actualizado con los nombres de Kane (tomados de su
+  propio desplegable) y de EVO (comprobados en vivo) para las 10 lentes.
+  Para «enVista» y «enVista Toric» se ha dejado sin declarar el nombre de
+  EVO a propósito: su opción real da un número distinto del que se decidió
+  usar (D38), y declararlo metería el número que no se quiere.
+
+Ver SYSTEM_VISION.md D42. 8 tests nuevos (4 en `catalogo-lentes.test.ts`, 3
+en `orquestador.test.ts`). lint, typecheck, tests unitarios y 31 e2e en
+verde.
+
+---
+
 ## [1.2.6] — 24/08/2026
 
 Copia de respaldo del catálogo de lentes, en el repositorio.

@@ -46,6 +46,21 @@ export function rangoValido(r: RangoPotencia): boolean {
 export type ConstantesPorCalculadora = Partial<Record<Calculadora, number>>
 
 /**
+ * Cómo se llama esta lente en el desplegable de CADA web, cuando no se llama
+ * igual que en el catálogo. Opcional por calculadora.
+ *
+ * Existe porque el nombre que da gusto ver en pantalla —«Lux Life»— casi
+ * nunca es el que usa la web para nombrar la opción de su desplegable — Kane
+ * la llama «B+L LuxLife», EVO «B&L LuxLife»: sin espacio y con el prefijo del
+ * fabricante. Comparar el nombre bonito contra el de la web nunca los
+ * empareja, así que el modelo se queda sin elegir en el formulario aunque la
+ * lente SÍ esté en la lista — y con ella, sin la constante que rellenaría
+ * sola. Aquí se guarda el nombre exacto, tal cual lo escribe cada web,
+ * comprobado en vivo o visto en su propio desplegable.
+ */
+export type NombresEnWeb = Partial<Record<Calculadora, string>>
+
+/**
  * Una lente del inventario propio.
  *
  * `rangoEsfera` es OPCIONAL a propósito: hay lentes que se añaden solo para que
@@ -66,6 +81,7 @@ export interface LenteDeCatalogo {
   readonly torica: boolean
   readonly rangoEsfera?: RangoPotencia
   readonly rangoCilindro?: RangoPotencia
+  readonly nombresEnWeb?: NombresEnWeb
   readonly notas?: string
 }
 
@@ -169,6 +185,29 @@ export function constanteDelCatalogoPara(
   if (buscada === '') return undefined
   const encontrada = catalogo.find((l) => claveLente(l) === buscada)
   return encontrada?.constantesA[calculadora]
+}
+
+/**
+ * Qué nombre hay que buscar en el desplegable de ESTA calculadora para la
+ * lente elegida en el caso.
+ *
+ * Si el catálogo tiene un nombre específico para esa web (`nombresEnWeb`), es
+ * ese — no el nombre bonito del catálogo, que casi nunca coincide con lo que
+ * escribe la web. Si no hay ninguno declarado, o la lente no está en el
+ * catálogo, se sigue con el nombre que ya traía el caso: puede que SÍ
+ * coincida por casualidad, y cambiarlo a ciegas podría estropear un
+ * emparejamiento que ya funcionaba.
+ */
+export function modeloDelCatalogoPara(
+  catalogo: Catalogo,
+  eleccion: { readonly fabricante?: string; readonly modelo: string } | undefined,
+  calculadora: Calculadora,
+): string | undefined {
+  if (!eleccion || eleccion.modelo.trim() === '') return eleccion?.modelo
+  const buscada = claveLente(eleccion)
+  if (buscada === '') return eleccion.modelo
+  const encontrada = catalogo.find((l) => claveLente(l) === buscada)
+  return encontrada?.nombresEnWeb?.[calculadora] ?? eleccion.modelo
 }
 
 /** Las constantes declaradas, en el orden fijo de `CALCULADORAS`, para no reordenarlas al azar. */

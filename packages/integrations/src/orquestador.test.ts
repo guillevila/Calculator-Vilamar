@@ -453,6 +453,82 @@ describe('la constante A del catálogo, una por calculadora', () => {
   })
 })
 
+describe('el nombre de la lente que se busca en el desplegable de cada web', () => {
+  // El fallo real: el catálogo guardaba «Lux Life», pero Kane la llama
+  // «B+L LuxLife» en su desplegable. Comparando el nombre bonito contra el
+  // de la web, nunca se encontraba — aunque la lente SÍ estuviera en la
+  // lista — y Kane terminaba diciendo «no tiene la lente» teniéndola.
+  function casoConLuxLife(): Caso {
+    return { ...casoListo(), lente: { fabricante: 'Bausch & Lomb', modelo: 'Lux Life' } }
+  }
+
+  const catalogo: Catalogo = [
+    {
+      id: 'luxlife',
+      modelo: 'Lux Life',
+      fabricante: 'Bausch & Lomb',
+      torica: false,
+      constantesA: { BARRETT_TORIC: 118.63 },
+      nombresEnWeb: { EVO_TORIC: 'B&L LuxLife', KANE: 'B+L LuxLife' },
+    },
+  ]
+
+  function capturador(calculadora: Calculadora, capturadas: { valor?: EntradasCalculadora }) {
+    return {
+      ...adaptadorOk(calculadora, 21),
+      ejecutar: async (ctx: Parameters<AdaptadorCalculadora['ejecutar']>[0]) => {
+        capturadas.valor = ctx.entradas
+        return adaptadorOk(calculadora, 21).ejecutar(ctx)
+      },
+    }
+  }
+
+  it('a Kane se le manda el nombre exacto de su desplegable, no el del catálogo', async () => {
+    const capturadas: { valor?: EntradasCalculadora } = {}
+    await ejecutar({
+      caso: casoConLuxLife(),
+      catalogo,
+      calculadoras: ['KANE'],
+      adaptadores: {
+        EVO_TORIC: adaptadorOk('EVO_TORIC', 21),
+        BARRETT_TORIC: adaptadorOk('BARRETT_TORIC', 21),
+        KANE: capturador('KANE', capturadas),
+      },
+    })
+    expect(capturadas.valor?.modeloLente).toBe('B+L LuxLife')
+  })
+
+  it('a EVO se le manda el nombre exacto de SU desplegable, distinto del de Kane', async () => {
+    const capturadas: { valor?: EntradasCalculadora } = {}
+    await ejecutar({
+      caso: casoConLuxLife(),
+      catalogo,
+      calculadoras: ['EVO_TORIC'],
+      adaptadores: {
+        EVO_TORIC: capturador('EVO_TORIC', capturadas),
+        BARRETT_TORIC: adaptadorOk('BARRETT_TORIC', 21),
+        KANE: adaptadorOk('KANE', 21),
+      },
+    })
+    expect(capturadas.valor?.modeloLente).toBe('B&L LuxLife')
+  })
+
+  it('sin nombre declarado para esa web (Barrett), se manda el nombre del catálogo tal cual', async () => {
+    const capturadas: { valor?: EntradasCalculadora } = {}
+    await ejecutar({
+      caso: casoConLuxLife(),
+      catalogo,
+      calculadoras: ['BARRETT_TORIC'],
+      adaptadores: {
+        EVO_TORIC: adaptadorOk('EVO_TORIC', 21),
+        BARRETT_TORIC: capturador('BARRETT_TORIC', capturadas),
+        KANE: adaptadorOk('KANE', 21),
+      },
+    })
+    expect(capturadas.valor?.modeloLente).toBe('Lux Life')
+  })
+})
+
 describe('lo que se envía a una web', () => {
   it('nunca lleva más que el código local del caso como identificador', async () => {
     let capturadas: EntradasCalculadora | undefined

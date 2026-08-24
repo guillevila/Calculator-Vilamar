@@ -12,6 +12,7 @@ import {
   describirLenteDeCatalogo,
   erroresDeLenteCatalogo,
   lentesQueCubren,
+  modeloDelCatalogoPara,
   rangoValido,
   type LenteDeCatalogo,
 } from './catalogo-lentes.js'
@@ -224,5 +225,48 @@ describe('constanteDelCatalogoPara', () => {
     expect(
       constanteDelCatalogoPara(catalogo, { fabricante: 'BAUSCH & LOMB', modelo: 'ENVISTA ENVY' }, 'KANE'),
     ).toBe(119.33)
+  })
+})
+
+describe('modeloDelCatalogoPara', () => {
+  // El fallo real que esto arregla: el catálogo guardaba «Lux Life» (el
+  // nombre bonito para el desplegable de elección), pero la web de Kane
+  // llama a esa misma lente «B+L LuxLife» — sin espacio, con el prefijo del
+  // fabricante. Comparando el nombre bonito contra el de la web, Kane nunca
+  // la encontraba, aunque SÍ estuviera en su lista.
+  const luxLife = lente({
+    id: 'luxlife',
+    modelo: 'Lux Life',
+    fabricante: 'Bausch & Lomb',
+    constantesA: { BARRETT_TORIC: 118.63 },
+    nombresEnWeb: { EVO_TORIC: 'B&L LuxLife', KANE: 'B+L LuxLife' },
+  })
+  const catalogo = [luxLife]
+
+  it('da el nombre exacto de la web cuando el catálogo lo tiene declarado', () => {
+    expect(
+      modeloDelCatalogoPara(catalogo, { fabricante: 'Bausch & Lomb', modelo: 'Lux Life' }, 'KANE'),
+    ).toBe('B+L LuxLife')
+    expect(
+      modeloDelCatalogoPara(catalogo, { fabricante: 'Bausch & Lomb', modelo: 'Lux Life' }, 'EVO_TORIC'),
+    ).toBe('B&L LuxLife')
+  })
+
+  it('sin nombre declarado para esa calculadora, se queda con el nombre que ya traía el caso', () => {
+    expect(
+      modeloDelCatalogoPara(
+        catalogo,
+        { fabricante: 'Bausch & Lomb', modelo: 'Lux Life' },
+        'BARRETT_TORIC',
+      ),
+    ).toBe('Lux Life')
+  })
+
+  it('si la lente no está en el catálogo, se queda con el nombre que ya traía el caso', () => {
+    expect(modeloDelCatalogoPara(catalogo, { modelo: 'Otra lente' }, 'KANE')).toBe('Otra lente')
+  })
+
+  it('sin ninguna lente elegida, no da nada', () => {
+    expect(modeloDelCatalogoPara(catalogo, undefined, 'KANE')).toBeUndefined()
   })
 })
