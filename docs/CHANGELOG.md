@@ -4,6 +4,24 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.6] — 24/08/2026
+
+Copia de respaldo del catálogo de lentes, en el repositorio.
+
+### Añadido
+
+- `docs/catalogo-lentes-respaldo.json`: copia de las 10 lentes que el dueño
+  del proyecto ha ido añadiendo a su catálogo (enVista, enVista Aspire,
+  enVista ENVY, Lux Life, Lux Smart — cada una con su versión tórica). Es
+  solo un respaldo, a petición suya: **la aplicación no lo lee**. El
+  catálogo real y activo sigue viviendo en
+  `%APPDATA%\calculator-vilamar\catalogo-lentes.json`, fuera del
+  repositorio, como todo lo demás que no es código (D18). Si hace falta
+  restaurar el catálogo algún día, se copia el array `lentes` de aquí a ese
+  fichero.
+
+---
+
 ## [1.2.5] — 24/08/2026
 
 La carpeta de informes se puede cambiar con `VILAMAR_CARPETA_INFORMES`.
