@@ -569,6 +569,15 @@ Ninguno de los tres impide usar lo demás.
   —no se guarda en ningún sitio persistente— así que sigue pendiente de que
   el dueño del proyecto vuelva a subir esa biometría y confirme que ahora sí
   se lee entera.
+- **D48 (25/08/2026): un tercer biómetro habitual (ANTERION, pantalla de
+  cálculo de LIO) usa una tabla a tres columnas con la etiqueta puesta una
+  sola vez; `segmentarPorPosicion` ya sabe leerla, ignorando la columna de
+  diferencia.** Construido y comprobado con 1 test nuevo (posiciones
+  sintéticas, ningún dato real), lint, typecheck y la suite e2e completa —el
+  primer intento rompió un test e2e existente y se corrigió antes de seguir.
+  **No probado con una foto real**: eso pasa por OCR, que no se ha ejecutado
+  contra una imagen de verdad de este formato, así que sigue pendiente de
+  que el dueño del proyecto lo confirme subiendo esa biometría.
 
 ---
 

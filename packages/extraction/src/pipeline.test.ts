@@ -140,6 +140,37 @@ describe('separar los dos ojos', () => {
     expect(s.porOjo.OS).toContain('24.01')
   })
 
+  it('una etiqueta puesta UNA vez, con una tercera columna de diferencia al lado, se reparte en los dos ojos sin la diferencia', () => {
+    // Caso real (25/08/2026): un informe de biometría de ANTERION que no
+    // repite la etiqueta bajo cada ojo, la pone una vez a la izquierda de
+    // las dos columnas, y añade una tercera columna con la diferencia
+    // OD-OS que no interesa. Antes la etiqueta caía solo del lado de OD —por
+    // estar más a la izquierda que la frontera— y OS se quedaba con el
+    // número suelto, sin la palabra que la regla de lectura necesita.
+    const bloques = [
+      { texto: 'OD', x: 0.35, y: 0.1, ancho: 0.03, alto: 0.02 },
+      { texto: 'OS', x: 0.55, y: 0.1, ancho: 0.03, alto: 0.02 },
+      { texto: 'Diferencia', x: 0.75, y: 0.1, ancho: 0.08, alto: 0.02 },
+      { texto: 'CCT', x: 0.05, y: 0.2, ancho: 0.05, alto: 0.02 },
+      { texto: '(vertex)', x: 0.11, y: 0.2, ancho: 0.06, alto: 0.02 },
+      { texto: '472', x: 0.36, y: 0.2, ancho: 0.04, alto: 0.02 },
+      { texto: 'um', x: 0.41, y: 0.2, ancho: 0.03, alto: 0.02 },
+      { texto: '457', x: 0.56, y: 0.2, ancho: 0.04, alto: 0.02 },
+      { texto: 'um', x: 0.61, y: 0.2, ancho: 0.03, alto: 0.02 },
+      { texto: '15', x: 0.76, y: 0.2, ancho: 0.03, alto: 0.02 },
+      { texto: 'um', x: 0.8, y: 0.2, ancho: 0.03, alto: 0.02 },
+    ]
+    const s = segmentarPorOjo(reconstruirLineas(bloques), bloques)
+    expect(s.disposicion).toBe('DOS_COLUMNAS')
+    expect(s.porOjo.OD).toMatch(/CCT[\s\S]*472/)
+    expect(s.porOjo.OS).toMatch(/CCT[\s\S]*457/)
+    // Ni el valor del otro ojo ni la diferencia se cuelan en ninguno.
+    expect(s.porOjo.OD).not.toContain('457')
+    expect(s.porOjo.OS).not.toContain('472')
+    expect(s.porOjo.OD).not.toContain('15')
+    expect(s.porOjo.OS).not.toContain('15')
+  })
+
   it('si OS está a la izquierda, se respeta y no se asume el orden', () => {
     const bloques = [
       { texto: 'OS', x: 0.3, y: 0.1, ancho: 0.04, alto: 0.02 },

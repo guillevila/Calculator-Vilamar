@@ -4,6 +4,53 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.13] — 25/08/2026
+
+Tercer formato de biometría: tabla a tres columnas con etiqueta compartida.
+
+### El pedido
+
+El dueño del proyecto usa habitualmente tres biómetros distintos. Mostró
+una foto de la pantalla de cálculo de LIO de ANTERION —un formato nuevo,
+con tabla a tres columnas (OD, OS y la diferencia entre los dos)— y
+confirmó que quiere poder subir documentos así con regularidad, ignorando
+la columna de diferencia.
+
+### Por qué era un caso nuevo, no una variación del que ya funcionaba
+
+El formato que ya se leía bien repite la etiqueta bajo cada ojo («K1» dos
+veces, una en cada columna). Este trae la etiqueta UNA sola vez, a la
+izquierda de las dos columnas de valores, y además añade una tercera
+columna que no interesa. Sin cambios, la etiqueta caía solo del lado de OD
+—por estar más a la izquierda— y OS se quedaba con el número suelto, sin la
+palabra que la regla de lectura necesita; y la columna de diferencia se
+colaba entera en el lado derecho.
+
+### La implementación
+
+- `segmentarPorPosicion` (`packages/extraction/src/parsers/segmentar.ts`):
+  dos comprobaciones nuevas sobre las posiciones de los bloques.
+  - Cualquier bloque más a la izquierda que la columna de cada ojo se trata
+    como etiqueta compartida y se copia a los dos lados.
+  - Cualquier bloque más a la derecha que las dos columnas conocidas, en la
+    fila de la cabecera, marca dónde empieza lo que no interesa; todo lo
+    que caiga más allá se descarta.
+  - Las dos se restringen a bloques CORTOS y SIN NINGÚN NÚMERO: la primera
+    versión no tenía esa restricción y rompió un test end-to-end existente
+    —confundía la primera línea de datos de una columna con una etiqueta y
+    hacía desaparecer un ojo entero—.
+- 1 test nuevo con posiciones sintéticas que imitan la forma del informe
+  real (etiqueta compartida + tercera columna), sin ningún dato del
+  informe real.
+
+Ver SYSTEM_VISION.md D48. lint, typecheck, 635 tests unitarios (1 fallo
+preexistente y no relacionado) y 32 e2e en verde. **No probado con una foto
+real** —eso pasa por OCR y no se ha ejecutado contra una imagen de verdad—,
+así que sigue pendiente de que el dueño del proyecto lo confirme subiendo
+esa biometría.
+
+---
+
 ## [1.2.12] — 25/08/2026
 
 Tres huecos de lectura reales, encontrados con la primera biometría de IOLMaster.

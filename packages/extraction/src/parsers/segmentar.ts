@@ -157,11 +157,55 @@ export function segmentarPorPosicion(bloques: readonly BloqueTexto[]): Segmentac
   const odIzquierda = cabeceraOd.x < cabeceraOs.x
   const frontera = fronteraEntreColumnas(bloques, cabeceraOd.x, cabeceraOs.x)
 
+  /**
+   * Algunos informes no repiten la etiqueta bajo cada ojo: la ponen UNA vez,
+   * más a la izquierda que las dos columnas, y después vienen el valor de OD
+   * y el de OS uno junto al otro — «CCT (vertex)   472 µm   457 µm». Sin esto,
+   * la etiqueta caía solo del lado de OD (por estar más a la izquierda que la
+   * frontera) y el lado de OS se quedaba con el número suelto, sin la palabra
+   * que la regla de lectura necesita para reconocerlo.
+   *
+   * Se detecta por posición, no por texto: cualquier bloque más a la
+   * izquierda que la columna que le toque a cada ojo se trata como etiqueta
+   * compartida y se añade A LOS DOS lados.
+   */
+  const MARGEN_ETIQUETA = 0.02
+  const cabeceraIzquierda = odIzquierda ? cabeceraOd : cabeceraOs
+  const finEtiquetaCompartida = cabeceraIzquierda.x - MARGEN_ETIQUETA
+
+  /**
+   * Algunos informes añaden, a la derecha de las dos columnas, una tercera
+   * —la diferencia entre OD y OS, por ejemplo— que no interesa y que, sin
+   * esto, se colaba entera en el lado derecho por no tener frontera que la
+   * pare. Se busca cualquier otro rótulo de cabecera en la misma fila que
+   * quede más a la derecha que las columnas de OD y OS, y todo lo que caiga
+   * más allá de él se descarta.
+   */
+  const yCabecera = cabeceraOd.y
+  const xColumnaDerecha = Math.max(cabeceraOd.x, cabeceraOs.x)
+  let finalFrontera = Number.POSITIVE_INFINITY
+  for (const b of bloques) {
+    // No hace falta que sea un rótulo OD/OS, pero SÍ tiene que parecer una
+    // etiqueta: corta y sin ningún número. Sin el filtro de los números, la
+    // primera línea de datos de una de las columnas —«AL   24.07 mm», que
+    // cabe de sobra en unos pocos caracteres— podía confundirse con la
+    // cabecera de una tercera columna y hacer desaparecer un ojo entero.
+    const t = b.texto.trim()
+    if (t.length > 16 || /\d/.test(t)) continue
+    const centro = b.x + b.ancho / 2
+    if (Math.abs(b.y - yCabecera) > 0.01) continue
+    if (centro <= xColumnaDerecha + MARGEN_ETIQUETA) continue
+    finalFrontera = Math.min(finalFrontera, (xColumnaDerecha + centro) / 2)
+  }
+
   const texto = (lado: Lateralidad): string => {
     const enIzquierda = (lado === 'OD') === odIzquierda
     const suyos = bloques.filter((b) => {
       const centro = b.x + b.ancho / 2
-      return enIzquierda ? centro < frontera : centro >= frontera
+      if (centro >= finalFrontera) return false
+      const enSuColumna = enIzquierda ? centro < frontera : centro >= frontera
+      const esEtiquetaCompartida = centro < finEtiquetaCompartida
+      return enSuColumna || esEtiquetaCompartida
     })
     // Hay que RECONSTRUIR LAS LÍNEAS, no juntar los trozos con saltos.
     //
