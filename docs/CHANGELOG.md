@@ -4,6 +4,49 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.9] — 25/08/2026
+
+Refracción objetivo: se propone 0 por defecto, editable, y se marca como tal.
+
+### El pedido
+
+El dueño del proyecto quiere que «Refracción objetivo» empiece en 0
+(emetropía) en vez de en blanco, para no tener que escribirlo en cada caso,
+pero sin perder la posibilidad de cambiarlo cuando el objetivo sea otro.
+
+### Por qué no rompe «lo que falta no se inventa»
+
+Esa regla (D3) protege datos BIOMÉTRICOS — lo que mide el aparato. Refracción
+objetivo es el único campo `categoria: 'QUIRURGICO'` del modelo: una decisión
+del cirujano, no una medida. Proponer un punto de partida ahí es distinto de
+inventar una longitud axial que no se ha medido.
+
+### La implementación
+
+- `MetodoExtraccion`/`OrigenDato` nuevos: `POR_DEFECTO`. Ni MANUAL (no lo ha
+  escrito una persona) ni DEL_INFORME (no lo trae el documento): lo ha puesto
+  la aplicación. Texto en pantalla: «Valor por defecto (editable)».
+- `conRefraccionObjetivoPorDefecto(ojo, cuando)` (`medida.ts`, dominio): pone
+  REFRACCION_OBJETIVO a 0 solo si el ojo no tiene ya un valor — de donde sea.
+  Si el informe lo trae impreso o una persona ya lo aportó, no se toca.
+- Sale con `confirmadoPorUsuario: true`: no bloquea pasar a CONFIRMADO ni pide
+  revisar un cero que ha puesto la propia aplicación.
+- Se aplica una vez por ojo del caso, en `servicio-casos.ts`, al terminar de
+  leer los documentos de cada subida (justo antes de pasar a EN_REVISION).
+- Editarlo es exactamente igual que corregir cualquier otro dato:
+  `corregirMedida` conserva el 0 como valor original, así que el rastro queda
+  igual de auditable.
+- Interfaz (`PanelRevision.tsx`) y PDF (`plantilla.ts`) reconocen el nuevo
+  origen sin lógica especial en la pantalla — sale del mismo `origenDe` /
+  `textoDeOrigen` de siempre — y llevan su propio color (`.origen.por_defecto`
+  / `.marca-defecto`) para no confundirse con «Del informe» ni «Aportado».
+
+Ver SYSTEM_VISION.md D44. 7 tests nuevos en `origen.test.ts`. lint, typecheck,
+629 tests unitarios (1 fallo preexistente y no relacionado, ver
+`lessons-learned/log.md`) y 31 e2e en verde.
+
+---
+
 ## [1.2.8] — 24/08/2026
 
 Kane: el modo (Toric/No-tórico) lo decide la lente elegida, antes de buscarla.

@@ -9,8 +9,13 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 12/08/2026 · tras hacer que un solo «Calcular» procese
-los dos ojos, y modelar el sexo del paciente que pide Kane
+**Última actualización:** 25/08/2026 · refracción objetivo por defecto (D44).
+⚠️ El resto de este documento (secciones 1–5 y 7) no se ha revisado desde
+12/08/2026 y no refleja el trabajo hecho después —catálogo de lentes,
+selección de modelo en Kane/EVO, PDF por calculadora, carpeta de informes
+configurable, correcciones de Kane (D38–D43)—. Hace falta una pasada completa
+para que vuelva a ser fuente de verdad; mientras tanto, `docs/CHANGELOG.md` y
+las decisiones D37–D44 de `SYSTEM_VISION.md` son lo más al día que hay.
 
 ---
 
@@ -532,6 +537,12 @@ Ninguno de los tres impide usar lo demás.
   el informe no hereda la de otra.
 - **D34: si una web externa dice haber usado otra constante, se registra y se
   enseña; no se corrige.** El resultado es el de la constante que usó la web.
+- **D44 (25/08/2026): Refracción objetivo se propone en 0, marcada como valor
+  por defecto (no como dato del informe ni escrito a mano), editable como
+  cualquier otro dato.** Construido y comprobado con tests unitarios (7 nuevos)
+  y con la suite e2e completa (31, en verde); **no** se ha comprobado todavía
+  abriendo la aplicación real y mirando la pantalla de revisión con un caso
+  nuevo — pendiente de que el dueño del proyecto lo pruebe.
 
 ---
 

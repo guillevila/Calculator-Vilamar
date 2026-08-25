@@ -19,6 +19,16 @@ export type MetodoExtraccion =
   | 'MANUAL'
   /** Se ha calculado a partir de otros datos. Siempre declarado, nunca oculto. */
   | 'DERIVADO'
+  /**
+   * Lo ha puesto la aplicación como valor de partida, sin que nadie lo pida.
+   *
+   * Solo existe para campos QUIRÚRGICOS —una decisión del cirujano, no una
+   * medida del aparato— donde hay un valor de partida habitual. No es MANUAL
+   * —no lo ha escrito una persona— ni DERIVADO —no sale de una cuenta sobre
+   * otros datos del caso—: es la propia aplicación proponiendo un punto de
+   * partida que el cirujano puede dejar o cambiar.
+   */
+  | 'POR_DEFECTO'
 
 export const NOMBRE_METODO: Readonly<Record<MetodoExtraccion, string>> = {
   TEXTO_PDF: 'Leído del texto del PDF',
@@ -26,6 +36,7 @@ export const NOMBRE_METODO: Readonly<Record<MetodoExtraccion, string>> = {
   VISION: 'Leído por un modelo de visión',
   MANUAL: 'Escrito a mano',
   DERIVADO: 'Derivado de otros datos',
+  POR_DEFECTO: 'Puesto por la aplicación como valor de partida',
 }
 
 /**
@@ -101,6 +112,11 @@ export function esDerivado(p: Procedencia): boolean {
   return p.metodo === 'DERIVADO'
 }
 
+/** Lo ha puesto la aplicación como valor de partida, no una persona ni una cuenta. */
+export function esPorDefecto(p: Procedencia): boolean {
+  return p.metodo === 'POR_DEFECTO'
+}
+
 /**
  * ¿Lo ha leído una máquina de una imagen, adivinando?
  *
@@ -147,6 +163,11 @@ export function procedenciaManual(cuando: string): Procedencia {
   return { metodo: 'MANUAL', registradoEn: cuando }
 }
 
+/** La procedencia de un valor que ha puesto la aplicación, no una persona. */
+export function procedenciaPorDefecto(cuando: string): Procedencia {
+  return { metodo: 'POR_DEFECTO', registradoEn: cuando }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  De dónde salió el valor, dicho como lo entiende una persona
 // ═══════════════════════════════════════════════════════════════════════════
@@ -184,6 +205,11 @@ export type OrigenDato =
   | 'APORTADO'
   /** El informe traía un valor y una persona lo cambió. Se conserva el de antes. */
   | 'CORREGIDO'
+  /**
+   * No lo ha traído el informe ni lo ha escrito una persona: lo ha puesto la
+   * aplicación como valor de partida, para un campo que decide el cirujano.
+   */
+  | 'POR_DEFECTO'
   /** No está en el informe y todavía nadie lo ha aportado. */
   | 'NO_CONSTA'
 
@@ -227,6 +253,8 @@ export function origenDe(dato: DatoConOrigen | undefined): OrigenDato {
   // caso no llega hasta aquí y sale como CORREGIDO, que es lo correcto.
   if (esDerivado(dato.procedencia)) return 'DERIVADO_DEL_INFORME'
   if (esMedido(dato.procedencia)) return 'DEL_INFORME'
+  // Puesto por la aplicación, sin que nadie lo pidiera: ni informe, ni persona.
+  if (esPorDefecto(dato.procedencia)) return 'POR_DEFECTO'
   // Manual. Lo que decide entre corregido y aportado es si pisó algo.
   return dato.original !== undefined ? 'CORREGIDO' : 'APORTADO'
 }
@@ -242,6 +270,7 @@ export const TEXTO_ORIGEN: Readonly<Record<Exclude<OrigenDato, 'NO_CONSTA'>, str
   DERIVADO_DEL_INFORME: 'Derivado del informe',
   APORTADO: 'Aportado',
   CORREGIDO: 'Corregido',
+  POR_DEFECTO: 'Valor por defecto (editable)',
 }
 
 /** Los dos textos posibles cuando no hay valor. */

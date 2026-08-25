@@ -26,6 +26,7 @@ import {
   confirmar,
   confirmarMedida,
   conOjo,
+  conRefraccionObjetivoPorDefecto,
   conResultado,
   corregirMedida,
   aportarSexo,
@@ -350,6 +351,14 @@ export class ServicioCasos {
         ojosEncontrados: Object.keys(resultado.ojos) as Lateralidad[],
         avisos,
       })
+    }
+
+    // La refracción objetivo es una decisión del cirujano, no una medida del
+    // aparato: se propone 0 (emetropía) cuando ningún documento la ha traído,
+    // y queda marcada como valor por defecto para que se distinga de lo que
+    // sí ha escrito una persona.
+    for (const lado of ojosDelCaso(caso)) {
+      caso = conOjo(caso, conRefraccionObjetivoPorDefecto(ojoDe(caso, lado), this.iso()), this.iso())
     }
 
     caso = { ...caso, estado: 'EN_REVISION', actualizadoEn: this.iso() }

@@ -568,6 +568,13 @@ table.opciones .na {
   color: #8a4b00;
   font-weight: 600;
 }
+/* POR_DEFECTO es un valor que ha puesto la aplicación, no el informe ni una
+   persona: se pinta parecido a NO_CONSTA (apagado, no es un dato del informe)
+   pero sin cursiva, porque SÍ hay un valor y SÍ cuenta como confirmado. */
+.origen.por_defecto {
+  background: #f2f2f2;
+  color: #55627a;
+}
 .origen.no_consta {
   background: transparent;
   color: #6f6f6f;

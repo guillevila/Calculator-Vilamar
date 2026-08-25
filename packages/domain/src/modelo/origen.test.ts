@@ -16,7 +16,15 @@
 import { describe, expect, it } from 'vitest'
 
 import { loAportaElCirujano } from './campos.js'
-import { conMedida, corregirMedida, crearMedida, obtener, ojoVacio, sinMedida } from './medida.js'
+import {
+  conMedida,
+  conRefraccionObjetivoPorDefecto,
+  corregirMedida,
+  crearMedida,
+  obtener,
+  ojoVacio,
+  sinMedida,
+} from './medida.js'
 import type { Procedencia } from './procedencia.js'
 import {
   origenDe,
@@ -309,5 +317,55 @@ describe('un dato que ha calculado el programa', () => {
     expect(obtener(tras, 'ACD')?.original?.valor).toBe(3.18)
     // Y se conserva también la cuenta con la que se había obtenido.
     expect(obtener(tras, 'ACD')?.original?.procedencia.derivacion?.explicacion).toContain('AQD')
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  10 · La refracción objetivo por defecto
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('la refracción objetivo por defecto', () => {
+  it('se pone a 0 cuando ningún documento la ha traído', () => {
+    const ojo = conRefraccionObjetivoPorDefecto(ojoVacio('OD'), CUANDO)
+    expect(obtener(ojo, 'REFRACCION_OBJETIVO')?.valor).toBe(0)
+  })
+
+  it('es POR_DEFECTO, no APORTADO ni DEL_INFORME: no la ha puesto una persona ni el informe', () => {
+    const ojo = conRefraccionObjetivoPorDefecto(ojoVacio('OD'), CUANDO)
+    expect(origenDe(obtener(ojo, 'REFRACCION_OBJETIVO'))).toBe('POR_DEFECTO')
+  })
+
+  it('se llama «Valor por defecto (editable)» en pantalla', () => {
+    expect(TEXTO_ORIGEN.POR_DEFECTO).toBe('Valor por defecto (editable)')
+  })
+
+  it('sale ya confirmada: no hace falta que nadie revise un cero que ha puesto la aplicación', () => {
+    const ojo = conRefraccionObjetivoPorDefecto(ojoVacio('OD'), CUANDO)
+    expect(obtener(ojo, 'REFRACCION_OBJETIVO')?.confirmadoPorUsuario).toBe(true)
+  })
+
+  it('no pisa un valor que ya trajera el informe', () => {
+    const conValorDelInforme = conMedida(
+      ojoVacio('OD'),
+      crearMedida('REFRACCION_OBJETIVO', 'OD', -0.5, DEL_PDF),
+    )
+    const tras = conRefraccionObjetivoPorDefecto(conValorDelInforme, CUANDO)
+    expect(obtener(tras, 'REFRACCION_OBJETIVO')?.valor).toBe(-0.5)
+    expect(origenDe(obtener(tras, 'REFRACCION_OBJETIVO'))).toBe('DEL_INFORME')
+  })
+
+  it('no pisa un valor que ya hubiera aportado una persona', () => {
+    const conValorAportado = corregirMedida(ojoVacio('OD'), 'REFRACCION_OBJETIVO', -1, CUANDO)
+    const tras = conRefraccionObjetivoPorDefecto(conValorAportado, LUEGO)
+    expect(obtener(tras, 'REFRACCION_OBJETIVO')?.valor).toBe(-1)
+    expect(origenDe(obtener(tras, 'REFRACCION_OBJETIVO'))).toBe('APORTADO')
+  })
+
+  it('editar el valor por defecto lo pasa a CORREGIDO, conservando el 0 como original', () => {
+    const conDefecto = conRefraccionObjetivoPorDefecto(ojoVacio('OD'), CUANDO)
+    const editado = corregirMedida(conDefecto, 'REFRACCION_OBJETIVO', -0.25, LUEGO)
+    expect(obtener(editado, 'REFRACCION_OBJETIVO')?.valor).toBe(-0.25)
+    expect(origenDe(obtener(editado, 'REFRACCION_OBJETIVO'))).toBe('CORREGIDO')
+    expect(obtener(editado, 'REFRACCION_OBJETIVO')?.original?.valor).toBe(0)
   })
 })
