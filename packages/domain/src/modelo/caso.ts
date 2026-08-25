@@ -89,8 +89,13 @@ export interface Caso {
    *
    *  - **No sale del ordenador.** A las calculadoras se les sigue mandando el
    *    código local del caso (D23), nunca esto.
-   *  - **No sale en el PDF.** Hay un test que lo comprueba.
+   *  - **No sale DENTRO de ningún PDF.** Hay un test que lo comprueba.
    *  - **No entra en el repositorio.** Los fixtures son sintéticos.
+   *
+   * Única excepción, decisión expresa del dueño del proyecto (25/08/2026,
+   * D46): el NOMBRE DE LA CARPETA donde se guardan los informes de un caso sí
+   * lo lleva, para poder localizarlos por paciente. Sigue sin salir del
+   * ordenador ni entrar en ningún PDF — es solo el nombre de una carpeta local.
    *
    * Vive en el fichero JSON del caso, en la carpeta de datos del usuario.
    */

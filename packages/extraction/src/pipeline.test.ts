@@ -727,6 +727,21 @@ describe('sexo y nombre del informe', () => {
     expect(r.paciente.nombre).toBeUndefined()
   })
 
+  it('lee el nombre con la etiqueta «Paciente:» a secas, sin «Nombre» delante', () => {
+    // Caso real que trajo el dueño del proyecto (25/08/2026): su informe no
+    // dice «Nombre del paciente», dice solo «Paciente:».
+    const r = leer(`HEIDELBERG ENGINEERING ANTERION
+Cataract App
+Paciente: Sintético De Prueba
+
+OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+`)
+    expect(r.paciente.nombre).toBe('Sintético De Prueba')
+  })
+
   it('el sexo y el nombre NO se guardan dentro de un ojo', () => {
     // Una persona no tiene un sexo por ojo. Guardarlo ahí permitiría que el
     // derecho y el izquierdo dijeran cosas distintas.

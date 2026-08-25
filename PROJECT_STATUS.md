@@ -549,6 +549,16 @@ Ninguno de los tres impide usar lo demás.
   lint, typecheck, tests unitarios y la suite e2e (32, con 1 test nuevo para
   esto); **no** se ha comprobado todavía abriendo la aplicación real —
   pendiente de que el dueño del proyecto lo pruebe.
+- **D46 (25/08/2026): la carpeta de informes lleva el nombre del paciente,
+  cuando el informe lo trae — excepción explícita y documentada a que ese
+  dato no sale del ordenador ni entra en ningún PDF.** Se hizo pushback antes
+  de tocar nada; el dueño del proyecto lo confirmó igualmente. También se
+  amplió el reconocimiento del nombre para la etiqueta «Paciente:» a secas.
+  Construido y comprobado con lint, typecheck, tests unitarios (1 nuevo) y
+  la suite e2e; **la construcción del nombre de carpeta en sí no tiene test
+  automático** —habla con el sistema de archivos, como el resto de
+  `generarPdf`— así que sigue pendiente de que el dueño del proyecto genere
+  un informe real y compruebe el nombre de la carpeta.
 
 ---
 

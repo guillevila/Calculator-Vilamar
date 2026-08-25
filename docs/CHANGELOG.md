@@ -4,6 +4,51 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.11] — 25/08/2026
+
+La carpeta de informes lleva el nombre del paciente, cuando el informe lo trae.
+
+### El pedido
+
+El dueño del proyecto quiere identificar sus carpetas de informes por
+paciente en el Explorador, no solo por código de caso.
+
+### El pushback, y por qué se hizo igualmente
+
+El nombre del paciente lleva reglas endurecidas desde el 12/08/2026: no sale
+del ordenador, no entra en ningún PDF, no entra en el repositorio. Antes de
+tocar nada se le explicó al dueño del proyecto que una carpeta con el nombre
+es mucho más visible que hoy —se ve en el Explorador sin abrir nada, sale en
+búsquedas, viaja sola si esa carpeta se sincroniza con algo o se comparte—.
+Confirmó que lo quería igualmente («quiero que uses el nombre que viene en
+el pdf»), así que se implementa como una EXCEPCIÓN nombrada y documentada
+(D46), no como una relajación silenciosa: las otras dos reglas siguen
+intactas.
+
+### La implementación
+
+- `servicio-casos.ts#generarPdf`: si `caso.nombrePaciente` existe, la carpeta
+  pasa de `<código>_<fecha>` a `<código>_<nombre>_<fecha>`. Si no hay nombre
+  (caso a mano, o el informe no lo trae), sigue igual que antes.
+- Nuevo helper `nombreDeArchivoValido` (quita caracteres que Windows no
+  admite en nombres de archivo/carpeta) reutilizado también para el nombre
+  de los PDF por calculadora, que antes tenía su propia versión suelta del
+  mismo saneado.
+- `packages/extraction/src/parsers/paciente.ts`: se añadió la etiqueta
+  «Paciente:» a secas (sin «Nombre» delante) a `PATRONES_NOMBRE` — el
+  informe real que trajo el dueño del proyecto la usa así, y ninguno de los
+  patrones existentes («Nombre del paciente», «Patient», «Patient Name») la
+  reconocía.
+
+Ver SYSTEM_VISION.md D46. 1 test nuevo (`pipeline.test.ts`, la etiqueta
+«Paciente:»). lint, typecheck, 630 tests unitarios (1 fallo preexistente y
+no relacionado) y 32 e2e en verde. La construcción del nombre de carpeta en
+sí (`generarPdf`) no tiene test automático propio — igual que el resto de
+esa función, que habla con el sistema de archivos — así que queda pendiente
+de que el dueño del proyecto lo compruebe generando un informe real.
+
+---
+
 ## [1.2.10] — 25/08/2026
 
 Elegir con qué calculadoras trabajar, antes de pulsar «Calcular».

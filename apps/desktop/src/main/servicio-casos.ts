@@ -720,7 +720,17 @@ export class ServicioCasos {
     const html = generarHtmlInforme(datos)
 
     const marca = this.iso().replace(/[:.]/g, '-').slice(0, 19)
-    const carpetaCaso = join(this.dep.carpetas.informes, `${caso.codigo}_${marca}`)
+    // Si el informe traía el nombre del paciente, va en el nombre de la
+    // carpeta — decisión expresa del dueño del proyecto (25/08/2026, D46):
+    // quiere localizar sus informes por paciente en el Explorador, no solo
+    // por código de caso. No cambia las otras dos reglas de `caso.ts`: el
+    // nombre sigue sin salir hacia ninguna calculadora y sigue sin aparecer
+    // DENTRO de ningún PDF.
+    const nombrePaciente = caso.nombrePaciente ? nombreDeArchivoValido(caso.nombrePaciente) : ''
+    const carpetaCaso = join(
+      this.dep.carpetas.informes,
+      nombrePaciente ? `${caso.codigo}_${nombrePaciente}_${marca}` : `${caso.codigo}_${marca}`,
+    )
     mkdirSync(carpetaCaso, { recursive: true })
 
     const destino = join(carpetaCaso, 'informe-comparativo.pdf')
@@ -735,8 +745,9 @@ export class ServicioCasos {
       if (!resultado.capturaId) continue
       const png = leerCaptura(this.dep.carpetas, caso.codigo, resultado.capturaId)
       if (!png) continue
-      const nombreArchivo = `${fichaDe(resultado.calculadora).nombre} - ${resultado.ojo}.pdf`
-        .replace(/[\\/:*?"<>|]/g, '-')
+      const nombreArchivo = nombreDeArchivoValido(
+        `${fichaDe(resultado.calculadora).nombre} - ${resultado.ojo}.pdf`,
+      )
       const htmlCaptura = `<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0"><img src="data:image/png;base64,${Buffer.from(png).toString('base64')}" style="width:100%;display:block"></body></html>`
       await this.dep
         .imprimirPdf(htmlCaptura, join(carpetaCaso, nombreArchivo))
@@ -745,4 +756,18 @@ export class ServicioCasos {
 
     return { ruta: carpetaCaso }
   }
+}
+
+/**
+ * Deja un texto listo para ser nombre de archivo o de carpeta en Windows.
+ *
+ * Quita los caracteres que Windows no admite, colapsa espacios y recorta —un
+ * nombre de paciente largo no debe producir una ruta inservible.
+ */
+function nombreDeArchivoValido(texto: string): string {
+  return texto
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80)
 }
