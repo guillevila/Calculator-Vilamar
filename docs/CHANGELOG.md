@@ -4,6 +4,45 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.12] — 25/08/2026
+
+Tres huecos de lectura reales, encontrados con la primera biometría de IOLMaster.
+
+### El problema
+
+El dueño del proyecto subió un informe real de IOLMaster y avisó de que «no
+detectas los parámetros». El documento no se ha guardado en ningún sitio
+—ni el repositorio, ni memoria entre sesiones—, y las correcciones se
+verificaron con fixtures sintéticas nuevas, con la misma forma que el
+informe pero ningún dato real.
+
+### Las tres causas
+
+1. **`segmentar.ts#segmentarPorSecciones` descartaba el resumen entero.**
+   El informe repite cada ojo dos veces: un resumen compacto (con la única
+   AL del documento) y, más abajo, una «transcripción detallada» en otro
+   formato, más larga. La regla «si un ojo aparece dos veces, gana el trozo
+   más largo» —pensada para descartar una mención de paso— se quedaba con la
+   transcripción y tiraba el resumen, AL incluida, sin ningún aviso. Ahora se
+   JUNTAN todos los trozos del mismo ojo en vez de elegir uno.
+2. **El IOLMaster 700 no leía su tabla de lentes.** `perfiles.ts` tenía
+   `tablaDeLentes: 'NINGUNA'` con la razón «no se ha comprobado cómo lo
+   presenta». El informe real trae el modelo y la constante exactamente en
+   el mismo formato que ANTERION: pasa a `'CONSTANTES_POR_FORMULA'`, con el
+   informe real como la evidencia que este fichero exige antes de activar
+   algo así.
+3. **La refracción objetivo exigía un decimal.** El informe imprime «Target
+   refraction 0 D», sin punto decimal, y la regla lo exigía. Se hizo
+   opcional. De paso, la regla vivía SOLO en la tabla de ANTERION —no es una
+   etiqueta propia de ese aparato— y se movió a las reglas genéricas para
+   que cualquier dispositivo la reconozca.
+
+Ver SYSTEM_VISION.md D47. 4 tests nuevos, todos con fixtures sintéticas.
+lint, typecheck, 634 tests unitarios (1 fallo preexistente y no relacionado)
+y 32 e2e en verde.
+
+---
+
 ## [1.2.11] — 25/08/2026
 
 La carpeta de informes lleva el nombre del paciente, cuando el informe lo trae.

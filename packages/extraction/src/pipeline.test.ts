@@ -100,6 +100,19 @@ describe('separar los dos ojos', () => {
     expect(valorDe(os!, 'CCT')).toBe(548)
   })
 
+  it('un ojo que aparece dos veces —resumen y transcripción— junta las dos, no se queda solo con la más larga', () => {
+    // Caso real (25/08/2026): la transcripción detallada es más larga que el
+    // resumen, pero el resumen es el único sitio con la AL. Quedarse solo con
+    // la más larga (comportamiento antiguo) hacía desaparecer la AL sin aviso.
+    const r = leer(fx.IOLMASTER_RESUMEN_Y_TRANSCRIPCION)
+    expect(r.disposicion).toBe('SECCIONES')
+    const od = r.ojos.OD!
+    const os = r.ojos.OS!
+    expect(valorDe(od, 'AL')).toBe(23.5)
+    expect(valorDe(os, 'AL')).toBe(23.6)
+    expect(valorDe(os, 'WTW')).toBe(11.6)
+  })
+
   it('un informe de un solo ojo no inventa el otro', () => {
     const r = leer(fx.ANTERION_SOLO_OD)
     expect(r.ojos.OD).toBeDefined()
@@ -410,6 +423,35 @@ describe('ANTERION: refracción objetivo y nk', () => {
     expect(avisos.filter((a) => a.nivel === 'INVALID')).toHaveLength(0)
   })
 
+  it('lee la refracción objetivo también sin decimales, «0 D» a secas', () => {
+    // Informe real (25/08/2026, IOLMaster): imprime «Target refraction 0 D»,
+    // sin punto decimal. El patrón exigía uno y se quedaba sin leer el valor.
+    const r2 = leer(`CARL ZEISS IOLMASTER
+
+OD
+AL            23.50 mm
+K1            42.10 D @ 10
+K2            43.80 D @ 100
+Target refraction 0 D
+`)
+    expect(valorDe(r2.ojos.OD!, 'REFRACCION_OBJETIVO')).toBe(0)
+  })
+
+  it('la refracción objetivo se reconoce en cualquier aparato, no solo ANTERION', () => {
+    // No es una etiqueta propia de ANTERION: «Target Refraction» es un término
+    // habitual de biometría. Antes solo estaba en la tabla de reglas de
+    // ANTERION y el mismo texto en un IOLMaster no se leía.
+    const r2 = leer(`CARL ZEISS IOLMASTER
+
+OD
+AL            23.50 mm
+K1            42.10 D @ 10
+K2            43.80 D @ 100
+Target refraction -0.5 D
+`)
+    expect(valorDe(r2.ojos.OD!, 'REFRACCION_OBJETIVO')).toBe(-0.5)
+  })
+
   it('no se inventa ninguno cuando el informe no los trae', () => {
     // El IOLMaster de los fixtures no publica ni Target ni nk. Un extractor que
     // «rellenara» con el valor típico sería justo lo que este programa no hace.
@@ -588,6 +630,16 @@ describe('modelos de lente y su constante A', () => {
     const r = leer(fx.DESCONOCIDO_CON_SRKT)
     expect(r.dispositivo.dispositivo).toBe('DESCONOCIDO')
     expect(r.lentes).toHaveLength(0)
+  })
+
+  it('el IOLMaster 700 también lista modelo y constante por fórmula, como ANTERION', () => {
+    // Comprobado con un informe real (25/08/2026): antes el perfil del
+    // IOLMaster 700 decía «no se ha comprobado» y no leía la tabla nunca.
+    const r = leer(fx.IOLMASTER_RESUMEN_Y_TRANSCRIPCION)
+    expect(r.dispositivo.dispositivo).toBe('IOLMASTER_700')
+    expect(r.lentes).toHaveLength(1)
+    expect(r.lentes[0]!.modelo).toBe('Ejemplo IOL Modelo Sintetico')
+    expect(r.lentes[0]!.constanteA).toBe(118.9)
   })
 
   it('un ANTERION sin tabla de lentes devuelve la lista vacía, no un error', () => {

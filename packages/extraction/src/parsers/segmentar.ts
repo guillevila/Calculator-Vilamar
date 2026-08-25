@@ -198,10 +198,24 @@ function segmentarPorSecciones(texto: string, marcas: readonly Marca[]): Segment
     if (!actual) continue
     const siguiente = cortes[i + 1]
     const trozo = texto.slice(actual.indice, siguiente ? siguiente.indice : texto.length)
-    // Si un ojo aparece dos veces, se queda el trozo más largo: el otro suele
-    // ser una mención de paso («comparación OD/OS»), no la tabla de medidas.
+    /**
+     * Si un ojo aparece varias veces, se JUNTAN todos sus trozos, en el orden
+     * en que aparecen — no se descarta ninguno.
+     *
+     * Antes se quedaba solo el trozo más largo, pensado para el caso de una
+     * mención de paso («comparación OD/OS») frente a la tabla de medidas real.
+     * Pero hay informes con el caso contrario: un resumen compacto (con la AL,
+     * que no se repite en ningún otro sitio) seguido de una «transcripción
+     * detallada» más larga, en otro formato, del mismo ojo. Ahí «el más largo»
+     * se quedaba con la transcripción y tiraba el resumen entero — la AL
+     * desaparecía sin que nada avisara.
+     *
+     * Juntarlos es seguro porque `aplicarReglas` ya se queda con la PRIMERA
+     * aparición de cada campo: el resumen manda si los dos traen el mismo
+     * dato (aparece primero), y lo que solo trae la transcripción no se pierde.
+     */
     const previo = porOjo[actual.lado]
-    if (!previo || trozo.length > previo.length) porOjo[actual.lado] = trozo
+    porOjo[actual.lado] = previo ? `${previo}\n${trozo}` : trozo
   }
 
   const lados = Object.keys(porOjo) as Lateralidad[]

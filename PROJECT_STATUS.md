@@ -559,6 +559,16 @@ Ninguno de los tres impide usar lo demás.
   automático** —habla con el sistema de archivos, como el resto de
   `generarPdf`— así que sigue pendiente de que el dueño del proyecto genere
   un informe real y compruebe el nombre de la carpeta.
+- **D47 (25/08/2026): tres huecos de lectura reales, encontrados con la
+  primera biometría de IOLMaster que subió el dueño del proyecto.** Un ojo
+  repetido se quedaba con el trozo más largo (perdía la AL); el IOLMaster no
+  leía su tabla de lentes; la refracción objetivo exigía decimales. Los tres
+  arreglados y comprobados con 4 tests nuevos (fixtures sintéticas, sin
+  ningún dato del informe real), lint, typecheck y la suite e2e completa.
+  **No** se ha vuelto a probar contra el informe real que trajo el problema
+  —no se guarda en ningún sitio persistente— así que sigue pendiente de que
+  el dueño del proyecto vuelva a subir esa biometría y confirme que ahora sí
+  se lee entera.
 
 ---
 
