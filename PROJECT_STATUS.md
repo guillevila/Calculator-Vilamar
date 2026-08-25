@@ -543,6 +543,12 @@ Ninguno de los tres impide usar lo demás.
   y con la suite e2e completa (31, en verde); **no** se ha comprobado todavía
   abriendo la aplicación real y mirando la pantalla de revisión con un caso
   nuevo — pendiente de que el dueño del proyecto lo pruebe.
+- **D45 (25/08/2026): en la pantalla de cálculo se puede elegir con qué
+  calculadoras trabajar, con una casilla por calculadora, antes de pulsar
+  «Calcular».** Empieza con las tres marcadas. Construido y comprobado con
+  lint, typecheck, tests unitarios y la suite e2e (32, con 1 test nuevo para
+  esto); **no** se ha comprobado todavía abriendo la aplicación real —
+  pendiente de que el dueño del proyecto lo pruebe.
 
 ---
 

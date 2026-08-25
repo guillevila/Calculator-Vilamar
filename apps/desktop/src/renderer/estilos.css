@@ -365,6 +365,16 @@ table.revision tr.warning {
   width: 22px;
   text-align: center;
 }
+.marca-seleccion {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.marca-seleccion input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
 .calc.requiere-usuario {
   border-color: var(--ambar);
   background: var(--ambar-suave);

@@ -4,6 +4,36 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.10] — 25/08/2026
+
+Elegir con qué calculadoras trabajar, antes de pulsar «Calcular».
+
+### El pedido
+
+El dueño del proyecto quiere poder decidir, en la pantalla de cálculo, si
+lanza las tres calculadoras o solo la que le interesa en ese momento — no
+solo reintentar una que falló, sino elegir desde el principio.
+
+### La implementación
+
+- `PanelCalculo.tsx`: una casilla junto a cada calculadora, con las tres
+  marcadas por defecto. Es estado de la pantalla, no del caso: no se guarda
+  en ningún sitio ni viaja al proceso principal — es una preferencia de este
+  lanzamiento concreto.
+- El botón principal usa la selección («Calcular en EVO y Barrett», «Volver
+  a calcular en Kane»…) y se deshabilita si no queda ninguna marcada.
+- No hizo falta tocar el dominio, `servicio-casos.ts` ni el orquestador:
+  `calcular(calculadoras?)` ya aceptaba una lista concreta —lo usa
+  «Reintentar» desde que existe—, así que esto es una capa nueva de interfaz
+  sobre plumbing que ya estaba.
+- «Reintentar» de una fila sigue igual: elige su propia calculadora sin mirar
+  las casillas.
+
+Ver SYSTEM_VISION.md D45. 1 test e2e nuevo. lint, typecheck, 629 tests
+unitarios (1 fallo preexistente y no relacionado) y 32 e2e en verde.
+
+---
+
 ## [1.2.9] — 25/08/2026
 
 Refracción objetivo: se propone 0 por defecto, editable, y se marca como tal.
