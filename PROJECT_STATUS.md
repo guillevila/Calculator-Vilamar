@@ -578,6 +578,13 @@ Ninguno de los tres impide usar lo demás.
   **No probado con una foto real**: eso pasa por OCR, que no se ha ejecutado
   contra una imagen de verdad de este formato, así que sigue pendiente de
   que el dueño del proyecto lo confirme subiendo esa biometría.
+- **D49 (25/08/2026): un título centrado en la fila de la cabecera («Cálculo
+  de IOL») desplazaba la frontera entre OD y OS y hacía desaparecer un ojo
+  entero.** Encontrado con un segundo informe real de IOLMaster el mismo
+  día. Corregido cambiando cómo se calcula el hueco entre columnas (D48 lo
+  documenta junto con el fallo anterior). Comprobado con 2 tests nuevos
+  (posiciones sintéticas), lint, typecheck y la suite e2e completa. Mismo
+  aviso que D48: no probado con una foto real de este documento.
 
 ---
 

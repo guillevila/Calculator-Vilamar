@@ -4,6 +4,41 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.14] — 25/08/2026
+
+Un título centrado en la cabecera desplazaba la frontera entre OD y OS.
+
+### El problema
+
+Segundo informe real probado el mismo día (IOLMaster, pantalla «Cálculo de
+IOL»): los rótulos «OD» y «OS» están en los bordes de la página, pero los
+datos de cada ojo empiezan más hacia el centro, no pegados a su propio
+rótulo, y hay un título centrado —«Cálculo de IOL»— justo en la fila de la
+cabecera, entre los dos. El algoritmo que decide dónde separar las dos
+columnas anclaba el hueco al rótulo de la derecha; con este documento, el
+título centrado ensanchaba la zona de OD hasta el centro de la página y el
+ojo izquierdo entero —incluida su única AL— desaparecía, clasificado como
+si fuera del derecho.
+
+### La corrección
+
+- `fronteraEntreColumnas` (`packages/extraction/src/parsers/segmentar.ts`)
+  ya no ancla el hueco al rótulo de la derecha: busca el hueco más ancho
+  entre los CENTROS de los bloques, restringido al tramo que va de un
+  rótulo al otro.
+- La fila de la cabecera se excluye de esa búsqueda, para que un título
+  centrado en ella no cuente.
+- Los límites de búsqueda son inclusivos a propósito: un test ya existente
+  tenía un dato en la misma coordenada exacta que su propio rótulo, y un
+  límite exclusivo lo dejaba fuera y rompía ese caso.
+- 1 test nuevo con posiciones inventadas que imitan la forma del informe
+  real, sin ningún dato real.
+
+Ver SYSTEM_VISION.md D49. lint, typecheck, 636 tests unitarios (1 fallo
+preexistente y no relacionado) y 32 e2e en verde.
+
+---
+
 ## [1.2.13] — 25/08/2026
 
 Tercer formato de biometría: tabla a tres columnas con etiqueta compartida.

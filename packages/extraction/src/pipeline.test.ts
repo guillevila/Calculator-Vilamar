@@ -413,6 +413,32 @@ describe('regresión — el hueco entre columnas no es «el hueco más grande»'
   })
 })
 
+describe('regresión — un título centrado entre OD y OS no desplaza la frontera', () => {
+  it('la columna izquierda no se traga la derecha por culpa de un título en medio', () => {
+    // Caso real (25/08/2026, IOLMaster): la cabecera trae «OD» a la izquierda,
+    // «OS» a la derecha, y un título centrado —«Cálculo de IOL»— justo entre
+    // los dos, en la misma fila. Contarlo al buscar el hueco entre columnas
+    // ensanchaba la zona de OD hasta el centro de la página y el ojo
+    // izquierdo entero (con la ÚNICA AL que tiene ese lado) acababa
+    // clasificado como si fuera del derecho.
+    const bloques = [
+      { texto: 'OD', x: 0.08, y: 0.05, ancho: 0.04, alto: 0.03 },
+      { texto: 'Cálculo de IOL', x: 0.4, y: 0.05, ancho: 0.2, alto: 0.03 },
+      { texto: 'OS', x: 0.85, y: 0.05, ancho: 0.04, alto: 0.03 },
+      { texto: 'AL: 24.67 mm', x: 0.08, y: 0.2, ancho: 0.15, alto: 0.02 },
+      { texto: 'K1: 40.21 D @161', x: 0.08, y: 0.23, ancho: 0.2, alto: 0.02 },
+      { texto: 'AL: 23.61 mm', x: 0.65, y: 0.2, ancho: 0.15, alto: 0.02 },
+      { texto: 'K1: 38.84 D @20', x: 0.65, y: 0.23, ancho: 0.2, alto: 0.02 },
+    ]
+    const s = segmentarPorOjo(reconstruirLineas(bloques), bloques)
+    expect(s.disposicion).toBe('DOS_COLUMNAS')
+    expect(s.porOjo.OD).toContain('24.67')
+    expect(s.porOjo.OS).toContain('23.61')
+    expect(s.porOjo.OD).not.toContain('23.61')
+    expect(s.porOjo.OS).not.toContain('24.67')
+  })
+})
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  Datos del ANTERION que antes se tiraban
 // ═══════════════════════════════════════════════════════════════════════════
