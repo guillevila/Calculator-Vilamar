@@ -70,6 +70,13 @@ function casoDePrueba(): Caso {
     ['LT', 4.53],
     ['CCT', 530],
     ['WTW', 11.9],
+    // Córnea posterior, con su signo clínico natural (negativo). EVO exige el
+    // módulo en su propio campo (ver evo.ts) — si esta sonda no incluyera un
+    // valor negativo aquí, nunca habría detectado ese bug real (25/08/2026).
+    ['PK1', -6.0],
+    ['PK1_EJE', 180],
+    ['PK2', -6.3],
+    ['PK2_EJE', 90],
     ['REFRACCION_OBJETIVO', 0],
     ['SIA', 0],
     ['EJE_INCISION', 0],
@@ -84,6 +91,10 @@ function casoDePrueba(): Caso {
   const base: Caso = {
     ...casoNuevo('live', 'CV-PRUEBA-001', CUANDO),
     lente: { fabricante: 'Alcon', modelo: 'Alcon SN6ATx' },
+    // Nombres de prueba, no de nadie — desde D44 viajan de verdad a las tres
+    // webs, así que esta sonda los ejercita a propósito.
+    nombrePaciente: 'Paciente de Prueba',
+    nombreCirujano: 'Dra. de Prueba',
     // Kane lo exige. Escrito a mano y confirmado, como lo haría una persona en la
     // pantalla de revisión. NO es de nadie: el caso entero es sintético.
     sexo: {

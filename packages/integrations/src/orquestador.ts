@@ -51,10 +51,16 @@ import {
 } from '@vilamar/domain'
 import type { Browser, BrowserContext } from 'playwright'
 
-import type { AdaptadorCalculadora, DatosDiagnostico, EventoProgreso } from './contrato.js'
+import type {
+  AdaptadorCalculadora,
+  DatosCaptura,
+  DatosDiagnostico,
+  EventoProgreso,
+} from './contrato.js'
 import { AdaptadorBarrettToric } from './adapters/barrett.js'
 import { AdaptadorEvoToric } from './adapters/evo.js'
 import { AdaptadorKane } from './adapters/kane.js'
+import { AdaptadorSinCaraPosterior } from './variante-sin-cara-posterior.js'
 
 /**
  * Orden de ejecución.
@@ -71,7 +77,15 @@ export const ORDEN_OJOS: readonly Lateralidad[] = ['OD', 'OS']
 export function crearAdaptadores(): Readonly<Record<Calculadora, AdaptadorCalculadora>> {
   return {
     EVO_TORIC: new AdaptadorEvoToric(),
+    // Mismo adaptador real, envuelto para que sus entradas nunca lleven la
+    // córnea posterior y su resultado se guarde bajo su propia clave (D45).
+    EVO_TORIC_SIN_CARA_POSTERIOR: new AdaptadorSinCaraPosterior(
+      new AdaptadorEvoToric(),
+      'EVO_TORIC_SIN_CARA_POSTERIOR',
+    ),
     BARRETT_TORIC: new AdaptadorBarrettToric(),
+    // Mismo formulario, con el paso extra de «Measured PCA» (D45).
+    BARRETT_TORIC_CON_CARA_POSTERIOR: new AdaptadorBarrettToric(true),
     KANE: new AdaptadorKane(),
   }
 }
@@ -158,6 +172,7 @@ export interface OpcionesCaso {
   readonly alTerminarUna: (resultado: ResultadoCalculadora) => void
   readonly ahora: () => string
   readonly guardarDiagnostico: (d: DatosDiagnostico) => Promise<string>
+  readonly guardarCaptura: (d: DatosCaptura) => Promise<string>
   readonly cancelado: () => boolean
   /**
    * Los adaptadores a usar. Se puede sustituir para probar el aislamiento de
@@ -210,6 +225,7 @@ export async function ejecutarCaso(
         progreso: (e) => opciones.progreso({ ...e, ojo: tarea.ojo }),
         ahora: opciones.ahora,
         guardarDiagnostico: opciones.guardarDiagnostico,
+        guardarCaptura: opciones.guardarCaptura,
         cancelado: opciones.cancelado,
       })
 
@@ -230,6 +246,7 @@ export interface OpcionesUnaCasilla {
   readonly progreso: (evento: EventoProgreso) => void
   readonly ahora: () => string
   readonly guardarDiagnostico: (d: DatosDiagnostico) => Promise<string>
+  readonly guardarCaptura: (d: DatosCaptura) => Promise<string>
   readonly cancelado: () => boolean
 }
 
@@ -292,6 +309,7 @@ export async function ejecutarUnaCalculadoraParaUnOjo(
       progreso: opciones.progreso,
       ahora,
       guardarDiagnostico: opciones.guardarDiagnostico,
+      guardarCaptura: opciones.guardarCaptura,
       cancelado: opciones.cancelado,
     })
 

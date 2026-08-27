@@ -149,7 +149,9 @@ function adaptadorEspia(
 function todosOk(): Record<Calculadora, AdaptadorCalculadora> {
   return {
     EVO_TORIC: adaptadorOk('EVO_TORIC'),
+    EVO_TORIC_SIN_CARA_POSTERIOR: adaptadorOk('EVO_TORIC_SIN_CARA_POSTERIOR'),
     BARRETT_TORIC: adaptadorOk('BARRETT_TORIC'),
+    BARRETT_TORIC_CON_CARA_POSTERIOR: adaptadorOk('BARRETT_TORIC_CON_CARA_POSTERIOR'),
     KANE: adaptadorOk('KANE'),
   }
 }
@@ -169,6 +171,7 @@ async function ejecutar(
     alTerminarUna: () => undefined,
     ahora,
     guardarDiagnostico: async () => 'diag-1',
+    guardarCaptura: async () => 'captura-1',
     cancelado: () => false,
     adaptadores,
   })

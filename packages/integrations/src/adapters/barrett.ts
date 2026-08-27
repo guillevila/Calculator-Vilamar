@@ -19,19 +19,59 @@
  *     los clics. Se elige RECHAZAR: declinar cookies opcionales no es aceptar
  *     nada en nombre de nadie, y es lo que menos datos comparte.
  *
- *  4. Exige «Patient Name». Se le manda el CÓDIGO LOCAL del caso. «Doctor Name»
- *     y «Patient ID» se quedan vacíos.
+ *  4. Exige «Patient Name». Desde D44 (27/08/2026) se le manda el nombre real
+ *     del paciente si el caso lo tiene; si no, el código local, como antes.
+ *     «Patient ID» se queda vacío — no se ha comprobado su selector real, y
+ *     su formulario solo carga con ventana visible (ver punto 2), lo que
+ *     complica la sonda. «Doctor Name», si el caso lo tiene, se rellena (D41).
  *
  *  5. Elegir el modelo de lente rellena solo el factor de lente y la constante
  *     A, y lo hace con un envío del formulario. Hay que esperarlo.
  *
  *  6. Los resultados NO salen en la misma pestaña: hay que abrir la pestaña
  *     «Toric IOL», que es otro envío del formulario dentro del iframe.
+ *
+ *  7. Por defecto usa «Predicted PCA» —un modelo teórico de córnea
+ *     posterior— y nunca pide la medida real. Existe una variante,
+ *     `AdaptadorBarrettToric(true)` → `BARRETT_TORIC_CON_CARA_POSTERIOR`
+ *     (D45, 27/08/2026), que marca «Measured PCA» y rellena su panel con
+ *     PK1/PK2. La secuencia completa, comprobada en vivo con ayuda del
+ *     dueño del proyecto —no está documentada en ningún sitio y no se
+ *     encuentra mirando solo el HTML inicial—, tiene NUEVE pasos y cruza
+ *     dos pestañas:
+ *       (a) rellenar el formulario normal y pulsar «Calculate» (`Button1`)
+ *           — solo entonces aparece el interruptor «Measured PCA»;
+ *       (b) marcarlo, lo que revela el panel «Measured Posterior Cornea»;
+ *       (c) rellenar sus 4 campos (Flat K / eje, Steep K / eje);
+ *       (d) pulsar el «Calculate» DE ESE PANEL, que es un botón distinto
+ *           (`Button4`, no `Button1`);
+ *       (e) abrir la pestaña «Toric IOL»;
+ *       (f) pulsar «Calculate» otra vez —ahí sí es `Button1`, que existe de
+ *           nuevo en esa pestaña—;
+ *       (g) abrir «Toric IOL» una segunda vez, que es cuando el resultado
+ *           realmente refleja «Measured PCA» en vez de «Predicted PCA».
+ *     Sin el paso (d)-(f) con el botón correcto, el panel queda relleno
+ *     pero el cálculo se sigue haciendo con «Predicted PCA» — un fallo
+ *     silencioso que ya ocurrió una vez en este adaptador. Y aunque los
+ *     nueve pasos estén bien, esta web es lenta y el postback del paso (g)
+ *     a veces no ha terminado cuando Playwright ya quiere leer — eso
+ *     también ocurrió una vez, con un caso real (mismo cilindro y eje en
+ *     las dos hojas) — por eso `abrirPestanaResultados` espera un margen
+ *     mayor en esta variante antes de leer la tabla.
+ *
+ *     ⚠️ Se intentó, y se abandonó, comprobar que el texto «Measured PCA»
+ *     hubiera aparecido de verdad antes de aceptar el resultado —cuatro
+ *     formas distintas de buscarlo, todas rechazando cálculos que ya
+ *     estaban bien—: esa etiqueta se ve en pantalla pero no está en el
+ *     texto real de la página (`innerText`), probablemente por ser una
+ *     imagen o contenido generado por CSS. Ver el log de lecciones,
+ *     2026-08-27 (noche), antes de intentarlo otra vez de la misma forma.
  */
 
-import type { EntradasCalculadora, OpcionLente, ResultadoCalculadora } from '@vilamar/domain'
+import type { Calculadora, EntradasCalculadora, OpcionLente, ResultadoCalculadora } from '@vilamar/domain'
 import type { Frame, Page } from 'playwright'
 
+import { capturarResultado } from '../captura.js'
 import type { AdaptadorCalculadora, ContextoEjecucion } from '../contrato.js'
 import { ErrorAdaptador, esperarAlUsuario } from '../contrato.js'
 import { leerCilindroConEje, leerNumeroDeTexto } from '../normalizar.js'
@@ -58,6 +98,8 @@ const SEL = {
   // La capa que tapa la página. Es esto lo que hay que ver desaparecer.
   capaCookies: '.cky-overlay',
   nombrePaciente: '#MainContent_PatientName',
+  /** «Doctor Name». Comprobado con `pnpm reconocer barrett` el 25/08/2026. Ver D41. */
+  cirujano: '#MainContent_DoctorName',
   modeloLente: '#MainContent_IOLModel',
   constanteA: '#MainContent_Aconstant',
   factorLente: '#MainContent_LensFactor',
@@ -67,11 +109,50 @@ const SEL = {
   anclaFormulario: '#MainContent_AxLength',
   tablaPotencias: '#MainContent_GridView1',
   tablaToricas: '#MainContent_GridView2',
+  /**
+   * «Measured PCA» — comprobado en vivo el 27/08/2026, con ayuda del dueño
+   * del proyecto: **solo aparece después del primer «Calculate»**, no en el
+   * formulario recién cargado. Antes de eso no existe en la página.
+   */
+  medidaPCA: '#MainContent_RadioButtonList3_1',
+  /**
+   * El panel «Measured Posterior Cornea» que aparece al marcar `medidaPCA`.
+   * «K Convention» ya viene en «Keratometry (D)» por defecto —el mismo
+   * convenio en el que el dominio guarda PK1/PK2—, así que no hace falta
+   * tocarlo.
+   */
+  flatKPosterior: '#MainContent_K1_PC',
+  ejeFlatPosterior: '#MainContent_A1_PC',
+  steepKPosterior: '#MainContent_K2_PC',
+  ejeSteepPosterior: '#MainContent_PCTK_Axis',
+  /**
+   * El «Calculate» del panel de córnea posterior medida. NO es el mismo
+   * botón que `calcular` (`Button1`) — comprobado en vivo el 27/08/2026:
+   * un volcado sin filtrar de todos los botones de la página lo confirmó
+   * como `Button4`. Usar `Button1` aquí deja el panel relleno pero sin
+   * enviar, y el resultado sale igual que en «Predicted PCA».
+   */
+  calcularCaraPosterior: '#MainContent_Button4',
+  enlaceToricIol: 'Toric IOL',
 } as const
 
 export class AdaptadorBarrettToric implements AdaptadorCalculadora {
-  readonly calculadora = 'BARRETT_TORIC' as const
-  readonly nombre = 'Barrett Toric'
+  /**
+   * Si es `true`, este adaptador marca «Measured PCA» y rellena su panel de
+   * córnea posterior — un paso extra que Barrett no hace nunca por defecto
+   * (D45, 27/08/2026). Los dos modos comparten todo el código: mismo
+   * formulario, mismos selectores, solo cambia si se da ese paso de más.
+   */
+  constructor(private readonly conCaraPosterior: boolean = false) {}
+
+  get calculadora(): Calculadora {
+    return this.conCaraPosterior ? 'BARRETT_TORIC_CON_CARA_POSTERIOR' : 'BARRETT_TORIC'
+  }
+
+  get nombre(): string {
+    return this.conCaraPosterior ? 'Barrett Toric (con córnea posterior)' : 'Barrett Toric'
+  }
+
   readonly url = PAGINA_PADRE
   /** No es una preferencia: sin ventana, el iframe no carga. Comprobado. */
   readonly requiereNavegadorVisible = true
@@ -123,6 +204,15 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
       })
       await calc.click(SEL.calcular)
       await pagina.waitForTimeout(3000)
+
+      if (this.conCaraPosterior) {
+        progreso({
+          calculadora: this.calculadora,
+          fase: 'RELLENANDO',
+          mensaje: 'Marcando la córnea posterior medida en Barrett…',
+        })
+        await this.rellenarCaraPosterior(calc, pagina, entradas)
+      }
 
       const neto = await this.leerAstigmatismoNeto(calc)
 
@@ -246,8 +336,15 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
       if (puesto) await pagina.waitForTimeout(1500)
     }
 
-    // Barrett exige nombre: se le da el código local del caso.
-    await calc.fill(SEL.nombrePaciente, entradas.codigoCaso)
+    // Barrett exige nombre. Desde D44 (27/08/2026), si el caso tiene el
+    // nombre del paciente es ese el que se manda; si no, el código local.
+    await calc.fill(SEL.nombrePaciente, entradas.nombrePaciente ?? entradas.codigoCaso)
+
+    // El cirujano, si el caso lo tiene (D41). Que el campo no exista o no
+    // admita el valor no puede tirar el cálculo.
+    if (entradas.nombreCirujano) {
+      await calc.fill(SEL.cirujano, entradas.nombreCirujano).catch(() => undefined)
+    }
 
     // La constante A que traiga el caso manda sobre la que ponga el modelo.
     if (entradas.valores.CONSTANTE_A !== undefined) {
@@ -261,6 +358,82 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
       const valor = entradas.valores[campo as keyof typeof entradas.valores]
       if (valor === undefined) continue // ausente no se rellena
       await calc.fill(config.selector, valor.toFixed(config.decimales))
+    }
+  }
+
+  /**
+   * Marca «Measured PCA» y rellena su panel de córnea posterior — el paso
+   * extra que solo da esta variante (D45). Si el caso no trae PK1 o PK2 no
+   * hace nada: Barrett se queda en «Predicted PCA», como siempre.
+   *
+   * El panel solo existe DESPUÉS del primer «Calculate» — comprobado en vivo,
+   * no en el formulario recién cargado — y por eso se llama aquí, entre el
+   * primer clic en Calculate y la lectura del resultado.
+   *
+   * Igual que en EVO (ver `evo.ts`): el dominio no garantiza que PK1 sea
+   * siempre el meridiano más plano, así que aquí también se ordena por
+   * módulo antes de rellenar «Flat K» / «Steep K» — no se asume el orden que
+   * traiga el caso.
+   *
+   * ⚠️ Antes, marcar «Measured PCA» y rellenar su panel iba todo con
+   * `.catch(() => undefined)`: si el radio o el panel no estaban listos
+   * todavía, el fallo se tragaba en silencio y el segundo «Calculate» volvía
+   * a salir en «Predicted PCA» —el mismo resultado que sin córnea posterior,
+   * pero con pinta de haber funcionado—. Ahora, si el panel no aparece o un
+   * campo no se puede rellenar, esto lanza `ADAPTER_BROKEN`: un fallo visible
+   * es mejor que un resultado que parece correcto y no lo es.
+   */
+  private async rellenarCaraPosterior(
+    calc: Frame,
+    pagina: Page,
+    entradas: EntradasCalculadora,
+  ): Promise<void> {
+    const { PK1, PK2, PK1_EJE, PK2_EJE } = entradas.valores
+    if (PK1 === undefined || PK2 === undefined) return
+
+    try {
+      await calc.click(SEL.medidaPCA)
+      await calc.locator(SEL.flatKPosterior).waitFor({ state: 'visible', timeout: 15_000 })
+    } catch (error) {
+      throw new ErrorAdaptador(
+        'ADAPTER_BROKEN',
+        'Barrett ha calculado con «Predicted PCA», pero no se ha encontrado el panel de «Measured PCA» para meter la córnea posterior medida. Puede que la web haya cambiado.',
+        'RELLENANDO',
+        SEL.medidaPCA,
+        error,
+      )
+    }
+
+    const plano = Math.abs(PK1) <= Math.abs(PK2) ? { k: PK1, eje: PK1_EJE } : { k: PK2, eje: PK2_EJE }
+    const curvo = Math.abs(PK1) <= Math.abs(PK2) ? { k: PK2, eje: PK2_EJE } : { k: PK1, eje: PK1_EJE }
+
+    await calc.fill(SEL.flatKPosterior, Math.abs(plano.k).toFixed(2))
+    if (plano.eje !== undefined) await calc.fill(SEL.ejeFlatPosterior, plano.eje.toFixed(0))
+    await calc.fill(SEL.steepKPosterior, Math.abs(curvo.k).toFixed(2))
+    if (curvo.eje !== undefined) await calc.fill(SEL.ejeSteepPosterior, curvo.eje.toFixed(0))
+
+    // El panel de córnea posterior tiene su propio «Calculate» (`Button4`,
+    // no `Button1`). Después hay que entrar en la pestaña «Toric IOL» y
+    // volver a pulsar «Calculate» —ahí sí es `Button1`, que en esa pestaña
+    // vuelve a existir— para que el cálculo se rehaga con «Measured PCA».
+    // La comprobación de que de verdad quedó en «Measured PCA» (y no en
+    // «Predicted PCA») la hace `abrirPestanaResultados`, con el último clic
+    // en «Toric IOL» que ya hacía este adaptador para cualquier cálculo.
+    try {
+      await calc.click(SEL.calcularCaraPosterior, { timeout: 15_000 })
+      await pagina.waitForTimeout(3000)
+      await calc.getByRole('link', { name: SEL.enlaceToricIol }).first().click({ timeout: 15_000 })
+      await pagina.waitForTimeout(3000)
+      await calc.click(SEL.calcular, { timeout: 15_000 })
+      await pagina.waitForTimeout(3000)
+    } catch (error) {
+      throw new ErrorAdaptador(
+        'ADAPTER_BROKEN',
+        'Barrett ha aceptado la córnea posterior medida, pero no se ha podido completar la secuencia de recálculo. Puede que la web haya cambiado.',
+        'RELLENANDO',
+        SEL.calcularCaraPosterior,
+        error,
+      )
     }
   }
 
@@ -304,7 +477,10 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
   private async abrirPestanaResultados(pagina: Page, calc: Frame): Promise<void> {
     try {
       await calc.getByRole('link', { name: 'Toric IOL' }).first().click({ timeout: 15_000 })
-      await pagina.waitForTimeout(4000)
+      // Con córnea posterior medida esto llega después de una secuencia de
+      // varios postbacks seguidos (D45); un margen mayor cuesta unos segundos
+      // más y evita leer la tabla a medio repintar.
+      await pagina.waitForTimeout(this.conCaraPosterior ? 6000 : 4000)
     } catch (error) {
       throw new ErrorAdaptador(
         'ADAPTER_BROKEN',
@@ -314,6 +490,25 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
         error,
       )
     }
+
+    // ⚠️ Aquí hubo, y se quitó, una comprobación que esperaba a ver el texto
+    // «Measured PCA» (o, después, el estado marcado de su interruptor) antes
+    // de dar el cálculo por bueno — pensada para detectar si un postback
+    // lento dejaba el resultado en «Predicted PCA» sin avisar. Se abandonó
+    // porque **nunca funcionó**, con cuatro formas distintas de buscarlo, y
+    // en las cuatro rechazaba cálculos que ya estaban bien: capturas y el
+    // texto completo de la página, tomados en el momento exacto del fallo,
+    // mostraban la tabla de «Measured PCA» con los números correctos. Esa
+    // etiqueta se ve a simple vista pero no se encontró ninguna forma
+    // fiable de leerla por programa —todo apunta a que es una imagen o un
+    // contenido generado por CSS, invisible para `innerText`—, y el
+    // interruptor del panel no está disponible una vez se ha cambiado a la
+    // pestaña «Toric IOL». Perseguir una señal que no se puede leer hacía
+    // más daño que no comprobar nada: convertía cálculos correctos en
+    // fallos. La única red de seguridad que queda es la de siempre,
+    // `leerResultado`: si las tablas llegan vacías, avisa; si llegan con
+    // datos, se leen tal cual — igual que en cualquier otro cálculo de
+    // Barrett.
   }
 
   private async leerResultado(
@@ -372,40 +567,52 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
       })
     })
 
-    // La tabla de tóricas da cilindro de lente y astigmatismo residual.
-    // Se busca la que corresponde a la designación de la opción destacada.
-    const destacada = opciones[indiceDestacada]
-    let cilindro: number | undefined
-    let ejeResidual: number | undefined
-    let cilindroResidual: number | undefined
-
+    // La tabla de tóricas da cilindro de lente y astigmatismo residual, por
+    // designación (T3, T4…). Se guarda una por designación —no solo la de la
+    // opción destacada— porque el criterio propio de Calculator Vilamar
+    // (D43) puede acabar eligiendo una esfera distinta a la que Barrett
+    // destaca, y esa otra esfera **tiene su propia designación** en la
+    // misma tabla de potencias: sin este dato, esa esfera se enseñaría sin
+    // cilindro ni eje, aunque Barrett sí los haya dado.
+    const toricasPorDesignacion = new Map<
+      string,
+      { cilindro: number | undefined; cilindroResidual: number | undefined; ejeResidual: number | undefined }
+    >()
     for (const fila of toricas.slice(1)) {
       const designacion = fila[0]?.trim()
-      if (!designacion || !destacada?.designacion) continue
-      if (designacion.toLowerCase() !== destacada.designacion.toLowerCase()) continue
-      cilindro = leerNumeroDeTexto(fila[1])
+      if (!designacion) continue
       const residual = leerCilindroConEje(fila[2])
-      cilindroResidual = residual.magnitud
-      ejeResidual = residual.eje
-      break
+      toricasPorDesignacion.set(designacion.toLowerCase(), {
+        cilindro: leerNumeroDeTexto(fila[1]),
+        cilindroResidual: residual.magnitud,
+        ejeResidual: residual.eje,
+      })
     }
 
-    const recomendada: OpcionLente | undefined = destacada
-      ? {
-          ...destacada,
-          cilindro,
-          cilindroResidual,
-          ejeResidual,
-          // Barrett no publica un «eje de la lente» aparte: usa el del
-          // astigmatismo residual. No se inventa uno.
-          eje: ejeResidual,
-        }
-      : undefined
+    opciones.forEach((opcion, i) => {
+      const toricaDeEsta = opcion.designacion
+        ? toricasPorDesignacion.get(opcion.designacion.toLowerCase())
+        : undefined
+      if (!toricaDeEsta) return
+      opciones[i] = {
+        ...opcion,
+        cilindro: toricaDeEsta.cilindro,
+        cilindroResidual: toricaDeEsta.cilindroResidual,
+        ejeResidual: toricaDeEsta.ejeResidual,
+        // Barrett no publica un «eje de la lente» aparte: usa el del
+        // astigmatismo residual. No se inventa uno.
+        eje: toricaDeEsta.ejeResidual,
+      }
+    })
 
-    if (recomendada) opciones[indiceDestacada] = recomendada
+    const recomendada: OpcionLente | undefined = opciones[indiceDestacada]
 
     const entradasSegunLaWeb: Record<string, string> = {}
     if (neto) entradasSegunLaWeb['Astigmatismo neto'] = `${neto.magnitud} D @ ${neto.eje}°`
+
+    // La captura se toma de la página entera: el resultado vive en el iframe
+    // «Toric IOL», que ya está visible dentro de `pagina` en este punto.
+    const capturaId = await capturarResultado(pagina, ctx, this.calculadora)
 
     return {
       calculadora: this.calculadora,
@@ -420,6 +627,7 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
       mensaje: recomendada
         ? undefined
         : 'Barrett ha calculado, pero no se ha podido leer la opción destacada.',
+      capturaId,
     }
   }
 
