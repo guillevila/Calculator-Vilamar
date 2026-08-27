@@ -26,6 +26,67 @@ O directamente: _"Anota esto como lección aprendida: [descripción]"_
 
 <!-- Las lecciones se añaden debajo de esta línea -->
 
+## 2026-08-27 — Electron arrancaba como Node puro dentro de VSCode
+
+**Error o aprendizaje:** Al lanzar `pnpm dev` desde la terminal de este
+entorno (VSCode), Electron arrancaba pero la ventana no llegaba a abrirse
+—o abría y se comportaba como un proceso Node normal, sin `app`,
+`BrowserWindow` ni el resto de la API—. El error visible era un fallo
+interno del cargador de módulos ESM de Node al importar `electron`.
+
+**Causa raíz:** VSCode es en sí mismo una aplicación Electron y propaga
+`ELECTRON_RUN_AS_NODE=1` al entorno de sus terminales integradas — una
+variable pensada para que procesos hijos de VSCode no abran ventanas
+Electron completas por accidente. Cualquier `electron.exe` lanzado
+heredando esa variable se ejecuta como Node puro, no como la aplicación.
+
+**Lección:** Antes de `pnpm dev` (o cualquier arranque de Electron) en una
+terminal de VSCode, comprobar y limpiar la variable:
+`Remove-Item Env:\ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue`. Sin
+esto, el síntoma es confuso (parece un fallo de carga de módulos, no un
+problema de entorno) y lleva a perder tiempo revisando el código en vez
+del entorno.
+
+**Contexto:** Siempre que se arranque la aplicación Electron desde una
+terminal integrada de VSCode (o cualquier IDE basado en Electron).
+
+---
+
+## 2026-08-27 — Barrett Toric: activar «Measured PCA» cruza dos pestañas y dos botones distintos, ambos llamados «Calculate»
+
+**Error o aprendizaje:** El adaptador de Barrett marcaba «Measured PCA»,
+rellenaba el panel de córnea posterior y pulsaba «Calculate» — pero el
+resultado salía siempre idéntico al de «Predicted PCA», como si los datos
+nunca se hubieran usado. Diagnosticado en vivo con el dueño del proyecto
+viendo el navegador real: la secuencia completa exige, en este orden,
+pulsar «Calculate» del panel «K Calculator» (un botón físicamente distinto
+del de la pestaña «Patient Data», aunque ambos se vean iguales y digan
+«Calculate»), entrar en la pestaña «Toric IOL», pulsar «Calculate» otra
+vez (ahí es un tercer botón, propio de esa pestaña) y entrar en «Toric
+IOL» una segunda vez — solo entonces el resultado refleja de verdad la
+córnea posterior medida.
+
+**Causa raíz:** La web reutiliza el mismo texto de botón («Calculate») en
+tres paneles distintos de un mismo iframe ASP.NET, cada uno con su propio
+id de control (`Button1`, `Button4`, y otro `Button1` distinto dentro de
+la pestaña Toric IOL). Mirar el HTML inicial, o incluso una captura de un
+solo paso, no lo revela: hace falta volcar los botones reales en cada
+pantalla intermedia y comparar el resultado numérico antes y después.
+
+**Lección:** Cuando una web de terceros (ASP.NET con pestañas/paneles
+antiguo) tiene un flujo de varios pasos que no está documentado, no basta
+con probar que un selector existe: hay que verificar que el **resultado
+numérico cambia de verdad** entre el antes y el después, con datos
+sintéticos de prueba, antes de dar por buena una secuencia de clics. Un
+selector que existe y un clic que «no falla» no prueban que el paso haya
+tenido efecto.
+
+**Contexto:** `packages/integrations/src/adapters/barrett.ts` — y en
+general, cualquier adaptador de una web ajena con flujos multi-paso poco
+documentados.
+
+---
+
 ## 2026-08-11 — La carpeta estaba vacía y la plantilla no llegó a copiarse
 
 **Error o aprendizaje:** La sesión empezó con la instrucción de leer, en orden,
@@ -833,3 +894,418 @@ lo dice la web» no era ejecutable.
 **Lo que confirmó que la lección va en serio.** Se rompió la regla a propósito de
 tres formas —la primera, la del medio, la de refracción más cercana a cero— y las
 tres las caza un test. La guarda que nadie ha visto fallar no está demostrada.
+
+---
+
+## 25/08/2026 — Que el DOM ya tenga el dato no significa que la pantalla ya lo enseñe
+
+**Qué pasó.** Al añadir la captura de pantalla del resultado de cada calculadora
+(sesión del 24/08/2026), Kane era el único de los tres cuya captura salía mal: la
+cabecera con los datos de entrada se veía perfecta, pero la tabla de potencias y
+la tabla tórica salían con las filas vacías —bordes dibujados, sin números—. Y sin
+embargo el resultado numérico que el programa leía de esas mismas tablas **siempre
+fue correcto**: la extracción no fallaba, solo la foto.
+
+**Cómo se vio.** No se supuso: se abrieron los PNG de verdad, guardados en
+`%APPDATA%\calculator-vilamar\capturas`, con el visor de imágenes. Comparar una
+captura de la primera ejecución (tablas vacías) con otra veinte minutos después
+del mismo ojo (tablas completas, con las mismas filas que ya se estaban leyendo
+bien todo el rato) fue lo que distinguió «la extracción falla a veces» —que no era
+verdad— de «la foto llega demasiado pronto» —que sí lo era—.
+
+**La causa raíz.** El código esperaba una sola señal antes de leer y fotografiar:
+que el aviso «Processing…» de Kane se escondiera. Esa señal dice que Kane ha
+terminado de CALCULAR, no que el navegador ya haya PINTADO la tabla en pantalla.
+`pagina.evaluate()` lee el DOM, que ya tenía los números; `pagina.screenshot()`
+captura el fotograma compuesto, que puede ir un paso por detrás de una mutación de
+DOM muy reciente. Son dos preguntas distintas —«¿está el dato?» y «¿se ve el
+dato?»— y el código solo comprobaba la primera antes de dar por buenas las dos.
+
+**Lección:** Es la misma familia que «he pulsado el botón» ≠ «el aviso ya no está»
+(11/08/2026, sobre las cookies de Barrett), en una variante nueva: aquí ni siquiera
+hacía falta pulsar nada más, el fallo estaba en confundir **el dato existe** con
+**el dato está pintado**. Cuando algo se va a FOTOGRAFIAR (no solo leer), la espera
+tiene que apuntar a una condición visual comprobable —aquí, que la primera celda de
+la tabla tenga texto de verdad—, no a la señal que basta para leer el dato por
+detrás. Y la corrección para eso nunca es un `waitForTimeout` a ciegas: es esperar
+la condición real con `waitForFunction`, y dejar que el camino de error de siempre
+segura actuando igual si esa condición no llega nunca.
+
+**Contexto:** Cualquier captura de pantalla o comprobación visual sobre una web
+ajena. Y en general, cualquier sitio donde una señal de «ya ha terminado de
+calcular» se use también como señal de «ya se puede fotografiar/leer visualmente»:
+son preguntas distintas y pueden resolverse en instantes distintos.
+
+---
+
+## 25/08/2026 (tarde) — El primer informe real encontró un fallo que 254 tests sintéticos nunca vieron
+
+**Qué pasó.** El dueño del proyecto pasó un informe real de IOLMaster (Zeiss) — el
+primero que ve este programa desde que existe — y dijo que los datos no se leían
+bien, aunque el PDF era de texto nativo y perfectamente legible. Tenía razón: el
+ojo derecho perdía la longitud axial entera y los ejes de K1/K2; el izquierdo, por
+pura casualidad, salía bien.
+
+**Cómo se vio.** El informe real trae DOS secciones por ojo, no una: un resumen
+arriba (con la AL, sin eje) y una «Transcripción detallada» más abajo (con el eje,
+sin la AL) — el mismo dato repartido en dos sitios porque son dos vistas distintas
+de lo mismo, no una repetición. Nunca hizo falta pedirle el documento a nadie para
+verlo: se anonimizó a mano —nombre y fecha de nacimiento sustituidos, antes de que
+tocaran ningún fichero del proyecto— y se reprodujo en un test desechable contra
+`interpretarTexto`, la misma función que usa la aplicación.
+
+**La causa raíz.** `segmentarPorSecciones` (packages/extraction/src/parsers/
+segmentar.ts) ya sabía que un rótulo de ojo puede repetirse, y para ese caso se
+quedaba con el trozo de texto MÁS LARGO, pensando en una mención de paso («ver
+comparación OD/OS») frente a la tabla de medidas de verdad. La heurística no
+contempló la tercera posibilidad: dos secciones, las dos con datos reales, cada
+una con lo que la otra no trae. Quedarse con una sola pierde datos que solo
+estaban en la otra — y como el ojo derecho tenía su bloque «detallado» más largo
+que su resumen, y el izquierdo al revés, el fallo ni siquiera era simétrico entre
+los dos ojos, lo que lo hacía más difícil de sospechar mirando un solo lado.
+
+**Por qué no lo vio ningún test.** Los 254 tests de extracción de este proyecto
+parten de textos sintéticos escritos para probar UNA cosa cada vez: nunca se
+escribió uno con el mismo ojo apareciendo dos veces con campos complementarios,
+porque nadie sabía que un aparato real lo hace así. Es la misma lección que ya
+está en este log sobre «los casos de prueba salen de cómo se usa la herramienta
+de verdad, no de lo que a uno se le ocurre» — con un matiz nuevo: aquí ni hacía
+falta imaginar el uso, bastaba con mirar el primer documento real que llegó.
+
+**La corrección.** `segmentarPorSecciones` ya no elige un trozo y descarta el
+otro: los JUNTA, en el orden en que aparecen. Es seguro hacerlo porque
+`aplicarReglas` (nucleo.ts) ya se queda con la PRIMERA aparición de cada campo —
+así que si el resumen trae la AL, esa es la que se usa, y si la sección detallada
+trae un eje que el resumen no traía, también se aprovecha, sin tener que decidir
+cuál de las dos secciones es «la buena».
+
+**Lo que hago a partir de ahora.**
+
+1. **Un documento real vale más que cien sintéticos bien pensados** para encontrar
+   la clase de fallo que nadie anticipó — no porque los sintéticos sobren, sino
+   porque están escritos para confirmar lo que ya se sabe que hay que comprobar.
+2. **Cuando llegue un documento con datos personales, se anonimiza ANTES de
+   tocar cualquier fichero del proyecto**, nunca después. El nombre y la fecha de
+   nacimiento no entraron ni en un test desechable ni en ningún commit.
+3. Una heurística de «si se repite, me quedo con el mejor» necesita preguntarse
+   qué pasa cuando **las dos repeticiones son buenas pero distintas**. Aquí la
+   respuesta correcta no era elegir mejor, era dejar de elegir.
+
+**Lo que sigue abierto.** Esto valida el lector contra el formato de UN informe
+real de IOLMaster, de un aparato de los tres que el proyecto dice soportar
+(ANTERION y Pentacam siguen sin ningún documento real). O5 en `SYSTEM_VISION.md`
+sigue abierta: un documento no es una muestra, es el primero.
+
+**Contexto:** Todo parser de informes, y en general cualquier heurística
+«si algo se repite, me quedo con uno» — antes de escribirla, preguntarse si las
+repeticiones pueden ser complementarias en vez de redundantes.
+
+---
+
+## 2026-08-26 — Una petición del dueño chocaba con un test que existía justo para evitarla
+
+**Error o aprendizaje:** El dueño pidió una lente «recomendada» calculada con un
+criterio propio, aplicada siempre, y un cuadro final con la más cercana entre
+las tres calculadoras. Antes de escribir una línea de código, una relectura de
+`packages/domain/src/comparacion/comparar.ts` reveló que ese fichero tiene un
+test dedicado —`el producto compara, no recomienda`— y un docstring que dice,
+literalmente, que ninguna regla propia («ni la primera, ni la más cercana a
+cero») puede elegir una opción, porque eso convertiría el producto en quien
+decide la lente. Es decir: la petición no era una función nueva más, era abrir
+una puerta que el código ya había cerrado a propósito, con una lección
+registrada detrás.
+
+**Causa raíz:** Ninguna. Esto no fue un error — es la constitución del proyecto
+funcionando como debía: la regla «compara, pero no recomienda» está para que
+una petición razonable, y bienintencionada, no entre sin que alguien se dé
+cuenta de lo que está pidiendo de verdad.
+
+**Lección:** Cuando una petición del dueño parezca sencilla mirando solo el
+código de la interfaz o el informe, conviene mirar también el módulo de dominio
+que ya resolvió un problema parecido — puede llevar un docstring o un test que
+explique por qué esa solución obvia ya se descartó una vez. Aquí se pudo
+avisar ANTES de tocar nada, en vez de escribir la función y descubrir el
+choque al ejecutar los tests.
+
+**Cómo se resolvió:** Pushback explícito citando el fichero y el test
+concretos. El dueño, informado, decidió seguir adelante — pero con una
+condición explícita: que se marque siempre como opcional y no vinculante, no
+como una recomendación. La estimación se implementó en un módulo NUEVO y
+separado (`comparacion/recomendacion.ts`, no dentro de `comparar.ts`), con su
+propio docstring explicando la diferencia, y la excepción se documentó en tres
+sitios a la vez: `SYSTEM_VISION.md` (D43), `CLAUDE.md` y `.claude/CLAUDE.md`
+(la única excepción, estrecha, a esa regla).
+
+**Contexto:** Cualquier petición que toque una regla de la lista «Lo que este
+proyecto no hace, nunca» (`CLAUDE.md`) o un módulo con un docstring de tipo
+«esto NO hace X, y no es un olvido» — antes de implementar, leer ese docstring
+entero y decidir si la petición es una función nueva o una reapertura de una
+puerta cerrada. Las dos merecen tratamiento distinto.
+
+---
+
+## 2026-08-26 — Un algoritmo probado con datos sintéticos falló con el primer PDF real
+
+**Error o aprendizaje:** El criterio de «lente estimada» (D43) tenía 9 tests
+de dominio en verde, todos con datos escritos a mano para el test. El primer
+cálculo real de punta a punta con las tres calculadoras (mandado por el dueño
+en un PDF) encontró dos fallos que ningún test había visto:
+
+1. `estimarLenteRecomendada()` cogía «la primera opción del array» dando por
+   hecho que ya venía ordenada de menor a mayor potencia. **Cierto para EVO,
+   falso para Kane** —Kane pinta su tabla de mayor a menor—, así que la
+   estimación salía invertida solo en Kane, y ningún test lo detectó porque
+   todos los fixtures de prueba se escribieron ya en orden ascendente, sin
+   pensar en que una calculadora real pudiera devolverla al revés.
+2. El aviso «* PK1 > PK2» que EVO enseña en su propio formulario es
+   **engañoso**: lo correcto, comprobado aislando las cuatro combinaciones
+   posibles, es justo lo contrario (PK1 menor que PK2). Se había dado el
+   aviso de la web por bueno sin comprobarlo contra un resultado real.
+
+**Causa raíz:** Los tests sintéticos prueban que la LÓGICA hace lo que se le
+pidió con los datos que se le dan. No pueden probar una suposición sobre
+CÓMO llegan esos datos de verdad (el orden de una tabla ajena, el sentido de
+un aviso en una web ajena) si esa suposición nunca se escribió como
+pregunta. Es la misma familia de fallo que la segmentación del IOLMaster y la
+captura en blanco de Kane, antes en esta misma sesión: código que pasa todos
+los tests y aun así falla con el primer caso real, porque el fallo estaba en
+una suposición sobre el mundo exterior, no en la lógica interna.
+
+**Lección:** Cuando el código depende del ORDEN o del SENTIDO de algo que
+viene de fuera (una tabla ajena, un aviso de validación de una web ajena):
+1. No asumir que todas las fuentes se comportan igual — comprobar cada una.
+2. Un aviso visible en una web ajena («* PK1 > PK2») es un dato a verificar,
+   no una instrucción a seguir a ciegas: puede estar mal, puede referirse a
+   otra cosa, o puede que la propia web tenga un error de redacción.
+3. Ordenar explícitamente antes de depender del orden, en vez de asumir que
+   «el orden en que llega» ya es el que hace falta.
+
+**Cómo se encontró:** Aislando la variable real con cuatro combinaciones
+controladas (con lente / sin lente, PK1 mayor / menor que PK2) contra la web
+real, no adivinando a partir de la primera pista visible.
+
+**Contexto:** Cualquier función que recorra una lista buscando «la primera
+que cumple X» — preguntarse explícitamente en qué orden puede llegar esa
+lista según la fuente, y si ese orden está garantizado o solo es una
+casualidad del primer caso que se probó.
+
+---
+
+## 2026-08-27 — Una petición sobre privacidad necesitó dos avisos, no uno, porque el alcance real era mayor del que parecía
+
+**Error o aprendizaje:** El dueño pidió que el nombre real del paciente
+saliera en el informe. Se hizo pushback explicando que el PDF nunca lleva
+ese dato (D23) y que eso lo convierte en un documento de salud identificado
+— el dueño confirmó, informado, y se aceptó. Pero al concretar el alcance
+(¿dónde exactamente?) salió que la petición real era mucho más seria de lo
+que la primera pregunta había cubierto: no era solo sobre las páginas locales
+del PDF, sino sobre que el nombre **saliera del ordenador y viajara a tres
+servidores externos** en cada cálculo. Eso es un salto de gravedad distinto
+—de "un fichero en tu disco" a "un dato de salud identificado cruzando
+internet tres veces por caso"— y el primer pushback no lo había distinguido
+con la claridad suficiente.
+
+**Causa raíz:** La primera pregunta de aclaración («¿local o también a las
+calculadoras?») se hizo, pero se ofreció como si las dos opciones fueran
+igual de graves cuando no lo son ni de lejos. Una pregunta de aclaración con
+opciones de gravedad muy distinta necesita decirlo explícitamente en el
+propio texto de cada opción, no dar por hecho que la persona que responde ya
+ha calibrado la diferencia.
+
+**Lección:** Cuando una petición toca una regla de privacidad y tiene más de
+una interpretación posible, no basta con una ronda de pushback genérico.
+Hay que:
+1. Aclarar el alcance exacto ANTES de pedir la confirmación final, no
+   después.
+2. Si las opciones de alcance tienen gravedad muy distinta (un fichero local
+   vs. tres envíos a internet), decirlo así de explícito en cada opción, no
+   dejar que la persona lo infiera.
+3. Aceptar que la persona puede necesitar dos rondas de aviso, no una, y que
+   eso no es insistir de más — es proporcional a lo que se está a punto de
+   cambiar.
+
+**Cómo se resolvió:** Segunda pregunta específica, con la comparación
+explícita («esto es mucho más serio: viajaría a tres servidores»). El dueño
+confirmó las dos veces. Implementado como D44, con el rastro de las dos
+confirmaciones documentado en `SYSTEM_VISION.md`, no solo la última.
+
+**Contexto:** Cualquier petición que toque una regla de privacidad, datos de
+salud o algo que "sale del ordenador" — la primera pregunta de aclaración
+debe separar explícitamente "quedarse en local" de "salir a internet", nunca
+presentarlas como dos matices del mismo tamaño.
+
+---
+
+## 2026-08-27 (tarde) — «No existe ese campo» era «no lo busqué en el momento en que aparece»
+
+**Error o aprendizaje:** Al pedir lo mismo que D45 para Barrett (calcular con
+y sin córnea posterior), revisé el adaptador y el HTML inicial de
+`calc.apacrs.org` y concluí, con seguridad, que Barrett **no tiene** ningún
+campo de córnea posterior — lo escribí así en `SYSTEM_VISION.md`, en el
+changelog y se lo dije al dueño del proyecto. Era falso. El dueño lo
+corrigió con dos capturas reales: un interruptor «Measured PCA» que abre un
+panel entero con los campos exactos que hacían falta.
+
+**Causa raíz:** El interruptor **solo existe DESPUÉS de pulsar «Calculate»
+una vez** con el formulario normal — nunca en el formulario recién cargado.
+Miré el HTML inicial y, al no verlo, concluí que no existía en ningún
+estado, en vez de concluir que no existía **en ese estado**. Es la misma
+familia que «he pulsado el botón» ≠ «el aviso ya no está» y que «el DOM ya
+tiene el dato» ≠ «la pantalla ya lo pinta», ambas ya en este log: hasta
+ahora todas eran sobre confundir dos ESTADOS a lo largo del tiempo. Esta es
+la versión más cara — no confundí dos estados, di por inexistente algo que
+solo aparece en un estado que no llegué a provocar.
+
+Y activar el interruptor no bastaba: rellenar su panel y pulsar el
+`Calculate` de siempre (`Button1`) dejaba el resultado calculado en
+«Predicted PCA» de todos modos — un fallo silencioso, porque parecía haber
+funcionado. El panel tiene su propio botón (`Button4`, encontrado volcando
+sin filtrar TODOS los botones de la página, porque ni el nombre ni el
+aspecto lo delataban), y activar «Measured PCA» de verdad exige además
+volver a calcular en la pestaña «Toric IOL» — nueve pasos en total, entre
+dos pestañas.
+
+**Cómo se resolvió:** El dueño del proyecto probó la web real junto con
+Claude, en tiempo real, indicando paso a paso qué pulsar y en qué orden,
+mientras Claude comparaba capturas de pantalla entre cada paso para
+confirmar cuál cambiaba de verdad el resultado. Sin esa colaboración en
+vivo no se habría encontrado: ninguna revisión de código ni de HTML
+estático lo habría revelado, porque el estado que hacía falta inspeccionar
+no existe hasta la tercera acción de una secuencia de nueve.
+
+**Lección:**
+1. **«No encontré el campo» y «el campo no existe» son afirmaciones
+   distintas**, y solo la primera es la que de verdad se puede sostener tras
+   mirar el HTML inicial. Un formulario dinámico puede revelar campos
+   nuevos después de cualquier acción — un cálculo, un checkbox, un envío
+   — y "no está en el HTML de ahora" nunca prueba "no existe en ningún
+   estado".
+2. Antes de escribir "esta web no tiene X" en un documento que el dueño va
+   a leer como un hecho verificado, la pregunta correcta es "¿probé la web
+   en todos los estados razonables, o solo en el que cargó por defecto?".
+3. Cuando activar una opción no cambia el resultado, **sospechar del propio
+   mecanismo de activación antes que concluir que la opción no sirve** —
+   aquí, el botón equivocado dejaba todo con pinta de haber funcionado.
+4. Cuando el dueño del proyecto corrige una conclusión técnica con
+   evidencia (capturas, no solo su palabra), el error se reconoce sin
+   rodeos y se investiga desde cero — no se defiende la primera conclusión
+   ni se busca cómo tenía "algo de razón".
+
+**Contexto:** Cualquier vez que se concluya "esta web/formulario no tiene
+tal campo o funcionalidad" a partir de mirar un único estado (el HTML
+inicial, la primera captura) — sobre todo en `packages/integrations/src/adapters/`,
+donde ya hay precedente de formularios que cambian tras un envío (Kane
+esconde campos al elegir cierta lente; ahora Barrett revela un panel entero
+tras el primer «Calculate»).
+
+---
+
+## 2026-08-27 (noche) — Un resultado «igual en silencio» era el mismo fallo de siempre, con un giro nuevo: reintentar en la misma página lo empeoró
+
+**Error o aprendizaje:** Con la secuencia de nueve pasos de «Measured PCA»
+ya implementada y verificada esa misma tarde (resultados distintos entre
+«Predicted» y «Measured» con el mismo caso), el dueño probó la aplicación
+de verdad con sus propios datos y las dos hojas de Barrett le dieron **el
+mismo cilindro y el mismo eje**. Exactamente el síntoma que se daba por
+resuelto.
+
+Reproducido en vivo con su caso real (PK1 −6.2, PK2 −6.0): la primera vez
+salió bien, con resultados distintos. Repetido varias veces seguidas, salió
+mal la mayoría: el paso final —abrir «Toric IOL» por segunda vez, que es
+cuando la web de verdad conmuta a «Measured PCA»— a veces se lee **antes**
+de que el postback de esa web (lenta) haya terminado. Como los datos
+«Predicted PCA» siguen en pantalla sin ningún aviso mientras tanto, el
+programa los leía como si fueran el «Measured PCA» pedido — de ahí las dos
+hojas idénticas, sin ningún error que lo delatara.
+
+**Causa raíz:** Es la misma familia que «he pulsado el botón» ≠ «el aviso
+ya no está» (11/08/2026) y «el DOM ya tiene el dato» ≠ «la pantalla ya lo
+pinta» (25/08/2026), ambas ya en este log: se esperó con un
+`waitForTimeout` fijo tras el último clic, en vez de comprobar la condición
+real (que el texto «Measured PCA» hubiera aparecido de verdad). Van ya tres
+veces con la misma forma de fallo, en tres sitios distintos.
+
+**Lo nuevo, que no estaba en el log:** El primer arreglo que se probó fue
+reintentar SIN salir de la página — recalcular y reabrir la pestaña de
+resultados otra vez, con la esperanza de que la segunda vez sí le diera
+tiempo. **Salió peor**: en vez de quedarse en «Predicted PCA» con pinta de
+éxito, la tabla de resultados aparecía completamente vacía. Un segundo
+postback disparado demasiado seguido sobre un formulario ASP.NET WebForms
+(con su `__VIEWSTATE` de por medio) puede dejarlo en un estado más roto que
+el que intentaba arreglar, no solo «tardar un poco más». Se abandonó el
+reintento interno y se dejó que la persona pulse «Reintentar» desde fuera
+— lo que reabre la página entera desde cero, la única recuperación fiable
+que se comprobó que funciona en esta web.
+
+**Lección:**
+1. Verificar una vez que un cálculo da un resultado distinto **no basta**
+   si la condición que hace falta esperar es intermitente por naturaleza
+   (una web lenta). Hace falta repetir la comprobación varias veces
+   seguidas para descubrir que a veces falla — una sola ejecución con
+   éxito no demuestra que sea fiable, solo que es posible.
+2. Cuando una acción depende de un postback de un formulario ajeno, la
+   condición de espera tiene que ser el EFECTO observable de ese postback
+   (aquí, el texto «Measured PCA» apareciendo), nunca un tiempo fijo — por
+   generoso que parezca. Y si no aparece, **fallar con un aviso claro es
+   mejor que devolver el dato de antes** con pinta de ser el nuevo.
+3. **Reintentar dentro de la misma página no es gratis** en un formulario
+   con estado en el servidor (ASP.NET WebForms, `__VIEWSTATE` y similares):
+   puede dejarlo peor que antes de reintentar. La recuperación fiable de un
+   postback a medias es casi siempre volver a cargar la página desde cero,
+   no insistir sobre la misma sesión de formulario.
+4. Antes de dar una hoja de ruta por «resuelta y verificada» en la
+   documentación, distinguir explícitamente «funcionó en la comprobación
+   que hice» de «es fiable» — sobre todo con webs de terceros lentas o con
+   comportamiento variable. `PROJECT_STATUS.md` ahora dice explícitamente
+   que esta calculadora en concreto es la menos fiable de las tres para
+   esta variante, en vez de callarlo.
+
+**Contexto:** Cualquier automatización de un formulario ajeno que dependa
+de un postback — comprobar el efecto real, no un tiempo fijo, y desconfiar
+de cualquier "arreglo" que reintente sin recargar la página cuando el
+formulario tiene estado en el servidor.
+
+**⚠️ Corrección, la misma noche:** El punto 2 de la lección de arriba —«la
+condición de espera tiene que ser el efecto observable, el texto «Measured
+PCA» apareciendo»— **no se pudo llevar a la práctica, y se abandonó.** Se
+probaron CUATRO formas distintas de leer ese texto (literal, con regex
+tolerante a `&nbsp;`, volviendo a buscar el marco por si había quedado
+obsoleto, y comprobando el interruptor del formulario en vez del texto) y
+las cuatro rechazaban cálculos que ya estaban bien — confirmado capturando
+pantalla y el texto completo de la página en el momento exacto de cada
+fallo: la tabla de «Measured PCA» ya tenía los números correctos, pero
+ninguna de las cuatro comprobaciones lo detectaba. La explicación más
+probable es que esa etiqueta se pinta con una imagen o con contenido
+generado por CSS (`::before`/`::after`), invisible para `innerText`,
+`textContent` y cualquier propiedad de formulario alcanzable desde la
+pestaña de resultados.
+
+Se quitó la comprobación por completo. Lo único que quedó del intento fue
+subir el margen de espera fijo antes de leer la tabla (de 4 a 6 segundos
+para esta variante) — es decir, exactamente el `waitForTimeout` que la
+lección de arriba decía que no bastaba. Con esa única espera más larga, se
+repitió la prueba en vivo dos veces seguidas y las dos dieron resultados
+correctos y distintos.
+
+**La lección que de verdad queda, corregida:** «Esperar el efecto real, no
+un tiempo fijo» sigue siendo lo correcto EN GENERAL (y así se ha hecho para
+D45 en EVO, donde sí funciona: `waitForFunction` sobre el DOM). Pero
+**exige que la señal que se espera sea alcanzable por programa** — y aquí
+no se comprobó eso antes de construir la comprobación: se dio por hecho
+que un texto visible en pantalla iba a estar en `innerText`, y no lo
+estaba. Antes de escribir una espera activa sobre "que aparezca X", hay
+que verificar PRIMERO, con una lectura de la página en un momento en que X
+ya se ve, que X es efectivamente legible por Playwright — si no lo es,
+perseguirlo no es más seguro que un tiempo fijo: es peor, porque falla
+también en el caso en que todo ha ido bien.
+
+**Y una de proceso:** esto costó más de una decena de peticiones seguidas
+a la web real de Barrett en menos de dos horas, entre las pruebas del
+dueño y las propias, algunas con teorías que resultaron equivocadas.
+Ninguna comprobación posterior mostró señales de bloqueo, pero es el tipo
+de patrón (mismo perfil, mismas peticiones, en ráfaga) que puede activar
+protecciones anti-bot en una web ajena — cuantas menos rondas de prueba y
+error en directo hagan falta, mejor, y depurar primero con la evidencia ya
+capturada (una captura de pantalla, el texto completo de la página) antes
+de lanzar otra ronda contra la web real habría ahorrado varias de esas
+peticiones.
