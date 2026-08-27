@@ -45,6 +45,30 @@ import {
   textoEstado,
 } from '@vilamar/domain'
 
+/**
+ * Lo que se enseña de UNA casilla (calculadora × ojo) en el informe.
+ *
+ * Antes esto solo llevaba la captura de pantalla (`CapturaInforme`), y solo
+ * existía una entrada por casilla con éxito. Ahora hay una entrada por cada
+ * casilla INTENTADA, tenga o no resultado utilizable: el informe simplificado
+ * (`generarHtmlInforme`) necesita poder decir «Barrett no ha podido calcular:
+ * falta el WTW» en vez de omitir esa página en silencio.
+ */
+export interface ResultadoInforme {
+  readonly calculadora: Calculadora
+  readonly ojo: Lateralidad
+  /** Ausente si el resultado fue de éxito pero la captura no se pudo guardar o leer. */
+  readonly dataUri?: string
+  /** La opción que la calculadora ha destacado, si ha destacado alguna. */
+  readonly recomendada?: {
+    readonly esfera: number
+    readonly cilindro?: number
+    readonly eje?: number
+  }
+  /** Por qué esta casilla no tiene un resultado utilizable, si no lo tiene. */
+  readonly fallo?: string
+}
+
 export interface DatosInforme {
   readonly caso: Caso
   readonly version: string
@@ -57,6 +81,8 @@ export interface DatosInforme {
     readonly ojo: Lateralidad
     readonly campos: readonly CampoBiometrico[]
   }[]
+  /** Lo que se enseña de cada casilla intentada, en el orden en que se enseñan. */
+  readonly resultados: readonly ResultadoInforme[]
 }
 
 /** Escapa el texto para que nada de lo que venga de fuera pueda inyectar HTML. */
@@ -640,7 +666,9 @@ function bandaDeLente(datos: DatosInforme): string {
 /** Color de cada calculadora en el diagrama y su leyenda. */
 const COLOR_CALCULADORA: Readonly<Record<Calculadora, string>> = {
   EVO_TORIC: '#0B5F68',
+  EVO_TORIC_SIN_CARA_POSTERIOR: '#0B5F68',
   BARRETT_TORIC: '#1B4C86',
+  BARRETT_TORIC_CON_CARA_POSTERIOR: '#1B4C86',
   KANE: '#5B3B8A',
 }
 
@@ -1199,6 +1227,35 @@ const ESTILOS = `
   footer.principal strong { color: var(--tinta); }
 
   code { font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace; font-size: 8pt; }
+
+  /* Capturas de pantalla, tal cual — la imagen manda el tamaño, la hoja se adapta. */
+  .captura { display: flex; justify-content: center; align-items: flex-start; margin-top: 10px; }
+  .captura img { max-width: 100%; max-height: 250mm; object-fit: contain; border: 1px solid var(--linea); border-radius: 4px; }
+  .captura-ausente { color: var(--gris); font-style: italic; margin-top: 10px; }
+  .lente-recomendada { margin-top: 16px; font-size: 11pt; text-align: center; }
+  .lente-recomendada strong { font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace; }
+  .no-vinculante { font-size: 8.5pt; color: var(--gris); font-style: italic; }
+
+  /* El cuadro final — vistoso a propósito, y con el aviso de "no vinculante" imposible de no ver. */
+  .aviso-no-vinculante {
+    background: #FFF7E6; border: 1px solid #F0C36D; border-radius: 6px;
+    padding: 10px 14px; font-size: 9pt; line-height: 1.5; color: #6B4E00; margin-bottom: 16px;
+  }
+  .aviso-no-vinculante strong { color: #4A3600; }
+  .tarjetas-resumen { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .tarjeta-resumen {
+    flex: 1 1 0; min-width: 46mm; max-width: 60mm; border-radius: 8px; padding: 12px;
+    text-align: center; border: 2px solid transparent; color: #fff;
+  }
+  .tarjeta-resumen.evo { background: #12506E; }
+  .tarjeta-resumen.barrett { background: #7A3E9D; }
+  .tarjeta-resumen.kane { background: #1B7F5E; }
+  .tarjeta-nombre { font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.85; }
+  .tarjeta-valor {
+    margin-top: 6px; font-size: 12pt; font-weight: 600;
+    font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  }
+  .tarjeta-sin-dato { margin-top: 6px; font-size: 9pt; font-style: italic; opacity: 0.85; }
 `
 
 /**
@@ -1225,7 +1282,218 @@ interface Hoja {
 }
 
 /**
- * El informe completo, una hoja A4 por sección.
+ * Numera las hojas y las convierte en el documento HTML final.
+ *
+ * Común a las dos versiones del informe (`generarHtmlInforme` y
+ * `generarHtmlInformeDetallado`): lo único que cambia entre ellas es QUÉ
+ * hojas se construyen, no cómo se numeran, se encabezan o se serializan.
+ */
+function documentoDeHojas(
+  caso: Caso,
+  version: string,
+  generadoEn: string,
+  hojas: readonly Hoja[],
+): string {
+  const total = hojas.length
+  const cuerpoDelDocumento = hojas
+    .map((h, i) => {
+      const n = i + 1
+      const ultima = n === total
+      const cabecera = h.portada
+        ? `<div class="cab">
+    <div class="cab-marca">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+        <circle cx="15" cy="15" r="14" fill="none" stroke="#12506E" stroke-width="1.6"></circle>
+        <circle cx="15" cy="15" r="5.4" fill="#12506E"></circle>
+        <path d="M3.4 15 A 13 9 0 0 1 26.6 15" fill="none" stroke="#12506E" stroke-width="1.6"></path>
+        <path d="M3.4 15 A 13 9 0 0 0 26.6 15" fill="none" stroke="#12506E" stroke-width="1.6" opacity="0.35"></path>
+      </svg>
+      <div>
+        <h1>Calculator Vilamar</h1>
+        <div class="sub">Informe comparativo de cálculo de LIO</div>
+      </div>
+    </div>
+    <div class="cab-meta">
+      <div class="codigo">${esc(caso.codigo)}</div>
+      <div>${esc(fecha(generadoEn))}</div>
+      <div>versión ${esc(version)} · página ${n} de ${total}</div>
+    </div>
+  </div>`
+        : `<div class="cab-menor">
+    <div class="titulo">${esc(h.titulo ?? '')}${h.apunte ? `<span class="apunte">${esc(h.apunte)}</span>` : ''}</div>
+    <div class="ref">${esc(caso.codigo)}${esc(h.refExtra ?? '')} · página ${n} de ${total}</div>
+  </div>`
+
+      return `<section class="hoja">
+  ${cabecera}
+  ${h.cuerpo}
+  <div class="pie">${h.pie}</div>
+  ${ultima ? PIE_LEGAL : ''}
+</section>`
+    })
+    .join('\n')
+
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Calculator Vilamar · ${esc(caso.codigo)}</title>
+<style>${ESTILOS}</style>
+</head>
+<body>
+${cuerpoDelDocumento}
+</body>
+</html>`
+}
+
+/**
+ * Una línea con la estimación PROPIA de Calculator Vilamar (D43) — nunca la
+ * opción que la calculadora haya destacado, aunque coincidan. Se dice así en
+ * el propio texto, para que no se confunda con lo que dice la web: eso sigue
+ * siendo, sin interpretar, la captura de pantalla de encima.
+ */
+function lenteRecomendadaTexto(recomendada: ResultadoInforme['recomendada']): string {
+  if (!recomendada) return ''
+  const partes = [`${recomendada.esfera.toFixed(2)} D`]
+  if (recomendada.cilindro !== undefined) partes.push(`Cilindro ${recomendada.cilindro.toFixed(2)} D`)
+  if (recomendada.eje !== undefined) partes.push(`Eje ${recomendada.eje.toFixed(0)}°`)
+  return `<p class="lente-recomendada">Estimación de Calculator Vilamar <span class="no-vinculante">(no vinculante)</span>: <strong>${esc(partes.join(' · '))}</strong></p>`
+}
+
+/** Clase CSS de cada calculadora, solo para las tarjetas del cuadro final. */
+const CLASE_TARJETA: Record<Calculadora, string> = {
+  EVO_TORIC: 'evo',
+  EVO_TORIC_SIN_CARA_POSTERIOR: 'evo',
+  BARRETT_TORIC: 'barrett',
+  BARRETT_TORIC_CON_CARA_POSTERIOR: 'barrett',
+  KANE: 'kane',
+}
+
+/**
+ * El cuadro final: todas las estimaciones de ese ojo, lado a lado — cada
+ * calculadora (y sus variantes de córnea posterior, D45, cuando el ojo las
+ * tiene) con la suya, sin señalar ninguna como la más adecuada. Marcado
+ * siempre, sin excepción, como opcional y no vinculante (D43). No sustituye
+ * a ninguna calculadora ni dice qué implantar; es una lectura rápida de algo
+ * que ya está, con más detalle, en las hojas de encima.
+ */
+function hojaResumenFinal(ojo: Lateralidad, resultados: readonly ResultadoInforme[]): Hoja {
+  const deEsteOjo = resultados.filter((r) => r.ojo === ojo)
+
+  const tarjetas = deEsteOjo
+    .map((r) => {
+      const nombre = fichaDe(r.calculadora).nombre
+      const color = CLASE_TARJETA[r.calculadora]
+      if (!r.recomendada) {
+        return `<div class="tarjeta-resumen ${color}">
+      <div class="tarjeta-nombre">${esc(nombre)}</div>
+      <div class="tarjeta-sin-dato">Sin estimación para este ojo</div>
+    </div>`
+      }
+      const partes = [`${r.recomendada.esfera.toFixed(2)} D`]
+      if (r.recomendada.cilindro !== undefined) {
+        partes.push(`Cil. ${r.recomendada.cilindro.toFixed(2)} D`)
+      }
+      if (r.recomendada.eje !== undefined) partes.push(`Eje ${r.recomendada.eje.toFixed(0)}°`)
+      return `<div class="tarjeta-resumen ${color}">
+      <div class="tarjeta-nombre">${esc(nombre)}</div>
+      <div class="tarjeta-valor">${esc(partes.join(' · '))}</div>
+    </div>`
+    })
+    .join('\n')
+
+  return {
+    titulo: `Comparación orientativa · ${nombreLateralidad(ojo)}`,
+    apunte: 'No vinculante',
+    refExtra: ` · ${ojo}`,
+    cuerpo: `<p class="aviso-no-vinculante">
+      Esto es una estimación propia de Calculator Vilamar, calculada con un criterio fijo y
+      el mismo para todas las calculadoras — no es lo que ninguna de ellas ha destacado, ni
+      una recomendación clínica. <strong>Es opcional y no vinculante</strong>: quien opera
+      decide con el detalle de cada calculadora, en las hojas de encima.
+    </p>
+    <div class="tarjetas-resumen">${tarjetas}</div>`,
+    pie: `Cuadro comparativo orientativo de ${esc(nombreLateralidad(ojo))}. No sustituye a ninguna calculadora.`,
+  }
+}
+
+/**
+ * El informe simplificado: una hoja por casilla intentada, y nada más.
+ *
+ * Petición expresa del dueño del proyecto (25/08/2026): antes se enseñaba
+ * también la comparación, las alternativas, la biometría y la trazabilidad
+ * (ver `generarHtmlInformeDetallado`, que se conserva sin usarse). Ahora el
+ * informe que de verdad se genera lleva solo la evidencia sin interpretar
+ * —la captura tal cual— y, debajo de cada una, la estimación PROPIA de
+ * Calculator Vilamar (D43) — nunca lo que la web destacó, aunque coincidan.
+ * Una casilla que no llegó a tener resultado no se omite en silencio: lleva
+ * su propio aviso explicando por qué. Si algún ojo tiene más de una
+ * estimación, el informe cierra con un cuadro comparativo de ese ojo,
+ * siempre marcado como opcional y no vinculante.
+ */
+export function generarHtmlInforme(datos: DatosInforme): string {
+  const { caso } = datos
+
+  const hojasPorCasilla: Hoja[] =
+    datos.resultados.length === 0
+      ? [
+          {
+            titulo: 'Sin resultados',
+            cuerpo: `<p class="captura-ausente">Este caso no tiene ningún resultado calculado todavía.</p>`,
+            pie: 'Genera el informe después de calcular con al menos una calculadora.',
+          },
+        ]
+      : datos.resultados.map((r) => {
+          const nombre = fichaDe(r.calculadora).nombre
+          const tituloBase = `${nombre} · ${nombreLateralidad(r.ojo)}`
+
+          if (r.fallo !== undefined) {
+            return {
+              titulo: `${tituloBase} · No se pudo calcular`,
+              apunte: 'Aviso',
+              refExtra: ` · ${r.ojo}`,
+              cuerpo: `<p class="captura-ausente">${esc(r.fallo)}</p>`,
+              pie: `${esc(nombre)} no ha podido calcular para este ojo. Las demás calculadoras y ojos no se ven afectados.`,
+            }
+          }
+
+          return {
+            titulo: `${tituloBase} · Captura de pantalla`,
+            apunte: 'Tal cual la devolvió la web, sin recortar',
+            refExtra: ` · ${r.ojo}`,
+            cuerpo: `${
+              r.dataUri
+                ? `<div class="captura"><img src="${esc(r.dataUri)}" alt="Captura de ${esc(nombre)}, ${esc(r.ojo)}"></div>`
+                : `<p class="captura-ausente">No se pudo guardar la captura de pantalla de este resultado.</p>`
+            }${lenteRecomendadaTexto(r.recomendada)}`,
+            pie: `Captura sin editar de la pantalla de resultado de ${esc(nombre)}.`,
+          }
+        })
+
+  // El cuadro final enseña todas las casillas del caso — las tres
+  // calculadoras y, si el ojo tiene córnea posterior medida (D45), también
+  // sus variantes de EVO y Barrett — y solo si ese ojo tiene más de una
+  // estimación que poner una al lado de otra.
+  const ojosConVariasEstimaciones = ojosDelCaso(caso).filter(
+    (ojo) =>
+      datos.resultados.filter((r) => r.ojo === ojo && r.recomendada !== undefined).length > 1,
+  )
+  const hojas = [
+    ...hojasPorCasilla,
+    ...ojosConVariasEstimaciones.map((ojo) => hojaResumenFinal(ojo, datos.resultados)),
+  ]
+
+  return documentoDeHojas(caso, datos.version, datos.generadoEn, hojas)
+}
+
+/**
+ * El informe detallado, con comparación, alternativas, biometría y
+ * trazabilidad. Una hoja A4 por sección.
+ *
+ * **No se usa por defecto** (ver `generarHtmlInforme`, la versión que de
+ * verdad genera la aplicación) — se conserva porque es una feature ya
+ * fusionada a `master` en una sesión anterior y no cuesta nada mantenerla
+ * disponible por si se quiere recuperar.
  *
  * El reparto NO es fijo: se construye según lo que tenga el caso, y cada hoja
  * lleva una cosa para que quepa. Con dos ojos y tres calculadoras salen nueve:
@@ -1242,10 +1510,30 @@ interface Hoja {
  * Las hojas de alternativas **solo salen si hay alternativas**, y la de biometría
  * es por ojo: juntar los dos era lo que desbordaba la página.
  */
-export function generarHtmlInforme(datos: DatosInforme): string {
+export function generarHtmlInformeDetallado(datos: DatosInforme): string {
   const { caso } = datos
   const ojos = ojosDelCaso(caso)
   const hojas: Hoja[] = []
+
+  // ── 0 · Las capturas de pantalla, tal cual las devolvió cada web ─────────
+  //
+  // Van primero porque son la evidencia sin interpretar: antes de que el
+  // programa resuma o compare nada, quien lee el informe puede ver la
+  // pantalla real de cada calculadora. El resto —portada, comparación,
+  // alternativas, biometría, trazabilidad— sigue exactamente igual, después.
+  // Solo las casillas con un resultado de verdad: una que ni se intentó no
+  // tenía hueco aquí antes de que existiera `fallo`, y no lo gana ahora.
+  for (const cap of datos.resultados.filter((r) => r.fallo === undefined)) {
+    hojas.push({
+      titulo: `${fichaDe(cap.calculadora).nombre} · ${nombreLateralidad(cap.ojo)} · Captura de pantalla`,
+      apunte: 'Tal cual la devolvió la web, sin recortar',
+      refExtra: ` · ${cap.ojo}`,
+      cuerpo: cap.dataUri
+        ? `<div class="captura"><img src="${esc(cap.dataUri)}" alt="Captura de ${esc(fichaDe(cap.calculadora).nombre)}, ${esc(cap.ojo)}"></div>`
+        : `<p class="captura-ausente">No se pudo guardar la captura de pantalla de este resultado. El resultado en sí se conserva en las páginas siguientes.</p>`,
+      pie: `Captura sin editar de la pantalla de resultado de ${esc(fichaDe(cap.calculadora).nombre)}. El resumen comparativo empieza en la página siguiente.`,
+    })
+  }
 
   // ── 1 · Portada ──────────────────────────────────────────────────────────
   hojas.push({
@@ -1325,56 +1613,7 @@ export function generarHtmlInforme(datos: DatosInforme): string {
     // comprueba que el cuerpo no lleva ninguno.
   })
 
-  const total = hojas.length
-  const cuerpoDelDocumento = hojas
-    .map((h, i) => {
-      const n = i + 1
-      const ultima = n === total
-      const cabecera = h.portada
-        ? `<div class="cab">
-    <div class="cab-marca">
-      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
-        <circle cx="15" cy="15" r="14" fill="none" stroke="#12506E" stroke-width="1.6"></circle>
-        <circle cx="15" cy="15" r="5.4" fill="#12506E"></circle>
-        <path d="M3.4 15 A 13 9 0 0 1 26.6 15" fill="none" stroke="#12506E" stroke-width="1.6"></path>
-        <path d="M3.4 15 A 13 9 0 0 0 26.6 15" fill="none" stroke="#12506E" stroke-width="1.6" opacity="0.35"></path>
-      </svg>
-      <div>
-        <h1>Calculator Vilamar</h1>
-        <div class="sub">Informe comparativo de cálculo de LIO</div>
-      </div>
-    </div>
-    <div class="cab-meta">
-      <div class="codigo">${esc(caso.codigo)}</div>
-      <div>${esc(fecha(datos.generadoEn))}</div>
-      <div>versión ${esc(datos.version)} · página ${n} de ${total}</div>
-    </div>
-  </div>`
-        : `<div class="cab-menor">
-    <div class="titulo">${esc(h.titulo ?? '')}${h.apunte ? `<span class="apunte">${esc(h.apunte)}</span>` : ''}</div>
-    <div class="ref">${esc(caso.codigo)}${esc(h.refExtra ?? '')} · página ${n} de ${total}</div>
-  </div>`
-
-      return `<section class="hoja">
-  ${cabecera}
-  ${h.cuerpo}
-  <div class="pie">${h.pie}</div>
-  ${ultima ? PIE_LEGAL : ''}
-</section>`
-    })
-    .join('\n')
-
-  return `<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<title>Calculator Vilamar · ${esc(caso.codigo)}</title>
-<style>${ESTILOS}</style>
-</head>
-<body>
-${cuerpoDelDocumento}
-</body>
-</html>`
+  return documentoDeHojas(caso, datos.version, datos.generadoEn, hojas)
 }
 
 /**
