@@ -14,9 +14,50 @@ import type { CampoBiometrico } from './campos.js'
 import type { Lateralidad } from './lateralidad.js'
 import type { Sexo } from './sexo.js'
 
-export type Calculadora = 'KANE' | 'EVO_TORIC' | 'BARRETT_TORIC'
+export type Calculadora =
+  | 'KANE'
+  | 'EVO_TORIC'
+  | 'BARRETT_TORIC'
+  /**
+   * La misma EVO Toric, pero sin córnea posterior (PK1/PK2) aunque el caso la
+   * tenga — EVO ya la manda por defecto si el caso la tiene, así que esta
+   * variante es la que la QUITA. Existe para comparar el resultado con y sin
+   * ese dato — D45, 27/08/2026, petición expresa del dueño del proyecto. No
+   * es una cuarta calculadora que se elija a mano: se calcula sola, además de
+   * `EVO_TORIC`, siempre que el ojo tenga PK1 o PK2. Por eso NO está en
+   * `CALCULADORAS` — esa lista es la que gobierna las casillas y el
+   * «obligatorio en las tres».
+   */
+  | 'EVO_TORIC_SIN_CARA_POSTERIOR'
+  /**
+   * La misma Barrett Toric, pero AÑADIENDO la córnea posterior medida —
+   * Barrett, al revés que EVO, nunca la manda por defecto: su formulario usa
+   * un modelo teórico («Predicted PCA») salvo que se marque expresamente
+   * «Measured PCA», un paso aparte con su propio panel de datos. Comprobado
+   * en vivo el 27/08/2026 con ayuda del dueño del proyecto — no estaba
+   * documentado y no se había encontrado buscando solo en el adaptador.
+   */
+  | 'BARRETT_TORIC_CON_CARA_POSTERIOR'
 
 export const CALCULADORAS: readonly Calculadora[] = ['EVO_TORIC', 'BARRETT_TORIC', 'KANE'] as const
+
+/** Si una variante de córnea posterior AÑADE ese dato o lo QUITA respecto a su calculadora base. */
+export interface VariantePosterior {
+  readonly calculadora: Calculadora
+  readonly sentido: 'CON' | 'SIN'
+}
+
+/**
+ * Qué variante de córnea posterior corresponde a cada calculadora base, si
+ * tiene alguna — y en qué sentido. Las dos direcciones son necesarias porque
+ * EVO y Barrett son opuestas: EVO manda la córnea posterior por defecto si el
+ * caso la tiene (la variante la QUITA); Barrett nunca la manda por defecto
+ * (la variante la AÑADE, con su propio panel «Measured PCA»).
+ */
+export const VARIANTE_CARA_POSTERIOR: Partial<Record<Calculadora, VariantePosterior>> = {
+  EVO_TORIC: { calculadora: 'EVO_TORIC_SIN_CARA_POSTERIOR', sentido: 'SIN' },
+  BARRETT_TORIC: { calculadora: 'BARRETT_TORIC_CON_CARA_POSTERIOR', sentido: 'CON' },
+}
 
 export interface FichaCalculadora {
   readonly clave: Calculadora
@@ -44,10 +85,17 @@ export interface FichaCalculadora {
 /**
  * Lo que exige cada calculadora, comprobado abriendo su formulario real.
  *
- * Los campos de identificación del paciente que estas webs piden (nombre,
- * identificador, cirujano) NO están aquí a propósito: el producto nunca manda
- * datos de paciente. Cuando una web marca «Patient Name» como obligatorio, se
- * le envía el código local del caso, que es un identificador de este programa.
+ * ⚠️ Hasta el 27/08/2026 el nombre del paciente NUNCA viajaba a estas webs:
+ * se les mandaba el código local del caso en su lugar. **Desde D44 sí
+ * viaja**, si el caso lo tiene — petición expresa del dueño del proyecto,
+ * hecha dos veces tras dos avisos explícitos sobre lo que implica mandar un
+ * dato identificativo de salud a tres servidores externos. El código local
+ * del caso pasa al campo «Patient Identifier»/«ID» de cada web (antes vacío
+ * a propósito), para no perder la referencia interna.
+ *
+ * El nombre del CIRUJANO sigue igual desde D41 (25/08/2026): si el caso lo
+ * tiene, viaja al campo «Doctor»/«Surgeon». Ya no hay una regla que trate al
+ * paciente y al cirujano de forma distinta.
  */
 export const FICHAS: Readonly<Record<Calculadora, FichaCalculadora>> = {
   EVO_TORIC: {
@@ -60,8 +108,23 @@ export const FICHAS: Readonly<Record<Calculadora, FichaCalculadora>> = {
     exigeSexo: false,
     intervencionHumana: [],
     notas: [
-      'EVO exige un nombre de paciente. Se le manda el código local del caso, nunca un nombre.',
+      'EVO exige un nombre de paciente. Desde D44 se le manda el nombre real si el caso lo tiene; si no, el código local.',
       'Elegir el modelo de lente en EVO puede sobrescribir la constante A. El informe recoge la que la web dice haber usado, no la que se le envió.',
+    ],
+  },
+  EVO_TORIC_SIN_CARA_POSTERIOR: {
+    clave: 'EVO_TORIC_SIN_CARA_POSTERIOR',
+    nombre: 'EVO Toric (sin córnea posterior)',
+    url: 'https://www.evoiolcalculator.com/toric.aspx',
+    requeridos: ['AL', 'K1', 'K1_EJE', 'K2', 'K2_EJE', 'ACD', 'REFRACCION_OBJETIVO', 'CONSTANTE_A'],
+    // Igual que EVO_TORIC, pero SIN PK1/PK1_EJE/PK2/PK2_EJE — ni siquiera si
+    // el caso los tiene: por eso no están en esta lista de opcionales. Es la
+    // única diferencia con la ficha de EVO_TORIC (D45, 27/08/2026).
+    opcionales: ['LT', 'CCT', 'SIA', 'EJE_INCISION'],
+    exigeSexo: false,
+    intervencionHumana: [],
+    notas: [
+      'Es el mismo formulario de EVO, calculado aparte para comparar con y sin la córnea posterior medida.',
     ],
   },
   BARRETT_TORIC: {
@@ -85,6 +148,32 @@ export const FICHAS: Readonly<Record<Calculadora, FichaCalculadora>> = {
     notas: [
       'La calculadora vive dentro de la web de la ASCRS y no admite navegador sin ventana: se abre siempre un navegador visible.',
       'La ASCRS enseña un aviso de cookies que tapa la página. Calculator Vilamar elige «Rechazar», que es la opción que menos datos comparte.',
+      'Usa «Predicted PCA» (un modelo teórico), no la córnea posterior medida — para eso está BARRETT_TORIC_CON_CARA_POSTERIOR.',
+    ],
+  },
+  BARRETT_TORIC_CON_CARA_POSTERIOR: {
+    clave: 'BARRETT_TORIC_CON_CARA_POSTERIOR',
+    nombre: 'Barrett Toric (con córnea posterior)',
+    url: 'https://www.ascrs.org/en/tools/barrett-toric-calculator',
+    requeridos: [
+      'AL',
+      'K1',
+      'K1_EJE',
+      'K2',
+      'K2_EJE',
+      'ACD',
+      'REFRACCION_OBJETIVO',
+      'SIA',
+      'EJE_INCISION',
+    ],
+    // Igual que BARRETT_TORIC, pero con PK1/PK1_EJE/PK2/PK2_EJE también como
+    // opcionales — es la única diferencia con su ficha (D45, 27/08/2026). El
+    // adaptador solo hace el paso extra («Measured PCA») si el caso los trae.
+    opcionales: ['LT', 'WTW', 'CONSTANTE_A', 'FACTOR_LENTE', 'PK1', 'PK1_EJE', 'PK2', 'PK2_EJE'],
+    exigeSexo: false,
+    intervencionHumana: [],
+    notas: [
+      'Es el mismo formulario de Barrett, marcando «Measured PCA» y rellenando su panel de córnea posterior — un paso que Barrett no hace nunca por defecto.',
     ],
   },
   KANE: {
@@ -174,6 +263,10 @@ export interface EntradasCalculadora {
   readonly fabricanteLente?: string
   /** El sexo, solo para la calculadora que lo pide. */
   readonly sexo?: Sexo
+  /** El nombre del cirujano, si el caso lo tiene. Ver D41. */
+  readonly nombreCirujano?: string
+  /** El nombre del paciente, si el caso lo tiene. Ver D44 (27/08/2026). */
+  readonly nombrePaciente?: string
 }
 
 export interface FaltanEntradas {
@@ -243,6 +336,8 @@ export interface ResultadoCalculadora {
   readonly faltan?: readonly CampoBiometrico[]
   /** Referencia al diagnóstico técnico guardado en local, si lo hubo. */
   readonly diagnosticoId?: string
+  /** Referencia a la captura de pantalla del resultado, tal como lo mostró la web, si se pudo tomar. */
+  readonly capturaId?: string
 }
 
 export function resultadoVacio(

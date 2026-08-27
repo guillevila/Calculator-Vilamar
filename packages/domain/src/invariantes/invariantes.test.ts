@@ -466,16 +466,36 @@ describe('Invariante 10 — nada sin confirmar llega a una calculadora', () => {
     }
   })
 
-  it('las entradas no llevan nunca datos de paciente: solo el código del caso', () => {
+  it('sin nombre de paciente en el caso, las entradas solo llevan el código', () => {
     const caso = confirmar(casoCon([confirmarTodas(odCompleto())]), CUANDO)
     const r = prepararEntradas(caso, 'EVO_TORIC', 'OD')
     expect(r.ok).toBe(true)
     if (r.ok) {
-      const claves = Object.keys(r.entradas)
-      expect(claves).not.toContain('nombre')
-      expect(claves).not.toContain('paciente')
-      expect(claves).not.toContain('fechaNacimiento')
+      expect(r.entradas.nombrePaciente).toBeUndefined()
       expect(r.entradas.codigoCaso).toMatch(/^CV-/)
+    }
+  })
+
+  it('D41/D44: el nombre del cirujano y el del paciente viajan, si el caso los tiene', () => {
+    let caso = confirmar(casoCon([confirmarTodas(odCompleto())]), CUANDO)
+    caso = { ...caso, nombreCirujano: 'Dra. Prueba', nombrePaciente: 'Paciente Sintético' }
+    const r = prepararEntradas(caso, 'EVO_TORIC', 'OD')
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.entradas.nombreCirujano).toBe('Dra. Prueba')
+      // D44 (27/08/2026): el nombre del paciente ya no es una excepción — se
+      // pidió expresamente, dos veces, tras dos avisos explícitos.
+      expect(r.entradas.nombrePaciente).toBe('Paciente Sintético')
+    }
+  })
+
+  it('sin nombre de cirujano ni de paciente en el caso, las entradas no los llevan', () => {
+    const caso = confirmar(casoCon([confirmarTodas(odCompleto())]), CUANDO)
+    const r = prepararEntradas(caso, 'EVO_TORIC', 'OD')
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.entradas.nombreCirujano).toBeUndefined()
+      expect(r.entradas.nombrePaciente).toBeUndefined()
     }
   })
 })

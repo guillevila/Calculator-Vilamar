@@ -11,12 +11,13 @@
  */
 
 import type { Calculadora, ResultadoCalculadora } from './calculadoras.js'
+import { CALCULADORAS, VARIANTE_CARA_POSTERIOR } from './calculadoras.js'
 import type { DocumentoCargado } from './documento.js'
 import type { Lateralidad } from './lateralidad.js'
 import type { LenteDetectada } from './lente.js'
 import type { SexoDelCaso } from './sexo.js'
 import type { OjoBiometrico } from './medida.js'
-import { ojoVacio, todasConfirmadas } from './medida.js'
+import { ojoVacio, tiene, todasConfirmadas } from './medida.js'
 
 export type EstadoCaso =
   /** Recién creado, sin nada dentro. */
@@ -81,20 +82,31 @@ export interface Caso {
    */
   readonly sexo?: SexoDelCaso
   /**
-   * El nombre del paciente, SOLO para deducir el sexo.
+   * El nombre del paciente.
    *
-   * ⚠️ Es el único dato identificativo que este programa guarda, y entró por
-   * decisión expresa del dueño del proyecto (12/08/2026) para poder deducir el
-   * sexo que pide Kane. Las reglas que lo rodean **no se relajan**:
+   * Entró al programa el 12/08/2026 solo para deducir el sexo que pide Kane.
+   * Desde el 27/08/2026 (D44) **también viaja a las tres calculadoras y al
+   * PDF**, en el campo «Patient Name»/«Nombre del paciente» — petición
+   * expresa del dueño del proyecto, hecha DOS VECES tras dos avisos
+   * explícitos: la primera vez sobre el informe local, la segunda,
+   * específica, sobre que esto manda el nombre real a tres servidores
+   * externos por internet, algo que ninguna decisión anterior había hecho
+   * (ni siquiera D41, que abrió esa puerta solo para el cirujano). El dueño
+   * confirmó las dos veces, informado.
    *
-   *  - **No sale del ordenador.** A las calculadoras se les sigue mandando el
-   *    código local del caso (D23), nunca esto.
-   *  - **No sale en el PDF.** Hay un test que lo comprueba.
-   *  - **No entra en el repositorio.** Los fixtures son sintéticos.
-   *
-   * Vive en el fichero JSON del caso, en la carpeta de datos del usuario.
+   * Sigue habiendo un límite que no se ha tocado: **no entra en el
+   * repositorio** — los fixtures siguen siendo sintéticos — y sigue viviendo
+   * solo en el fichero JSON del caso, en la carpeta de datos del usuario.
    */
   readonly nombrePaciente?: string
+  /**
+   * El nombre del cirujano, si se ha escrito.
+   *
+   * Viaja a las tres calculadoras cuando su formulario tiene un campo
+   * «Doctor»/«Surgeon» (D41, 25/08/2026). Desde D44, `nombrePaciente` hace
+   * lo mismo — ya no hay una regla que trate a los dos de forma distinta.
+   */
+  readonly nombreCirujano?: string
   /** Notas del usuario. No se envían a ningún sitio. */
   readonly notas?: string
 }
@@ -142,6 +154,30 @@ export function ojosDelCaso(caso: Caso): readonly Lateralidad[] {
 
 export function ojoDe(caso: Caso, lado: Lateralidad): OjoBiometrico {
   return caso.ojos[lado] ?? ojoVacio(lado)
+}
+
+/**
+ * Las calculadoras a mostrar para un ojo, en orden — añadiendo, junto a cada
+ * una que tenga variante de córnea posterior (D45), esa variante, pero solo
+ * si el ojo de verdad tiene PK1 o PK2.
+ *
+ * Es la misma condición con la que se planifica el cálculo
+ * (`conVariantesDeCaraPosterior`, en `apps/desktop`) y con la que se generan
+ * las hojas del informe (`recopilarResultadosParaInforme`): las tres tienen
+ * que decidir lo mismo, o una pantalla enseñaría columnas que otra no calculó.
+ *
+ * El orden dentro de cada pareja es siempre el mismo — la que NO tiene córnea
+ * posterior primero, la que SÍ la tiene después — sea cuál sea la base y cuál
+ * la variante (EVO se la quita; Barrett se la añade).
+ */
+export function columnasComparativa(caso: Caso, ojo: Lateralidad): readonly Calculadora[] {
+  const datos = ojoDe(caso, ojo)
+  const hayCaraPosterior = tiene(datos, 'PK1') || tiene(datos, 'PK2')
+  return CALCULADORAS.flatMap((c) => {
+    const variante = VARIANTE_CARA_POSTERIOR[c]
+    if (!variante || !hayCaraPosterior) return [c]
+    return variante.sentido === 'SIN' ? [variante.calculadora, c] : [c, variante.calculadora]
+  })
 }
 
 export function conOjo(caso: Caso, ojo: OjoBiometrico, cuando: string): Caso {

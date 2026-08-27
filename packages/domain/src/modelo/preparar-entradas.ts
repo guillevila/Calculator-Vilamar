@@ -117,6 +117,11 @@ export function prepararEntradas(
       // Solo viaja si esa calculadora lo pide. No se manda un dato de la persona
       // a una web que no lo necesita.
       sexo: ficha.exigeSexo === true ? caso.sexo?.valor : undefined,
+      // El cirujano viaja si el caso lo tiene (D41), y desde D44 el paciente
+      // también — decisión expresa del dueño, hecha dos veces tras dos
+      // avisos explícitos sobre lo que implica.
+      nombreCirujano: caso.nombreCirujano,
+      nombrePaciente: caso.nombrePaciente,
     },
   }
 }
