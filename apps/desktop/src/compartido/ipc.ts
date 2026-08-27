@@ -94,6 +94,18 @@ export interface ApiVilamar {
     valor: number | null,
   ) => Promise<Caso>
 
+  /**
+   * Escribe a mano el nombre del paciente y/o del cirujano.
+   *
+   * Lo usa `FormularioManual`, la vía de entrada 100% manual: estos dos
+   * campos no vienen de ningún documento, así que no hay un `editarMedida`
+   * que valga (no son `CampoBiometrico`, son del caso, no de un ojo).
+   */
+  readonly establecerIdentificacion: (datos: {
+    readonly nombrePaciente?: string
+    readonly nombreCirujano?: string
+  }) => Promise<Caso>
+
   readonly confirmarCampo: (ojo: Lateralidad, campo: CampoBiometrico) => Promise<Caso>
 
   /** El sexo del paciente. Lo pide Kane; EVO y Barrett no. */
@@ -161,6 +173,7 @@ export const CANALES = {
   cargarDocumentos: 'vilamar:cargar-documentos',
   elegirYCargarDocumentos: 'vilamar:elegir-y-cargar',
   editarMedida: 'vilamar:editar-medida',
+  establecerIdentificacion: 'vilamar:establecer-identificacion',
   confirmarCampo: 'vilamar:confirmar-campo',
   elegirSexo: 'vilamar:elegir-sexo',
   confirmarSexo: 'vilamar:confirmar-sexo',

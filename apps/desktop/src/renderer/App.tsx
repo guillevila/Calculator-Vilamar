@@ -17,12 +17,13 @@ import { ojosDelCaso } from '@vilamar/domain'
 import { api, hayApi } from './api.js'
 import type { ArchivoEntrante, EstadoCalculo, ResumenExtraccion } from '../compartido/ipc.js'
 import { ZonaSoltar } from './componentes/ZonaSoltar.js'
+import { FormularioManual } from './componentes/FormularioManual.js'
 import { PanelRevision } from './componentes/PanelRevision.js'
 import { PanelCalculo } from './componentes/PanelCalculo.js'
 import { PanelResultados } from './componentes/PanelResultados.js'
 import { Avisos } from './componentes/Avisos.js'
 
-type Paso = 'INICIO' | 'CARGANDO' | 'REVISION' | 'CALCULANDO' | 'RESULTADOS'
+type Paso = 'INICIO' | 'CARGANDO' | 'MANUAL' | 'REVISION' | 'CALCULANDO' | 'RESULTADOS'
 
 export function App(): JSX.Element {
   const [version, setVersion] = useState('')
@@ -136,18 +137,19 @@ export function App(): JSX.Element {
     }
   }, [aplicarCarga])
 
-  /** Empezar sin documento: todo a mano. Es un caso de uso legítimo. */
+  /**
+   * Empezar sin documento: todo a mano. Es un caso de uso legítimo.
+   *
+   * Va al cuestionario simplificado (`FormularioManual`, paso `MANUAL`), no
+   * directo a la revisión: ahí es donde se escriben los datos, campo a
+   * campo, cada uno ya guardado en cuanto se pierde el foco.
+   */
   const empezarAMano = useCallback(async () => {
     setError(null)
     const c = caso ?? (await api().casoNuevo())
-    // Se crea el ojo derecho vacío escribiendo y borrando un dato: así el caso
-    // pasa a tener ese ojo y la pantalla de revisión puede enseñarlo.
-    const conOjo = await api().editarMedida('OD', 'AL', 24)
-    const limpio = await api().editarMedida('OD', 'AL', null)
-    setCaso(limpio ?? conOjo ?? c)
-    await refrescarAvisos()
-    setPaso('REVISION')
-  }, [caso, refrescarAvisos])
+    setCaso(c)
+    setPaso('MANUAL')
+  }, [caso])
 
   const confirmar = useCallback(async () => {
     setError(null)
@@ -238,7 +240,7 @@ export function App(): JSX.Element {
           ] as const
         ).map(([clave, texto], i, todos) => {
           const posicionActual = todos.findIndex(
-            ([c]) => c === (paso === 'CARGANDO' ? 'INICIO' : paso),
+            ([c]) => c === (paso === 'CARGANDO' || paso === 'MANUAL' ? 'INICIO' : paso),
           )
           const clase = i === posicionActual ? 'activo' : i < posicionActual ? 'hecho' : ''
           return (
@@ -263,6 +265,19 @@ export function App(): JSX.Element {
               onElegir={() => void elegirYcargar()}
               onAMano={() => void empezarAMano()}
               ocupado={ocupado}
+            />
+          )}
+
+          {paso === 'MANUAL' && caso && (
+            <FormularioManual
+              caso={caso}
+              onCambio={async () => {
+                await refrescarAvisos()
+              }}
+              onContinuar={() => {
+                void refrescarAvisos()
+                setPaso('REVISION')
+              }}
             />
           )}
 

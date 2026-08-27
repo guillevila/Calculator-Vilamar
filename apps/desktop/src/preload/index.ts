@@ -30,6 +30,8 @@ const api: ApiVilamar = {
   rutaDeArchivo: (fichero) => webUtils.getPathForFile(fichero),
 
   editarMedida: (ojo, campo, valor) => ipcRenderer.invoke(CANALES.editarMedida, ojo, campo, valor),
+  establecerIdentificacion: (datos) =>
+    ipcRenderer.invoke(CANALES.establecerIdentificacion, datos),
   confirmarCampo: (ojo, campo) => ipcRenderer.invoke(CANALES.confirmarCampo, ojo, campo),
   elegirSexo: (sexo) => ipcRenderer.invoke(CANALES.elegirSexo, sexo),
   confirmarSexo: () => ipcRenderer.invoke(CANALES.confirmarSexo),

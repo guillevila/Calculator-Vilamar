@@ -78,12 +78,44 @@ test('la ventana se abre y enseña el punto de partida', async () => {
   await ventana.screenshot({ path: 'test-results/01-inicio.png' })
 })
 
-test('se pueden escribir los datos a mano y se validan mientras escribes', async () => {
+test('la vía manual pasa por el cuestionario simplificado antes de la revisión', async () => {
+  // Las dos opciones de inicio están igual de visibles, no una escondida.
+  await expect(ventana.getByTestId('tarjeta-manual')).toBeVisible()
+
   // Se pulsa con el RATÓN, no con JavaScript: si el botón estuviera tapado por
   // otro elemento, esto fallaría y un `element.click()` no.
   await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
-  await expect(ventana.getByTestId('campo-AL')).toBeVisible()
+  await expect(ventana.getByTestId('manual-campo-AL')).toBeVisible()
 
+  // Nombre del doctor y del paciente: ninguno de los dos exige nada del otro.
+  await ventana.getByLabel('Nombre del doctor').fill('Dra. Prueba E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Caso Sintético E2E')
+
+  // El target ya se enseña en 0 sin haberlo tocado (D38).
+  await expect(ventana.getByTestId('manual-campo-REFRACCION_OBJETIVO')).toHaveValue('0')
+
+  // El cuestionario no valida sobre la marcha —eso vive en la pantalla de
+  // revisión, a la que se llega después— así que aquí se escribe un valor
+  // válido y se comprueba que viaja.
+  await ventana.getByTestId('manual-campo-AL').fill('24.07')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-continuar').click()
+
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('24.07')
+  // El target sigue en 0 y ya está confirmado (es un dato manual): no debe
+  // quedar pendiente de revisar.
+  await expect(ventana.getByTestId('origen-REFRACCION_OBJETIVO')).toHaveText('Aportado')
+  await expect(ventana.getByTestId('comprobar-REFRACCION_OBJETIVO')).toHaveCount(0)
+  await ventana.screenshot({ path: 'test-results/02-desde-cuestionario.png' })
+
+  // El nombre del cirujano se guarda en el caso, aunque la pantalla de
+  // revisión no lo enseñe (D41: solo viaja hacia las calculadoras).
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.nombreCirujano).toBe('Dra. Prueba E2E')
+  expect(caso?.nombrePaciente).toBe('Caso Sintético E2E')
+})
+
+test('un dato imposible se marca y BLOQUEA, sin corregirse solo', async () => {
   // Un dato imposible tiene que marcarse y BLOQUEAR, sin corregirse solo.
   await ventana.getByTestId('campo-AL').fill('240.7')
   await ventana.getByTestId('campo-K1').click()
@@ -298,8 +330,11 @@ CCT             530 um</pre></body>`)
   await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
   // Se entra a la pantalla de revisión ANTES de cargar. Llamar al canal de carga
   // desde aquí actualiza el caso —la pantalla se suscribe a sus cambios— pero no
-  // hace avanzar el paso del asistente, que es estado del propio navegador.
+  // hace avanzar el paso del asistente, que es estado del propio navegador. Se
+  // pasa por el cuestionario simplificado (sin rellenarlo) solo para llegar
+  // hasta ahí con el ratón.
   await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByTestId('manual-continuar').click()
   await expect(ventana.getByTestId('campo-ACD')).toBeVisible()
 
   const resultado = await ventana.evaluate(
@@ -379,6 +414,7 @@ SRK/T: 119.2</pre></body>`)
 
   await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
   await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByTestId('manual-continuar').click()
   const resultado = await ventana.evaluate(
     async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'anterion-lentes.pdf', ruta }]),
     rutaPdf,

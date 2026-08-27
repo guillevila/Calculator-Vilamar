@@ -23,6 +23,7 @@ export interface Carpetas {
   readonly documentos: string
   readonly informes: string
   readonly diagnostico: string
+  readonly capturas: string
   readonly sesiones: string
 }
 
@@ -33,6 +34,7 @@ export function prepararCarpetas(rutaDatos: string): Carpetas {
     documentos: join(rutaDatos, 'documentos'),
     informes: join(rutaDatos, 'informes'),
     diagnostico: join(rutaDatos, 'diagnostico'),
+    capturas: join(rutaDatos, 'capturas'),
     // El perfil del navegador: cookies y sesiones. Local y solo local.
     sesiones: join(rutaDatos, 'sesion-navegador'),
   }

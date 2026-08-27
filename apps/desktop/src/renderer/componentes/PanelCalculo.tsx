@@ -6,6 +6,7 @@
  * fila se pone en ámbar, porque el navegador está abierto esperándole.
  */
 
+import { useState } from 'react'
 import type { JSX } from 'react'
 
 import type { Calculadora, Caso, Lateralidad } from '@vilamar/domain'
@@ -36,6 +37,16 @@ export function PanelCalculo({
 }: Props): JSX.Element {
   const hayAlguno = CALCULADORAS.some((c) => resultadoDe(caso, c, ojo) !== undefined)
   const requiereUsuario = estados.filter((e) => e.requiereUsuario)
+
+  // Con cuáles calcular. Las tres por defecto; si hay prisa, se puede lanzar
+  // solo una o dos, sin esperar a las demás.
+  const [seleccionadas, setSeleccionadas] = useState<readonly Calculadora[]>(ORDEN)
+
+  function alternar(clave: Calculadora): void {
+    setSeleccionadas((previas) =>
+      previas.includes(clave) ? previas.filter((c) => c !== clave) : [...previas, clave],
+    )
+  }
 
   return (
     <>
@@ -111,11 +122,46 @@ export function PanelCalculo({
 
         <div className="separador" />
 
+        {/*
+          Con cuáles calcular. Las tres marcadas por defecto — si hay prisa,
+          se desmarcan las que no hacen falta y el botón lanza solo esas.
+        */}
+        {!ocupado && (
+          <div className="fila" style={{ gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+            <span className="pie-nota" style={{ marginRight: 2 }}>
+              Calcular con:
+            </span>
+            {ORDEN.map((clave) => (
+              <button
+                key={clave}
+                type="button"
+                className={seleccionadas.includes(clave) ? 'activo' : ''}
+                aria-pressed={seleccionadas.includes(clave)}
+                onClick={() => alternar(clave)}
+                data-testid={`seleccion-${clave}`}
+              >
+                {fichaDe(clave).nombre}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="fila derecha">
           {ocupado && <button onClick={onCancelar}>Cancelar</button>}
           {!ocupado && (
-            <button className="principal" onClick={() => onCalcular()} data-testid="lanzar-calculo">
-              {hayAlguno ? 'Volver a calcular todas' : 'Calcular en las tres'}
+            <button
+              className="principal"
+              onClick={() => onCalcular(seleccionadas)}
+              disabled={seleccionadas.length === 0}
+              data-testid="lanzar-calculo"
+            >
+              {seleccionadas.length === ORDEN.length
+                ? hayAlguno
+                  ? 'Volver a calcular todas'
+                  : 'Calcular en las tres'
+                : `${hayAlguno ? 'Volver a calcular' : 'Calcular'} (${seleccionadas
+                    .map((c) => fichaDe(c).nombre)
+                    .join(', ')})`}
             </button>
           )}
           {/*
@@ -131,6 +177,10 @@ export function PanelCalculo({
             </button>
           )}
         </div>
+
+        {seleccionadas.length === 0 && !ocupado && (
+          <p className="pie-nota">Elige al menos una calculadora para poder calcular.</p>
+        )}
 
         <p className="pie-nota">
           Si una calculadora falla, las demás siguen. Los resultados que ya tengas no se pierden y

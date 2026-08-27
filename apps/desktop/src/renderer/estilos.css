@@ -21,6 +21,12 @@
   --verde: #1e6b45;
   --verde-suave: #eaf5ef;
   --radio: 6px;
+  /* Tres azules distintos, solo para separar visualmente los apartados del
+     cuestionario manual — no tienen relación con los colores de las
+     calculadoras en el informe (esos son otra escala, en el PDF). */
+  --grupo-biometria: #eef4fb;
+  --grupo-lente: #e3ecf7;
+  --grupo-cornea: #d7e5f3;
 }
 
 * {
@@ -186,6 +192,17 @@ main.contenido {
   color: var(--gris);
 }
 
+/* Las dos opciones de la pantalla de inicio, con el mismo peso visual. */
+.opciones-inicio {
+  display: flex;
+  gap: 18px;
+  align-items: stretch;
+}
+.opciones-inicio > .soltar {
+  flex: 1;
+  padding: 40px 24px;
+}
+
 /* ── Tarjetas ───────────────────────────────────────────────────────────── */
 
 .tarjeta {
@@ -204,6 +221,12 @@ main.contenido {
   margin: 0 0 14px;
   color: var(--gris);
   font-size: 13px;
+}
+/* La tarjeta que hay que rellenar primero (nombre del paciente y del
+   doctor, en el cuestionario manual) — un acento para que no pase
+   desapercibida entre el resto de tarjetas, todas iguales por diseño. */
+.tarjeta-destacada {
+  border-left: 4px solid var(--azul);
 }
 
 /* ── Tabla de revisión ──────────────────────────────────────────────────── */
@@ -537,10 +560,51 @@ table.opciones .na {
   background: var(--azul);
   color: #fff;
 }
+/* Versión más grande, para cuando el selector de ojo es lo primero que hay
+   que mirar (el cuestionario manual) y no un detalle secundario. */
+.selector-ojo.grande button {
+  padding: 10px 26px;
+  font-size: 15px;
+  font-weight: 600;
+}
 .cargando {
   color: var(--gris);
   padding: 40px;
   text-align: center;
+}
+
+/* El cuestionario simplificado (FormularioManual): etiqueta + casilla, sin
+   columnas de origen/estado — todo lo que se escribe aquí ya es manual. */
+.rejilla-manual {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px 16px;
+}
+/* Cada apartado del cuestionario (Biometría / Lente e incisión / Córnea
+   posterior) con su propio azul, para distinguirlos de un vistazo — antes
+   solo los separaba un `<h3>` y los tres se veían idénticos. */
+.grupo-manual {
+  border-radius: var(--radio);
+  padding: 12px 14px 4px;
+  margin-bottom: 16px;
+}
+.grupo-manual.biometria {
+  background: var(--grupo-biometria);
+}
+.grupo-manual.lente {
+  background: var(--grupo-lente);
+}
+.grupo-manual.cornea {
+  background: var(--grupo-cornea);
+}
+.campo-manual label {
+  display: block;
+  font-size: 12.5px;
+  color: var(--gris);
+  margin-bottom: 4px;
+}
+.campo-manual input {
+  width: 100%;
 }
 
 /* ── Origen del dato ────────────────────────────────────────────────────────

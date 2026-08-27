@@ -45,7 +45,10 @@ test('el producto entero: datos → confirmar → EVO y Barrett reales → PDF',
     await v.waitForLoadState('domcontentloaded')
 
     // ── 1. Los datos, a mano ────────────────────────────────────────────────
+    // El botón lleva al cuestionario simplificado; se pasa sin rellenarlo
+    // para llegar a la pantalla de revisión, donde están estos `campo-*`.
     await v.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+    await v.getByTestId('manual-continuar').click()
     const datos: [string, string][] = [
       ['campo-AL', '24.07'],
       ['campo-K1', '41.22'],

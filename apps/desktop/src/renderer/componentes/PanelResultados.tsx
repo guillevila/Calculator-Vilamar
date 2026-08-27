@@ -1,8 +1,12 @@
 /**
- * PanelResultados.tsx — Los tres resultados, juntos.
+ * PanelResultados.tsx — Los resultados, juntos.
  *
- * La tabla comparativa y las observaciones. Las observaciones son descriptivas:
- * dicen en qué coinciden y en qué no. No dicen qué implantar, y no lo dirán.
+ * La tabla comparativa y las observaciones. Las columnas son las tres
+ * calculadoras y, si el ojo tiene córnea posterior medida (D45), también sus
+ * variantes de EVO y Barrett — ver `columnasComparativa`.
+ *
+ * Las observaciones son descriptivas: dicen en qué coinciden y en qué no. No
+ * dicen qué implantar, y no lo dirán.
  */
 
 import { useState } from 'react'
@@ -16,8 +20,9 @@ import type {
   Lateralidad,
 } from '@vilamar/domain'
 import {
-  CALCULADORAS,
+  columnasComparativa,
   compararOjo,
+  fichaDe,
   nombreLateralidad,
   ojosDelCaso,
   resultadoDe,
@@ -211,16 +216,15 @@ export function PanelResultados({
   const [generando, setGenerando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Las columnas se deciden por ojo: cada uno saca sus variantes de córnea
+  // posterior (D45) solo si de verdad tiene PK1 o PK2.
+  const columnas = columnasComparativa(caso, ojoActivo)
   const resultados: Partial<Record<Calculadora, ReturnType<typeof resultadoDe>>> = {}
-  for (const c of CALCULADORAS) {
+  for (const c of columnas) {
     const r = resultadoDe(caso, c, ojoActivo)
     if (r) resultados[c] = r
   }
-  const comparativa = compararOjo(ojoActivo, resultados as never, [
-    'KANE',
-    'EVO_TORIC',
-    'BARRETT_TORIC',
-  ])
+  const comparativa = compararOjo(ojoActivo, resultados as never, columnas)
 
   async function generar(): Promise<void> {
     setGenerando(true)
@@ -390,13 +394,12 @@ export function PanelResultados({
         <h2>Reintentar una sola</h2>
         <p className="sub">Si alguna falló, puedes lanzarla otra vez sin perder las demás.</p>
         <div className="fila">
-          {CALCULADORAS.map((c) => {
+          {columnas.map((c) => {
             const r = resultadoDe(caso, c, ojoActivo)
             const fallo = !r || (r.estado !== 'SUCCESS' && r.estado !== 'PARTIAL')
             return (
               <button key={c} onClick={() => onReintentar(c)} disabled={!fallo && r !== undefined}>
-                {fallo ? 'Reintentar' : 'Repetir'}{' '}
-                {c === 'EVO_TORIC' ? 'EVO' : c === 'BARRETT_TORIC' ? 'Barrett' : 'Kane'}
+                {fallo ? 'Reintentar' : 'Repetir'} {fichaDe(c).nombre}
               </button>
             )
           })}

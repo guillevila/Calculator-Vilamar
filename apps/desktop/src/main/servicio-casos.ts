@@ -17,11 +17,14 @@ import type {
   CampoBiometrico,
   Caso,
   Lateralidad,
+  OjoBiometrico,
   Aviso,
   ResultadoCalculadora,
   Sexo,
 } from '@vilamar/domain'
 import {
+  CALCULADORAS,
+  VARIANTE_CARA_POSTERIOR,
   casoNuevo as crearCasoNuevo,
   confirmar,
   confirmarMedida,
@@ -32,7 +35,10 @@ import {
   confirmarSexo as confirmarSexoDelDominio,
   deducirSexoDelNombre,
   describirLente,
+  ejeCurvoDe,
   elegirLente as elegirLenteDelDominio,
+  estimarLenteRecomendada,
+  fichaDe,
   sexoDeducidoDelNombre,
   sexoDelInforme,
   formatoDeNombre,
@@ -40,8 +46,10 @@ import {
   NOMBRE_DISPOSITIVO,
   ojoDe,
   ojosDelCaso,
+  resultadoDe,
   sinMedida,
   sinRepetidas,
+  tiene,
   validarOjo,
 } from '@vilamar/domain'
 import type { DocumentoEntrada, LectorVision, ProveedorExtraccion } from '@vilamar/extraction'
@@ -54,12 +62,14 @@ import {
   planificarCaso,
   tareasPendientes,
 } from '@vilamar/integrations'
+import type { ResultadoInforme } from '@vilamar/report'
 import { generarHtmlInforme, recopilarInforme } from '@vilamar/report'
 import type { Browser } from 'playwright'
 
 import type { ArchivoEntrante, EstadoCalculo, ResumenExtraccion } from '../compartido/ipc.js'
 import type { Carpetas } from './almacen.js'
 import { guardarCaso, guardarDocumento, nuevoId, siguienteCodigo } from './almacen.js'
+import type { AlmacenCapturas } from './capturas.js'
 import type { Diagnosticador } from './diagnostico.js'
 
 export interface DependenciasServicio {
@@ -73,6 +83,7 @@ export interface DependenciasServicio {
    */
   readonly lectorVision?: LectorVision | undefined
   readonly diagnosticador: Diagnosticador
+  readonly capturas: AlmacenCapturas
   readonly version: string
   readonly ahora: () => Date
   /** Abre el navegador para las calculadoras. Se inyecta para poder probarlo. */
@@ -328,7 +339,7 @@ export class ServicioCasos {
           )
           continue
         }
-        caso = conOjo(caso, leido, this.iso())
+        caso = conOjo(caso, this.conValoresPorDefecto(leido), this.iso())
       }
 
       resumenes.push({
@@ -446,6 +457,61 @@ export class ServicioCasos {
       `El informe no dice el sexo, así que se ha deducido del nombre. Sale sin confirmar a propósito: compruébalo antes de calcular, porque un nombre no siempre lo determina.`,
     )
     return salida
+  }
+
+  /**
+   * El objetivo de refracción (target) arranca en 0; el SIA y su eje de
+   * incisión, en 0.25 D @ 135°. Los tres, editables.
+   *
+   * Concreta D38 (`SYSTEM_VISION.md`): petición expresa del dueño del
+   * proyecto, tras exponerle que es la primera vez que este programa rellena
+   * un dato ausente en vez de dejarlo vacío — la mayoría de sus casos van a
+   * emetropía y usan un SIA parecido, y no quiere escribirlos a mano en cada
+   * uno. Ampliada el 27/08/2026 (mismo dueño, misma petición) para el SIA y
+   * su eje: no hace falta un aviso nuevo, es el mismo riesgo ya aceptado.
+   *
+   * Son valores `MANUAL` normales, así que `corregirMedida` ya los deja
+   * confirmados sin más (como cualquier dato escrito a mano): no hace falta
+   * ningún mecanismo nuevo de confirmación, y si el cirujano los cambia
+   * después es una edición manual normal, igual de confirmada.
+   *
+   * NO pisan un valor que el propio informe ya trajera («Del informe»):
+   * solo rellenan el hueco cuando el documento de verdad no dice nada — y el
+   * SIA nunca lo trae un aparato (ningún biómetro lo mide), así que aquí
+   * nunca hay nada real que pisar.
+   */
+  private conValoresPorDefecto(ojo: OjoBiometrico): OjoBiometrico {
+    let salida = ojo
+    if (!tiene(salida, 'REFRACCION_OBJETIVO')) {
+      salida = corregirMedida(salida, 'REFRACCION_OBJETIVO', 0, this.iso())
+    }
+    if (!tiene(salida, 'SIA')) salida = corregirMedida(salida, 'SIA', 0.25, this.iso())
+    if (!tiene(salida, 'EJE_INCISION')) {
+      salida = corregirMedida(salida, 'EJE_INCISION', 135, this.iso())
+    }
+    return salida
+  }
+
+  /**
+   * Escribe a mano el nombre del paciente y/o del cirujano.
+   *
+   * Es el equivalente, para estos dos campos de texto del caso, de
+   * `editarMedida` para una medida: la vía manual (`FormularioManual`) los
+   * escribe aquí porque no vienen de ningún documento. Un campo que no se
+   * manda en `datos` conserva lo que hubiera — así se puede guardar uno sin
+   * pisar el otro.
+   */
+  establecerIdentificacion(datos: {
+    readonly nombrePaciente?: string
+    readonly nombreCirujano?: string
+  }): Caso {
+    const caso = this.exigirCaso()
+    return this.establecer({
+      ...caso,
+      ...(datos.nombrePaciente !== undefined ? { nombrePaciente: datos.nombrePaciente } : {}),
+      ...(datos.nombreCirujano !== undefined ? { nombreCirujano: datos.nombreCirujano } : {}),
+      actualizadoEn: this.iso(),
+    })
   }
 
   /** Elige el sexo a mano. Conserva lo que hubiera antes, como cualquier dato. */
@@ -569,9 +635,29 @@ export class ServicioCasos {
    */
   async calcular(calculadoras?: readonly Calculadora[]): Promise<readonly ResultadoCalculadora[]> {
     const caso = this.exigirCaso()
-    return this.ejecutar(
-      planificarCaso(caso, calculadoras !== undefined ? { calculadoras } : undefined),
-    )
+    const base = planificarCaso(caso, calculadoras !== undefined ? { calculadoras } : undefined)
+    return this.ejecutar(this.conVariantesDeCaraPosterior(caso, base))
+  }
+
+  /**
+   * Añade, junto a cada casilla de una calculadora con variante de córnea
+   * posterior (D45 — EVO se la quita, Barrett se la añade), la casilla de esa
+   * variante — pero solo en los ojos que de verdad tienen PK1 o PK2. Un ojo
+   * sin córnea posterior medida no necesita comparación: sería calcular lo
+   * mismo dos veces.
+   */
+  private conVariantesDeCaraPosterior(
+    caso: Caso,
+    tareas: readonly TareaCalculo[],
+  ): readonly TareaCalculo[] {
+    return tareas.flatMap((t) => {
+      const variante = VARIANTE_CARA_POSTERIOR[t.calculadora]
+      if (!variante) return [t]
+      const ojo = ojoDe(caso, t.ojo)
+      return tiene(ojo, 'PK1') || tiene(ojo, 'PK2')
+        ? [t, { calculadora: variante.calculadora, ojo: t.ojo }]
+        : [t]
+    })
   }
 
   /**
@@ -658,6 +744,7 @@ export class ServicioCasos {
         },
         ahora: () => this.iso(),
         guardarDiagnostico: this.dep.diagnosticador.guardar,
+        guardarCaptura: this.dep.capturas.guardar,
         cancelado: () => this.cancelar,
       })
 
@@ -683,6 +770,7 @@ export class ServicioCasos {
     const datos = recopilarInforme(caso, {
       version: this.dep.version,
       generadoEn: this.iso(),
+      resultados: this.recopilarResultadosParaInforme(caso),
     })
     const html = generarHtmlInforme(datos)
 
@@ -693,5 +781,74 @@ export class ServicioCasos {
     writeFileSync(destino.replace(/\.pdf$/, '.html'), html, 'utf8')
     await this.dep.imprimirPdf(html, destino)
     return { ruta: destino }
+  }
+
+  /**
+   * Lo que el informe enseña de cada casilla (calculadora × ojo): la captura
+   * ya en base64, la lente que se destacó y, si no hubo resultado
+   * utilizable, por qué. Solo aquí hay `fs` — `recopilarInforme` y
+   * `generarHtmlInforme` son funciones puras y no lo tocan.
+   *
+   * **Ninguna casilla se omite en silencio.** Antes esto se saltaba
+   * (`continue`) las que no tenían éxito; ahora entran igual, con `fallo` en
+   * vez de `dataUri`, para que el informe explique la ausencia en la propia
+   * página en vez de que desaparezca sin explicación.
+   */
+  private recopilarResultadosParaInforme(caso: Caso): readonly ResultadoInforme[] {
+    const resultados: ResultadoInforme[] = []
+    const anadirCasilla = (c: Calculadora, ojo: Lateralidad): void => {
+      const r = resultadoDe(caso, c, ojo)
+
+      if (r && (r.estado === 'SUCCESS' || r.estado === 'PARTIAL')) {
+        const png = r.capturaId ? this.dep.capturas.leer(r.capturaId) : null
+        // La estimación es SIEMPRE el criterio propio (D43), de acuerdo con la
+        // opción que la web haya destacado o no — nunca `r.recomendada`, que es
+        // lo que la calculadora eligió. Las dos cosas no se confunden: esto es
+        // una estimación orientativa y no vinculante, y se enseña como tal.
+        const estimada = estimarLenteRecomendada(r.opciones, ejeCurvoDe(ojoDe(caso, ojo)))
+        resultados.push({
+          calculadora: c,
+          ojo,
+          ...(png
+            ? { dataUri: `data:image/png;base64,${Buffer.from(png).toString('base64')}` }
+            : {}),
+          ...(estimada ? { recomendada: estimada } : {}),
+        })
+        return
+      }
+
+      resultados.push({
+        calculadora: c,
+        ojo,
+        fallo: r?.mensaje ?? `${fichaDe(c).nombre} no se ha calculado para este ojo.`,
+      })
+    }
+
+    // Calculadora a calculadora, como siempre (D39) — y dentro de cada ojo,
+    // si esa calculadora tiene variante de córnea posterior (D45) y el ojo de
+    // verdad tiene PK1 o PK2, las dos hojas salen seguidas: la que NO tiene
+    // córnea posterior primero, la que SÍ la tiene después — da igual cuál de
+    // las dos sea la calculadora base y cuál la variante (EVO se la quita a
+    // la base; Barrett se la añade). Un ojo sin esos datos no saca la
+    // variante: nunca se intentó, y meterla igualmente enseñaría un aviso de
+    // fallo sobre algo que no hacía falta calcular.
+    for (const c of CALCULADORAS) {
+      for (const ojo of ojosDelCaso(caso)) {
+        const variante = VARIANTE_CARA_POSTERIOR[c]
+        if (!variante) {
+          anadirCasilla(c, ojo)
+          continue
+        }
+        const datos = ojoDe(caso, ojo)
+        const hayCaraPosterior = tiene(datos, 'PK1') || tiene(datos, 'PK2')
+        const orden: readonly Calculadora[] =
+          variante.sentido === 'SIN' ? [variante.calculadora, c] : [c, variante.calculadora]
+        for (const clave of orden) {
+          if (clave === variante.calculadora && !hayCaraPosterior) continue
+          anadirCasilla(clave, ojo)
+        }
+      }
+    }
+    return resultados
   }
 }

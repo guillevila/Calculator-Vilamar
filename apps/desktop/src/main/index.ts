@@ -16,6 +16,7 @@ import type { Browser } from 'playwright'
 import type { ArchivoEntrante, EstadoCalculo } from '../compartido/ipc.js'
 import { CANALES } from '../compartido/ipc.js'
 import { prepararCarpetas } from './almacen.js'
+import { crearAlmacenCapturas } from './capturas.js'
 import { crearDiagnosticador } from './diagnostico.js'
 import { crearMotorOcr } from './extraccion/ocr.js'
 import { crearLectorPdf } from './extraccion/lector-pdf.js'
@@ -187,7 +188,7 @@ function crearVentana(): void {
     minHeight: 680,
     backgroundColor: '#F5F7FA',
     title: 'Calculator Vilamar',
-    show: false,
+    show: true,
     webPreferences: {
       preload: join(carpetaActual, '..', 'preload', 'index.mjs'),
       contextIsolation: true,
@@ -195,8 +196,6 @@ function crearVentana(): void {
       sandbox: false,
     },
   })
-
-  ventana.once('ready-to-show', () => ventana?.show())
 
   ventana.webContents.setWindowOpenHandler(({ url }) => {
     // Nada se abre dentro de la aplicación: los enlaces van al navegador.
@@ -209,6 +208,9 @@ function crearVentana(): void {
   } else {
     void ventana.loadFile(join(carpetaActual, '..', 'renderer', 'index.html'))
   }
+
+  ventana.show()
+  ventana.focus()
 }
 
 function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
@@ -236,6 +238,7 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
     proveedor,
     lectorVision,
     diagnosticador: crearDiagnosticador(carpetas.diagnostico),
+    capturas: crearAlmacenCapturas(carpetas.capturas),
     version,
     ahora: () => new Date(),
     abrirNavegador: (conVentana) => abrirNavegador(conVentana, carpetas.sesiones),
@@ -280,6 +283,9 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
 
   ipcMain.handle(CANALES.editarMedida, (_e, ojo, campo, valor) =>
     s().editarMedida(ojo, campo, valor),
+  )
+  ipcMain.handle(CANALES.establecerIdentificacion, (_e, datos) =>
+    s().establecerIdentificacion(datos),
   )
   ipcMain.handle(CANALES.confirmarCampo, (_e, ojo, campo) => s().confirmarCampo(ojo, campo))
   ipcMain.handle(CANALES.elegirSexo, (_e, sexo) => s().elegirSexo(sexo))

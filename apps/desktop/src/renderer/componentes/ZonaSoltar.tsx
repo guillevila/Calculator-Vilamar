@@ -63,32 +63,41 @@ export function ZonaSoltar({ onArchivos, onElegir, onAMano, ocupado }: Props): J
 
   return (
     <>
-      <div
-        className={`soltar ${encima ? 'encima' : ''}`}
-        onDragOver={(e) => {
-          e.preventDefault()
-          setEncima(true)
-        }}
-        onDragLeave={() => setEncima(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          setEncima(false)
-          void procesar(e.dataTransfer.files)
-        }}
-        data-testid="zona-soltar"
-      >
-        <h2>Arrastra tu informe de biometría</h2>
-        <p>o elígelo desde tu ordenador</p>
-        <div className="fila" style={{ justifyContent: 'center' }}>
-          <button className="principal grande" onClick={onElegir} disabled={ocupado}>
-            Elegir archivo
-          </button>
-          <button onClick={onAMano} disabled={ocupado}>
-            Escribir los datos a mano
-          </button>
+      <div className="opciones-inicio">
+        <div
+          className={`soltar ${encima ? 'encima' : ''}`}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setEncima(true)
+          }}
+          onDragLeave={() => setEncima(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setEncima(false)
+            void procesar(e.dataTransfer.files)
+          }}
+          data-testid="zona-soltar"
+        >
+          <h2>Arrastra tu informe de biometría</h2>
+          <p>o elígelo desde tu ordenador</p>
+          <div className="fila" style={{ justifyContent: 'center' }}>
+            <button className="principal grande" onClick={onElegir} disabled={ocupado}>
+              Elegir archivo
+            </button>
+          </div>
+          <div className="formatos">
+            Admite PDF, JPG y PNG. Puedes subir varios archivos: cada uno se lee por separado.
+          </div>
         </div>
-        <div className="formatos">
-          Admite PDF, JPG y PNG. Puedes subir varios archivos: cada uno se lee por separado.
+
+        <div className="soltar" data-testid="tarjeta-manual">
+          <h2>Escribe los datos a mano</h2>
+          <p>Sin documento: un cuestionario con solo lo que hace falta para calcular</p>
+          <div className="fila" style={{ justifyContent: 'center' }}>
+            <button className="principal grande" onClick={onAMano} disabled={ocupado}>
+              Escribir los datos a mano
+            </button>
+          </div>
         </div>
       </div>
 
