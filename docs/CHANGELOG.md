@@ -4,6 +4,46 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.16] — 25/08/2026
+
+Sugerencia según el criterio del cirujano — separada de lo que dice la web.
+
+### El pedido, y el pushback
+
+El dueño del proyecto quiere que la aplicación marque, dentro de cada tabla
+de opciones, cuál elegiría él con tres reglas suyas: en Envista, el residual
+negativo más cercano a cero; en Lux, el positivo más cercano a cero; en una
+tabla tórica, el mayor cilindro cuyo eje residual no salta ~90° respecto al
+de la potencia anterior (si salta, la potencia anterior es la buena).
+
+Antes de tocar nada se le hizo pushback citando D14 («la primera versión no
+da una recomendación clínica propia») y D37, que ya rechazó marcar una
+opción del catálogo como «la buena» por la misma razón. Confirmó que lo
+quiere igualmente, como sugerencia visible y nunca vinculante — nada se
+envía a ningún sitio sin que una persona lo confirme, igual que siempre.
+
+### La implementación
+
+- `packages/domain/src/comparacion/sugerencia-cirujano.ts` (nuevo):
+  `familiaDeLente`, `sugerirEsferaPorFamilia`, `sugerirCilindroSinCambioDeEje`
+  y `sugerirOpcion` (decide sola cuál de las dos reglas toca, según si la
+  tabla trae cilindro).
+- La regla del cilindro no necesita ningún eje de referencia externo: compara
+  cada opción con la anterior, en la misma tabla, así que aguanta que una
+  calculadora transponga sus ejes (EVO lo hace) sin que haga falta saberlo.
+- Se mantiene deliberadamente separada de `OpcionLente.recomendada` (lo que
+  la propia web destaca) — `comparar.ts` documenta, de un fallo real
+  anterior, el peligro exacto de confundir las dos. En pantalla
+  (`PanelResultados.tsx`) sale con su propio color y su motivo escrito
+  («Según tu criterio: …»), nunca con el aspecto de una opción que la
+  calculadora señaló.
+- 20 tests nuevos, todos con tablas inventadas.
+
+Ver SYSTEM_VISION.md D51. lint, typecheck, 659 tests unitarios (1 fallo
+preexistente y no relacionado) y 32 e2e en verde.
+
+---
+
 ## [1.2.15] — 25/08/2026
 
 «SimK (flat)» / «SimK (steep)»: otra forma real de llamar a K1 y K2.

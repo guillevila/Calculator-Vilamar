@@ -592,6 +592,16 @@ Ninguno de los tres impide usar lo demás.
   la forma exacta del documento real —aunque con una fixture sintética, no
   con el informe en sí—. Construido y comprobado con 3 tests nuevos, lint,
   typecheck y la suite e2e completa.
+- **D51 (25/08/2026): sugerencia según el criterio del cirujano (Envista =
+  residual negativo más cercano a cero; Lux = positivo más cercano a cero;
+  tórica = mayor cilindro sin salto de eje ~90°), separada de lo que destaca
+  cada calculadora.** Se hizo pushback citando D14/D37 antes de construir; el
+  dueño del proyecto lo confirmó igualmente, como sugerencia no vinculante.
+  Construido y comprobado con 20 tests nuevos (tablas inventadas), lint,
+  typecheck y la suite e2e completa; **no probado todavía con un caso real
+  en la aplicación abierta** — pendiente de que el dueño del proyecto lo
+  vea con datos suyos y confirme que la fila que se marca es la que él
+  habría elegido a mano.
 
 ---
 

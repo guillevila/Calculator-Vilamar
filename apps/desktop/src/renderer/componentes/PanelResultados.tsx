@@ -13,6 +13,7 @@ import type {
   Caso,
   CeldaComparativa,
   DatoComparativo,
+  FamiliaDeLente,
   Lateralidad,
   LenteDeCatalogo,
 } from '@vilamar/domain'
@@ -20,10 +21,12 @@ import {
   CALCULADORAS,
   compararOjo,
   describirLenteDeCatalogo,
+  familiaDeLente,
   lentesQueCubren,
   nombreLateralidad,
   ojosDelCaso,
   resultadoDe,
+  sugerirOpcion,
   textoEstado,
 } from '@vilamar/domain'
 
@@ -187,8 +190,20 @@ const COLUMNAS_DE_OPCION = [
  *
  * Se enseña cuando hay más de una. No añade ninguna columna que la web no haya
  * dado: si Kane solo devuelve potencia y refracción, la tabla tiene dos columnas.
+ *
+ * `sugerencia` es distinta de `recomendada`, y se pinta distinta a propósito
+ * (D14, y la cicatriz que documenta `comparar.ts`): `recomendada` es lo que
+ * DESTACA LA WEB; `sugerencia` es el criterio que el dueño del proyecto dio él
+ * mismo (25/08/2026) aplicado a esta tabla. Ninguna de las dos se envía a
+ * ningún sitio ni sustituye la decisión de quien opera.
  */
-function OpcionesDevueltas({ celda }: { celda: CeldaComparativa }): JSX.Element | null {
+function OpcionesDevueltas({
+  celda,
+  familia,
+}: {
+  celda: CeldaComparativa
+  familia: FamiliaDeLente | undefined
+}): JSX.Element | null {
   if (celda.opciones.length <= 1) return null
 
   const columnas = COLUMNAS_DE_OPCION.filter((col) =>
@@ -197,6 +212,7 @@ function OpcionesDevueltas({ celda }: { celda: CeldaComparativa }): JSX.Element 
   if (columnas.length === 0) return null
 
   const senalada = celda.seleccion.clase === 'DESTACADA'
+  const sugerencia = sugerirOpcion(celda.opciones, familia)
 
   return (
     <div className="opciones-devueltas">
@@ -208,37 +224,55 @@ function OpcionesDevueltas({ celda }: { celda: CeldaComparativa }): JSX.Element 
           ? `${celda.nombre} ha señalado una de ellas; va marcada en la tabla y es la que aparece arriba.`
           : `${celda.nombre} no ha señalado ninguna opción preferente. La elección no la hace Calculator Vilamar.`}
       </p>
+      {sugerencia && (
+        <p className="sub sugerencia-criterio">
+          <strong>Según tu criterio:</strong> {sugerencia.motivo}
+        </p>
+      )}
       <table className="opciones">
         <thead>
           <tr>
             {columnas.map((col) => (
               <th key={col.clave}>{col.titulo}</th>
             ))}
-            {senalada && <th></th>}
+            {(senalada || sugerencia) && <th></th>}
           </tr>
         </thead>
         <tbody>
-          {celda.opciones.map((o, i) => (
-            <tr key={i} className={o.recomendada ? 'destacada' : ''}>
-              {columnas.map((col) => {
-                const v = o[col.clave]
-                return (
-                  <td key={col.clave}>
-                    {v === undefined ? (
-                      <span className="na">—</span>
-                    ) : typeof v === 'number' ? (
-                      `${v.toFixed(col.decimales)}${col.sufijo}`
-                    ) : (
-                      v
-                    )}
+          {celda.opciones.map((o, i) => {
+            const esLaSugerida = sugerencia?.opcion === o
+            return (
+              <tr
+                key={i}
+                className={`${o.recomendada ? 'destacada' : ''} ${esLaSugerida ? 'sugerida' : ''}`.trim()}
+              >
+                {columnas.map((col) => {
+                  const v = o[col.clave]
+                  return (
+                    <td key={col.clave}>
+                      {v === undefined ? (
+                        <span className="na">—</span>
+                      ) : typeof v === 'number' ? (
+                        `${v.toFixed(col.decimales)}${col.sufijo}`
+                      ) : (
+                        v
+                      )}
+                    </td>
+                  )
+                })}
+                {(senalada || sugerencia) && (
+                  <td className="marca">
+                    {[
+                      o.recomendada ? `Destacada por ${celda.nombre}` : '',
+                      esLaSugerida ? 'Según tu criterio' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </td>
-                )
-              })}
-              {senalada && (
-                <td className="marca">{o.recomendada ? `Destacada por ${celda.nombre}` : ''}</td>
-              )}
-            </tr>
-          ))}
+                )}
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -275,6 +309,7 @@ export function PanelResultados({
     'EVO_TORIC',
     'BARRETT_TORIC',
   ])
+  const familia = familiaDeLente(caso.lente?.modelo)
 
   async function generar(): Promise<void> {
     setGenerando(true)
@@ -425,7 +460,7 @@ export function PanelResultados({
         <div className="tarjeta">
           <h2>Opciones devueltas · {nombreLateralidad(ojoActivo)}</h2>
           {comparativa.celdas.map((c) => (
-            <OpcionesDevueltas key={c.calculadora} celda={c} />
+            <OpcionesDevueltas key={c.calculadora} celda={c} familia={familia} />
           ))}
         </div>
       )}

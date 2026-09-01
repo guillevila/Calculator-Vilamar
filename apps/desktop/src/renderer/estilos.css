@@ -480,10 +480,22 @@ table.opciones tr.destacada td {
   font-weight: 700;
   background: var(--fondo-suave, #f5f7fa);
 }
+/*
+  «sugerida» es DISTINTA de «destacada» a propósito: destacada es lo que dice
+  la web, sugerida es el criterio que dio el dueño del proyecto. Un color
+  distinto (verde, no gris) evita que las dos se confundan de un vistazo.
+*/
+table.opciones tr.sugerida td {
+  font-weight: 700;
+  background: var(--verde-suave);
+}
 table.opciones td.marca {
   font-size: 12px;
   color: var(--gris);
   font-style: italic;
+}
+.sugerencia-criterio {
+  color: var(--verde);
 }
 table.opciones .na {
   color: var(--gris);
