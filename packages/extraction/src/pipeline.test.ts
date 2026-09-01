@@ -205,6 +205,45 @@ describe('IOLMaster: la queratometría total va aparte de la estándar', () => {
   })
 })
 
+describe('ANTERION: «SimK (flat)» y «SimK (steep)» son K1 y K2, al revés que «Flat K»', () => {
+  it('lee K1 de «SimK (flat)» y K2 de «SimK (steep)», con su eje', () => {
+    // Caso real (25/08/2026): esta pantalla de ANTERION no imprime «K1»/«K2»
+    // en ningún sitio, solo «SimK (flat)»/«SimK (steep)» — el orden de las
+    // palabras es el contrario al de «Flat K»/«Steep K», que ya se leía.
+    const r = leer(fx.ANTERION_CON_SIMK_FLAT_STEEP)
+    const od = r.ojos.OD!
+    const os = r.ojos.OS!
+
+    expect(valorDe(od, 'K1')).toBe(44.07)
+    expect(valorDe(od, 'K1_EJE')).toBe(109)
+    expect(valorDe(od, 'K2')).toBe(44.37)
+    expect(valorDe(od, 'K2_EJE')).toBe(19)
+
+    expect(valorDe(os, 'K1')).toBe(43.88)
+    expect(valorDe(os, 'K1_EJE')).toBe(73)
+    expect(valorDe(os, 'K2')).toBe(44.73)
+    expect(valorDe(os, 'K2_EJE')).toBe(163)
+  })
+
+  it('«SimK mean» no se confunde con K1 ni con K2', () => {
+    // No hay campo para la media: solo interesan el plano y el curvo. Que la
+    // línea de la media aparezca primero en el documento no debe colarse
+    // como si fuera K1.
+    const r = leer(fx.ANTERION_CON_SIMK_FLAT_STEEP)
+    expect(valorDe(r.ojos.OD!, 'K1')).not.toBe(44.22)
+    expect(valorDe(r.ojos.OD!, 'K2')).not.toBe(44.22)
+  })
+
+  it('sigue leyendo el resto de la biometría del resumen de la primera página', () => {
+    // El resumen y la SimK están en secciones distintas del mismo documento
+    // (regresión D47: se juntan, no se elige una). AL solo está en el
+    // resumen; K1/K2 solo en la transcripción detallada.
+    const r = leer(fx.ANTERION_CON_SIMK_FLAT_STEEP)
+    expect(valorDe(r.ojos.OD!, 'AL')).toBe(23.97)
+    expect(valorDe(r.ojos.OS!, 'AL')).toBe(23.96)
+  })
+})
+
 describe('Pentacam: lo que el aparato no mide, no aparece', () => {
   it('no hay longitud axial y no se inventa', () => {
     const r = leer(fx.PENTACAM_OD)

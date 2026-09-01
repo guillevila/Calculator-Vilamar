@@ -4,6 +4,38 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.15] — 25/08/2026
+
+«SimK (flat)» / «SimK (steep)»: otra forma real de llamar a K1 y K2.
+
+### El problema
+
+Tercer informe real de ANTERION que probó el dueño del proyecto: no
+imprime «K1»/«K2» en ningún sitio de la pantalla «Cataract spheric IOL
+calculation OU report», solo «SimK (flat)» y «SimK (steep)» — con las
+palabras en el orden contrario al patrón «Flat K»/«Steep K» que ya se
+reconocía desde otro informe distinto. El resultado: la queratometría no
+se leía en absoluto para este documento, aunque el resto de la biometría
+(AL, ACD, LT, CCT, WTW) sí.
+
+### La corrección
+
+- `packages/extraction/src/parsers/nucleo.ts`: dos patrones nuevos en las
+  reglas genéricas de K1 y K2, con y sin eje: `SimK\s*\(?flat\)?…` para K1,
+  `SimK\s*\(?steep\)?…` para K2. K1 es el meridiano plano y K2 el curvo —la
+  definición estándar de una queratometría, no algo que decida este
+  programa.
+- Cuidado explícito con «SimK mean» (la media, que no se guarda): el
+  patrón exige la palabra «flat» o «steep» justo después de «SimK», así
+  que «mean» no la confunde con ninguna de las dos K.
+- 1 fixture sintética nueva y 3 tests, con la misma forma del informe real
+  pero ningún dato suyo.
+
+Ver SYSTEM_VISION.md D50. lint, typecheck, 639 tests unitarios (1 fallo
+preexistente y no relacionado) y 32 e2e en verde.
+
+---
+
 ## [1.2.14] — 25/08/2026
 
 Un título centrado en la cabecera desplazaba la frontera entre OD y OS.

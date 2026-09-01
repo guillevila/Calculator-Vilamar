@@ -185,8 +185,15 @@ export const REGLAS_GENERICAS: readonly ReglaLectura[] = [
     patrones: [
       /\bK1\b[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis|eje)\s*(\d{1,3})/i,
       /Flat\s*K[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
+      // «SimK (flat)», al revés que «Flat K»: caso real de ANTERION
+      // (25/08/2026) — su pantalla de cálculo llama así a la K1. K1 es,
+      // clínicamente, el meridiano PLANO (flat): menos curvado, menos
+      // dioptrías. K2 es el curvo (steep). No es una equivalencia inventada
+      // aquí: es la definición estándar de las dos K de una queratometría.
+      /SimK\s*\(?\s*flat\s*\)?[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
       /\bK1\b[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
       /Flat\s*K[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
+      /SimK\s*\(?\s*flat\s*\)?[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
     ],
   },
   {
@@ -196,8 +203,12 @@ export const REGLAS_GENERICAS: readonly ReglaLectura[] = [
     patrones: [
       /\bK2\b[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis|eje)\s*(\d{1,3})/i,
       /Steep\s*K[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
+      // «SimK (steep)»: la K curva, en el mismo informe real que trae «SimK
+      // (flat)» arriba. Ver la nota de K1.
+      /SimK\s*\(?\s*steep\s*\)?[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
       /\bK2\b[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
       /Steep\s*K[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
+      /SimK\s*\(?\s*steep\s*\)?[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
     ],
   },
   {

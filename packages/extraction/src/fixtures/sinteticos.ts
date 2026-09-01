@@ -293,6 +293,55 @@ Estado: Faquico
 `
 
 /**
+ * ANTERION, pantalla «Cataract spheric IOL calculation OU report», con la
+ * queratometría como «SimK (flat)» / «SimK (steep)» en vez de «K1»/«K2».
+ *
+ * Caso real (25/08/2026): esta pantalla no imprime K1/K2 en ningún sitio, ni
+ * en el resumen de la primera página ni en la transcripción detallada — solo
+ * «SimK (flat)» y «SimK (steep)», al revés que el patrón «Flat K»/«Steep K»
+ * que ya se reconocía. K1 es el meridiano plano (flat) y K2 el curvo (steep):
+ * es la definición estándar de una queratometría, no una equivalencia que
+ * invente este programa.
+ */
+export const ANTERION_CON_SIMK_FLAT_STEEP = `
+HEIDELBERG ENGINEERING
+Cataract spheric IOL calculation OU report (as on screen)
+
+OD
+AL 23.97 mm
+AQD 2.40 mm
+LT 5.79 mm
+CCT 481 um
+WTW 12.47 mm
+Target refraction 0.00 D
+nk 1.3375
+
+OS
+AL 23.96 mm
+AQD 2.51 mm
+LT 5.63 mm
+CCT 480 um
+WTW 12.42 mm
+Target refraction 0.00 D
+nk 1.3375
+
+Transcripción detallada
+
+Anterior axial curvature (simulated)
+nk = 1.3375; 3 mm ring
+
+OD
+SimK mean 44.22 D
+SimK (steep) 44.37 D @ 19
+SimK (flat) 44.07 D @ 109
+
+OS
+SimK mean 44.30 D
+SimK (steep) 44.73 D @ 163
+SimK (flat) 43.88 D @ 73
+`
+
+/**
  * Pentacam. NO da longitud axial: es un topógrafo, no un biómetro.
  * Sirve para comprobar que un campo que el aparato no mide sale como
  * «no encontrado» y no como un número inventado.

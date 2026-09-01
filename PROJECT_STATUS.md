@@ -585,6 +585,13 @@ Ninguno de los tres impide usar lo demás.
   documenta junto con el fallo anterior). Comprobado con 2 tests nuevos
   (posiciones sintéticas), lint, typecheck y la suite e2e completa. Mismo
   aviso que D48: no probado con una foto real de este documento.
+- **D50 (25/08/2026): en algunas pantallas de ANTERION, la queratometría se
+  llama «SimK (flat)» / «SimK (steep)» en vez de «K1»/«K2»; ahora se
+  reconoce.** Tercer informe real de ANTERION probado el mismo día. Este era
+  un PDF de texto nativo (no una foto), así que sí se ha comprobado contra
+  la forma exacta del documento real —aunque con una fixture sintética, no
+  con el informe en sí—. Construido y comprobado con 3 tests nuevos, lint,
+  typecheck y la suite e2e completa.
 
 ---
 
