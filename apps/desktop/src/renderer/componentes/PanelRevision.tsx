@@ -22,11 +22,12 @@
  *    «esto no lo sabemos», y es preferible a dejar un número dudoso.
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { JSX } from 'react'
 
 import type { Aviso, CampoBiometrico, Caso, Lateralidad, Medida } from '@vilamar/domain'
 import {
+  aparatosDe,
   camposDeCategoria,
   exigenciaDe,
   fichaDe,
@@ -45,8 +46,10 @@ import {
   ojosDelCaso,
 } from '@vilamar/domain'
 
+import type { ApiVilamar } from '../../compartido/ipc.js'
 import { api } from '../api.js'
 import { BloqueSexo } from './BloqueSexo.js'
+import { faltaIdentificacion, IdentificacionCaso } from './Identificacion.js'
 import { SelectorLente } from './SelectorLente.js'
 
 interface Props {
@@ -54,10 +57,15 @@ interface Props {
   readonly avisos: readonly Aviso[]
   readonly ojoActivo: Lateralidad
   readonly onCambiarOjo: (ojo: Lateralidad) => void
+  /** Con qué aparato/biómetro de `ojoActivo` se está revisando (D47). */
+  readonly aparatoActivo: string
+  readonly onCambiarAparato: (aparato: string) => void
   readonly onCambio: () => Promise<void>
   readonly onConfirmar: () => void
   readonly ocupado: boolean
 }
+
+type Discrepancia = Awaited<ReturnType<ApiVilamar['discrepanciasDe']>>[number]
 
 const GRUPOS: { titulo: string; categoria: Parameters<typeof camposDeCategoria>[0] }[] = [
   { titulo: 'Biometría', categoria: 'BIOMETRIA' },
@@ -71,12 +79,67 @@ export function PanelRevision({
   avisos,
   ojoActivo,
   onCambiarOjo,
+  aparatoActivo,
+  onCambiarAparato,
   onCambio,
   onConfirmar,
   ocupado,
 }: Props): JSX.Element {
   const ojos = ojosDelCaso(caso)
-  const ojo = ojoDe(caso, ojoActivo)
+  const aparatos = aparatosDe(caso, ojoActivo)
+  const ojo = ojoDe(caso, ojoActivo, aparatoActivo)
+
+  /**
+   * Discrepancias por ojo (D47) — de TODOS los ojos del caso, no solo el
+   * que se está mirando.
+   *
+   * Antes solo se pedían las del ojo activo, y «Confirmar» solo miraba esas
+   * — así que confirmar mientras se revisaba OD dejaba pasar una
+   * discrepancia sin reconocer en OS, y `calcular()` la descartaba en
+   * silencio (D51: una discrepancia pendiente no bloquea el resto del
+   * caso). El resultado: OD calculaba bien y OS se quedaba sin ningún
+   * resultado, sin ningún aviso visible de por qué (fallo real reportado
+   * por el dueño con un caso de dos ojos, 02/09/2026). Se vuelven a pedir
+   * cada vez que cambian los datos del caso, por si una edición acaba de
+   * resolver o de crear una.
+   */
+  const [discrepanciasPorOjo, setDiscrepanciasPorOjo] = useState<
+    Partial<Record<Lateralidad, readonly Discrepancia[]>>
+  >({})
+  useEffect(() => {
+    let cancelado = false
+    void Promise.all(
+      ojos.map(async (l): Promise<readonly [Lateralidad, readonly Discrepancia[]]> => {
+        if (aparatosDe(caso, l).length < 2) return [l, []]
+        return [l, await api().discrepanciasDe(l)]
+      }),
+    ).then((pares) => {
+      if (!cancelado) setDiscrepanciasPorOjo(Object.fromEntries(pares))
+    })
+    return () => {
+      cancelado = true
+    }
+    // `caso` cambia con cada edición: es la señal de "vuelve a comprobar".
+  }, [ojos.join(','), caso])
+
+  const discrepancias = discrepanciasPorOjo[ojoActivo] ?? []
+  const discrepanciaReconocida = caso.discrepanciasReconocidas?.[ojoActivo] === true
+  const hayDiscrepanciaSinReconocer = discrepancias.length > 0 && !discrepanciaReconocida
+
+  /** Ojos —cualquiera, no solo el activo— con una discrepancia sin reconocer. */
+  const ojosConDiscrepanciaSinReconocer = ojos.filter(
+    (l) => (discrepanciasPorOjo[l]?.length ?? 0) > 0 && caso.discrepanciasReconocidas?.[l] !== true,
+  )
+  const hayDiscrepanciaSinReconocerEnElCaso = ojosConDiscrepanciaSinReconocer.length > 0
+  /** Discrepancias sin reconocer en OTRO ojo que el que se está mirando ahora mismo. */
+  const ojosConDiscrepanciaEnOtroLado = ojosConDiscrepanciaSinReconocer.filter(
+    (l) => l !== ojoActivo,
+  )
+
+  async function reconocer(): Promise<void> {
+    await api().reconocerDiscrepancia(ojoActivo)
+    await onCambio()
+  }
 
   const invalidos = useMemo(() => avisos.filter((a) => a.nivel === 'INVALID'), [avisos])
   const advertencias = useMemo(() => avisos.filter((a) => a.nivel === 'WARNING'), [avisos])
@@ -107,13 +170,18 @@ export function PanelRevision({
    */
   const porComprobar = useMemo(
     () =>
-      ojos.flatMap((l) => {
-        const datos = ojoDe(caso, l)
-        return (Object.keys(datos.medidas) as CampoBiometrico[])
-          .map((c) => datos.medidas[c])
-          .filter((m): m is Medida => m !== undefined)
-          .filter((m) => necesitaComprobacionHumana(m.procedencia) && !m.confirmadoPorUsuario)
-      }),
+      // Todos los aparatos de todos los ojos (D47): un segundo biómetro con
+      // datos de OCR sin comprobar no puede quedar fuera de esta cuenta, o
+      // se podría confirmar el caso sin haberlo mirado.
+      ojos.flatMap((l) =>
+        aparatosDe(caso, l).flatMap((a) => {
+          const datos = ojoDe(caso, l, a)
+          return (Object.keys(datos.medidas) as CampoBiometrico[])
+            .map((c) => datos.medidas[c])
+            .filter((m): m is Medida => m !== undefined)
+            .filter((m) => necesitaComprobacionHumana(m.procedencia) && !m.confirmadoPorUsuario)
+        }),
+      ),
     [caso, ojos],
   )
   const leidosPorMaquina = porComprobar.filter((m) => esLecturaAutomatica(m.procedencia))
@@ -129,11 +197,75 @@ export function PanelRevision({
                 key={l}
                 className={l === ojoActivo ? 'activo' : ''}
                 onClick={() => onCambiarOjo(l)}
+                data-testid={`revision-ojo-${l}`}
               >
                 {nombreLateralidad(l)}
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Selector de aparato (D47): solo se ve cuando este ojo tiene más de
+          uno — un caso de un solo biómetro no nota ningún cambio aquí. */}
+      {aparatos.length > 1 && (
+        <div className="fila" style={{ marginBottom: 14 }}>
+          <span className="pie-nota" style={{ marginRight: 2 }}>
+            Aparato:
+          </span>
+          <div className="selector-ojo">
+            {aparatos.map((a) => (
+              <button
+                key={a}
+                className={a === aparatoActivo ? 'activo' : ''}
+                onClick={() => onCambiarAparato(a)}
+                data-testid={`revision-aparato-${a}`}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/*
+        Alarma de discrepancia (D47, decisión 2): si dos aparatos del mismo
+        ojo, ya confirmados, dan datos muy distintos, se avisa aquí, de
+        forma prominente, y hace falta una acción explícita para seguir —
+        nunca se calcula con datos que se contradicen sin que alguien lo
+        haya mirado.
+      */}
+      {discrepancias.length > 0 && (
+        <div
+          className={`aviso ${hayDiscrepanciaSinReconocer ? 'error' : 'exito'}`}
+          data-testid="alarma-discrepancia"
+        >
+          <strong>
+            {aparatos.join(' y ')} no coinciden en {discrepancias.length}{' '}
+            {discrepancias.length === 1 ? 'dato' : 'datos'} de {nombreLateralidad(ojoActivo)}.
+          </strong>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
+            {discrepancias.map((d, i) => (
+              <li key={i}>
+                {definicionDe(d.campo).etiqueta}: {d.aparatoA} = {d.valorA}, {d.aparatoB} ={' '}
+                {d.valorB} (diferencia {d.diferencia.toFixed(2)})
+              </li>
+            ))}
+          </ul>
+          {hayDiscrepanciaSinReconocer ? (
+            <>
+              <p style={{ margin: '8px 0' }}>
+                No se puede calcular este ojo hasta que compruebes esta discrepancia. Puede ser un
+                problema de verdad —un ojo confundido, una medición mala— o simplemente que los dos
+                aparatos midan así. Decide tú.
+              </p>
+              <button onClick={() => void reconocer()} data-testid="reconocer-discrepancia">
+                Ya lo he comprobado, continuar
+              </button>
+            </>
+          ) : (
+            <p style={{ margin: '8px 0 0' }}>Ya lo has comprobado. Puedes calcular con normalidad.</p>
+          )}
         </div>
       )}
 
@@ -191,12 +323,15 @@ export function PanelRevision({
           campos={camposDeCategoria(grupo.categoria)}
           caso={caso}
           ojoActivo={ojoActivo}
+          aparatoActivo={aparatoActivo}
           avisos={avisos}
           onCambio={onCambio}
         />
       ))}
 
       <BloqueSexo caso={caso} onCambio={onCambio} />
+
+      <IdentificacionCaso caso={caso} onCambio={onCambio} />
 
       <SelectorLente caso={caso} onCambio={onCambio} />
 
@@ -254,7 +389,9 @@ export function PanelRevision({
               ocupado ||
               invalidos.length > 0 ||
               porComprobar.length > 0 ||
-              Object.keys(ojo.medidas).length === 0
+              Object.keys(ojo.medidas).length === 0 ||
+              hayDiscrepanciaSinReconocerEnElCaso ||
+              faltaIdentificacion(caso)
             }
             data-testid="confirmar"
           >
@@ -273,6 +410,23 @@ export function PanelRevision({
             falta comprobarlos: son exactos.
           </p>
         )}
+        {hayDiscrepanciaSinReconocerEnElCaso && invalidos.length === 0 && porComprobar.length === 0 && (
+          <p className="pie-nota" data-testid="aviso-discrepancia-otro-ojo">
+            No se puede confirmar mientras haya una discrepancia entre aparatos sin comprobar
+            {ojosConDiscrepanciaEnOtroLado.length > 0
+              ? ` — revisa ${ojosConDiscrepanciaEnOtroLado.map(nombreLateralidad).join(' y ')}, arriba.`
+              : '.'}
+          </p>
+        )}
+        {faltaIdentificacion(caso) &&
+          invalidos.length === 0 &&
+          porComprobar.length === 0 &&
+          !hayDiscrepanciaSinReconocerEnElCaso && (
+            <p className="pie-nota" data-testid="aviso-falta-identificacion">
+              Falta el nombre del doctor, el del paciente, o los dos — arriba, en «Quién es». Las
+              tres calculadoras piden un nombre en su formulario.
+            </p>
+          )}
       </div>
     </>
   )
@@ -283,6 +437,7 @@ interface PropsGrupo {
   readonly campos: readonly CampoBiometrico[]
   readonly caso: Caso
   readonly ojoActivo: Lateralidad
+  readonly aparatoActivo: string
   readonly avisos: readonly Aviso[]
   readonly onCambio: () => Promise<void>
 }
@@ -292,10 +447,11 @@ function GrupoCampos({
   campos,
   caso,
   ojoActivo,
+  aparatoActivo,
   avisos,
   onCambio,
 }: PropsGrupo): JSX.Element {
-  const ojo = ojoDe(caso, ojoActivo)
+  const ojo = ojoDe(caso, ojoActivo, aparatoActivo)
 
   return (
     <div className="tarjeta">
@@ -314,10 +470,14 @@ function GrupoCampos({
         <tbody>
           {campos.map((campo) => (
             <FilaCampo
-              key={campo}
+              // Igual que en `FormularioManual`: sin `ojoActivo`/`aparatoActivo`
+              // en la clave, React reutiliza la fila al cambiar de aparato y el
+              // «borrador» local se queda con el texto del biómetro anterior.
+              key={`${ojoActivo}-${aparatoActivo}-${campo}`}
               campo={campo}
               caso={caso}
               ojoActivo={ojoActivo}
+              aparatoActivo={aparatoActivo}
               avisos={avisos}
               onCambio={onCambio}
             />
@@ -338,12 +498,13 @@ interface PropsFila {
   readonly campo: CampoBiometrico
   readonly caso: Caso
   readonly ojoActivo: Lateralidad
+  readonly aparatoActivo: string
   readonly avisos: readonly Aviso[]
   readonly onCambio: () => Promise<void>
 }
 
-function FilaCampo({ campo, caso, ojoActivo, avisos, onCambio }: PropsFila): JSX.Element {
-  const ojo = ojoDe(caso, ojoActivo)
+function FilaCampo({ campo, caso, ojoActivo, aparatoActivo, avisos, onCambio }: PropsFila): JSX.Element {
+  const ojo = ojoDe(caso, ojoActivo, aparatoActivo)
   const def = definicionDe(campo)
   const medida = ojo.medidas[campo]
   /**
@@ -361,13 +522,13 @@ function FilaCampo({ campo, caso, ojoActivo, avisos, onCambio }: PropsFila): JSX
   async function guardar(texto: string): Promise<void> {
     const limpio = texto.trim().replace(',', '.')
     if (limpio === '') {
-      await api().editarMedida(ojoActivo, campo, null)
+      await api().editarMedida(ojoActivo, campo, null, aparatoActivo)
     } else {
       const n = Number(limpio)
       // Si no es un número, no se guarda nada: se deja el borrador para que el
       // usuario vea lo que ha escrito y lo corrija. No se convierte en 0.
       if (!Number.isFinite(n)) return
-      await api().editarMedida(ojoActivo, campo, n)
+      await api().editarMedida(ojoActivo, campo, n, aparatoActivo)
     }
     setBorrador(null)
     await onCambio()
@@ -385,7 +546,7 @@ function FilaCampo({ campo, caso, ojoActivo, avisos, onCambio }: PropsFila): JSX
     !medida.confirmadoPorUsuario
 
   async function comprobar(): Promise<void> {
-    await api().confirmarCampo(ojoActivo, campo)
+    await api().confirmarCampo(ojoActivo, campo, aparatoActivo)
     await onCambio()
   }
 

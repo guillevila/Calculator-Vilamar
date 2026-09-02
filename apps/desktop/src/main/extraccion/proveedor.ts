@@ -26,6 +26,15 @@ import { traeTextoDeVerdad } from '@vilamar/extraction'
 
 import type { Rasterizador } from './rasterizador.js'
 
+/**
+ * Por debajo de esta fiabilidad, una lectura se enseña como «poca
+ * fiabilidad» — y, desde D59 (02/09/2026), es también la señal para probar
+ * a leer la imagen girada. No es una medida clínica: es el punto en el que,
+ * medido con documentos reales, el reconocimiento ya no es de fiar (ver
+ * `PROJECT_STATUS.md`, «Cuánto acierta el lector local»).
+ */
+export const UMBRAL_FIABILIDAD_BAJA = 0.6
+
 export interface PiezasProveedor {
   readonly lectorPdf: LectorPdf
   readonly motorOcr: MotorOcr
@@ -56,9 +65,14 @@ export class ProveedorDocumentos implements ProveedorExtraccion {
       // en un informe legible. Si ni el navegador puede, lanza con un mensaje
       // que se entiende.
       const preparada = await this.piezas.rasterizador.prepararParaOcr(documento.datos)
-      const r = await this.piezas.motorOcr.reconocer(preparada)
+      const { resultado: r, giroUsado } = await this.mejorGiro(preparada)
       const avisos: string[] = []
-      if (r.confianzaMedia < 0.6) {
+      if (giroUsado !== 0) {
+        avisos.push(
+          `La imagen estaba girada y se ha corregido antes de leerla (${giroUsado}°). Comprueba igualmente los datos.`,
+        )
+      }
+      if (r.confianzaMedia < UMBRAL_FIABILIDAD_BAJA) {
         avisos.push(
           `El reconocimiento de esta imagen ha salido con poca fiabilidad (${Math.round(
             r.confianzaMedia * 100,
@@ -75,6 +89,39 @@ export class ProveedorDocumentos implements ProveedorExtraccion {
     } catch (error) {
       return this.fallo(error, 'OCR')
     }
+  }
+
+  /**
+   * Lee una imagen ya preparada probando también girada, si hace falta.
+   *
+   * El OCR no corrige el giro por su cuenta (D59, 02/09/2026): una foto de
+   * móvil torcida o subida de lado sale con el texto ilegible y el
+   * reconocimiento no saca casi nada. Aquí no se adivina el ángulo con
+   * heurísticas: se lee tal cual, y **solo si esa primera lectura ya sale
+   * poco fiable** (el mismo umbral que ya avisa al usuario, `UMBRAL_FIABILIDAD_BAJA`)
+   * se prueba a girar 90°, 180° y 270° y se elige la lectura con más
+   * fiabilidad de las cuatro. Con una foto bien orientada —el caso normal—
+   * esto no añade ningún trabajo de más: se queda en la primera lectura.
+   */
+  private async mejorGiro(
+    imagenPreparada: Uint8Array,
+  ): Promise<{ resultado: Awaited<ReturnType<MotorOcr['reconocer']>>; giroUsado: 0 | 90 | 180 | 270 }> {
+    const primera = await this.piezas.motorOcr.reconocer(imagenPreparada)
+    if (primera.confianzaMedia >= UMBRAL_FIABILIDAD_BAJA) {
+      return { resultado: primera, giroUsado: 0 }
+    }
+
+    let mejor = primera
+    let giroUsado: 0 | 90 | 180 | 270 = 0
+    for (const grados of [90, 180, 270] as const) {
+      const girada = await this.piezas.rasterizador.rotar(imagenPreparada, grados)
+      const resultado = await this.piezas.motorOcr.reconocer(girada)
+      if (resultado.confianzaMedia > mejor.confianzaMedia) {
+        mejor = resultado
+        giroUsado = grados
+      }
+    }
+    return { resultado: mejor, giroUsado }
   }
 
   private async extraerDePdf(documento: DocumentoEntrada): Promise<TextoDocumento> {
@@ -121,6 +168,7 @@ export class ProveedorDocumentos implements ProveedorExtraccion {
 
     const paginas: PaginaDocumento[] = []
     const confianzas: number[] = []
+    let algunaGirada = false
 
     for (let n = 1; n <= aLeer; n++) {
       try {
@@ -130,7 +178,8 @@ export class ProveedorDocumentos implements ProveedorExtraccion {
         // los defectos de compresión de la imagen incrustada a tamaño completo.
         const imagen = await this.piezas.rasterizador.rasterizar(documento.datos, n)
         const lista = await this.piezas.rasterizador.prepararParaOcr(imagen)
-        const r = await this.piezas.motorOcr.reconocer(lista)
+        const { resultado: r, giroUsado } = await this.mejorGiro(lista)
+        if (giroUsado !== 0) algunaGirada = true
         paginas.push({ numero: n, texto: r.texto, bloques: r.bloques })
         confianzas.push(r.confianzaMedia)
       } catch (error) {
@@ -142,9 +191,15 @@ export class ProveedorDocumentos implements ProveedorExtraccion {
       }
     }
 
+    if (algunaGirada) {
+      avisos.push(
+        'Alguna página estaba girada y se ha corregido antes de leerla. Comprueba igualmente los datos.',
+      )
+    }
+
     const media =
       confianzas.length > 0 ? confianzas.reduce((a, b) => a + b, 0) / confianzas.length : 0
-    if (confianzas.length > 0 && media < 0.6) {
+    if (confianzas.length > 0 && media < UMBRAL_FIABILIDAD_BAJA) {
       avisos.push(
         `El reconocimiento ha salido con poca fiabilidad (${Math.round(media * 100)} %). Revisa cada dato contra el informe original.`,
       )

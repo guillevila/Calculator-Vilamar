@@ -12,10 +12,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { JSX } from 'react'
 
 import type { Calculadora, Caso, Lateralidad, Aviso } from '@vilamar/domain'
-import { ojosDelCaso } from '@vilamar/domain'
+import { APARATO_PRINCIPAL, aparatosDe, ojosDelCaso } from '@vilamar/domain'
 
 import { api, hayApi } from './api.js'
 import type { ArchivoEntrante, EstadoCalculo, ResumenExtraccion } from '../compartido/ipc.js'
+import { CasosGuardados } from './componentes/CasosGuardados.js'
 import { ZonaSoltar } from './componentes/ZonaSoltar.js'
 import { FormularioManual } from './componentes/FormularioManual.js'
 import { PanelRevision } from './componentes/PanelRevision.js'
@@ -23,7 +24,19 @@ import { PanelCalculo } from './componentes/PanelCalculo.js'
 import { PanelResultados } from './componentes/PanelResultados.js'
 import { Avisos } from './componentes/Avisos.js'
 
-type Paso = 'INICIO' | 'CARGANDO' | 'MANUAL' | 'REVISION' | 'CALCULANDO' | 'RESULTADOS'
+type Paso =
+  | 'INICIO'
+  | 'CASOS_GUARDADOS'
+  | 'CARGANDO'
+  | 'MANUAL'
+  | 'REVISION'
+  | 'CALCULANDO'
+  | 'RESULTADOS'
+
+/** A qué pantalla lleva un caso, según cómo se haya quedado. */
+function pasoDeCaso(c: Caso): Paso {
+  return c.estado === 'COMPLETADO' ? 'RESULTADOS' : 'REVISION'
+}
 
 export function App(): JSX.Element {
   const [version, setVersion] = useState('')
@@ -34,6 +47,10 @@ export function App(): JSX.Element {
   const [estados, setEstados] = useState<readonly EstadoCalculo[]>([])
   const [error, setError] = useState<string | null>(null)
   const [ojoActivo, setOjoActivo] = useState<Lateralidad>('OD')
+  // Con qué aparato/biómetro se trabaja en el ojo activo (D47, 27/08/2026).
+  // Con un solo aparato —el caso de siempre— esto es invisible: vale
+  // `APARATO_PRINCIPAL` y ningún selector se enseña.
+  const [aparatoActivo, setAparatoActivo] = useState<string>(APARATO_PRINCIPAL)
   const [ocupado, setOcupado] = useState(false)
 
   const disponible = hayApi()
@@ -46,7 +63,7 @@ export function App(): JSX.Element {
       .then((c) => {
         if (c) {
           setCaso(c)
-          setPaso(c.estado === 'COMPLETADO' ? 'RESULTADOS' : 'REVISION')
+          setPaso(pasoDeCaso(c))
         }
       })
     const bajaCaso = api().alCambiarCaso(setCaso)
@@ -73,6 +90,16 @@ export function App(): JSX.Element {
     }
   }, [ojos, ojoActivo])
 
+  // Igual que con el ojo: si el aparato activo deja de existir para el ojo
+  // activo (p. ej. al cambiar de ojo), se cae al primero que ese ojo tenga.
+  const aparatosDelOjo = useMemo(() => (caso ? aparatosDe(caso, ojoActivo) : []), [caso, ojoActivo])
+  useEffect(() => {
+    if (aparatosDelOjo.length > 0 && !aparatosDelOjo.includes(aparatoActivo)) {
+      const primero = aparatosDelOjo[0]
+      if (primero) setAparatoActivo(primero)
+    }
+  }, [aparatosDelOjo, aparatoActivo])
+
   const refrescarAvisos = useCallback(async () => {
     setAvisos(await api().validar())
   }, [])
@@ -85,6 +112,17 @@ export function App(): JSX.Element {
     const c = await api().casoNuevo()
     setCaso(c)
     setPaso('INICIO')
+  }, [])
+
+  /** Vuelve a abrir un caso guardado, tal y como se dejó. */
+  const abrirCasoGuardado = useCallback(async (codigo: string) => {
+    setError(null)
+    setResumenes([])
+    setEstados([])
+    setAvisos([])
+    const c = await api().abrirCaso(codigo)
+    setCaso(c)
+    setPaso(pasoDeCaso(c))
   }, [])
 
   /** Aplica el resultado de una carga, venga del diálogo o de arrastrar. */
@@ -165,19 +203,27 @@ export function App(): JSX.Element {
     }
   }, [])
 
-  const calcular = useCallback(async (calculadoras?: readonly Calculadora[]) => {
-    setError(null)
-    setOcupado(true)
-    setEstados((p) => (calculadoras ? p.filter((e) => !calculadoras.includes(e.calculadora)) : []))
-    try {
-      await api().calcular(calculadoras)
-      setPaso('RESULTADOS')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setOcupado(false)
-    }
-  }, [])
+  const calcular = useCallback(
+    async (
+      calculadoras?: readonly Calculadora[],
+      filtro?: { readonly ojo?: Lateralidad; readonly aparato?: string },
+    ) => {
+      setError(null)
+      setOcupado(true)
+      setEstados((p) =>
+        calculadoras ? p.filter((e) => !calculadoras.includes(e.calculadora)) : [],
+      )
+      try {
+        await api().calcular(calculadoras, filtro)
+        setPaso('RESULTADOS')
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      } finally {
+        setOcupado(false)
+      }
+    },
+    [],
+  )
 
   /**
    * Reintentar: volver a ejecutar lo que FALLÓ, no conseguir el segundo ojo.
@@ -240,13 +286,45 @@ export function App(): JSX.Element {
           ] as const
         ).map(([clave, texto], i, todos) => {
           const posicionActual = todos.findIndex(
-            ([c]) => c === (paso === 'CARGANDO' || paso === 'MANUAL' ? 'INICIO' : paso),
+            ([c]) =>
+              c ===
+              (paso === 'CARGANDO' || paso === 'MANUAL' || paso === 'CASOS_GUARDADOS'
+                ? 'INICIO'
+                : paso),
           )
-          const clase = i === posicionActual ? 'activo' : i < posicionActual ? 'hecho' : ''
+          // Un paso ya alcanzado por el CASO —no por dónde se esté mirando
+          // ahora mismo— se puede volver a pulsar para corregir algo; nunca
+          // uno futuro, que saltaría por delante de lo que falta. Se mira el
+          // estado del caso, no la posición actual en esta barra: si se
+          // mirara la posición, volver a «Revisar datos» habría «olvidado»
+          // que ya se había llegado a «Calcular», y no dejaría volver.
+          // Petición expresa del dueño del proyecto (02/09/2026): antes esta
+          // barra era solo un indicador, sin ningún sitio que llevara de
+          // vuelta a los datos salvo un botón escondido más abajo en la
+          // pantalla de resultados.
+          const alcanzadoPorElCaso =
+            clave === 'REVISION'
+              ? true
+              : clave === 'CALCULANDO'
+                ? caso?.estado === 'CONFIRMADO' ||
+                  caso?.estado === 'CALCULANDO' ||
+                  caso?.estado === 'COMPLETADO'
+                : clave === 'RESULTADOS'
+                  ? caso?.estado === 'CALCULANDO' || caso?.estado === 'COMPLETADO'
+                  : false
+          const alcanzable = caso !== null && alcanzadoPorElCaso
+          const clase = i === posicionActual ? 'activo' : alcanzable ? 'hecho' : ''
           return (
-            <span key={clave} className={`paso ${clase}`}>
+            <button
+              key={clave}
+              type="button"
+              className={`paso ${clase}`}
+              disabled={!alcanzable}
+              onClick={alcanzable ? () => setPaso(clave) : undefined}
+              data-testid={`paso-${clave}`}
+            >
               {i + 1}. {texto}
-            </span>
+            </button>
           )
         })}
       </nav>
@@ -264,8 +342,13 @@ export function App(): JSX.Element {
               onArchivos={(a) => void cargarArchivos(a)}
               onElegir={() => void elegirYcargar()}
               onAMano={() => void empezarAMano()}
+              onAbrirGuardados={() => setPaso('CASOS_GUARDADOS')}
               ocupado={ocupado}
             />
+          )}
+
+          {paso === 'CASOS_GUARDADOS' && (
+            <CasosGuardados onAbrir={abrirCasoGuardado} onVolver={() => setPaso('INICIO')} />
           )}
 
           {paso === 'MANUAL' && caso && (
@@ -301,6 +384,8 @@ export function App(): JSX.Element {
                 avisos={avisos}
                 ojoActivo={ojoActivo}
                 onCambiarOjo={setOjoActivo}
+                aparatoActivo={aparatoActivo}
+                onCambiarAparato={setAparatoActivo}
                 onCambio={async () => {
                   await refrescarAvisos()
                 }}
@@ -316,9 +401,14 @@ export function App(): JSX.Element {
               ojo={ojoActivo}
               estados={estados}
               ocupado={ocupado}
+              // Sin filtro: calcula TODO el caso (los dos ojos, todos los
+              // aparatos que ya estén confirmados) — igual que siempre.
+              // Filtrar por el ojo/aparato activo aquí reintroduciría el
+              // fallo ya corregido de «solo calcula la pestaña que se ve».
               onCalcular={(c) => void calcular(c)}
               onCancelar={() => void api().cancelarCalculo()}
               onVerResultados={() => setPaso('RESULTADOS')}
+              onVolverARevisar={() => setPaso('REVISION')}
             />
           )}
 
@@ -327,6 +417,8 @@ export function App(): JSX.Element {
               caso={caso}
               ojoActivo={ojoActivo}
               onCambiarOjo={setOjoActivo}
+              aparatoActivo={aparatoActivo}
+              onCambiarAparato={setAparatoActivo}
               onReintentar={(c) => {
                 setPaso('CALCULANDO')
                 void reintentar(c, ojoActivo)

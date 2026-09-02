@@ -1,16 +1,37 @@
 /**
- * PanelCalculo.tsx — Lo que pasa mientras se habla con las tres webs.
+ * PanelCalculo.tsx — Lo que pasa mientras se habla con las webs externas.
  *
- * El usuario ve, calculadora por calculadora, en qué punto va cada una. Cuando
- * una pide intervención, no sale un error: sale una instrucción concreta y la
+ * El usuario ve, casilla por casilla, en qué punto va cada una. Cuando una
+ * pide intervención, no sale un error: sale una instrucción concreta y la
  * fila se pone en ámbar, porque el navegador está abierto esperándole.
+ *
+ * Antes de calcular, dos cosas más para que la decisión sea informada: un
+ * resumen de los parámetros que se han metido (comprobación visual rápida,
+ * D48 28/08/2026) y el propio botón de cada una de las cinco casillas.
+ *
+ * «Volver a los datos» (D54, 01/09/2026) lleva de vuelta a la revisión con
+ * el caso tal cual está — nada se borra ni se recalcula solo. Sirve para
+ * corregir un dato antes de la primera vez que se calcula, y también para
+ * cambiar uno o dos campos después de ya haber calculado, sin tener que
+ * volver a escribir todo el formulario para recalcular.
  */
 
 import { useState } from 'react'
 import type { JSX } from 'react'
 
-import type { Calculadora, Caso, Lateralidad } from '@vilamar/domain'
-import { CALCULADORAS, fichaDe, resultadoDe, textoEstado } from '@vilamar/domain'
+import type { CampoBiometrico, Calculadora, Caso, Lateralidad } from '@vilamar/domain'
+import {
+  aparatosDe,
+  camposDeCategoria,
+  COLUMNAS_COMPARATIVA,
+  definicionDe,
+  fichaDe,
+  formatearConUnidad,
+  ojoDe,
+  resultadoDe,
+  textoEstado,
+  valorDe,
+} from '@vilamar/domain'
 
 import type { EstadoCalculo } from '../../compartido/ipc.js'
 
@@ -22,9 +43,102 @@ interface Props {
   readonly onCalcular: (calculadoras?: readonly Calculadora[]) => void
   readonly onCancelar: () => void
   readonly onVerResultados: () => void
+  readonly onVolverARevisar: () => void
 }
 
-const ORDEN: readonly Calculadora[] = ['EVO_TORIC', 'BARRETT_TORIC', 'KANE']
+// Las cinco casillas de siempre (D45/D48, 28/08/2026): EVO y Barrett, cada
+// una con su Predicted y su Measured PCA por separado, y Kane — que se
+// queda con una sola, porque su web no tiene ningún campo de córnea
+// posterior (comprobado en vivo el 28/08/2026, `pnpm reconocer:kane`).
+const ORDEN: readonly Calculadora[] = COLUMNAS_COMPARATIVA
+
+const ETIQUETA: Partial<Record<Calculadora, string>> = {
+  EVO_TORIC_SIN_CARA_POSTERIOR: 'EVO Toric — Predicted PCA',
+  EVO_TORIC: 'EVO Toric — Measured PCA',
+  BARRETT_TORIC: 'Barrett Toric — Predicted PCA',
+  BARRETT_TORIC_CON_CARA_POSTERIOR: 'Barrett Toric — Measured PCA',
+}
+
+function etiquetaDe(c: Calculadora): string {
+  return ETIQUETA[c] ?? fichaDe(c).nombre
+}
+
+// Por defecto se seleccionan las tres de siempre (Predicted de EVO y
+// Barrett, más Kane) — no las cinco. Las dos «Measured PCA» son un cálculo
+// extra contra una web ajena que solo tiene sentido cuando el aparato trajo
+// de verdad la córnea posterior medida; pedirlas siempre por defecto
+// doblaría el tráfico a EVO y Barrett sin necesidad en el caso más común.
+const SELECCION_POR_DEFECTO: readonly Calculadora[] = [
+  'EVO_TORIC_SIN_CARA_POSTERIOR',
+  'BARRETT_TORIC',
+  'KANE',
+]
+
+// Los parámetros que tiene sentido enseñar de un vistazo antes de calcular:
+// lo que mide el aparato (biometría) y su córnea posterior, si la trae. Lo
+// quirúrgico (objetivo, incisión) y lo de la lente van en otra pantalla —
+// esto es solo para comprobar de un vistazo que AL, K1, K2, ejes, etc. se
+// metieron bien, no para revisar todo el caso otra vez.
+const CAMPOS_RESUMEN: readonly CampoBiometrico[] = [
+  ...camposDeCategoria('BIOMETRIA'),
+  ...camposDeCategoria('CORNEA_POSTERIOR'),
+]
+
+/**
+ * Tabla de solo lectura con los datos ya metidos, un aparato por columna —
+ * petición expresa del dueño del proyecto (28/08/2026): antes de lanzar el
+ * cálculo, poder comprobar de un vistazo AL, K1, K2, ejes… sin tener que
+ * volver a la pantalla de revisión. Con dos aparatos, ver sus columnas una
+ * al lado de la otra es justo lo que hace saltar a la vista una discrepancia
+ * — que además tiene su propia alarma explícita en la revisión (D47).
+ *
+ * Solo enseña los campos que de verdad tiene algún aparato: una fila de
+ * guiones para cada dato que nadie metió sería ruido, no comprobación.
+ */
+function ResumenParametros({ caso, ojo }: { readonly caso: Caso; readonly ojo: Lateralidad }): JSX.Element | null {
+  const datasets = aparatosDe(caso, ojo).map((aparato) => ({
+    aparato,
+    datos: ojoDe(caso, ojo, aparato),
+  }))
+  const campos = CAMPOS_RESUMEN.filter((campo) =>
+    datasets.some(({ datos }) => valorDe(datos, campo) !== undefined),
+  )
+  if (datasets.length === 0 || campos.length === 0) return null
+
+  return (
+    <div className="tarjeta">
+      <h2>Parámetros de {ojo === 'OD' ? 'OD' : 'OS'}, antes de calcular</h2>
+      <p className="sub">Comprobación visual rápida — no es la pantalla de revisión.</p>
+      <div style={{ overflowX: 'auto' }}>
+        <table className="revision" data-testid="resumen-parametros">
+          <thead>
+            <tr>
+              <th>Dato</th>
+              {datasets.map(({ aparato }) => (
+                <th key={aparato}>{aparato}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {campos.map((campo) => (
+              <tr key={campo}>
+                <td className="campo">{definicionDe(campo).etiqueta}</td>
+                {datasets.map(({ aparato, datos }) => {
+                  const valor = valorDe(datos, campo)
+                  return (
+                    <td key={aparato}>
+                      {valor === undefined ? '—' : formatearConUnidad(campo, valor)}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
 
 export function PanelCalculo({
   caso,
@@ -34,13 +148,13 @@ export function PanelCalculo({
   onCalcular,
   onCancelar,
   onVerResultados,
+  onVolverARevisar,
 }: Props): JSX.Element {
-  const hayAlguno = CALCULADORAS.some((c) => resultadoDe(caso, c, ojo) !== undefined)
+  const hayAlguno = ORDEN.some((c) => resultadoDe(caso, c, ojo) !== undefined)
   const requiereUsuario = estados.filter((e) => e.requiereUsuario)
 
-  // Con cuáles calcular. Las tres por defecto; si hay prisa, se puede lanzar
-  // solo una o dos, sin esperar a las demás.
-  const [seleccionadas, setSeleccionadas] = useState<readonly Calculadora[]>(ORDEN)
+  const [seleccionadas, setSeleccionadas] =
+    useState<readonly Calculadora[]>(SELECCION_POR_DEFECTO)
 
   function alternar(clave: Calculadora): void {
     setSeleccionadas((previas) =>
@@ -56,6 +170,8 @@ export function PanelCalculo({
           {e.mensaje}
         </div>
       ))}
+
+      <ResumenParametros caso={caso} ojo={ojo} />
 
       <div className="tarjeta">
         <h2>Calculando</h2>
@@ -101,7 +217,7 @@ export function PanelCalculo({
             return (
               <div className={`calc ${clase}`} key={clave} data-testid={`calc-${clave}`}>
                 <span className="marca">{marca}</span>
-                <span className="nombre">{ficha.nombre}</span>
+                <span className="nombre">{etiquetaDe(clave)}</span>
                 <span className="detalle">
                   {detalle}
                   {ficha.intervencionHumana.length > 0 && !resultado && (
@@ -123,31 +239,44 @@ export function PanelCalculo({
         <div className="separador" />
 
         {/*
-          Con cuáles calcular. Las tres marcadas por defecto — si hay prisa,
-          se desmarcan las que no hacen falta y el botón lanza solo esas.
+          Con cuáles calcular. Predicted PCA de EVO y Barrett, más Kane,
+          marcadas por defecto; las «Measured PCA» se añaden a mano cuando
+          el aparato trajo de verdad la córnea posterior medida.
         */}
         {!ocupado && (
-          <div className="fila" style={{ gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-            <span className="pie-nota" style={{ marginRight: 2 }}>
-              Calcular con:
-            </span>
-            {ORDEN.map((clave) => (
-              <button
-                key={clave}
-                type="button"
-                className={seleccionadas.includes(clave) ? 'activo' : ''}
-                aria-pressed={seleccionadas.includes(clave)}
-                onClick={() => alternar(clave)}
-                data-testid={`seleccion-${clave}`}
-              >
-                {fichaDe(clave).nombre}
-              </button>
-            ))}
-          </div>
+          <>
+            <div className="fila" style={{ gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+              <span className="pie-nota" style={{ marginRight: 2 }}>
+                Calcular con:
+              </span>
+              {ORDEN.map((clave) => (
+                <button
+                  key={clave}
+                  type="button"
+                  className={seleccionadas.includes(clave) ? 'activo' : ''}
+                  aria-pressed={seleccionadas.includes(clave)}
+                  onClick={() => alternar(clave)}
+                  data-testid={`seleccion-${clave}`}
+                >
+                  {etiquetaDe(clave)}
+                </button>
+              ))}
+            </div>
+            <p className="pie-nota" style={{ marginBottom: 10 }}>
+              «Measured PCA» solo cambia el resultado en los ojos donde el aparato trajo la córnea
+              posterior medida (PK1/PK2). Sin ese dato calcula igual que «Predicted PCA» — no hace
+              falta para el uso habitual.
+            </p>
+          </>
         )}
 
         <div className="fila derecha">
           {ocupado && <button onClick={onCancelar}>Cancelar</button>}
+          {!ocupado && (
+            <button onClick={onVolverARevisar} data-testid="volver-a-revisar">
+              Volver a los datos
+            </button>
+          )}
           {!ocupado && (
             <button
               className="principal"
@@ -155,13 +284,9 @@ export function PanelCalculo({
               disabled={seleccionadas.length === 0}
               data-testid="lanzar-calculo"
             >
-              {seleccionadas.length === ORDEN.length
-                ? hayAlguno
-                  ? 'Volver a calcular todas'
-                  : 'Calcular en las tres'
-                : `${hayAlguno ? 'Volver a calcular' : 'Calcular'} (${seleccionadas
-                    .map((c) => fichaDe(c).nombre)
-                    .join(', ')})`}
+              {`${hayAlguno ? 'Volver a calcular' : 'Calcular'} (${seleccionadas
+                .map((c) => etiquetaDe(c))
+                .join(', ')})`}
             </button>
           )}
           {/*

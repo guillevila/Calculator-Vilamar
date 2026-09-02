@@ -53,6 +53,11 @@ test.beforeAll(async () => {
   for (const [k, v] of Object.entries(process.env)) {
     if (v !== undefined && k !== 'ELECTRON_RUN_AS_NODE') entorno[k] = v
   }
+  // Los informes ya no van dentro de `carpetaDatos` (D57, 01/09/2026): por
+  // defecto la app real los guarda en el Escritorio de quien la usa. Sin
+  // esto, cada ejecución de esta prueba escribiría PDF de prueba en el
+  // Escritorio de verdad de quien la lance.
+  entorno['VILAMAR_CARPETA_INFORMES'] = join(carpetaDatos, 'informes')
 
   app = await electron.launch({
     args: [join(raizApp, 'out', 'main', 'index.js'), `--user-data-dir=${carpetaDatos}`],
@@ -140,8 +145,10 @@ test('un campo vacío dice quién lo tiene que aportar, no «no encontrado»', a
   await expect(wtw).toHaveAttribute('placeholder', 'No consta en el informe')
   await expect(ventana.getByTestId('origen-WTW')).toHaveText('No consta en el informe')
 
-  // El SIA no viene en ninguna biometría: lo decide quien opera.
-  await expect(ventana.getByTestId('origen-SIA')).toHaveText('Pendiente de aportar')
+  // La constante A la decide el cirujano según la lente: no la trae ningún
+  // biómetro. (El SIA y el eje de incisión ya no sirven de ejemplo aquí:
+  // D46 les da un valor de partida de 0.25/135 en cuanto se entra a mano.)
+  await expect(ventana.getByTestId('origen-CONSTANTE_A')).toHaveText('Pendiente de aportar')
 
   // Y en ningún sitio se dice ya «no encontrado».
   await expect(ventana.locator('text=/NO ENCONTRADO/i')).toHaveCount(0)
@@ -210,12 +217,32 @@ test('el flujo completo llega hasta la pantalla de cálculo', async () => {
 
   await ventana.getByTestId('confirmar').click()
 
-  // Se llega a la pantalla de cálculo con las tres calculadoras listadas.
+  // Se llega a la pantalla de cálculo con las cinco casillas listadas
+  // (EVO y Barrett, Predicted y Measured PCA, más Kane — D45/D48).
   await expect(ventana.getByTestId('calc-EVO_TORIC')).toBeVisible()
   await expect(ventana.getByTestId('calc-BARRETT_TORIC')).toBeVisible()
   await expect(ventana.getByTestId('calc-KANE')).toBeVisible()
   await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
   await ventana.screenshot({ path: 'test-results/04-calculo.png', fullPage: true })
+})
+
+test('«Volver a los datos» deja corregir antes de calcular, sin perder nada', async () => {
+  // Petición expresa del dueño del proyecto (01/09/2026): poder volver al
+  // formulario a cambiar un dato antes de que se conecte a ninguna web.
+  await ventana.getByTestId('volver-a-revisar').click()
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('24.07')
+
+  // Se corrige un solo dato...
+  await ventana.getByTestId('campo-AL').fill('24.10')
+  await ventana.getByTestId('campo-AL').press('Enter')
+
+  // ...y se puede volver a confirmar y llegar de nuevo a la pantalla de
+  // cálculo, con el dato corregido y el resto intacto.
+  await ventana.getByTestId('confirmar').click()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.medidas?.AL?.valor).toBe(24.1)
 })
 
 test('la interfaz no enseña jerga técnica al usuario', async () => {
@@ -286,11 +313,11 @@ CCT             533 um</pre>
   ).not.toMatch(/no se ha podido leer ningún dato|está vacío/i)
 
   // Y los valores son los que pone el informe.
-  const od = resultado?.caso?.ojos?.OD?.medidas
+  const od = resultado?.caso?.ojos?.OD?.[0]?.medidas
   expect(od?.AL?.valor).toBe(24.07)
   expect(od?.K1?.valor).toBe(41.22)
   expect(od?.K1_EJE?.valor).toBe(175)
-  const os = resultado?.caso?.ojos?.OS?.medidas
+  const os = resultado?.caso?.ojos?.OS?.[0]?.medidas
   expect(os?.AL?.valor).toBe(24.01)
   expect(os?.K1?.valor).toBe(40.27)
 
@@ -342,7 +369,7 @@ CCT             530 um</pre></body>`)
     rutaPdf,
   )
 
-  const od = resultado?.caso?.ojos?.OD?.medidas
+  const od = resultado?.caso?.ojos?.OD?.[0]?.medidas
   // La ACD existe aunque el informe no la traiga…
   expect(od?.ACD?.valor, 'no ha calculado la ACD').toBe(3.18)
   expect(od?.ACD?.procedencia?.metodo, 'la ACD no está marcada como derivada').toBe('DERIVADO')
@@ -425,7 +452,7 @@ SRK/T: 119.2</pre></body>`)
   expect(lentes.map((l) => l.constanteA)).toEqual([118.5, 119.6, 119.1, 119.2])
 
   // Y NINGUNA se ha convertido en la constante A del ojo.
-  expect(resultado?.caso?.ojos?.OD?.medidas?.CONSTANTE_A).toBeUndefined()
+  expect(resultado?.caso?.ojos?.OD?.[0]?.medidas?.CONSTANTE_A).toBeUndefined()
   await expect(ventana.getByTestId('lentes-del-informe')).toBeVisible()
   await expect(ventana.getByTestId('campo-CONSTANTE_A')).toHaveValue('')
   await ventana.screenshot({ path: 'test-results/12-lentes-informe.png', fullPage: true })
@@ -452,6 +479,40 @@ SRK/T: 119.2</pre></body>`)
   )
 
   await ventana.screenshot({ path: 'test-results/13-lente-no-esta.png', fullPage: true })
+})
+
+test('lente alternativa: compara sin volver a escribir los datos, y no arrastra la constante de la otra', async () => {
+  // Petición expresa del dueño del proyecto (01/09/2026). Se retoma el
+  // informe con las cuatro lentes que dejó cargado la prueba anterior.
+  await ventana.getByTestId('lente-informe-bausch-lomb-akreos-ao-mi60').click()
+  await expect(ventana.getByTestId('campo-CONSTANTE_A')).toHaveValue('119.1')
+
+  // Se aparca una segunda lente, del catálogo de las calculadoras — no
+  // hace falta que esté en el informe para poder aparcarla.
+  await ventana.getByTestId('selector-lente-secundaria').selectOption('B&L LuxSmart')
+  await expect(ventana.getByTestId('lente-secundaria-elegida')).toContainText('B&L LuxSmart')
+
+  // La principal y su constante NO han cambiado por elegir la aparcada.
+  await expect(ventana.getByTestId('campo-CONSTANTE_A')).toHaveValue('119.1')
+  let caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.lente?.modelo).toBe('Bausch&Lomb Akreos AO MI60')
+  expect(caso?.lenteSecundaria?.modelo).toBe('B&L LuxSmart')
+
+  await ventana.screenshot({ path: 'test-results/14-lente-alternativa.png', fullPage: true })
+
+  // Se activa: pasa a ser la que se calcula, y la que era principal queda
+  // aparcada en su lugar.
+  await ventana.getByTestId('intercambiar-lentes').click()
+  await expect(ventana.getByTestId('lente-elegida')).toContainText('B&L LuxSmart')
+
+  caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.lente?.modelo).toBe('B&L LuxSmart')
+  expect(caso?.lenteSecundaria?.modelo).toBe('Bausch&Lomb Akreos AO MI60')
+  // «B&L LuxSmart» no está en este informe: no hereda la constante de
+  // Akreos ni la de ninguna otra.
+  expect(caso?.ojos?.OD?.[0]?.medidas?.CONSTANTE_A).toBeUndefined()
+
+  await ventana.screenshot({ path: 'test-results/15-lentes-intercambiadas.png', fullPage: true })
 })
 
 /**
@@ -487,8 +548,8 @@ ACD (epi)      3.18 mm</pre></body>`)
   )
 
   expect(resultado?.resumenes?.[0]?.nombreDispositivo).toContain('ANTERION')
-  expect(resultado?.caso?.ojos?.OD?.medidas?.AL?.valor).toBe(24.07)
-  expect(resultado?.caso?.ojos?.OD?.medidas?.K1?.valor).toBe(41.22)
+  expect(resultado?.caso?.ojos?.OD?.[0]?.medidas?.AL?.valor).toBe(24.07)
+  expect(resultado?.caso?.ojos?.OD?.[0]?.medidas?.K1?.valor).toBe(41.22)
 })
 
 /**
@@ -513,4 +574,134 @@ test('un archivo vacío se dice claramente, y no como un error de imagen', async
   expect(avisos).toMatch(/0 bytes/)
   // Y NO se le echa la culpa al reconocimiento de imagen.
   expect(avisos).not.toMatch(/decodificar|decoded|attempting to read/i)
+})
+
+/**
+ * Fallo real reportado por el dueño del proyecto (02/09/2026): un caso con
+ * OD y OS, calculó y el PDF de OS salió «sin resultados», sin ningún aviso
+ * de por qué.
+ *
+ * La causa: OS tenía dos aparatos con una discrepancia real entre sus K2,
+ * y nunca se reconoció — pero «Confirmar» solo miraba la discrepancia del
+ * ojo que se estuviera viendo en ese momento (D47 solo comprobaba el ojo
+ * activo). Confirmando mientras se revisaba OD (sin discrepancia), el botón
+ * estaba habilitado, y `calcular()` descartó en silencio las casillas de OS
+ * (D51: una discrepancia sin reconocer no bloquea el resto del caso) — sin
+ * que nadie hubiera visto ni reconocido esa discrepancia.
+ */
+test('una discrepancia sin reconocer en OS bloquea «Confirmar» aunque se esté mirando OD', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  await ventana.getByLabel('Nombre del doctor').fill('Dra. Prueba E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Caso Sintético E2E')
+
+  // OD: un solo aparato, con algo de dato — no hace falta más para esta prueba.
+  await ventana.getByTestId('manual-campo-AL').fill('24.00')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  // OS: dos aparatos con un K2 que discrepa de verdad (diferencia > 0.5 D).
+  await ventana.getByTestId('manual-ojo-OS').click()
+  await ventana.getByTestId('manual-campo-K2').fill('44.00')
+  await ventana.getByTestId('manual-campo-K2').press('Tab')
+
+  await ventana.getByTestId('manual-anadir-aparato').click()
+  await ventana.getByTestId('manual-anadir-aparato-select').selectOption('OCULUS Pentacam')
+  await ventana.getByTestId('manual-anadir-aparato-confirmar').click()
+  await ventana.getByTestId('manual-campo-K2').fill('45.20')
+  await ventana.getByTestId('manual-campo-K2').press('Tab')
+
+  await ventana.getByTestId('manual-continuar').click()
+
+  // La revisión aterriza en OD por defecto — el mismo escenario del fallo
+  // real: se confirma mirando el ojo que NO tiene ningún problema, sin
+  // haber visto nunca la alarma de OS.
+  await expect(ventana.getByTestId('revision-ojo-OD')).toHaveClass(/activo/)
+  await expect(ventana.getByTestId('alarma-discrepancia')).toHaveCount(0)
+  await expect(ventana.getByTestId('confirmar')).toBeDisabled()
+  await expect(ventana.getByTestId('aviso-discrepancia-otro-ojo')).toContainText('izquierdo')
+
+  // Solo al ir a OS y reconocer la discrepancia se puede confirmar.
+  await ventana.getByTestId('revision-ojo-OS').click()
+  await ventana.getByTestId('reconocer-discrepancia').click()
+  await expect(ventana.getByTestId('confirmar')).toBeEnabled()
+})
+
+/**
+ * «Casos guardados» (02/09/2026, petición expresa del dueño del proyecto):
+ * antes de esto no había ninguna forma de volver a un caso una vez cerrada
+ * la aplicación — solo existía «el que está abierto ahora mismo», en
+ * memoria. `guardarCaso`/`leerCaso`/`listarCasos` ya guardaban cada caso en
+ * disco desde el principio; faltaba la pantalla para elegir cuál abrir.
+ */
+test('un caso guardado se puede volver a abrir, con sus datos intactos', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByLabel('Nombre del doctor').fill('Dra. Casos Guardados')
+  await ventana.getByLabel('Nombre del paciente').fill('Paciente Casos Guardados')
+  await ventana.getByTestId('manual-campo-AL').fill('23.55')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-continuar').click()
+
+  const creado = await ventana.evaluate(() => window.vilamar?.casoActual())
+  const codigo = creado?.codigo
+  expect(codigo).toBeTruthy()
+
+  // Se cierra el caso actual (como si se hubiera reiniciado la aplicación:
+  // «Nuevo cálculo» dijo adiós al que estaba en memoria) y se busca en la
+  // lista de guardados.
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('tarjeta-casos-guardados').getByRole('button').click()
+  await expect(ventana.getByTestId('tabla-casos-guardados')).toBeVisible()
+
+  // Escribir datos y pulsar «Continuar» no confirma el caso —eso es una
+  // acción explícita, en la revisión— así que el estado sigue siendo el de
+  // un caso recién creado.
+  const fila = ventana.locator('tr', { hasText: codigo ?? '' })
+  await expect(fila).toContainText('Paciente Casos Guardados')
+  await expect(fila).toContainText('Nuevo cálculo')
+  await fila.getByRole('button', { name: 'Abrir' }).click()
+
+  // Aterriza en revisión, con el dato tal cual se dejó.
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('23.55')
+  const reabierto = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(reabierto?.codigo).toBe(codigo)
+  expect(reabierto?.nombrePaciente).toBe('Paciente Casos Guardados')
+})
+
+/**
+ * Fallo real reportado por el dueño del proyecto (02/09/2026): al abrir un
+ * caso terminado, aterriza en «4. Resultados» y no encontraba cómo volver a
+ * los datos para corregir algo — la barra de pasos de arriba solo era un
+ * indicador, sin ningún sitio que llevara de vuelta salvo un botón escondido
+ * más abajo en la pantalla. «Entonces, ¿de qué me sirve?», tal cual.
+ *
+ * Ahora los pasos YA RECORRIDOS de esa barra se pueden volver a pulsar —
+ * nunca uno futuro, que saltaría por delante de lo que falta.
+ */
+test('los pasos ya recorridos de la barra de arriba se pueden volver a pulsar', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByLabel('Nombre del doctor').fill('Dra. Pasos E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Paciente Pasos E2E')
+  await ventana.getByTestId('manual-campo-AL').fill('23.80')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-continuar').click()
+  await ventana.getByTestId('confirmar').click()
+
+  // En «3. Calcular»: el paso «4. Resultados», que todavía no se ha
+  // alcanzado, no se puede pulsar — saltaría por delante.
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
+  await expect(ventana.getByTestId('paso-RESULTADOS')).toBeDisabled()
+
+  // Pero «2. Revisar datos», ya recorrido, sí — y vuelve con el dato intacto.
+  await ventana.getByTestId('paso-REVISION').click()
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('23.8')
+
+  // Y desde ahí, «3. Calcular» lleva otra vez adelante — el caso ya había
+  // llegado a «Calcular» antes, así que volver no lo «olvida».
+  await ventana.getByTestId('paso-CALCULANDO').click()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
+  // Y «4. Resultados», que de verdad no se ha alcanzado nunca, sigue sin poder pulsarse.
+  await expect(ventana.getByTestId('paso-RESULTADOS')).toBeDisabled()
 })

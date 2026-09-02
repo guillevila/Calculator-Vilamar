@@ -32,7 +32,9 @@
     "start": "pnpm --filter @vilamar/desktop start",
     "ocr:preparar": "vite-node scripts/preparar-ocr.ts",
     "probar:lectura": "vite-node scripts/probar-lectura.ts",
-    "comparar:lectores": "vite-node scripts/comparar-lectores.ts"
+    "comparar:lectores": "vite-node scripts/comparar-lectores.ts",
+    "preparar:navegador-empaquetado": "node scripts/preparar-navegador-empaquetado.mjs",
+    "dist": "node scripts/preparar-navegador-empaquetado.mjs && pnpm --filter @vilamar/desktop dist"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

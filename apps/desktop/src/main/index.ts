@@ -40,6 +40,22 @@ const carpetaActual = join(fileURLToPath(import.meta.url), '..')
  */
 app.setName('calculator-vilamar')
 
+/**
+ * Cuando la aplicación está empaquetada (`pnpm dist`), Playwright no puede
+ * usar el Chromium del ordenador de quien la desarrolló — no existe en el
+ * ordenador de quien la instala. `scripts/preparar-navegador-empaquetado.mjs`
+ * descarga su propio Chromium dentro de `resources/playwright-browsers` en
+ * el momento de empaquetar, y `electron-builder` lo copia junto al resto de
+ * la aplicación (`build.extraResources`, en `package.json`). Esta línea le
+ * dice a Playwright que lo busque ahí — nunca en la caché global del
+ * sistema, que en el ordenador de destino no existe — antes de que
+ * `abrirNavegador()` lo necesite. En desarrollo (`pnpm dev`) no se toca
+ * nada: sigue usando la caché de siempre, la que deja `pnpm playwright:install`.
+ */
+if (app.isPackaged) {
+  process.env['PLAYWRIGHT_BROWSERS_PATH'] = join(process.resourcesPath, 'playwright-browsers')
+}
+
 /** La versión que se enseña en la pantalla y en el PDF. */
 function versionDelProducto(): string {
   try {
@@ -107,14 +123,26 @@ function enviarAlaInterfaz(canal: string, carga: unknown): void {
  *
  * Se usa una ventana oculta y `printToPDF`. Así no hace falta ninguna librería
  * de PDF ni nada que compile.
+ *
+ * ⚠️ **El HTML se escribe a un fichero temporal y se carga con `loadFile`, no
+ * con una URL `data:`.** Antes se metía el HTML entero, codificado, en la
+ * propia URL (`data:text/html;charset=utf-8,...`) — funcionaba mientras el
+ * informe era pequeño, pero Chromium **rechaza cualquier URL de más de
+ * 2 097 152 caracteres** con `ERR_INVALID_URL` (-300), sin margen ni aviso
+ * previo. Un informe de un ojo con varios biómetros (D47) junta varias
+ * capturas de pantalla en base64 en el mismo HTML y lo cruza sin esfuerzo.
+ * Un fichero no tiene ese límite: solo la ruta viaja por la URL.
  */
 async function imprimirPdf(html: string, destino: string): Promise<void> {
   const oculta = new BrowserWindow({
     show: false,
     webPreferences: { offscreen: true, javascript: false },
   })
+  const { writeFileSync, unlinkSync } = await import('node:fs')
+  const rutaTemporal = `${destino}.tmp.html`
   try {
-    await oculta.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+    writeFileSync(rutaTemporal, html, 'utf-8')
+    await oculta.loadFile(rutaTemporal)
     // Un respiro para que termine de maquetar antes de imprimir.
     await new Promise((r) => setTimeout(r, 400))
     const pdf = await oculta.webContents.printToPDF({
@@ -132,10 +160,14 @@ async function imprimirPdf(html: string, destino: string): Promise<void> {
       // detrás de cada una.
       margins: { top: 0, bottom: 0, left: 0, right: 0 },
     })
-    const { writeFileSync } = await import('node:fs')
     writeFileSync(destino, pdf)
   } finally {
     oculta.destroy()
+    try {
+      unlinkSync(rutaTemporal)
+    } catch {
+      // No llegó a crearse, o ya se limpió. No es un fallo del PDF.
+    }
   }
 }
 
@@ -255,6 +287,8 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   ipcMain.handle(CANALES.version, () => version)
   ipcMain.handle(CANALES.casoNuevo, () => s().nuevo())
   ipcMain.handle(CANALES.casoActual, () => s().obtener())
+  ipcMain.handle(CANALES.listarCasosGuardados, () => s().listarCasosGuardados())
+  ipcMain.handle(CANALES.abrirCaso, (_e, codigo) => s().abrirCaso(codigo))
 
   /** Convierte rutas en documentos leídos del disco. El contenido no sale de aquí. */
   const desdeRutas = (rutas: readonly string[]): ArchivoEntrante[] =>
@@ -281,21 +315,35 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
     return s().cargarDocumentos(desdeRutas(r.filePaths))
   })
 
-  ipcMain.handle(CANALES.editarMedida, (_e, ojo, campo, valor) =>
-    s().editarMedida(ojo, campo, valor),
+  ipcMain.handle(CANALES.editarMedida, (_e, ojo, campo, valor, aparato) =>
+    s().editarMedida(ojo, campo, valor, aparato),
   )
   ipcMain.handle(CANALES.establecerIdentificacion, (_e, datos) =>
     s().establecerIdentificacion(datos),
   )
-  ipcMain.handle(CANALES.confirmarCampo, (_e, ojo, campo) => s().confirmarCampo(ojo, campo))
+  ipcMain.handle(CANALES.confirmarCampo, (_e, ojo, campo, aparato) =>
+    s().confirmarCampo(ojo, campo, aparato),
+  )
   ipcMain.handle(CANALES.elegirSexo, (_e, sexo) => s().elegirSexo(sexo))
   ipcMain.handle(CANALES.confirmarSexo, () => s().confirmarSexo())
   ipcMain.handle(CANALES.confirmarTodo, () => s().confirmarTodo())
   ipcMain.handle(CANALES.validar, () => s().validar())
-  ipcMain.handle(CANALES.elegirLente, (_e, fabricante, modelo) =>
-    s().elegirLente(fabricante, modelo),
+  ipcMain.handle(CANALES.discrepanciasDe, (_e, ojo) => s().discrepanciasDe(ojo))
+  ipcMain.handle(CANALES.reconocerDiscrepancia, (_e, ojo) => s().reconocerDiscrepancia(ojo))
+  ipcMain.handle(CANALES.renombrarAparato, (_e, ojo, aparatoViejo, aparatoNuevo) =>
+    s().renombrarAparato(ojo, aparatoViejo, aparatoNuevo),
   )
-  ipcMain.handle(CANALES.calcular, (_e, calculadoras) => s().calcular(calculadoras))
+  ipcMain.handle(CANALES.editarAparatoCaraPosterior, (_e, ojo, aparato, aparatoCaraPosterior) =>
+    s().editarAparatoCaraPosterior(ojo, aparato, aparatoCaraPosterior),
+  )
+  ipcMain.handle(CANALES.elegirLente, (_e, fabricante, modelo, nombreEnEvo, nombreEnKane) =>
+    s().elegirLente(fabricante, modelo, nombreEnEvo, nombreEnKane),
+  )
+  ipcMain.handle(CANALES.elegirLenteSecundaria, (_e, eleccion) =>
+    s().elegirLenteSecundaria(eleccion),
+  )
+  ipcMain.handle(CANALES.intercambiarLentes, () => s().intercambiarLentes())
+  ipcMain.handle(CANALES.calcular, (_e, calculadoras, filtro) => s().calcular(calculadoras, filtro))
   ipcMain.handle(CANALES.reintentar, (_e, calculadora, ojo) => s().reintentar(calculadora, ojo))
   ipcMain.handle(CANALES.cancelarCalculo, () => s().cancelarCalculo())
   ipcMain.handle(CANALES.generarPdf, () => s().generarPdf())
@@ -305,7 +353,24 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
 instalarRedDeSeguridad()
 
 void app.whenReady().then(() => {
-  const carpetas = prepararCarpetas(app.getPath('userData'))
+  // Los informes se guardan en el Escritorio, dentro de «Calculadora
+  // Vilamar» (D57, 01/09/2026) — petición expresa del dueño del proyecto,
+  // avisado de que en este ordenador eso los sube a la nube corporativa
+  // (el Escritorio está sincronizado con OneDrive), y aun así decidió
+  // seguir adelante. El resto de datos internos del programa se queda en
+  // la carpeta de siempre, sin cambios.
+  //
+  // ⚠️ `VILAMAR_CARPETA_INFORMES`, si está puesta, manda sobre el
+  // Escritorio real — es lo que usan las pruebas de interfaz
+  // (`apps/desktop/e2e/flujo.spec.ts`) para no escribir PDF de prueba en
+  // el Escritorio de verdad de quien las ejecute. `--user-data-dir` no
+  // sirve para esto: solo mueve `userData`, y `app.getPath('desktop')` no
+  // depende de ese flag.
+  const carpetas = prepararCarpetas(
+    app.getPath('userData'),
+    process.env['VILAMAR_CARPETA_INFORMES'] ??
+      join(app.getPath('desktop'), 'Calculadora Vilamar', 'informes'),
+  )
   registrarCanales(carpetas)
   crearVentana()
 

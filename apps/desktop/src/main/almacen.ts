@@ -8,7 +8,7 @@
  * log: «una dependencia nativa no está elegida hasta que se instala».
  *
  * Nada de lo que escribe este módulo entra nunca en el repositorio: vive en
- * `%APPDATA%\calculator-vilamar`.
+ * `%APPDATA%\calculator-vilamar`, salvo `informes` — ver su comentario.
  */
 
 import { createHash, randomUUID } from 'node:crypto'
@@ -27,12 +27,25 @@ export interface Carpetas {
   readonly sesiones: string
 }
 
-export function prepararCarpetas(rutaDatos: string): Carpetas {
+/**
+ * @param rutaInformes Dónde guardar los PDF/HTML ya generados (D57,
+ *   01/09/2026) — petición expresa del dueño del proyecto, para poder
+ *   encontrarlos sin navegar hasta `%APPDATA%`. Sin especificarla, se
+ *   quedan junto al resto de datos internos, como antes.
+ *
+ *   ⚠️ **Aviso que se le hizo al dueño, y que aceptó informado**: en este
+ *   ordenador el Escritorio está sincronizado con el OneDrive de la
+ *   empresa. Los informes llevan el nombre real del paciente (D44), así
+ *   que guardarlos en una carpeta del Escritorio los sube automáticamente
+ *   a esa nube corporativa — algo que no pasaba mientras vivían en
+ *   `AppData`. Decisión suya, tomada sabiendo esto.
+ */
+export function prepararCarpetas(rutaDatos: string, rutaInformes?: string): Carpetas {
   const carpetas: Carpetas = {
     raiz: rutaDatos,
     casos: join(rutaDatos, 'casos'),
     documentos: join(rutaDatos, 'documentos'),
-    informes: join(rutaDatos, 'informes'),
+    informes: rutaInformes ?? join(rutaDatos, 'informes'),
     diagnostico: join(rutaDatos, 'diagnostico'),
     capturas: join(rutaDatos, 'capturas'),
     // El perfil del navegador: cookies y sesiones. Local y solo local.

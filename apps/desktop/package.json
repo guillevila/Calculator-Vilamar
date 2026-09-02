@@ -47,6 +47,12 @@
       "out/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "resources/playwright-browsers",
+        "to": "playwright-browsers"
+      }
+    ],
     "win": {
       "target": [
         {

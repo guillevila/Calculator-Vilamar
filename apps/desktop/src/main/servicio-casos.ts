@@ -9,7 +9,7 @@
  * llama a `prepararEntradas` como todo el mundo.
  */
 
-import { readFileSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type {
@@ -23,26 +23,35 @@ import type {
   Sexo,
 } from '@vilamar/domain'
 import {
-  CALCULADORAS,
-  VARIANTE_CARA_POSTERIOR,
+  APARATO_PRINCIPAL,
+  aparatosDe,
+  COLUMNAS_COMPARATIVA,
+  datasetsDe,
+  detectarDiscrepancias,
   casoNuevo as crearCasoNuevo,
   confirmar,
   confirmarMedida,
+  conAparatoCaraPosterior,
+  conAparatoRenombrado,
   conOjo,
   conResultado,
   corregirMedida,
   aportarSexo,
   confirmarSexo as confirmarSexoDelDominio,
+  criterioEsferaPara,
   deducirSexoDelNombre,
   describirLente,
   ejeCurvoDe,
   elegirLente as elegirLenteDelDominio,
+  elegirLenteSecundaria as elegirLenteSecundariaDelDominio,
   estimarLenteRecomendada,
+  intercambiarLentes as intercambiarLentesDelDominio,
   fichaDe,
   sexoDeducidoDelNombre,
   sexoDelInforme,
   formatoDeNombre,
   necesitaComprobacionHumana,
+  nombreLateralidad,
   NOMBRE_DISPOSITIVO,
   ojoDe,
   ojosDelCaso,
@@ -66,9 +75,21 @@ import type { ResultadoInforme } from '@vilamar/report'
 import { generarHtmlInforme, recopilarInforme } from '@vilamar/report'
 import type { Browser } from 'playwright'
 
-import type { ArchivoEntrante, EstadoCalculo, ResumenExtraccion } from '../compartido/ipc.js'
+import type {
+  ArchivoEntrante,
+  EstadoCalculo,
+  ResumenCasoGuardado,
+  ResumenExtraccion,
+} from '../compartido/ipc.js'
 import type { Carpetas } from './almacen.js'
-import { guardarCaso, guardarDocumento, nuevoId, siguienteCodigo } from './almacen.js'
+import {
+  guardarCaso,
+  guardarDocumento,
+  leerCaso as leerCasoDelAlmacen,
+  listarCasos as listarCasosDelAlmacen,
+  nuevoId,
+  siguienteCodigo,
+} from './almacen.js'
 import type { AlmacenCapturas } from './capturas.js'
 import type { Diagnosticador } from './diagnostico.js'
 
@@ -165,6 +186,38 @@ export class ServicioCasos {
     const ahora = this.dep.ahora()
     const codigo = siguienteCodigo(this.dep.carpetas, ahora)
     return this.establecer(crearCasoNuevo(nuevoId(), codigo, ahora.toISOString()))
+  }
+
+  /**
+   * Los casos ya guardados, más recientes primero — para volver a abrir uno
+   * (02/09/2026, petición expresa del dueño del proyecto: no había ninguna
+   * forma de recuperar un caso una vez cerrada la aplicación, solo «el que
+   * está abierto ahora mismo»).
+   *
+   * Lee cada fichero entero para sacar estos cuatro campos porque no hay
+   * ningún índice aparte que mantener sincronizado — con los casos de un
+   * único cirujano esto es instantáneo, y si algún fichero está dañado o a
+   * medio escribir, se descarta sin tirar la lista entera.
+   */
+  listarCasosGuardados(): readonly ResumenCasoGuardado[] {
+    return listarCasosDelAlmacen(this.dep.carpetas)
+      .map((codigo) => leerCasoDelAlmacen(this.dep.carpetas, codigo))
+      .filter((c): c is Caso => c !== null)
+      .map((c) => ({
+        codigo: c.codigo,
+        estado: c.estado,
+        actualizadoEn: c.actualizadoEn,
+        ...(c.nombrePaciente ? { nombrePaciente: c.nombrePaciente } : {}),
+      }))
+  }
+
+  /** Vuelve a abrir un caso guardado, tal y como se dejó. */
+  abrirCaso(codigo: string): Caso {
+    const caso = leerCasoDelAlmacen(this.dep.carpetas, codigo)
+    if (!caso) {
+      throw new Error(`No se ha encontrado el caso ${codigo}. Puede que se haya movido o borrado.`)
+    }
+    return this.establecer(caso)
   }
 
   // ── Documentos ───────────────────────────────────────────────────────────
@@ -330,16 +383,25 @@ export class ServicioCasos {
 
       for (const [lado, leido] of Object.entries(resultado.ojos)) {
         const lateralidad = lado as Lateralidad
-        const yaHabia = caso.ojos[lateralidad]
-        if (yaHabia && Object.keys(yaHabia.medidas).length > 0) {
-          // Dos documentos con el mismo ojo. NO se mezclan solos: eso sería dar
-          // por hecho que son de la misma persona.
+        const previos = datasetsDe(caso, lateralidad)
+        // El PRIMER documento de un ojo se queda con `APARATO_PRINCIPAL` —
+        // igual que antes de D47—, para que un caso de un solo documento no
+        // note ningún cambio: todo lo que lee ese dataset con `ojoDe(caso,
+        // ojo)` sin más (la revisión, el cálculo) lo sigue encontrando donde
+        // siempre. Solo cuando YA HABÍA algo para ese ojo se etiqueta el
+        // dataset nuevo con el aparato que el propio documento dice ser
+        // (D47, 27/08/2026) — no hace falta preguntarle nada a nadie, ya se
+        // ha detectado al leerlo — para que los dos convivan distinguibles
+        // en vez de que uno pise al otro.
+        const aparato =
+          previos.length === 0 ? APARATO_PRINCIPAL : NOMBRE_DISPOSITIVO[resultado.dispositivo.dispositivo]
+        const yaHabiaEseAparato = previos.some((o) => o.aparato === aparato)
+        if (yaHabiaEseAparato) {
           avisos.push(
-            `Ya había datos del ${lateralidad} de otro documento. Los de «${archivo.nombre}» NO se han mezclado: revísalos y edítalos a mano si quieres usarlos.`,
+            `Ya había un conjunto de «${aparato}» para el ${lateralidad}; se ha sustituido por los datos de «${archivo.nombre}».`,
           )
-          continue
         }
-        caso = conOjo(caso, this.conValoresPorDefecto(leido), this.iso())
+        caso = conOjo(caso, this.conValoresPorDefecto({ ...leido, aparato }), this.iso())
       }
 
       resumenes.push({
@@ -380,12 +442,46 @@ export class ServicioCasos {
    *
    * Un dato escrito a mano queda confirmado por definición: lo acaba de escribir
    * una persona mirándolo.
+   *
+   * @param aparato De qué biómetro es este dato (D47, 27/08/2026). Sin
+   *   especificarlo, `APARATO_PRINCIPAL` — el único que hay en un caso que no
+   *   usa varios. Si ese aparato todavía no existe para este ojo, se crea
+   *   vacío al escribir este primer campo.
    */
-  editarMedida(lado: Lateralidad, campo: CampoBiometrico, valor: number | null): Caso {
+  editarMedida(
+    lado: Lateralidad,
+    campo: CampoBiometrico,
+    valor: number | null,
+    aparato: string = APARATO_PRINCIPAL,
+  ): Caso {
     const caso = this.exigirCaso()
-    const ojo = ojoDe(caso, lado)
+    const ojo = ojoDe(caso, lado, aparato)
     const actualizado =
       valor === null ? sinMedida(ojo, campo) : corregirMedida(ojo, campo, valor, this.iso())
+    const conElOjo = conOjo(caso, actualizado, this.iso())
+    // Un reconocimiento de discrepancia viejo no puede tapar una discrepancia
+    // nueva: cualquier edición de este ojo lo borra, y hace falta volver a
+    // comprobar (D47).
+    const { [lado]: _borrado, ...resto } = conElOjo.discrepanciasReconocidas ?? {}
+    return this.establecer({ ...conElOjo, discrepanciasReconocidas: resto })
+  }
+
+  /**
+   * Con qué aparato se midió la córnea posterior de este dataset, si es
+   * distinto del aparato general (02/09/2026, corrige D58): EVO y Barrett
+   * enseñan su propio desplegable para esto, separado del resto del
+   * formulario, porque a veces la córnea posterior se mide con otro
+   * instrumento que el resto de la biometría. `undefined` la quita: vuelve
+   * a usar el aparato general, como siempre.
+   */
+  editarAparatoCaraPosterior(
+    lado: Lateralidad,
+    aparato: string,
+    aparatoCaraPosterior: string | undefined,
+  ): Caso {
+    const caso = this.exigirCaso()
+    const ojo = ojoDe(caso, lado, aparato)
+    const actualizado = conAparatoCaraPosterior(ojo, aparatoCaraPosterior)
     return this.establecer(conOjo(caso, actualizado, this.iso()))
   }
 
@@ -535,9 +631,15 @@ export class ServicioCasos {
     })
   }
 
-  confirmarCampo(lado: Lateralidad, campo: CampoBiometrico): Caso {
+  confirmarCampo(
+    lado: Lateralidad,
+    campo: CampoBiometrico,
+    aparato: string = APARATO_PRINCIPAL,
+  ): Caso {
     const caso = this.exigirCaso()
-    return this.establecer(conOjo(caso, confirmarMedida(ojoDe(caso, lado), campo), this.iso()))
+    return this.establecer(
+      conOjo(caso, confirmarMedida(ojoDe(caso, lado, aparato), campo), this.iso()),
+    )
   }
 
   /**
@@ -557,12 +659,23 @@ export class ServicioCasos {
    *    AQD + CCT es aritmética exacta sobre dos números que nadie ha comprobado
    *    todavía, y va a las tres calculadoras.
    */
+  /**
+   * Confirma TODOS los datasets de TODOS los ojos del caso de una vez —el
+   * botón «Confirmar» de siempre. Desde D47 (27/08/2026) un ojo puede tener
+   * varios aparatos en paralelo, así que esto recorre cada uno de ellos, no
+   * solo el principal: de lo contrario, el segundo biómetro de un ojo se
+   * quedaría sin confirmar en silencio, aunque el botón dijera «Confirmar».
+   *
+   * Esto NO es lo mismo que «todos los aparatos están listos para calcular»:
+   * cada uno se calcula cuando el suyo lo esté (`sePuedeConfirmarDataset`,
+   * `prepararEntradas`), independientemente de los demás — es la
+   * independencia por aparato que pidió el dueño del proyecto.
+   */
   confirmarTodo(): Caso {
     let caso = this.exigirCaso()
 
-    const invalidos = ojosDelCaso(caso)
-      .flatMap((l) => validarOjo(ojoDe(caso, l)))
-      .filter((a) => a.nivel === 'INVALID')
+    const todosLosDatasets = ojosDelCaso(caso).flatMap((l) => datasetsDe(caso, l))
+    const invalidos = todosLosDatasets.flatMap(validarOjo).filter((a) => a.nivel === 'INVALID')
     if (invalidos.length > 0) {
       throw new Error(
         `Hay ${invalidos.length} dato(s) que no pueden ser correctos. Corrígelos antes de continuar: ${invalidos
@@ -572,17 +685,65 @@ export class ServicioCasos {
     }
 
     for (const lado of ojosDelCaso(caso)) {
-      let ojo = ojoDe(caso, lado)
-      for (const campo of Object.keys(ojo.medidas) as CampoBiometrico[]) {
-        const medida = ojo.medidas[campo]
-        // Lo leído por una máquina y lo calculado por el programa se quedan sin
-        // confirmar: lo tiene que marcar la persona campo por campo.
-        if (medida && necesitaComprobacionHumana(medida.procedencia)) continue
-        ojo = confirmarMedida(ojo, campo)
+      for (const dataset of datasetsDe(caso, lado)) {
+        let ojo = dataset
+        for (const campo of Object.keys(ojo.medidas) as CampoBiometrico[]) {
+          const medida = ojo.medidas[campo]
+          // Lo leído por una máquina y lo calculado por el programa se quedan
+          // sin confirmar: lo tiene que marcar la persona campo por campo.
+          if (medida && necesitaComprobacionHumana(medida.procedencia)) continue
+          ojo = confirmarMedida(ojo, campo)
+        }
+        caso = conOjo(caso, ojo, this.iso())
       }
-      caso = conOjo(caso, ojo, this.iso())
     }
     return this.establecer(confirmar(caso, this.iso()))
+  }
+
+  /**
+   * Discrepancias entre los aparatos de un mismo ojo, ya confirmados (D47).
+   *
+   * Se avisa y no se corrige nada solo: es a la persona a quien le toca mirar
+   * si dos biómetros que no coinciden es un problema de verdad o no.
+   */
+  discrepanciasDe(lado: Lateralidad): ReturnType<typeof detectarDiscrepancias> {
+    const caso = this.exigirCaso()
+    return detectarDiscrepancias(datasetsDe(caso, lado))
+  }
+
+  /**
+   * La persona ha mirado la discrepancia de este ojo y decide seguir
+   * adelante de todos modos. Es la acción explícita que exige D47 antes de
+   * poder calcular ese ojo — «avisa y bloquea; corrige la persona», aplicado
+   * aquí entre aparatos.
+   */
+  reconocerDiscrepancia(lado: Lateralidad): Caso {
+    const caso = this.exigirCaso()
+    return this.establecer({
+      ...caso,
+      discrepanciasReconocidas: { ...caso.discrepanciasReconocidas, [lado]: true },
+      actualizadoEn: this.iso(),
+    })
+  }
+
+  /**
+   * Cambia el nombre de un aparato ya existente, sin tocar sus medidas
+   * (petición expresa del dueño, 27/08/2026) — deja elegir o escribir de
+   * qué biómetro es el primer aparato de un ojo, sin necesitar añadir un
+   * segundo. `conAparatoRenombrado` ya rechaza chocar con un nombre que use
+   * otro aparato del mismo ojo; ese rechazo llega tal cual a la interfaz.
+   */
+  renombrarAparato(lado: Lateralidad, aparatoViejo: string, aparatoNuevo: string): Caso {
+    const caso = this.exigirCaso()
+    return this.establecer(
+      conAparatoRenombrado(caso, lado, aparatoViejo, aparatoNuevo, this.iso()),
+    )
+  }
+
+  /** ¿Hay una discrepancia de este ojo sin que nadie la haya reconocido todavía? */
+  private tieneDiscrepanciaSinReconocer(caso: Caso, lado: Lateralidad): boolean {
+    if (caso.discrepanciasReconocidas?.[lado] === true) return false
+    return detectarDiscrepancias(datasetsDe(caso, lado)).length > 0
   }
 
   validar(): readonly Aviso[] {
@@ -608,13 +769,15 @@ export class ServicioCasos {
   elegirLente(
     fabricante: string,
     modelo: string,
+    nombreEnEvo?: string,
+    nombreEnKane?: string,
   ): {
     caso: Caso
     avisos: readonly string[]
     emparejamiento: 'ENCONTRADA' | 'AMBIGUA' | 'NO_ESTA'
   } {
     const caso = this.exigirCaso()
-    const r = elegirLenteDelDominio(caso, { fabricante, modelo }, this.iso())
+    const r = elegirLenteDelDominio(caso, { fabricante, modelo, nombreEnEvo, nombreEnKane }, this.iso())
     return {
       caso: this.establecer(r.caso),
       avisos: r.avisos,
@@ -622,42 +785,87 @@ export class ServicioCasos {
     }
   }
 
+  /**
+   * Aparca una segunda lente candidata, para poder comparar con la misma
+   * biometría sin volver a escribirla (D55, 01/09/2026). No participa en
+   * ningún cálculo hasta que `intercambiarLentes()` la activa.
+   *
+   * Sin `eleccion`, la quita.
+   */
+  elegirLenteSecundaria(eleccion?: {
+    fabricante?: string
+    modelo: string
+    nombreEnEvo?: string
+    nombreEnKane?: string
+  }): Caso {
+    const caso = this.exigirCaso()
+    return this.establecer(elegirLenteSecundariaDelDominio(caso, eleccion, this.iso()))
+  }
+
+  /**
+   * Activa la lente aparcada — pasa a ser `lente`, con su propia constante
+   * A, y la que era `lente` pasa a `lenteSecundaria` — y borra los
+   * resultados ya calculados, porque eran de la lente anterior (D55,
+   * 01/09/2026). El caso vuelve a `CONFIRMADO`: hace falta un cálculo
+   * nuevo antes de generar otro PDF.
+   */
+  intercambiarLentes(): {
+    caso: Caso
+    avisos: readonly string[]
+  } {
+    const caso = this.exigirCaso()
+    const r = intercambiarLentesDelDominio(caso, this.iso())
+    return { caso: this.establecer(r.caso), avisos: r.avisos }
+  }
+
   // ── Cálculo ──────────────────────────────────────────────────────────────
 
   /**
-   * Calcula el CASO ENTERO: cada calculadora, para cada ojo que tenga datos.
+   * Calcula el caso, o solo el dataset que se indique: cada calculadora, para
+   * cada ojo y aparato que tenga datos.
    *
    * Antes esto recibía un `lado` y calculaba solo ese, así que un caso con los
    * dos ojos confirmados dejaba el segundo sin calcular y había que volver a
    * lanzar el flujo. No era un fallo de ninguna web: es que **nadie pedía el
    * segundo ojo**. Ahora la lista de casillas la construye el orquestador a
    * partir del caso.
+   *
+   * @param filtro Restringe a un ojo y/o un aparato concretos (D47,
+   *   27/08/2026) — es lo que permite calcular un biómetro mientras otro del
+   *   mismo ojo sigue a medias, sin esperar a que los dos estén listos. Sin
+   *   especificarlo, se intenta todo lo que el caso tenga.
    */
-  async calcular(calculadoras?: readonly Calculadora[]): Promise<readonly ResultadoCalculadora[]> {
+  async calcular(
+    calculadoras?: readonly Calculadora[],
+    filtro?: { readonly ojo?: Lateralidad; readonly aparato?: string },
+  ): Promise<readonly ResultadoCalculadora[]> {
     const caso = this.exigirCaso()
-    const base = planificarCaso(caso, calculadoras !== undefined ? { calculadoras } : undefined)
-    return this.ejecutar(this.conVariantesDeCaraPosterior(caso, base))
-  }
+    const opciones = {
+      ...(calculadoras !== undefined ? { calculadoras } : {}),
+      ...(filtro?.ojo !== undefined ? { ojos: [filtro.ojo] } : {}),
+      ...(filtro?.aparato !== undefined ? { aparatos: [filtro.aparato] } : {}),
+    }
+    const planificadas = planificarCaso(caso, Object.keys(opciones).length > 0 ? opciones : undefined)
 
-  /**
-   * Añade, junto a cada casilla de una calculadora con variante de córnea
-   * posterior (D45 — EVO se la quita, Barrett se la añade), la casilla de esa
-   * variante — pero solo en los ojos que de verdad tienen PK1 o PK2. Un ojo
-   * sin córnea posterior medida no necesita comparación: sería calcular lo
-   * mismo dos veces.
-   */
-  private conVariantesDeCaraPosterior(
-    caso: Caso,
-    tareas: readonly TareaCalculo[],
-  ): readonly TareaCalculo[] {
-    return tareas.flatMap((t) => {
-      const variante = VARIANTE_CARA_POSTERIOR[t.calculadora]
-      if (!variante) return [t]
-      const ojo = ojoDe(caso, t.ojo)
-      return tiene(ojo, 'PK1') || tiene(ojo, 'PK2')
-        ? [t, { calculadora: variante.calculadora, ojo: t.ojo }]
-        : [t]
-    })
+    // Un ojo con una discrepancia entre sus aparatos sin reconocer no calcula
+    // — ni siquiera el aparato que "parece" estar bien, porque la duda es
+    // justo cuál de los dos lo está (D47). Pero eso no tiene por qué frenar
+    // el resto del caso: se descarta solo la casilla de ese ojo y se sigue
+    // con las demás (petición expresa del dueño, 28/08/2026 — antes, una
+    // discrepancia pendiente en un ojo bloqueaba TODO el cálculo, incluido
+    // el otro ojo, que no tenía nada que ver). Solo si no queda nada que
+    // calcular se avisa con un error: si no, el silencio se explicaría solo
+    // con la alarma que ya se vio al revisar ese ojo.
+    const base = planificadas.filter((t) => !this.tieneDiscrepanciaSinReconocer(caso, t.ojo))
+    if (base.length === 0 && planificadas.length > 0) {
+      const ojosBloqueados = [...new Set(planificadas.map((t) => t.ojo))].join(', ')
+      throw new Error(
+        `Hay una discrepancia entre los aparatos del ${ojosBloqueados} sin comprobar. ` +
+          'Revísala y reconócela antes de calcular ese ojo.',
+      )
+    }
+
+    return this.ejecutar(base)
   }
 
   /**
@@ -674,13 +882,14 @@ export class ServicioCasos {
   async reintentar(
     calculadora?: Calculadora,
     ojo?: Lateralidad,
+    aparato: string = APARATO_PRINCIPAL,
   ): Promise<readonly ResultadoCalculadora[]> {
     const caso = this.exigirCaso()
 
     // Una casilla concreta se ejecuta aunque su estado no sea de los que se
     // reintentan solos: si el usuario la señala, es que quiere justo esa.
     if (calculadora !== undefined && ojo !== undefined) {
-      return this.ejecutar([{ calculadora, ojo }])
+      return this.ejecutar([{ calculadora, ojo, aparato }])
     }
 
     return this.ejecutar(
@@ -739,8 +948,10 @@ export class ServicioCasos {
             mensaje: evento.mensaje,
             requiereUsuario: evento.requiereUsuario ?? false,
           }),
-        alTerminarUna: (resultado) => {
-          caso = this.establecer(conResultado(this.caso ?? caso, resultado, this.iso()))
+        alTerminarUna: (resultado, tarea) => {
+          caso = this.establecer(
+            conResultado(this.caso ?? caso, resultado, this.iso(), tarea.aparato),
+          )
         },
         ahora: () => this.iso(),
         guardarDiagnostico: this.dep.diagnosticador.guardar,
@@ -765,50 +976,90 @@ export class ServicioCasos {
 
   // ── Informe ──────────────────────────────────────────────────────────────
 
-  async generarPdf(): Promise<{ ruta: string }> {
+  /**
+   * Un PDF por ojo (D47, 27/08/2026) — petición expresa del dueño del
+   * proyecto: antes era un único PDF con los dos ojos del caso juntos; ahora
+   * cada ojo saca el suyo, y dentro de él, si tiene varios aparatos, los
+   * cálculos de todos aparecen seguidos con su propio cuadro comparativo al
+   * final (`hojaResumenFinal`, en `@vilamar/report`, ya los junta solo con
+   * pasarle los resultados de ese ojo).
+   *
+   * Un caso de un solo ojo saca un único PDF, igual que antes de D47.
+   */
+  async generarPdf(): Promise<{ rutas: readonly { ojo: Lateralidad; ruta: string }[] }> {
     const caso = this.exigirCaso()
-    const datos = recopilarInforme(caso, {
-      version: this.dep.version,
-      generadoEn: this.iso(),
-      resultados: this.recopilarResultadosParaInforme(caso),
-    })
-    const html = generarHtmlInforme(datos)
-
+    const todosLosResultados = this.recopilarResultadosParaInforme(caso)
     const marca = this.iso().replace(/[:.]/g, '-').slice(0, 19)
-    const destino = join(this.dep.carpetas.informes, `${caso.codigo}_${marca}.pdf`)
 
-    // Se guarda también el HTML: si el PDF falla, el informe no se pierde.
-    writeFileSync(destino.replace(/\.pdf$/, '.html'), html, 'utf8')
-    await this.dep.imprimirPdf(html, destino)
-    return { ruta: destino }
+    const rutas: { ojo: Lateralidad; ruta: string }[] = []
+    for (const ojo of ojosDelCaso(caso)) {
+      const datos = recopilarInforme(caso, {
+        version: this.dep.version,
+        generadoEn: this.iso(),
+        resultados: todosLosResultados.filter((r) => r.ojo === ojo),
+        soloOjo: ojo,
+      })
+      const html = generarHtmlInforme(datos)
+      // Una subcarpeta por ojo (petición expresa del dueño, 01/09/2026): con
+      // los informes de los dos ojos mezclados en la misma carpeta —y la de
+      // más casos, con el tiempo— es fácil no ver el segundo entre los
+      // demás archivos. No es que el informe faltara: estaba, pero se
+      // perdía de vista.
+      const carpetaOjo = join(this.dep.carpetas.informes, nombreLateralidad(ojo))
+      mkdirSync(carpetaOjo, { recursive: true })
+      const destino = join(carpetaOjo, `${caso.codigo}_${ojo}_${marca}.pdf`)
+
+      // Se guarda también el HTML: si el PDF falla, el informe no se pierde.
+      writeFileSync(destino.replace(/\.pdf$/, '.html'), html, 'utf8')
+      await this.dep.imprimirPdf(html, destino)
+      rutas.push({ ojo, ruta: destino })
+    }
+    return { rutas }
   }
 
   /**
-   * Lo que el informe enseña de cada casilla (calculadora × ojo): la captura
-   * ya en base64, la lente que se destacó y, si no hubo resultado
-   * utilizable, por qué. Solo aquí hay `fs` — `recopilarInforme` y
+   * Lo que el informe enseña de cada casilla (calculadora × ojo × aparato,
+   * D47): la captura ya en base64, la lente que se destacó y, si no hubo
+   * resultado utilizable, por qué. Solo aquí hay `fs` — `recopilarInforme` y
    * `generarHtmlInforme` son funciones puras y no lo tocan.
    *
-   * **Ninguna casilla se omite en silencio.** Antes esto se saltaba
-   * (`continue`) las que no tenían éxito; ahora entran igual, con `fallo` en
-   * vez de `dataUri`, para que el informe explique la ausencia en la propia
-   * página en vez de que desaparezca sin explicación.
+   * **Una casilla que SÍ se intentó nunca se omite en silencio** (D39): si
+   * se seleccionó calcularla y falló —falta un dato, la web no respondió,
+   * lo que sea— entra igual, con `fallo` en vez de `dataUri`, explicando la
+   * ausencia en su propia página.
+   *
+   * **Una casilla que NUNCA se pidió calcular sí se omite** (petición
+   * expresa del dueño, 27/08/2026): si en la pantalla de cálculo (D40) solo
+   * se marcaron una o dos de las tres calculadoras, la tercera no tiene
+   * ningún `ResultadoCalculadora` guardado —`resultadoDe` da `undefined`—,
+   * y eso es justo la señal de «no se pidió», distinta de «se pidió y no
+   * salió». Sin esto, un caso calculado solo con EVO sacaba igualmente hojas
+   * de Barrett y Kane diciendo «no se ha calculado», llenando el PDF de
+   * páginas sobre calculadoras que nadie quería usar.
    */
   private recopilarResultadosParaInforme(caso: Caso): readonly ResultadoInforme[] {
     const resultados: ResultadoInforme[] = []
-    const anadirCasilla = (c: Calculadora, ojo: Lateralidad): void => {
-      const r = resultadoDe(caso, c, ojo)
+    const anadirCasilla = (c: Calculadora, ojo: Lateralidad, aparato: string): void => {
+      const r = resultadoDe(caso, c, ojo, aparato)
+      if (r === undefined) return
 
-      if (r && (r.estado === 'SUCCESS' || r.estado === 'PARTIAL')) {
+      if (r.estado === 'SUCCESS' || r.estado === 'PARTIAL') {
         const png = r.capturaId ? this.dep.capturas.leer(r.capturaId) : null
         // La estimación es SIEMPRE el criterio propio (D43), de acuerdo con la
         // opción que la web haya destacado o no — nunca `r.recomendada`, que es
         // lo que la calculadora eligió. Las dos cosas no se confunden: esto es
-        // una estimación orientativa y no vinculante, y se enseña como tal.
-        const estimada = estimarLenteRecomendada(r.opciones, ejeCurvoDe(ojoDe(caso, ojo)))
+        // una estimación orientativa y no vinculante, y se enseña como tal. El
+        // criterio de esfera depende del MODELO de lente elegido (D52,
+        // 29/08/2026): la familia Lux invierte el signo — ver `criterioEsferaPara`.
+        const estimada = estimarLenteRecomendada(
+          r.opciones,
+          ejeCurvoDe(ojoDe(caso, ojo, aparato)),
+          criterioEsferaPara(caso.lente?.modelo),
+        )
         resultados.push({
           calculadora: c,
           ojo,
+          aparato,
           ...(png
             ? { dataUri: `data:image/png;base64,${Buffer.from(png).toString('base64')}` }
             : {}),
@@ -820,32 +1071,25 @@ export class ServicioCasos {
       resultados.push({
         calculadora: c,
         ojo,
-        fallo: r?.mensaje ?? `${fichaDe(c).nombre} no se ha calculado para este ojo.`,
+        aparato,
+        fallo: r.mensaje ?? `${fichaDe(c).nombre} no se ha calculado para este ojo.`,
       })
     }
 
-    // Calculadora a calculadora, como siempre (D39) — y dentro de cada ojo,
-    // si esa calculadora tiene variante de córnea posterior (D45) y el ojo de
-    // verdad tiene PK1 o PK2, las dos hojas salen seguidas: la que NO tiene
-    // córnea posterior primero, la que SÍ la tiene después — da igual cuál de
-    // las dos sea la calculadora base y cuál la variante (EVO se la quita a
-    // la base; Barrett se la añade). Un ojo sin esos datos no saca la
-    // variante: nunca se intentó, y meterla igualmente enseñaría un aviso de
-    // fallo sobre algo que no hacía falta calcular.
-    for (const c of CALCULADORAS) {
-      for (const ojo of ojosDelCaso(caso)) {
-        const variante = VARIANTE_CARA_POSTERIOR[c]
-        if (!variante) {
-          anadirCasilla(c, ojo)
-          continue
-        }
-        const datos = ojoDe(caso, ojo)
-        const hayCaraPosterior = tiene(datos, 'PK1') || tiene(datos, 'PK2')
-        const orden: readonly Calculadora[] =
-          variante.sentido === 'SIN' ? [variante.calculadora, c] : [c, variante.calculadora]
-        for (const clave of orden) {
-          if (clave === variante.calculadora && !hayCaraPosterior) continue
-          anadirCasilla(clave, ojo)
+    // Aparato a aparato dentro de cada ojo (petición expresa del dueño,
+    // 27/08/2026): todas las calculadoras de un biómetro seguidas, y luego
+    // las del siguiente — no todo EVO primero y Kane al final mezclando
+    // aparatos. Dentro de cada aparato, las cinco casillas de siempre, en el
+    // mismo orden que la comparativa en pantalla (`COLUMNAS_COMPARATIVA`):
+    // desde que cada variante de córnea posterior (D45) se pide por su
+    // cuenta con su propio botón (D48, 28/08/2026), ya no hace falta mirar
+    // si ese dataset tiene PK1 o PK2 aquí — la que nunca se calculó
+    // simplemente no sale, porque `anadirCasilla` omite lo que no tiene
+    // resultado (D49).
+    for (const ojo of ojosDelCaso(caso)) {
+      for (const aparato of aparatosDe(caso, ojo)) {
+        for (const c of COLUMNAS_COMPARATIVA) {
+          anadirCasilla(c, ojo, aparato)
         }
       }
     }
