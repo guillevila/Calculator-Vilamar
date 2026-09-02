@@ -241,12 +241,23 @@ export function ojoDe(
  * El orden dentro de cada pareja es siempre el mismo — Predicted primero,
  * Measured PCA después — sea cuál sea la base y cuál la variante (EVO se la
  * quita; Barrett se la añade).
+ *
+ * `BARRETT_TRUE_K_TORIC` (D67, 02/09/2026) se añade al final, junto a las
+ * de Barrett: no es una variante de córnea posterior —no forma pareja con
+ * ninguna base— sino la calculadora que SUSTITUYE a Barrett Toric entero
+ * en un ojo con córnea especial. Sale siempre como columna, igual que las
+ * demás: en un ojo sin córnea especial se ve «no calculada», con el motivo
+ * exacto (`prepararEntradas()` la bloquea a propósito), en vez de
+ * desaparecer y parecer que no existe la opción.
  */
-export const COLUMNAS_COMPARATIVA: readonly Calculadora[] = CALCULADORAS.flatMap((c) => {
-  const variante = VARIANTE_CARA_POSTERIOR[c]
-  if (!variante) return [c]
-  return variante.sentido === 'SIN' ? [variante.calculadora, c] : [c, variante.calculadora]
-})
+export const COLUMNAS_COMPARATIVA: readonly Calculadora[] = [
+  ...CALCULADORAS.flatMap((c) => {
+    const variante = VARIANTE_CARA_POSTERIOR[c]
+    if (!variante) return [c]
+    return variante.sentido === 'SIN' ? [variante.calculadora, c] : [c, variante.calculadora]
+  }),
+  'BARRETT_TRUE_K_TORIC',
+]
 
 /**
  * Añade o sustituye un conjunto de medidas. La clave es `(lateralidad, aparato)`:

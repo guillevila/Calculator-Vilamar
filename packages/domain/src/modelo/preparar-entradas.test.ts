@@ -13,7 +13,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { casoNuevo, confirmar, conOjo, ojoDe } from './caso.js'
-import { conAparatoCaraPosterior, conMedida, crearMedida, ojoVacio } from './medida.js'
+import { conAparatoCaraPosterior, conMedida, conSituacionCorneal, crearMedida, ojoVacio } from './medida.js'
 import { prepararEntradas } from './preparar-entradas.js'
 import type { Procedencia } from './procedencia.js'
 
@@ -131,5 +131,59 @@ describe('la córnea posterior puede venir de OTRO aparato que el resto de la bi
     const r = prepararEntradas(casoConAparato(general), 'EVO_TORIC', 'OD', general)
     expect(r.ok).toBe(true)
     if (r.ok) expect(r.entradas.dispositivoCaraPosterior).toBe('IOLMaster 700')
+  })
+})
+
+describe('córnea especial: Barrett Toric y Barrett True K Toric se excluyen mutuamente (D67, 02/09/2026)', () => {
+  const aparato = 'ZEISS IOLMaster 700'
+
+  function casoConCorneaEspecial() {
+    const caso = casoConAparato(aparato)
+    const ojoAjustado = conSituacionCorneal(ojoDe(caso, 'OD', aparato), 'QUERATOCONO')
+    return conOjo(caso, ojoAjustado, CUANDO)
+  }
+
+  it('un ojo normal (sin córnea especial) puede usar Barrett Toric', () => {
+    const r = prepararEntradas(casoConAparato(aparato), 'BARRETT_TORIC', 'OD', aparato)
+    expect(r.ok).toBe(true)
+  })
+
+  it('un ojo con córnea especial NO puede usar Barrett Toric', () => {
+    const r = prepararEntradas(casoConCorneaEspecial(), 'BARRETT_TORIC', 'OD', aparato)
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.motivo).toBe('CORNEA_ESPECIAL_USA_TRUE_K')
+  })
+
+  it('tampoco puede usar la variante con córnea posterior de Barrett Toric', () => {
+    const r = prepararEntradas(
+      casoConCorneaEspecial(),
+      'BARRETT_TORIC_CON_CARA_POSTERIOR',
+      'OD',
+      aparato,
+    )
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.motivo).toBe('CORNEA_ESPECIAL_USA_TRUE_K')
+  })
+
+  it('un ojo con córnea especial SÍ puede usar Barrett True K Toric', () => {
+    const r = prepararEntradas(casoConCorneaEspecial(), 'BARRETT_TRUE_K_TORIC', 'OD', aparato)
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.entradas.situacionCorneal).toBe('QUERATOCONO')
+  })
+
+  it('un ojo normal NO puede usar Barrett True K Toric: no es una casilla libre', () => {
+    const r = prepararEntradas(casoConAparato(aparato), 'BARRETT_TRUE_K_TORIC', 'OD', aparato)
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.motivo).toBe('TRUE_K_SIN_CORNEA_ESPECIAL')
+  })
+
+  it('EVO y Kane siguen calculando igual en un ojo con córnea especial, y reciben la situación', () => {
+    const rEvo = prepararEntradas(casoConCorneaEspecial(), 'EVO_TORIC', 'OD', aparato)
+    expect(rEvo.ok).toBe(true)
+    if (rEvo.ok) expect(rEvo.entradas.situacionCorneal).toBe('QUERATOCONO')
+
+    const rKane = prepararEntradas(casoConCorneaEspecial(), 'KANE', 'OD', aparato)
+    expect(rKane.ok).toBe(true)
+    if (rKane.ok) expect(rKane.entradas.situacionCorneal).toBe('QUERATOCONO')
   })
 })

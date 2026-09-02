@@ -12,6 +12,7 @@
 
 import type { CampoBiometrico } from './campos.js'
 import type { Lateralidad } from './lateralidad.js'
+import type { SituacionCornealEspecial } from './medida.js'
 import type { Sexo } from './sexo.js'
 
 export type Calculadora =
@@ -38,6 +39,18 @@ export type Calculadora =
    * documentado y no se había encontrado buscando solo en el adaptador.
    */
   | 'BARRETT_TORIC_CON_CARA_POSTERIOR'
+  /**
+   * Barrett True K Toric — una calculadora ENTERAMENTE DISTINTA de Barrett
+   * Toric, no una variante suya (D67, 02/09/2026, petición expresa del
+   * dueño del proyecto). Un ojo con córnea alterada por LASIK/PRK/RK previo
+   * o con queratocono da un resultado erróneo en la fórmula normal de
+   * Barrett; esta es la que hay que usar en su lugar — nunca las dos a la
+   * vez para el mismo ojo. Por eso `prepararEntradas()` bloquea
+   * `BARRETT_TORIC`/`BARRETT_TORIC_CON_CARA_POSTERIOR` en un ojo con
+   * `situacionCorneal`, y bloquea ESTA cuando el ojo NO la tiene: no es una
+   * casilla más para elegir sin más, es la sustituta obligatoria.
+   */
+  | 'BARRETT_TRUE_K_TORIC'
 
 export const CALCULADORAS: readonly Calculadora[] = ['EVO_TORIC', 'BARRETT_TORIC', 'KANE'] as const
 
@@ -176,6 +189,47 @@ export const FICHAS: Readonly<Record<Calculadora, FichaCalculadora>> = {
       'Es el mismo formulario de Barrett, marcando «Measured PCA» y rellenando su panel de córnea posterior — un paso que Barrett no hace nunca por defecto.',
     ],
   },
+  BARRETT_TRUE_K_TORIC: {
+    clave: 'BARRETT_TRUE_K_TORIC',
+    nombre: 'Barrett True K Toric',
+    url: 'https://www.ascrs.org/en/tools/barrett-true-k-toric-calculator',
+    // Mismos campos obligatorios que Barrett Toric — comprobado en vivo el
+    // 02/09/2026: su formulario de biometría es prácticamente idéntico,
+    // hasta los mismos `id` de campo (misma aplicación ASP.NET). La única
+    // diferencia real de entradas es el historial de córnea especial, que
+    // no es un `CampoBiometrico` (va en `situacionCorneal`, como el sexo).
+    requeridos: [
+      'AL',
+      'K1',
+      'K1_EJE',
+      'K2',
+      'K2_EJE',
+      'ACD',
+      'REFRACCION_OBJETIVO',
+      'SIA',
+      'EJE_INCISION',
+    ],
+    // La refracción antes/después del LASIK son OPCIONALES a propósito
+    // (petición expresa del dueño, 02/09/2026: «a veces lo tengo, que sea
+    // opcional») — no todo el mundo tiene ese historial a mano, y no hacerlo
+    // obligatorio evita bloquear el resto del caso por un dato que no siempre
+    // se puede conseguir.
+    opcionales: [
+      'LT',
+      'WTW',
+      'CONSTANTE_A',
+      'FACTOR_LENTE',
+      'REFRACCION_PRE_LASIK',
+      'REFRACCION_POST_LASIK',
+    ],
+    exigeSexo: false,
+    intervencionHumana: [],
+    notas: [
+      'Solo para un ojo con córnea alterada por cirugía refractiva previa (LASIK/PRK/queratotomía radial) o queratocono — con córnea normal, usa Barrett Toric.',
+      'Usa «Predicted PCA», igual que Barrett Toric por defecto: no tiene una variante de córnea posterior medida en este programa.',
+      'La calculadora vive dentro de la web de la ASCRS y no admite navegador sin ventana: se abre siempre un navegador visible.',
+    ],
+  },
   KANE: {
     clave: 'KANE',
     nombre: 'Kane',
@@ -279,6 +333,15 @@ export interface EntradasCalculadora {
   readonly nombreCirujano?: string
   /** El nombre del paciente, si el caso lo tiene. Ver D44 (27/08/2026). */
   readonly nombrePaciente?: string
+  /**
+   * Si este ojo tiene una córnea alterada por cirugía refractiva previa o
+   * queratocono (D67, 02/09/2026). No es un `CampoBiometrico` por el mismo
+   * motivo que el sexo: es una característica del ojo, no una medida con
+   * unidad y rango. EVO y Kane la usan para elegir un modo especial en su
+   * MISMO formulario; Barrett la usa para decidir qué calculadora es —ver
+   * `prepararEntradas()`, que bloquea `BARRETT_TORIC` cuando está puesta.
+   */
+  readonly situacionCorneal?: SituacionCornealEspecial
 }
 
 export interface FaltanEntradas {

@@ -91,6 +91,24 @@ export type MapaMedidas = Partial<Readonly<Record<CampoBiometrico, Medida>>>
  */
 export const APARATO_PRINCIPAL = 'Principal'
 
+/**
+ * Una situación corneal que cambia qué calculadora hay que usar, y cómo
+ * (D67, 02/09/2026, petición expresa del dueño del proyecto).
+ *
+ * Un ojo con córnea alterada por una cirugía refractiva previa, o con
+ * queratocono, no se calcula igual que uno normal: EVO y Kane lo tienen en
+ * cuenta con un campo propio en su MISMO formulario, pero Barrett necesita
+ * una calculadora ENTERAMENTE DISTINTA —Barrett True K Toric, no Barrett
+ * Toric— porque la fórmula estándar da un resultado erróneo en estos ojos.
+ * Ver `dispositivoParaSituacionCorneal` en `preparar-entradas.ts` y
+ * `packages/integrations/src/adapters/barrett.ts`.
+ */
+export type SituacionCornealEspecial =
+  | 'LASIK_MIOPE'
+  | 'LASIK_HIPERMETROPE'
+  | 'QUERATOTOMIA_RADIAL'
+  | 'QUERATOCONO'
+
 export interface OjoBiometrico {
   readonly lateralidad: Lateralidad
   /**
@@ -116,6 +134,13 @@ export interface OjoBiometrico {
    * los casos no necesitan este campo.
    */
   readonly aparatoCaraPosterior?: string
+  /**
+   * Si este ojo tiene una córnea alterada por cirugía refractiva previa o
+   * queratocono (D67). `undefined` es el caso normal, con mucha diferencia
+   * el más habitual: no aparece ningún selector nuevo en pantalla, ni se usa
+   * ninguna calculadora distinta de las de siempre.
+   */
+  readonly situacionCorneal?: SituacionCornealEspecial
   readonly medidas: MapaMedidas
 }
 
@@ -233,6 +258,21 @@ export function conAparatoCaraPosterior(
     return resto
   }
   return { ...ojo, aparatoCaraPosterior }
+}
+
+/**
+ * Fija (o quita, con `undefined`) la situación corneal especial de este ojo
+ * (D67, 02/09/2026).
+ */
+export function conSituacionCorneal(
+  ojo: OjoBiometrico,
+  situacionCorneal: SituacionCornealEspecial | undefined,
+): OjoBiometrico {
+  if (situacionCorneal === undefined) {
+    const { situacionCorneal: _quitada, ...resto } = ojo
+    return resto
+  }
+  return { ...ojo, situacionCorneal }
 }
 
 /**

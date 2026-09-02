@@ -35,6 +35,18 @@ export type ResultadoPreparacion =
    * de campo que no existe.
    */
   | { readonly ok: false; readonly motivo: 'FALTA_EL_SEXO'; readonly confirmado: boolean }
+  /**
+   * Barrett Toric (o su variante de córnea posterior) pedido en un ojo con
+   * córnea especial (D67): daría un resultado erróneo. Hay que usar Barrett
+   * True K Toric en su lugar.
+   */
+  | { readonly ok: false; readonly motivo: 'CORNEA_ESPECIAL_USA_TRUE_K' }
+  /**
+   * Barrett True K Toric pedido en un ojo SIN córnea especial marcada. No es
+   * una casilla más a elegir libremente: solo tiene sentido cuando el ojo
+   * tiene una situación corneal puesta.
+   */
+  | { readonly ok: false; readonly motivo: 'TRUE_K_SIN_CORNEA_ESPECIAL' }
 
 /**
  * ¿Se puede lanzar esta calculadora para este ojo?
@@ -141,6 +153,19 @@ export function prepararEntradas(
   const ficha = fichaDe(calculadora)
   const datos = ojoDe(caso, ojo, aparato)
 
+  // 1 bis — Barrett normal y Barrett True K Toric se excluyen mutuamente
+  // según si el ojo tiene una córnea especial (D67, 02/09/2026): usar la
+  // que no toca daría un resultado clínicamente erróneo, con pinta de
+  // válido. No es un dato que falte, es la calculadora equivocada para
+  // este ojo.
+  const esBarrettNormal = calculadora === 'BARRETT_TORIC' || calculadora === 'BARRETT_TORIC_CON_CARA_POSTERIOR'
+  if (esBarrettNormal && datos.situacionCorneal !== undefined) {
+    return { ok: false, motivo: 'CORNEA_ESPECIAL_USA_TRUE_K' }
+  }
+  if (calculadora === 'BARRETT_TRUE_K_TORIC' && datos.situacionCorneal === undefined) {
+    return { ok: false, motivo: 'TRUE_K_SIN_CORNEA_ESPECIAL' }
+  }
+
   // 2 — El sexo, si esta calculadora lo pide. Y tiene que estar REVISADO: un
   // sexo deducido del nombre que nadie ha mirado no sale hacia ninguna web.
   if (ficha.exigeSexo === true) {
@@ -200,6 +225,9 @@ export function prepararEntradas(
         calculadora,
         datos.aparatoCaraPosterior ?? datos.aparato,
       ),
+      // La córnea especial de este ojo, si tiene una (D67) — EVO y Kane la
+      // usan para elegir un modo especial en su mismo formulario.
+      situacionCorneal: datos.situacionCorneal,
     },
   }
 }
@@ -217,6 +245,12 @@ export function explicarBloqueo(resultado: ResultadoPreparacion): string | null 
   }
   if (resultado.motivo === 'SIN_CONFIRMAR_EL_CASO') {
     return 'Todavía no has confirmado los datos. Revísalos y confírmalos antes de calcular.'
+  }
+  if (resultado.motivo === 'CORNEA_ESPECIAL_USA_TRUE_K') {
+    return 'Este ojo tiene marcada una córnea especial (LASIK/PRK/RK previo o queratocono): Barrett Toric daría un resultado erróneo aquí. Usa Barrett True K Toric en su lugar.'
+  }
+  if (resultado.motivo === 'TRUE_K_SIN_CORNEA_ESPECIAL') {
+    return 'Barrett True K Toric es solo para un ojo con córnea especial (LASIK/PRK/RK previo o queratocono). Este ojo no la tiene marcada: usa Barrett Toric.'
   }
   const { calculadora, faltan, sinConfirmar } = resultado.detalle
   const nombre = fichaDe(calculadora).nombre
@@ -259,4 +293,6 @@ const REGISTRO: Partial<Record<CampoBiometrico, string>> = {
   EJE_INCISION: 'el eje de la incisión',
   CONSTANTE_A: 'la constante A',
   FACTOR_LENTE: 'el factor de lente',
+  REFRACCION_PRE_LASIK: 'la refracción antes del LASIK/PRK/RK',
+  REFRACCION_POST_LASIK: 'la refracción después del LASIK/PRK/RK',
 }
