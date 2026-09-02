@@ -60,6 +60,7 @@ import type {
   EventoProgreso,
 } from './contrato.js'
 import { AdaptadorBarrettToric } from './adapters/barrett.js'
+import { AdaptadorBarrettTrueKToric } from './adapters/barrett-true-k.js'
 import { AdaptadorEvoToric } from './adapters/evo.js'
 import { AdaptadorKane } from './adapters/kane.js'
 import { AdaptadorSinCaraPosterior } from './variante-sin-cara-posterior.js'
@@ -89,6 +90,9 @@ export function crearAdaptadores(): Readonly<Record<Calculadora, AdaptadorCalcul
     // Mismo formulario, con el paso extra de «Measured PCA» (D45).
     BARRETT_TORIC_CON_CARA_POSTERIOR: new AdaptadorBarrettToric(true),
     KANE: new AdaptadorKane(),
+    // Calculadora aparte, no una variante de Barrett Toric — para un ojo con
+    // córnea especial (D67). `prepararEntradas()` bloquea las dos entre sí.
+    BARRETT_TRUE_K_TORIC: new AdaptadorBarrettTrueKToric(),
   }
 }
 

@@ -155,6 +155,7 @@ function todosOk(): Record<Calculadora, AdaptadorCalculadora> {
     BARRETT_TORIC: adaptadorOk('BARRETT_TORIC'),
     BARRETT_TORIC_CON_CARA_POSTERIOR: adaptadorOk('BARRETT_TORIC_CON_CARA_POSTERIOR'),
     KANE: adaptadorOk('KANE'),
+    BARRETT_TRUE_K_TORIC: adaptadorOk('BARRETT_TRUE_K_TORIC'),
   }
 }
 

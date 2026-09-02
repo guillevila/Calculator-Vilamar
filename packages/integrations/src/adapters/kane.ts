@@ -293,6 +293,21 @@ const SEL = {
   radioTorico: { OD: 'input[name="toric_1"]', OS: 'input[name="toric_2"]' },
   /** El desplegable de modelo de lente, por ojo. Comprobado el 26/08/2026. */
   modelo: { OD: '#type1', OS: '#type2' },
+  /**
+   * «Keratoconus», por ojo — comprobado en vivo el 02/09/2026 (D67):
+   * `keratoconus_1`/`keratoconus_2`, una CASILLA (`type=checkbox`), no un
+   * radio del mismo grupo que Non-toric/Toric. Es un interruptor
+   * INDEPENDIENTE: activarlo no desactiva ni oculta Non-toric/Toric —los
+   * tres botones se ven juntos, pero solo dos son excluyentes entre sí—,
+   * comprobado mirando las clases de los tres tras el clic. Mismo patrón de
+   * Bootstrap que el resto: se pulsa la ETIQUETA, no la casilla, y la
+   * activa lleva la clase `act`.
+   */
+  etiquetaKeratoconus: {
+    OD: 'label.btn:has(input[name="keratoconus_1"])',
+    OS: 'label.btn:has(input[name="keratoconus_2"])',
+  },
+  radioKeratoconus: { OD: 'input[name="keratoconus_1"]', OS: 'input[name="keratoconus_2"]' },
 } as const
 
 /**
@@ -782,6 +797,9 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     // toca después, lo escrito se pierde al repintarse.
     const modo = modoParaKane(entradas)
     await this.asegurarModo(pagina, lado, modo)
+    // Queratocono (D67): interruptor independiente, ni excluye ni depende
+    // del modo tórico/no tórico de arriba.
+    await this.asegurarKeratoconus(pagina, lado, entradas.situacionCorneal === 'QUERATOCONO')
 
     // El modelo, si el caso lo tiene y está en la lista de Kane para este ojo.
     // Elegirlo puede cambiar el modo del formulario por su cuenta (ver "El
@@ -910,6 +928,64 @@ export class AdaptadorKane implements AdaptadorCalculadora {
         `No se ha podido dejar el ${lado} en modo «${comoSeLlama}» en Kane. El conector necesita actualizarse: ejecuta «pnpm reconocer:kane».`,
         'RELLENANDO',
         etiquetaDelModo,
+      )
+    }
+  }
+
+  /**
+   * Deja «Keratoconus» en el estado que toca, por ojo (D67, 02/09/2026).
+   *
+   * Es un interruptor independiente de Non-toric/Toric —comprobado en vivo:
+   * activarlo no cambia qué campos hacen falta ni desactiva el otro grupo—,
+   * así que solo hace falta comprobar y, si no coincide, pulsar UNA vez.
+   * Igual que con el modo tórico, Kane recuerda el estado en el perfil del
+   * navegador entre ejecuciones: hay que poder tanto activarlo como
+   * desactivarlo, no solo lo primero.
+   *
+   * ⚠️ Al activarla en modo tórico, Kane a veces enseña un aviso PROPIO
+   * («The Keratoconus option has been selected... Please ensure this option
+   * is only selected if the patient has keratoconus»), con un botón «OK» —
+   * comprobado en vivo el 02/09/2026 con un caso real del dueño del
+   * proyecto, que se quedaba bloqueado justo aquí. Sale de forma
+   * inconsistente entre ejecuciones (parece depender de si ya estaba
+   * marcada en una sesión anterior del mismo perfil), así que se COMPRUEBA
+   * si aparece, sin dar por hecho que va a salir siempre. No es una
+   * condición legal ni una comprobación anti-robot —esas no se aceptan por
+   * la persona—: es un recordatorio sobre un dato que el cirujano YA
+   * confirmó en la propia pantalla de Calculator Vilamar al elegir
+   * «Queratocono», así que aceptarlo aquí no decide nada nuevo en su nombre.
+   */
+  private async asegurarKeratoconus(
+    pagina: Page,
+    lado: 'OD' | 'OS',
+    activo: boolean,
+  ): Promise<void> {
+    const radio = SEL.radioKeratoconus[lado]
+    const etiqueta = SEL.etiquetaKeratoconus[lado]
+    const activa = pagina.locator(`label.btn.act:has(${radio})`)
+    try {
+      const yaEstaAsi = (await activa.count()) > 0
+      if (yaEstaAsi === activo) return
+      await pagina.click(etiqueta, { timeout: 5000 })
+
+      const avisoOk = pagina.getByRole('button', { name: 'OK', exact: true })
+      const haSalidoElAviso = await avisoOk
+        .waitFor({ state: 'visible', timeout: 2500 })
+        .then(() => true)
+        .catch(() => false)
+      if (haSalidoElAviso) {
+        await avisoOk.click({ timeout: 3000 }).catch(() => undefined)
+      }
+
+      await (activo
+        ? activa.first().waitFor({ state: 'attached', timeout: 5000 })
+        : activa.first().waitFor({ state: 'detached', timeout: 5000 }))
+    } catch {
+      throw new ErrorAdaptador(
+        'ADAPTER_BROKEN',
+        `No se ha podido ${activo ? 'activar' : 'desactivar'} «Keratoconus» para el ${lado} en Kane. El conector necesita actualizarse: ejecuta «pnpm reconocer:kane».`,
+        'RELLENANDO',
+        etiqueta,
       )
     }
   }
@@ -1192,6 +1268,21 @@ export class AdaptadorKane implements AdaptadorCalculadora {
       // por sí solo, pero obliga al navegador a recalcular antes de seguir.
       void document.body.getBoundingClientRect()
     })
+
+    // Un caso real (CV-2026-0091, 02/09/2026) volvió a salir con la tabla en
+    // blanco pese a esta mitigación: el reflow de arriba fuerza el LAYOUT,
+    // pero no garantiza que el compositor de Chromium ya haya pintado ese
+    // fotograma cuando `screenshot()` lo pide — la investigación del
+    // 27/08/2026 (ver arriba) ya había descartado esperar más tiempo, así
+    // que aquí se prueba algo distinto: un evento de ratón DE VERDAD (no
+    // disparado desde JS) es lo que suele obligar a un navegador headless a
+    // programar un fotograma nuevo. Si no se puede mover el ratón, se sigue
+    // igual — la foto de abajo dirá si de verdad no hay nada que ver.
+    const caja = await tablaResultado.boundingBox().catch(() => null)
+    if (caja) {
+      await pagina.mouse.move(caja.x + 1, caja.y + 1).catch(() => {})
+      await pagina.waitForTimeout(150)
+    }
 
     // La captura se toma aquí, con el eco del AL ya comprobado contra el ojo
     // que se pidió: es la evidencia sin interpretar de lo que ha devuelto Kane.

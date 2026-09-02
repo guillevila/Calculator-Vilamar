@@ -687,6 +687,10 @@ const COLOR_CALCULADORA: Readonly<Record<Calculadora, string>> = {
   BARRETT_TORIC: '#1B4C86',
   BARRETT_TORIC_CON_CARA_POSTERIOR: '#1B4C86',
   KANE: '#5B3B8A',
+  // Misma familia de color que Barrett Toric: nunca coexisten en el mismo
+  // ojo (D67, se excluyen entre sí), así que no hay riesgo de confundirlas
+  // en el mismo diagrama.
+  BARRETT_TRUE_K_TORIC: '#1B4C86',
 }
 
 /**
@@ -1432,6 +1436,7 @@ const CLASE_TARJETA: Record<Calculadora, string> = {
   BARRETT_TORIC: 'barrett',
   BARRETT_TORIC_CON_CARA_POSTERIOR: 'barrett',
   KANE: 'kane',
+  BARRETT_TRUE_K_TORIC: 'barrett',
 }
 
 /** Si ese dataset concreto (ojo × aparato) tiene algo de córnea posterior medida. */

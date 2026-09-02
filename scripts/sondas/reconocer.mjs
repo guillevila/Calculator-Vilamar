@@ -37,6 +37,14 @@ const SITIOS = {
     url: 'https://calc.apacrs.org/toric_calculator20/Toric%20Calculator.aspx',
     nombre: 'Barrett Toric (calculadora embebida)',
   },
+  'barrett-true-k': {
+    url: 'https://www.ascrs.org/en/tools/barrett-true-k-calculator',
+    nombre: 'Barrett True K, esférica (para córnea post-LASIK/PRK/RK o queratocono)',
+  },
+  'barrett-true-k-toric': {
+    url: 'https://www.ascrs.org/en/tools/barrett-true-k-toric-calculator',
+    nombre: 'Barrett True K Toric (la que se usa: da cilindro y eje)',
+  },
 }
 
 const clave = process.argv[2]

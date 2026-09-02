@@ -26,7 +26,12 @@
  *    haberle mandado.
  */
 
-import type { EntradasCalculadora, OpcionLente, ResultadoCalculadora } from '@vilamar/domain'
+import type {
+  EntradasCalculadora,
+  OpcionLente,
+  ResultadoCalculadora,
+  SituacionCornealEspecial,
+} from '@vilamar/domain'
 import type { Page } from 'playwright'
 
 import { capturarResultado } from '../captura.js'
@@ -116,7 +121,25 @@ const SEL = {
    * siempre con la misma notación que usan las otras dos calculadoras.
    */
   cilPositivo: '#RadioBtnCyl_1',
+  /**
+   * «Post LASIK/PRK/RK» — comprobado con `pnpm reconocer evo` el 02/09/2026
+   * (D67): No / Myopic / Hyperopic / Radial Keratotomy. EVO no tiene una
+   * opción de queratocono en este desplegable —solo Kane la tiene, con su
+   * propio interruptor—, así que ese caso deja el desplegable en «No»: no
+   * se inventa una opción que la web no ofrece.
+   */
+  lasik: '#DropDownLASIK',
 } as const
+
+/**
+ * Cómo se llama, en el desplegable de EVO, cada situación corneal especial
+ * (D67, 02/09/2026). `QUERATOCONO` no tiene equivalente aquí a propósito.
+ */
+const LASIK_EN_EVO: Partial<Record<SituacionCornealEspecial, string>> = {
+  LASIK_MIOPE: 'Myopic',
+  LASIK_HIPERMETROPE: 'Hyperopic',
+  QUERATOTOMIA_RADIAL: 'Radial Keratotomy',
+}
 
 export class AdaptadorEvoToric implements AdaptadorCalculadora {
   readonly calculadora = 'EVO_TORIC' as const
@@ -239,6 +262,15 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
 
     if (entradas.dispositivoCaraPosterior !== undefined) {
       await pagina.selectOption(SEL.dispositivoPosterior, { label: entradas.dispositivoCaraPosterior })
+    }
+
+    // Córnea especial (D67): si el ojo la tiene y EVO tiene un equivalente
+    // en su desplegable, se elige. Sin equivalente (queratocono) se deja
+    // en «No», su valor por defecto — no se inventa una opción que la web
+    // no ofrece.
+    const opcionLasik = entradas.situacionCorneal ? LASIK_EN_EVO[entradas.situacionCorneal] : undefined
+    if (opcionLasik !== undefined) {
+      await pagina.selectOption(SEL.lasik, { label: opcionLasik })
     }
   }
 
