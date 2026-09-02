@@ -1132,31 +1132,52 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     // En tórico la pantalla es distinta: el bloque es `.res_toric` y en vez de una
     // tabla hay DOS, porque Kane separa las dos decisiones —qué potencia esférica y
     // qué potencia tórica—.
-    const leido = await pagina.evaluate(
-      ({ indice, torico }) => {
-        const bloques = document.querySelectorAll(torico ? '.res_toric' : '.res_nontoric')
-        const bloque = bloques[indice]
-        const eco = (clase: string): string => {
-          const t = document.querySelectorAll(`table.${clase}`)[indice]
-          return t instanceof HTMLElement ? t.innerText.replace(/\s+/g, ' ').trim() : ''
-        }
-        const filasDe = (selector: string) =>
-          [...(bloque?.querySelectorAll(selector) ?? [])].map((f) => ({
-            celdas: [...(f as HTMLTableRowElement).cells].map((c) => c.innerText.trim()),
-            // Kane marca SU opción con esta clase. Es una marca semántica, no una
-            // posición: por eso se puede usar sin inventar nada.
-            destacada: (f as HTMLElement).classList.contains('table-active'),
-          }))
-        return {
-          cuantosBloques: bloques.length,
-          filas: filasDe(torico ? 'table.res_tab32 tbody tr' : 'tbody.res_tab3_lines tr'),
-          filasToricas: torico ? filasDe('table.res_tab42 tbody tr') : [],
-          entradas: eco('res_tab1'),
-          parametros: eco('res_tab2'),
-        }
-      },
-      { indice: indiceDelOjo, torico: modo === 'TORICO' },
-    )
+    const leerTablas = () =>
+      pagina.evaluate(
+        ({ indice, torico }) => {
+          const bloques = document.querySelectorAll(torico ? '.res_toric' : '.res_nontoric')
+          const bloque = bloques[indice]
+          const eco = (clase: string): string => {
+            const t = document.querySelectorAll(`table.${clase}`)[indice]
+            return t instanceof HTMLElement ? t.innerText.replace(/\s+/g, ' ').trim() : ''
+          }
+          const filasDe = (selector: string) =>
+            [...(bloque?.querySelectorAll(selector) ?? [])].map((f) => ({
+              celdas: [...(f as HTMLTableRowElement).cells].map((c) => c.innerText.trim()),
+              // Kane marca SU opción con esta clase. Es una marca semántica, no una
+              // posición: por eso se puede usar sin inventar nada.
+              destacada: (f as HTMLElement).classList.contains('table-active'),
+            }))
+          return {
+            cuantosBloques: bloques.length,
+            filas: filasDe(torico ? 'table.res_tab32 tbody tr' : 'tbody.res_tab3_lines tr'),
+            filasToricas: torico ? filasDe('table.res_tab42 tbody tr') : [],
+            entradas: eco('res_tab1'),
+            parametros: eco('res_tab2'),
+          }
+        },
+        { indice: indiceDelOjo, torico: modo === 'TORICO' },
+      )
+
+    // 2 bis — Que la primera celda ya tenga texto (paso 1 bis) no garantiza
+    // que TODA la tabla haya terminado de escribirse: Kane la rellena con
+    // varios repintados seguidos, y una lectura a mitad de ese proceso puede
+    // coger unas filas ya actualizadas y otras todavía con el número de un
+    // cálculo anterior — un resultado con pinta perfectamente válida, pero
+    // mezclado. Por eso no basta con leer una vez: se lee dos veces seguidas
+    // y solo se da por buena la lectura cuando las dos COINCIDEN — la señal
+    // de que ya no está cambiando. Si nunca se estabiliza en este margen, se
+    // seed con la última lectura, igual que antes de este cambio.
+    let leido = await leerTablas()
+    for (let intento = 0; intento < 5; intento++) {
+      await pagina.waitForTimeout(400)
+      const siguiente = await leerTablas()
+      if (JSON.stringify(siguiente) === JSON.stringify(leido)) {
+        leido = siguiente
+        break
+      }
+      leido = siguiente
+    }
 
     // 3 — Convertir las tablas en opciones. La regla de «ninguna tórica se marca
     // como recomendada» vive en `construirOpcionesDeKane`, que se prueba sin
@@ -1283,6 +1304,20 @@ export class AdaptadorKane implements AdaptadorCalculadora {
       await pagina.mouse.move(caja.x + 1, caja.y + 1).catch(() => {})
       await pagina.waitForTimeout(150)
     }
+
+    // Un caso real (CV-2026-0096, 02/09/2026) SIGUIÓ saliendo en blanco pese
+    // a lo de arriba: el evento de ratón tampoco basta siempre. Se añade un
+    // segundo forzado, de un tipo distinto — un scroll de verdad, un píxel
+    // y vuelta— porque desplazar la página es lo que más fiablemente obliga
+    // a Chromium a recomponer la capa que se está desplazando, más que un
+    // simple movimiento de ratón que no toca ninguna capa.
+    await pagina
+      .evaluate(() => {
+        window.scrollBy(0, 1)
+        window.scrollBy(0, -1)
+      })
+      .catch(() => {})
+    await pagina.waitForTimeout(150)
 
     // La captura se toma aquí, con el eco del AL ya comprobado contra el ojo
     // que se pidió: es la evidencia sin interpretar de lo que ha devuelto Kane.
