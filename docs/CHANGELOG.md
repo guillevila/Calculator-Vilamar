@@ -4,6 +4,37 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.17] — 25/08/2026
+
+La sugerencia dice de dónde sale de verdad: el fabricante, no «tu criterio».
+
+### La aclaración
+
+El dueño del proyecto explicó algo que cambia cómo se presenta la
+sugerencia de la versión anterior: «la calculadora hace cálculos genéricos,
+pero luego los fabricantes hacen recomendaciones». La regla de Envista/Lux
+no es un criterio personal suyo ni inventado por el programa — es la guía
+que publica el fabricante (Bausch & Lomb) para leer la tabla genérica de
+Barrett/SRK-T según su propia familia de lente. La regla del cilindro sí es
+un criterio clínico general de sobrecorrección, sin ligar a ningún
+fabricante.
+
+### El cambio
+
+- El motivo que se enseña en pantalla ya distingue las dos fuentes:
+  «Según el fabricante (Bausch & Lomb) para Envista/Lux: …» para la esfera,
+  «Criterio de sobrecorrección: …» para el cilindro tórico — en vez de la
+  etiqueta genérica «Según tu criterio» de antes.
+- El badge corto de la tabla pasa de «Según tu criterio» a «Sugerencia», y
+  el texto largo recuerda que no se envía a ningún sitio ni se marca como
+  confirmada.
+- Solo texto y comentarios; la lógica de selección (D51) no cambia.
+
+lint, typecheck, 659 tests unitarios (1 fallo preexistente y no
+relacionado) y 32 e2e en verde.
+
+---
+
 ## [1.2.16] — 25/08/2026
 
 Sugerencia según el criterio del cirujano — separada de lo que dice la web.

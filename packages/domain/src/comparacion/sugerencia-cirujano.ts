@@ -1,6 +1,7 @@
 /**
- * sugerencia-cirujano.ts — Aplicar el criterio del cirujano a una escalera de
- * opciones, sin que la aplicación decida nada por su cuenta.
+ * sugerencia-cirujano.ts — Aplicar, a una escalera de opciones, la guía que ya
+ * existe fuera de este programa para leerla — sin que la aplicación decida
+ * nada por su cuenta.
  *
  * ⚠️ Esto NO es «el programa recomienda una lente». La constitución del
  * proyecto (D14) y `comparar.ts` son explícitos: este producto compara lo que
@@ -9,26 +10,30 @@
  * primera opción» acabó pintándose como si la web la hubiera destacado — nadie
  * podía distinguir «esto lo dice Kane» de «esto lo ha decidido el programa».
  *
- * Lo de aquí es distinto por origen: no es un criterio del programa, es un
- * criterio EXPLÍCITO del dueño del proyecto (25/08/2026), mecánico y sin
- * ambigüedad, que él mismo aplicaría leyendo la tabla a mano:
+ * Lo de aquí es distinto por origen, y las dos reglas no vienen de la misma
+ * fuente (aclarado por el dueño del proyecto el 25/08/2026: «la calculadora
+ * hace cálculos genéricos, pero luego los fabricantes hacen recomendaciones»):
  *
- *   - En una lente de la familia Envista, la buena potencia esférica es la
- *     que deja el residual NEGATIVO más cercano a cero.
- *   - En una lente de la familia Lux, la buena potencia esférica es la que
- *     deja el residual POSITIVO más cercano a cero.
- *   - En una tabla tórica, el buen cilindro es el mayor que no cambia el eje
+ *   - La potencia esférica en Envista/Lux es la GUÍA DEL FABRICANTE (Bausch &
+ *     Lomb) para leer una tabla genérica de Barrett/SRK-T según su familia de
+ *     lente: en Envista, el residual NEGATIVO más cercano a cero; en Lux, el
+ *     POSITIVO más cercano a cero. No es una preferencia inventada por este
+ *     programa ni una decisión personal del dueño del proyecto: es lo que
+ *     publica el fabricante para sus propios diseños.
+ *   - El cilindro en una tabla tórica es un criterio clínico general, no
+ *     ligado a ningún fabricante: el mayor cilindro que no cambia el eje
  *     residual respecto al de la potencia anterior. Si el eje salta —el salto
  *     real es de unos 90°—, esa potencia y las siguientes están sobrecorregidas:
  *     la buena es la de justo antes del salto.
  *
  * Por eso el resultado se llama `Sugerencia` y no `Recomendacion`, va SEPARADO
  * de `OpcionLente.recomendada` (que es lo que la propia web destaca) y de
- * `ResultadoCalculadora.recomendada`, y lleva siempre escrito el motivo: quien
- * lo vea en pantalla tiene que poder decir «esto lo ha calculado el programa
- * siguiendo MI regla», nunca confundirlo con la calculadora ni con un consejo
- * propio de la aplicación. Sigue sin enviarse nada a ningún sitio sin que una
- * persona lo confirme — es la misma invariante de siempre.
+ * `ResultadoCalculadora.recomendada`, y lleva siempre escrito el motivo Y SU
+ * ORIGEN: quien lo vea en pantalla tiene que poder decir de dónde sale —el
+ * fabricante o el criterio clínico de la tabla tórica—, nunca confundirlo con
+ * la calculadora ni con un consejo propio de la aplicación. Sigue sin enviarse
+ * nada a ningún sitio sin que una persona lo confirme — es la misma
+ * invariante de siempre.
  */
 
 import type { OpcionLente } from '../modelo/calculadoras.js'
@@ -37,8 +42,8 @@ import type { OpcionLente } from '../modelo/calculadoras.js'
 export type FamiliaDeLente = 'ENVISTA' | 'LUX'
 
 /**
- * Una opción que el criterio del cirujano señala, con el motivo en lenguaje
- * normal — nunca un número suelto sin explicar de dónde sale.
+ * Una opción que una guía externa señala, con el motivo en lenguaje normal
+ * —incluido de dónde sale esa guía— y nunca un número suelto.
  */
 export interface SugerenciaOpcion {
   readonly opcion: OpcionLente
@@ -63,8 +68,8 @@ export function familiaDeLente(modelo: string | undefined): FamiliaDeLente | und
 }
 
 /**
- * La potencia esférica según el criterio de familia: el residual del signo
- * pedido que quede más cerca de cero.
+ * La potencia esférica según la guía del fabricante para la familia: el
+ * residual del signo pedido que quede más cerca de cero.
  *
  * Un residual EXACTAMENTE 0.00 no cumple «negativo» ni «positivo» al pie de la
  * letra, y aquí se deja así a propósito: es un caso tan raro en una tabla real
@@ -94,8 +99,8 @@ export function sugerirEsferaPorFamilia(
   return {
     opcion,
     motivo:
-      `Según tu criterio para ${nombreFamilia}: el residual ${signoTexto} más cercano a cero ` +
-      `(${opcion.refraccionPrevista!.toFixed(2)} D).`,
+      `Según el fabricante (Bausch & Lomb) para ${nombreFamilia}: el residual ${signoTexto} ` +
+      `más cercano a cero (${opcion.refraccionPrevista!.toFixed(2)} D).`,
   }
 }
 
@@ -106,8 +111,9 @@ function distanciaAngular(a: number, b: number): number {
 }
 
 /**
- * El cilindro tórico según el criterio del cirujano: el mayor que no cambia
- * el eje residual respecto al de la potencia anterior.
+ * El cilindro tórico según el criterio clínico general de sobrecorrección
+ * —no ligado a ningún fabricante—: el mayor que no cambia el eje residual
+ * respecto al de la potencia anterior.
  *
  * Se recorren las opciones de cilindro ASCENDENTE, comparando cada eje
  * residual con el de la de justo antes. Mientras el eje se mantiene —una
@@ -147,8 +153,8 @@ export function sugerirCilindroSinCambioDeEje(
   return {
     opcion: candidata,
     motivo:
-      `Según tu criterio: el mayor cilindro (${candidata.cilindro!.toFixed(2)} D) que no cambia ` +
-      `el eje del astigmatismo residual respecto al de la potencia anterior.`,
+      `Criterio de sobrecorrección: el mayor cilindro (${candidata.cilindro!.toFixed(2)} D) que ` +
+      `no cambia el eje del astigmatismo residual respecto al de la potencia anterior.`,
   }
 }
 
@@ -156,10 +162,10 @@ export function sugerirCilindroSinCambioDeEje(
  * Punto de entrada: aplica la regla que toque según la forma de las opciones.
  *
  * Una tabla tórica —tiene cilindro y eje residual— se decide por el cilindro,
- * sea cual sea la familia de la lente: el criterio del cirujano para el
- * cilindro no depende de si es Envista o Lux. Una tabla sin cilindro se decide
- * por la familia. Si no se sabe la familia, o las opciones no tienen ninguno
- * de los dos datos, no se sugiere nada.
+ * sea cual sea la familia de la lente: el criterio de sobrecorrección no
+ * depende de si es Envista o Lux. Una tabla sin cilindro se decide por la
+ * guía del fabricante para la familia. Si no se sabe la familia, o las
+ * opciones no tienen ninguno de los dos datos, no se sugiere nada.
  */
 export function sugerirOpcion(
   opciones: readonly OpcionLente[],

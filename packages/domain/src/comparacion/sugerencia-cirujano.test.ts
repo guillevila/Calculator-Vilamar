@@ -196,12 +196,12 @@ describe('sugerirOpcion: decide sola qué regla toca', () => {
 })
 
 describe('esto no es una recomendación clínica de la aplicación (D14)', () => {
-  it('el motivo siempre dice «según tu criterio», nunca lo pinta como si lo dijera la calculadora', () => {
+  it('el motivo siempre dice de dónde sale, nunca lo pinta como si lo dijera la calculadora', () => {
     const s = sugerirEsferaPorFamilia(
       [opcion({ esfera: 19.5, refraccionPrevista: -0.16 })],
       'ENVISTA',
     )
-    expect(s?.motivo).toMatch(/según tu criterio/i)
+    expect(s?.motivo).toMatch(/fabricante/i)
   })
 
   it('la opción sugerida no se marca como recomendada por la calculadora', () => {

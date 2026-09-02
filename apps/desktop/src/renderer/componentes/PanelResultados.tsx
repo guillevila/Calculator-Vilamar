@@ -193,9 +193,11 @@ const COLUMNAS_DE_OPCION = [
  *
  * `sugerencia` es distinta de `recomendada`, y se pinta distinta a propósito
  * (D14, y la cicatriz que documenta `comparar.ts`): `recomendada` es lo que
- * DESTACA LA WEB; `sugerencia` es el criterio que el dueño del proyecto dio él
- * mismo (25/08/2026) aplicado a esta tabla. Ninguna de las dos se envía a
- * ningún sitio ni sustituye la decisión de quien opera.
+ * DESTACA LA WEB; `sugerencia` es una guía externa al programa —la del
+ * fabricante para Envista/Lux, o el criterio clínico de sobrecorrección para
+ * el cilindro tórico (ver `sugerencia-cirujano.ts`)— aplicada a esta tabla,
+ * nunca un criterio inventado por Calculator Vilamar. Ninguna de las dos se
+ * envía a ningún sitio ni sustituye la decisión de quien opera.
  */
 function OpcionesDevueltas({
   celda,
@@ -226,7 +228,8 @@ function OpcionesDevueltas({
       </p>
       {sugerencia && (
         <p className="sub sugerencia-criterio">
-          <strong>Según tu criterio:</strong> {sugerencia.motivo}
+          <strong>Sugerencia:</strong> {sugerencia.motivo} Calculator Vilamar no la envía a
+          ningún sitio ni la marca como confirmada.
         </p>
       )}
       <table className="opciones">
@@ -264,7 +267,7 @@ function OpcionesDevueltas({
                   <td className="marca">
                     {[
                       o.recomendada ? `Destacada por ${celda.nombre}` : '',
-                      esLaSugerida ? 'Según tu criterio' : '',
+                      esLaSugerida ? 'Sugerencia' : '',
                     ]
                       .filter(Boolean)
                       .join(' · ')}
