@@ -715,11 +715,138 @@ un paso se puede volver a pulsar si el CASO ya lo ha alcanzado de verdad
 pantalla en la que se esté en ese momento: mirar la pantalla actual
 «olvidaba» que ya se había llegado más lejos en cuanto se volvía atrás.
 
+**`PanelRevision.tsx` (documentos cargados) y `FormularioManual.tsx`
+(cuestionario manual) comparten el mismo selector de aparato** (D65,
+02/09/2026): `SelectorAparato.tsx`, con `SelectorAparato`,
+`SelectorAparatoPrincipal` y `SelectorAparatoCaraPosterior` (D58/D60),
+antes solo en el cuestionario manual. Sus tres grupos de campos —
+Biometría, Lente e incisión, Córnea posterior — van en el mismo orden en
+las dos pantallas; la revisión enseña además los campos informativos
+(AQD, TK1/TK2, índice queratométrico, factor de lente) que un documento
+puede traer y que el cuestionario manual, al no escribirlos nunca nadie a
+mano, no pide.
+
+⚠️ Un aparato recién elegido con «Añadir otro biómetro» no existe todavía
+como dataset del caso —se crea solo al escribir el primer campo, igual en
+las dos pantallas—, así que `aparatoActivo` puede apuntar, durante un
+instante, a un nombre que el caso aún no tiene. En `PanelRevision.tsx`
+esto funciona porque `aparatoActivo` vive en `App.tsx` y el `useEffect`
+que lo devuelve al aparato real del caso en cuanto el elegido no existe
+—necesario en `PanelCalculo.tsx`/`PanelResultados.tsx`, para no quedarse
+viendo resultados de un aparato fantasma— tiene una excepción explícita
+mientras `paso === 'REVISION'`. Sin esa excepción, elegir un aparato
+nuevo se deshacía en el mismo instante de elegirlo — fallo real,
+encontrado y corregido antes de enseñar la función.
+
 Antes de calcular, `PanelCalculo.tsx` deja marcar/desmarcar con qué
 calculadoras lanzar el cálculo (D40) — el backend ya soportaba un subconjunto
 de `Calculadora[]` (`ServicioCasos.calcular`/`planificarCaso`), solo hacía
 falta la interfaz. El botón «Reintentar» de cada calculadora sigue siendo un
 mecanismo aparte, no afectado por la selección.
+
+**«Ojos a calcular»** (D66, 02/09/2026): mismo patrón que el de arriba —
+el backend ya tenía el filtro (`ServicioCasos.calcular(calculadoras?,
+filtro?: { ojo?, aparato? })`, D47), solo hacía falta exponerlo en la
+pantalla. `PanelCalculo.tsx` enseña «Los dos ojos» / «Solo OD» / «Solo
+OS» únicamente si `ojosDelCaso(caso).length > 1` — con un solo ojo no hay
+nada que elegir —, con «Los dos ojos» como valor de partida para no
+cambiar el comportamiento de siempre a quien no toca el selector. En
+`App.tsx`, el callback `onCalcular` ahora reenvía el `filtro` que le
+llega de la pantalla en vez de descartarlo: antes había un comentario
+explícito avisando de que filtrar por el ojo activo aquí reintroduciría
+un fallo ya corregido («solo calcula la pestaña que se ve») — sigue
+siendo cierto para un filtro AUTOMÁTICO basado en qué pestaña se está
+mirando, pero este es un filtro que la persona elige a propósito con un
+control visible, no lo mismo.
+
+**La constante A se copia sola entre los dos ojos** (D66, 02/09/2026),
+cuando comparten aparato — casi siempre es la misma lente. Un único
+punto de cambio en `ServicioCasos.editarMedida()` cubre las dos pantallas
+de entrada (comparten componente desde D65), en dos sentidos según cuál
+se toque primero:
+
+1. Se escribe la constante en un ojo cuyo aparato ya existe también en el
+   otro, sin constante propia todavía → se copia hacia el otro.
+2. Se crea el dataset de un ojo (su primer campo) cuando el otro ya tenía
+   ese mismo aparato con su constante puesta → la hereda en el momento de
+   crearse, nunca en ediciones posteriores a ese dataset — así, borrarla
+   después en un ojo no la hace reaparecer sola con la siguiente edición
+   de otro campo.
+
+Los dos sentidos comparten la misma regla de fondo: nunca pisan una
+constante que YA hubiera en el ojo de destino, así que un valor distinto
+puesto a propósito para un ojo se respeta igual que cualquier dato
+manual. Investigado antes de tocar nada si hacía falta cambiar algo en
+`SelectorLente.tsx`: no — es una única pantalla para todo el caso, así
+que una lente elegida del catálogo, con constante de tabla, ya se aplica
+a los dos ojos con datos en el mismo movimiento desde D33
+(`elegirLente()` recorre `ojosDelCaso(caso)`); el hueco real era solo la
+constante escrita a mano, sin lente de catálogo detrás.
+
+### Córnea especial: LASIK/PRK/RK previos y queratocono (D67, 02/09/2026)
+
+Un ojo con córnea alterada por cirugía refractiva previa, o con
+queratocono, necesita algo distinto de las tres calculadoras. Nuevo
+campo por dataset, `OjoBiometrico.situacionCorneal?: SituacionCornealEspecial`
+(`LASIK_MIOPE` / `LASIK_HIPERMETROPE` / `QUERATOTOMIA_RADIAL` /
+`QUERATOCONO`), editado con `ServicioCasos.editarSituacionCorneal()` —
+mismo patrón que `aparatoCaraPosterior` (D58): `undefined` de partida, un
+`SelectorSituacionCorneal` compartido (`SelectorAparato.tsx`) en el grupo
+«Lente e incisión» de las dos pantallas de entrada. Dos campos nuevos del
+catálogo, `REFRACCION_PRE_LASIK`/`REFRACCION_POST_LASIK` (categoría
+QUIRÚRGICO, opcionales): historial del paciente, no una medida de ningún
+biómetro, así que solo se enseñan cuando el ojo tiene la situación
+marcada — a diferencia de los campos informativos de siempre (AQD,
+TK1/TK2…), que se enseñan siempre porque un documento sí puede traerlos.
+
+EVO y Kane la usan como **un campo más en su mismo formulario** —cada uno
+comprobado en vivo con su sonda de reconocimiento antes de escribir el
+adaptador, nunca supuesto por simetría—:
+
+- `evo.ts`: `#DropDownLASIK`, con `No`/`Myopic`/`Hyperopic`/
+  `Radial Keratotomy`. Queratocono no tiene equivalente en EVO — se deja
+  en `No`, no se inventa una opción que la web no ofrece.
+- `kane.ts`: `keratoconus_1`/`keratoconus_2`, una CASILLA (no un radio del
+  mismo grupo que Non-toric/Toric) — comprobado en vivo que activarla no
+  cambia qué campos hacen falta ni desactiva el modo tórico: es un
+  interruptor independiente, y así se trata (`asegurarKeratoconus()`,
+  mismo patrón de «comprobar y pulsar solo si hace falta» que
+  `asegurarModo()`).
+
+**Barrett es distinto: no es un campo más, es una calculadora aparte.**
+La fórmula estándar de Barrett Toric da un resultado erróneo en un ojo
+con córnea especial; ASCRS publica una página separada, «Barrett True K
+Toric», para estos casos. Nueva calculadora `BARRETT_TRUE_K_TORIC`, con
+su propio adaptador (`barrett-true-k.ts`) — no una variante de
+`AdaptadorBarrettToric`, aunque comparte casi todo su diseño porque la
+web real resultó ser la MISMA aplicación ASP.NET, en el mismo dominio
+(`calc.apacrs.org`), con prácticamente los mismos `id` de campo y las
+mismas dos tablas de resultado (`GridView1`/`GridView2`) — comprobado con
+un cálculo sintético real de punta a punta antes de escribir el
+adaptador. Sin el paso extra de «Measured PCA» que sí tiene
+`BARRETT_TORIC_CON_CARA_POSTERIOR`: usa siempre «Predicted PCA».
+
+Las dos calculadoras de Barrett se EXCLUYEN MUTUAMENTE por ojo, en
+`prepararEntradas()` (`packages/domain/src/modelo/preparar-entradas.ts`):
+`BARRETT_TORIC`/`BARRETT_TORIC_CON_CARA_POSTERIOR` se bloquean
+(`CORNEA_ESPECIAL_USA_TRUE_K`) si el ojo tiene `situacionCorneal` puesta;
+`BARRETT_TRUE_K_TORIC` se bloquea (`TRUE_K_SIN_CORNEA_ESPECIAL`) si NO la
+tiene — así no es una casilla más a elegir libremente, es la sustituta
+obligatoria. El bloqueo pasa en el dominio, antes de que
+`ejecutarUnaCalculadoraParaUnOjo()` llegue a abrir ninguna página, con un
+mensaje explícito de cuál usar en su lugar. `COLUMNAS_COMPARATIVA` gana
+una sexta columna, al final —no forma pareja con ninguna base, así que no
+va dentro del bloque de Barrett— y `PanelCalculo.tsx` la enseña como una
+casilla más, junto a las cinco de siempre.
+
+Investigado con `pnpm reconocer <sitio>` antes de escribir una sola línea
+de ningún adaptador, con datos SINTÉTICOS —nunca un paciente real—:
+`scripts/sondas/reconocer.mjs` ganó dos entradas nuevas,
+`barrett-true-k` y `barrett-true-k-toric`. Un hallazgo real a mitad de la
+investigación: la primera página encontrada, «Barrett True K» (sin
+cilindro ni eje, solo esfera), NO es la que hay que usar — el dueño lo
+corrigió expresamente: para un caso tórico hace falta siempre «Barrett
+True K Toric», una URL distinta (`.../barrett-true-k-toric-calculator`).
 
 El objetivo de refracción (`REFRACCION_OBJETIVO`) arranca en 0 (D38):
 `servicio-casos.ts` lo rellena como medida `MANUAL` —confirmada por

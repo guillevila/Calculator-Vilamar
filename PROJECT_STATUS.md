@@ -9,7 +9,97 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 02/09/2026 · **D64: la barra de pasos de arriba
+**Última actualización:** 02/09/2026 · **Kane se quedaba bloqueado al
+activar Keratoconus con datos reales (fallo de D67).** El dueño probó
+D67 con un caso real: EVO y Barrett True K Toric fueron bien, Kane no.
+Con su pantallazo se encontró la causa exacta: Kane enseña su PROPIO
+aviso («asegúrate de que el paciente tiene queratocono de verdad»), con
+un botón «OK», al activar esa casilla en modo tórico — el adaptador no lo
+sabía y se quedaba esperando un cambio que no llegaba porque el aviso
+tapaba el control. Corregido en `asegurarKeratoconus()`: comprueba si
+aparece el aviso —sale de forma inconsistente entre ejecuciones,
+comprobado repitiendo la secuencia varias veces contra la web real— y lo
+acepta si sale; no es una condición legal ni antirrobot, es un
+recordatorio sobre un dato que el cirujano ya confirmó en la propia
+pantalla de Calculator Vilamar. **No se ha vuelto a probar el caso
+completo del dueño dentro de la aplicación** — haría falta repetir el
+mismo cálculo real para confirmarlo del todo. Lección registrada en
+`.claude/skills/lessons-learned/log.md` (02/09/2026, 3): investigar un
+control nuevo solo desde el estado por defecto de la página no basta,
+hay que probarlo en la misma secuencia que va a usar el adaptador de
+verdad.
+
+Antes de esto — **D67: córnea especial — Barrett
+True K Toric en vez de Barrett Toric.** Un ojo con LASIK/PRK/queratotomía
+radial previos, o con queratocono, se marca con un selector nuevo, por
+ojo/aparato («Lente e incisión»). EVO y Kane lo usan como un campo más en
+su mismo formulario (comprobado en vivo con `pnpm reconocer evo` y la
+sonda de Kane: `#DropDownLASIK` en EVO, el interruptor independiente
+`keratoconus_1`/`keratoconus_2` en Kane). Barrett es distinto: pasa a
+calcularse con `BARRETT_TRUE_K_TORIC`, un adaptador nuevo
+(`barrett-true-k.ts`) con su propia página — nunca junto a Barrett Toric
+para el mismo ojo, `prepararEntradas()` las excluye mutuamente con un
+aviso explícito de cuál usar. Investigado con datos sintéticos antes de
+escribir el adaptador, incluido un cálculo de prueba real de punta a
+punta contra la web —nunca con un paciente real—; el dueño corrigió el
+rumbo inicial hacia mitad de la investigación: la página «Barrett True
+K» sin cilindro que se había mirado primero NO es la que hace falta,
+sino «Barrett True K Toric». **No probado todavía dentro de la
+aplicación completa, con un caso real.** `pnpm lint && pnpm typecheck &&
+pnpm test && pnpm build && pnpm test:e2e` en verde (691 tests unitarios,
+37 de interfaz; el único fallo unitario es el previo y sin relación en
+`block-subagent-external.test.mjs`). Decisión D67 en `SYSTEM_VISION.md`.
+
+Antes de esto — **Tercer intento de mitigar la
+captura de Kane en blanco — sin verificar en vivo todavía.** El dueño
+compartió un PDF real (CV-2026-0091) donde la tabla de resultado de Kane
+sale vacía en la captura aunque el cálculo se leyó y se usó bien (la
+estimación propia y la tabla comparativa, debajo de esa misma captura,
+traen números reales). Es la MISMA flakiness de Chromium ya documentada
+el 12/08 y el 27/08 —el compositor a veces no ha pintado el último cambio
+del DOM cuando se pide la foto—, con dos mitigaciones previas que no
+bastaron. Se ha añadido una técnica distinta —un evento de ratón real
+justo antes de la foto, no ya solo esperar más tiempo o forzar un
+reflow—, verificada con lint, typecheck y tests en verde, **pero NO con
+un cálculo real de Kane**: su pantalla de condiciones pide una acción
+humana que esta sesión no puede completar sola. Detalle completo en el
+apartado 3, y en `.claude/skills/lessons-learned/log.md` (02/09/2026, 2)
+— con el aviso explícito de no llamarlo «arreglado» hasta verlo en vivo.
+
+Justo antes de esto — **D66: elegir «Ojos a calcular»,
+y la constante A se copia sola al otro ojo.** Dos peticiones juntas: un
+selector junto a «Calcular» para elegir los dos ojos o solo uno (visible
+solo si el caso tiene datos de los dos; «Los dos ojos» activo de partida,
+igual que siempre), usando el filtro por ojo que `ServicioCasos.calcular()`
+ya tenía desde D47 pero que ninguna pantalla usaba; y que la constante A
+escrita a mano en un ojo aparezca sola en el otro cuando comparten
+aparato —en cualquiera de los dos sentidos, según cuál se toque primero—
+sin pisar nunca una que ya hubiera. Investigado primero si hacía falta
+tocar el selector de lente del catálogo: no, ya se aplica a los dos ojos
+en el mismo movimiento desde D33; el hueco real era solo la constante
+manual, y un único punto de cambio (`ServicioCasos.editarMedida()`) cubre
+las dos vías de entrada porque las dos llaman al mismo método. `pnpm lint
+&& pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e` en verde
+(685 tests unitarios, 36 de interfaz; el único fallo unitario es el
+previo y sin relación en `block-subagent-external.test.mjs`). Decisión
+D66 en `SYSTEM_VISION.md`.
+
+Antes de esto — **D65: la pantalla de revisión
+(documentos cargados) queda igual que el cuestionario manual.** El dueño,
+probando a cargar datos ya extraídos de fotos de biometría, pidió que la
+revisión dejara añadir un segundo aparato —solo lo tenía el cuestionario
+manual— y que el orden de los campos coincidiera entre las dos pantallas.
+`SelectorAparato.tsx` es ahora un componente compartido (antes vivía
+duplicado en el manual); los tres grupos de la revisión —Biometría,
+Lente e incisión, Córnea posterior— quedan en el mismo orden, con los
+campos informativos de más (AQD, TK1/TK2…) que un documento sí puede
+traer. **Fallo real encontrado y corregido antes de enseñarlo**:
+`aparatoActivo` es un estado global compartido con cálculo y resultados,
+con una corrección automática que deshacía «Añadir otro biómetro» en el
+mismo instante de elegirlo — arreglado con una excepción para el paso de
+revisión. Decisión D65 en `SYSTEM_VISION.md`.
+
+Antes de esto — **D64: la barra de pasos de arriba
 se puede pulsar.** Al abrir un caso terminado desde «Casos guardados»
 (D63), el dueño aterrizaba en «4. Resultados» sin encontrar cómo volver a
 los datos — la barra de arriba era solo un indicador, y la única vía era
@@ -1293,6 +1383,18 @@ cálculo real — falta confirmar que el nombre llega de verdad al campo
 
 ## 3. ⚠️ Qué NO funciona todavía
 
+- **D67 (córnea especial, Barrett True K Toric) no se ha probado dentro de
+  la aplicación completa, con un caso real, DESDE la corrección del aviso
+  de Kane.** El dueño probó D67 una vez con un caso real: EVO y Barrett
+  True K Toric fueron bien, Kane se quedó bloqueado por un aviso propio de
+  su web (ver «Última actualización», arriba) — corregido, pero sin
+  volver a probar el caso completo. El adaptador de Barrett True K Toric
+  se investigó y se probó con un cálculo SINTÉTICO real de punta a punta
+  contra la web —formulario, envío y lectura del resultado—, pero nunca
+  se ha lanzado desde `pnpm dev` con un caso guardado hasta el PDF final.
+  Falta: repetir el mismo caso con córnea especial, calcular con las tres
+  calculadoras (más Barrett True K Toric) y comprobar que el PDF sale
+  bien con las tarjetas correctas.
 - **D50 (elegir la lente correcta en EVO y Kane con nombres distintos) no
   se ha probado contra las webs reales.** Verificado que la interfaz
   guarda el par de nombres correcto para cada una de las cinco lentes
@@ -1324,15 +1426,28 @@ cálculo real — falta confirmar que el nombre llega de verdad al campo
   probados con tests (los tres selectores están comprobados con
   `pnpm reconocer`, no supuestos), pero falta un cálculo real para confirmar
   que el campo se rellena tal cual en las tres webs.
-- **La corrección de la captura en blanco de Kane (12/08/2026) no bastó, y
-  la segunda corrección (27/08/2026, noche) tampoco se ha probado contra la
-  web real todavía.** Diagnosticado dos veces: la primera, que la tabla se
-  pintaba después de que el aviso «Processing…» ya se hubiera escondido
-  (corregido con una espera a que la celda tuviera texto); la segunda, que
-  con D47 corriendo más páginas de Playwright a la vez ese margen volvió a
-  quedarse corto (corregido esperando dos fotogramas de animación reales
-  antes de la captura). Comprobado con los tests, no con un cálculo real de
-  Kane desde la segunda corrección.
+- **La corrección de la captura en blanco de Kane (12/08/2026) no bastó, ni
+  la segunda (27/08/2026, noche), ni la tercera (02/09/2026) se han
+  verificado contra la web real todavía.** Diagnosticado tres veces: la
+  primera, que la tabla se pintaba después de que el aviso «Processing…»
+  ya se hubiera escondido (corregido con una espera a que la celda tuviera
+  texto); la segunda, que con D47 corriendo más páginas de Playwright a la
+  vez ese margen volvió a quedarse corto (mitigado con una espera de
+  400 ms, desplazar la tabla a la vista y forzar un reflow síncrono); la
+  tercera —el dueño compartió un PDF real, CV-2026-0091, con la tabla de
+  Kane en blanco pese a la mitigación anterior, mientras la estimación
+  propia debajo SÍ traía números reales (la lectura de datos funcionó, la
+  foto no)— se ha probado una técnica nueva y distinta de las dos
+  anteriores: un evento de ratón real (no disparado desde JavaScript) justo
+  antes de la foto, porque el propio código ya documentaba, desde el
+  27/08, que esperar más tiempo con o sin `requestAnimationFrame` no
+  cambiaba nada. **Dicho tal cual al dueño**: es una mitigación más, no un
+  «ya está arreglado» — verificado con lint, typecheck y toda la batería
+  de tests en verde, pero no con un cálculo real de Kane, porque su
+  pantalla de condiciones pide una acción humana que no se puede completar
+  sola dentro de esta sesión. Si vuelve a salir en blanco, avisar con
+  el PDF real como se hizo esta vez: es lo que ha permitido diagnosticarlo
+  cada vez.
 - **El informe simplificado no se ha vuelto a generar tras el cambio de hoy**
   que lo redujo a capturas + lente recomendada + aviso de fallo (D39). Está
   probado con tests, no con un PDF real de un caso con las tres calculadoras.

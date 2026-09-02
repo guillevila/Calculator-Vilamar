@@ -4,6 +4,261 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.19] — 02/09/2026
+
+fix(integraciones): Kane se quedaba bloqueado al activar Keratoconus —
+tenía su propio aviso, sin pulsar (D67).
+
+### Qué se pidió
+
+El dueño probó D67 con un caso real: EVO y Barrett True K Toric fueron
+bien, pero Kane falló. Compartió un pantallazo: al marcar «Keratoconus»
+en modo tórico, Kane enseña su PROPIO aviso («The Keratoconus option has
+been selected... Please ensure this option is only selected if the
+patient has keratoconus»), con un botón «OK» — el adaptador no lo sabía y
+se quedaba esperando un cambio de estado que no llegaba.
+
+### El cambio
+
+`kane.ts`, `asegurarKeratoconus()`: tras pulsar la etiqueta, comprueba
+—sin darlo por hecho— si aparece el botón «OK» de ese aviso, y lo pulsa
+si sale. Investigado en vivo antes de tocar el código: el aviso sale de
+forma **inconsistente** entre ejecuciones —ni ligado de forma fiable a
+activar/desactivar, ni al modo tórico por sí solo— así que la corrección
+no intenta reproducir la condición exacta: comprueba y actúa solo si de
+verdad aparece, y sigue igual si no. No es una condición legal ni una
+protección anti-robot —esas no se aceptan por la persona—: es un
+recordatorio sobre un dato que el cirujano ya confirmó en la propia
+pantalla de Calculator Vilamar al elegir «Queratocono», así que aceptarlo
+aquí no decide nada nuevo en su nombre.
+
+### Verificación
+
+Botón y comportamiento comprobados en vivo contra `iolformula.com`,
+reproduciendo la secuencia exacta del adaptador (modo Toric → activar
+Keratoconus) tanto con el aviso apareciendo como sin aparecer. `pnpm
+lint && pnpm typecheck` en verde; los 75 tests de `packages/integrations`
+en verde. No se ha vuelto a probar el caso completo del dueño dentro de
+la aplicación —haría falta repetir el mismo cálculo real para confirmarlo
+del todo.
+
+---
+
+## [1.15.18] — 02/09/2026
+
+feat(app): córnea especial — LASIK/PRK/queratotomía radial previos o
+queratocono, con Barrett True K Toric en vez de Barrett Toric (D67).
+
+### Qué se pidió
+
+Dos pantallazos reales: EVO tiene un desplegable «Post LASIK/PRK/RK»
+(No / Myopic / Hyperopic / Radial Keratotomy); Kane tiene un interruptor
+«Keratoconus», independiente de Non-toric/Toric. Petición: un selector en
+la aplicación para elegir estas cuatro situaciones cuando haga falta, que
+alimente los dos campos. Investigando si Barrett tenía algo parecido, el
+dueño explicó que sí, pero es una página aparte —«Barrett True K
+Toric»— que hay que usar EN LUGAR de Barrett Toric para estos ojos, no
+un campo más en el mismo formulario: la fórmula estándar da un resultado
+erróneo con una córnea así.
+
+### El cambio
+
+**Dominio.** `OjoBiometrico.situacionCorneal?: SituacionCornealEspecial`
+(`LASIK_MIOPE` / `LASIK_HIPERMETROPE` / `QUERATOTOMIA_RADIAL` /
+`QUERATOCONO`), por ojo y aparato — `undefined` de partida, sin ningún
+cambio visible para quien no lo toca. Dos campos nuevos en el catálogo,
+`REFRACCION_PRE_LASIK`/`REFRACCION_POST_LASIK` (categoría QUIRÚRGICO,
+opcionales a propósito): son historial del paciente, no una medida de
+ningún biómetro. Nueva calculadora `BARRETT_TRUE_K_TORIC`, con su propia
+ficha; `prepararEntradas()` la EXCLUYE MUTUAMENTE con `BARRETT_TORIC`/
+`BARRETT_TORIC_CON_CARA_POSTERIOR` según si el ojo tiene la situación
+marcada, con un aviso explícito de cuál usar.
+
+**Integraciones.** `evo.ts`: el desplegable `#DropDownLASIK`, mapeado a
+las tres situaciones que EVO ofrece (queratocono se queda en «No»: EVO no
+tiene esa opción). `kane.ts`: el interruptor `keratoconus_1`/
+`keratoconus_2` — comprobado en vivo que es independiente de Non-toric/
+Toric, no lo sustituye. `barrett-true-k.ts` (nuevo adaptador): investigado
+con datos sintéticos antes de escribir una sola línea — la calculadora
+real vive en el mismo dominio que Barrett Toric (`calc.apacrs.org`), con
+prácticamente los mismos `id` de campo y las mismas tablas de resultado
+(`GridView1`/`GridView2`), así que reutiliza casi entero su diseño; sin el
+paso extra de «Measured PCA» que sí tiene `BARRETT_TORIC_CON_CARA_POSTERIOR`.
+
+**Interfaz.** `SelectorSituacionCorneal` (en `SelectorAparato.tsx`,
+compartido entre el cuestionario manual y la revisión): un desplegable en
+el grupo «Lente e incisión». Los dos campos de LASIK solo se enseñan
+cuando el ojo tiene una situación marcada — no son un dato que casi nadie
+necesite, así que no se enseñan siempre. `PanelCalculo.tsx` gana una
+sexta casilla, «Barrett True K Toric», junto a las cinco de siempre.
+
+### Verificación
+
+`pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+en verde (691 tests unitarios, 37 de interfaz; el único fallo unitario es
+el previo y sin relación en `.claude/hooks/block-subagent-external.test.mjs`).
+Nuevos tests de dominio que prueban el bloqueo mutuo entre Barrett Toric y
+Barrett True K Toric en los dos sentidos, sin necesitar la aplicación
+entera. Nuevo test de interfaz que comprueba que el selector y los dos
+campos de LASIK aparecen y desaparecen cuando toca. El adaptador de
+Barrett True K Toric se ha probado con un cálculo sintético real de punta
+a punta (formulario, envío, lectura del resultado) — no se ha probado
+dentro de la aplicación completa con un cálculo real todavía.
+
+---
+
+## [1.15.17] — 02/09/2026
+
+fix(integraciones): tercer intento de mitigar la captura de Kane en
+blanco, con una técnica nueva — sin confirmar todavía contra la web real.
+
+### Qué se pidió
+
+El dueño compartió un PDF real (CV-2026-0091, OS) donde la captura de
+Kane sale con las dos tablas de resultado vacías, mientras que la
+estimación propia de Calculator Vilamar y la tabla comparativa final,
+justo debajo de esa misma captura, sí traen números reales. La lectura
+de datos funcionó — la foto de esa pantalla, no.
+
+### El cambio
+
+Es la misma flakiness de Chromium ya documentada en el código desde el
+12/08 y el 27/08/2026 (el compositor a veces no ha pintado el último
+cambio del DOM cuando `page.screenshot()` lo pide, aunque ese cambio ya
+se pueda leer con `evaluate()` sin problema), con dos mitigaciones
+previas —esperar a que la celda tenga texto, luego esperar 400 ms +
+desplazar la tabla a la vista + forzar un reflow síncrono— que reducen el
+problema pero, como demuestra este PDF real, no lo eliminan del todo. El
+propio comentario del 27/08 ya deja escrito que esperar más tiempo, con
+o sin `requestAnimationFrame`, no cambiaba nada: el PNG salía idéntico
+byte a byte. Se prueba ahora algo distinto: un evento de ratón real
+(`pagina.mouse.move`, disparado por Playwright como entrada de verdad, no
+desde JavaScript dentro de la página) justo antes de la foto — la técnica
+habitual para forzar que un navegador headless programe un fotograma
+nuevo del compositor.
+
+### Verificación — deliberadamente incompleta, y dicho así
+
+`pnpm lint && pnpm typecheck && pnpm test` en verde (685 tests
+unitarios; el único fallo es el previo y sin relación en
+`.claude/hooks/block-subagent-external.test.mjs`). **No se ha podido
+verificar contra la web real de Kane**: su pantalla de condiciones pide
+una acción humana que esta sesión no puede completar sola. Se documenta
+explícitamente como una mitigación más, no como un fallo «corregido» —
+ver `.claude/skills/lessons-learned/log.md` (02/09/2026, 2), que recuerda
+un precedente exacto de dar algo por arreglado sin comprobarlo y
+resultar que seguía roto. Si vuelve a salir en blanco, el PDF real es lo
+que ha permitido diagnosticarlo cada vez.
+
+---
+
+## [1.15.16] — 02/09/2026
+
+feat(app): elegir «Ojos a calcular» en la pantalla de cálculo, y la
+constante A se copia sola al otro ojo cuando comparten aparato (D66).
+
+### Qué se pidió
+
+Dos peticiones juntas: (1) un selector junto al botón «Calcular» para
+elegir si se calculan los dos ojos o solo uno, aunque los dos tengan
+datos completos; (2) que la constante A escrita en un ojo aparezca por
+defecto en el otro, para no tener que volver a escribirla — tanto
+metiendo los datos a mano como revisando los que llegan de una foto.
+
+### El cambio
+
+**Selector de ojos.** `PanelCalculo.tsx` gana un grupo de botones «Los
+dos ojos» / «Solo OD» / «Solo OS», visible solo si el caso tiene datos de
+los dos — con uno solo no hay nada que elegir. «Los dos ojos» queda
+activo de partida: es el comportamiento de siempre, así que nadie nota
+el cambio si no toca el selector. Usa `filtro: { ojo }`, un parámetro que
+`ServicioCasos.calcular()` ya tenía desde D47 (para calcular un aparato
+sin esperar a otro del mismo ojo) pero que ninguna pantalla usaba todavía
+para elegir el ojo.
+
+**Constante A compartida.** Un único punto de cambio,
+`ServicioCasos.editarMedida()`, cubre las dos vías de entrada (cuestionario
+manual y revisión de documento/foto, D65 las dejó como el mismo
+componente) porque las dos llaman al mismo método. Se investigó primero
+si hacía falta tocar la lente elegida del catálogo (`SelectorLente.tsx`)
+— no: es una única pantalla para todo el caso, así que una lente con
+constante de tabla ya se aplica a los dos ojos con datos en el mismo
+movimiento desde D33. El hueco real era la constante escrita a MANO, sin
+lente de catálogo detrás. Dos sentidos, según cuál se toque primero:
+
+- Se escribe la constante en un ojo que ya tenía el mismo aparato en el
+  otro, sin su propia constante todavía → se copia hacia el otro.
+- Se crea el dataset de un ojo (su primer dato) cuando el otro ya tenía
+  ese mismo aparato con su constante puesta → la hereda al crearse.
+
+Nunca pisa una constante que YA hubiera — ni al copiarla, ni al revés:
+borrarla en un ojo no la hace reaparecer sola en la siguiente edición, y
+escribir una distinta a propósito se respeta igual que cualquier dato
+manual, porque la herencia por creación solo actúa la primera vez que
+existe el dataset, no en ediciones posteriores.
+
+### Verificación
+
+`pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+en verde (685 tests unitarios, 36 de interfaz; el único fallo unitario es
+el previo y sin relación en `.claude/hooks/block-subagent-external.test.mjs`).
+Dos tests de interfaz nuevos: uno reproduce las dos direcciones de la
+constante A compartida y comprueba que un valor distinto puesto a
+propósito no se pisa; otro llega hasta la pantalla de cálculo con los dos
+ojos confirmados y comprueba que el selector aparece, con «Los dos ojos»
+de partida, y que elegir «Solo OD» lo refleja en el botón.
+
+---
+
+## [1.15.15] — 02/09/2026
+
+feat(app): la pantalla de revisión (documentos cargados) queda igual que
+el cuestionario manual — mismo orden de campos y el mismo selector de
+aparato, con su «Añadir otro biómetro» (D65).
+
+### Qué se pidió
+
+Probando a cargar en el programa datos ya extraídos de fotos de
+biometría, la pantalla de revisión no dejaba añadir un segundo aparato
+—solo lo tenía el cuestionario manual— y el orden de los campos era
+distinto entre las dos pantallas.
+
+### El cambio
+
+`SelectorAparato.tsx`: nuevo componente compartido, sacado del
+cuestionario manual (`SelectorAparato`, `SelectorAparatoPrincipal`,
+`SelectorAparatoCaraPosterior`) — antes vivían solo ahí, duplicarlos en
+la revisión habría sido el mismo error que ya se evitó con
+`Identificacion.tsx`. `PanelRevision.tsx` reordena sus tres grupos de
+campos —Biometría, Lente e incisión, Córnea posterior— con el mismo
+orden que el cuestionario manual; sigue enseñando además los campos
+informativos que un documento puede traer pero el manual no pide (AQD,
+TK1/TK2, índice queratométrico, factor de lente), porque esta pantalla
+tiene que enseñar todo lo leído.
+
+### Un fallo real, encontrado y corregido antes de enseñarlo
+
+`aparatoActivo` es un estado global en `App.tsx`, compartido también con
+las pantallas de cálculo y resultados, con una corrección automática que
+lo devuelve al aparato real del caso en cuanto el elegido no existe
+todavía. Necesaria en esas otras pantallas — no tiene sentido ver
+resultados de un aparato fantasma —, pero en revisión deshacía la propia
+elección de «Añadir otro biómetro» en el mismo instante de elegirla,
+antes de escribir ningún dato: el aparato activo volvía al original de
+inmediato. Corregido con una excepción explícita: esa corrección no
+actúa mientras se está en el paso de revisión.
+
+### Verificación
+
+`pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+en verde (685 tests unitarios, 34 de interfaz; el único fallo unitario es
+el previo y sin relación en `.claude/hooks/block-subagent-external.test.mjs`).
+Nuevo test de interfaz que carga un documento, añade un segundo aparato
+desde la revisión, comprueba que los dos datasets no se pisan entre sí, y
+que el orden de los campos coincide con el del cuestionario manual.
+
+---
+
 ## [1.15.14] — 02/09/2026
 
 feat(app): la barra de pasos de arriba se puede pulsar para volver a un

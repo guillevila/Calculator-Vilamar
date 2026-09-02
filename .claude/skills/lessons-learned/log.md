@@ -1746,3 +1746,107 @@ texto o una tabla a partir de `LenteEstimada`: repasar qué campo se está
 leyendo de verdad, no solo que el nombre «suene» correcto. Extensible a
 cualquier tipo con un campo de criterio interno y un campo de resultado
 que se parezcan.
+
+## 02/09/2026 (2) — Una mitigación probada añade una técnica nueva, no repite la que ya falló, y no se llama «arreglado» sin verlo en vivo
+
+**Error o aprendizaje:** El dueño compartió un PDF real (CV-2026-0091, OS)
+donde la captura de Kane —página 3 del informe— sale con las dos tablas
+de resultado completamente en blanco, mientras que la estimación propia
+de Calculator Vilamar debajo de esa misma captura sí trae números reales
+(20.13 D · Cil. 0.00 D · Eje 48°) y la tabla comparativa final también.
+Esto confirma que la LECTURA de datos funcionó bien —Kane sí devolvió
+las potencias, y el programa las leyó y las usó para calcular—, pero la
+FOTO tomada de esa misma pantalla, para que quede como evidencia sin
+interpretar, salió vacía. El propio código de `kane.ts` ya tenía, desde
+el 27/08/2026, un comentario extenso documentando que esto es una
+flakiness real de Chromium en captura de pantalla (no un problema del
+HTML de Kane), y una mitigación ya aplicada (esperar 400 ms, desplazar la
+tabla a la vista, forzar un reflow síncrono) — que reduce el problema
+pero, como demuestra este PDF real, no lo elimina del todo.
+
+**Causa raíz (probable, sin confirmar en vivo):** `page.screenshot()` de
+Playwright, sobre Chromium en modo headless, a veces devuelve un
+fotograma del compositor que no refleja el último cambio del DOM, aunque
+ese cambio ya se pueda LEER con `evaluate()` sin problema — layout y
+paint son pasos distintos, y forzar un reflow (`getBoundingClientRect()`)
+solo garantiza el primero. El propio comentario del 27/08 ya deja escrito
+que esperar más tiempo, con o sin `requestAnimationFrame` desde JS, no
+cambiaba nada: el PNG salía idéntico byte a byte. Esta vez se ha probado
+algo genuinamente distinto —un evento de ratón real, disparado por
+Playwright como entrada de verdad y no desde JavaScript dentro de la
+página— porque es la técnica habitual para forzar que un navegador
+headless programe un fotograma nuevo del compositor, y es un mecanismo
+que no aparece entre lo ya descartado en el comentario anterior.
+
+**Lección — la más importante de esta entrada:** Esto se documenta como
+una MITIGACIÓN AÑADIDA, no como un fallo «corregido». Ya hay un
+precedente en este mismo log (27/08/2026, noche, 7) de decir que algo
+estaba arreglado sin haberlo comprobado de verdad, y resultar que seguía
+roto. Aquí no ha sido posible reproducir el cálculo contra el Kane real
+dentro de esta sesión (implica pasar por su pantalla de condiciones, que
+pide una acción humana — D-loa de `kane-transicion.spec.ts`), así que el
+cambio se ha verificado con lint, typecheck y toda la batería de tests
+existente en verde, pero **no con una repetición en vivo del caso real
+que falló**. Al dueño se le tiene que decir esto exactamente así: «he
+añadido una mitigación más, con una técnica que no se había probado
+todavía, pero no puedo prometer que esté arreglado del todo hasta verlo
+fallar o no fallar con datos reales otra vez» — nunca «ya está
+arreglado» sobre un fallo de temporización de navegador que ya resistió
+un intento anterior.
+
+**Contexto:** `packages/integrations/src/adapters/kane.ts`, método
+`leerResultado()`, justo antes de `capturarResultado()`. Si el dueño
+reporta otra captura en blanco después de este cambio, el siguiente paso
+razonable es un reintento real de la foto entera (no solo más técnicas de
+espera antes de UNA foto), o investigar si `fullPage: true` interactúa
+mal con el `scrollIntoViewIfNeeded()` que ya se hace justo antes.
+
+## 02/09/2026 (3) — Un botón nuevo en un adaptador (Kane «Keratoconus», D67) se probó solo en el caso más simple, y la web tenía un aviso propio que ese caso no disparaba
+
+**Error o aprendizaje:** Al construir D67 (córnea especial), se investigó
+en vivo el interruptor «Keratoconus» de Kane antes de escribir el
+adaptador —bien hecho, siguiendo la disciplina de este proyecto— pero la
+investigación solo probó el caso más simple: activarlo con el ojo en modo
+«Non-toric» (el que trae Kane por defecto al cargar la página). El dueño
+probó D67 con un caso real de verdad, con datos completos que ponen a
+Kane en modo «Toric», y ahí Kane enseña un aviso PROPIO —un modal de
+Bootstrap con un botón «OK»— que el caso simple no llegó a disparar
+nunca: «The Keratoconus option has been selected... Please ensure this
+option is only selected if the patient has keratoconus». El adaptador no
+lo esperaba, y se quedaba colgado esperando un cambio de estado que
+nunca llegaba porque el modal tapaba el control.
+
+**Causa raíz:** La reconnaissance de un botón nuevo se hizo contra el
+ESTADO POR DEFECTO de la página (Non-toric, recién cargada), que es el
+más fácil de alcanzar pero no necesariamente el que va a usar un caso
+real — el propio adaptador, en `rellenar()`, deja el ojo en modo Toric
+ANTES de tocar Keratoconus siempre que el caso tenga los datos para
+tórico, que es el caso más habitual con un informe completo. Al
+investigar solo el camino corto no apareció el aviso, así que el código
+se escribió sin saber que existía.
+
+**Otro hallazgo, al intentar reproducirlo para arreglarlo:** el aviso
+sale de forma **inconsistente entre ejecuciones** contra la web real —ni
+depende de forma fiable de activar/desactivar, ni del modo tórico por sí
+solo, comprobado repitiendo la misma secuencia varias veces con
+resultados distintos—. En vez de perseguir la condición exacta (que
+puede no ser determinista de verdad, o depender de algo que este
+programa no controla — quizá el estado guardado en el perfil del
+navegador de sesiones previas), la corrección comprueba SI aparece,
+sin darlo por hecho, y actúa solo entonces. Es el mismo principio que ya
+regía `rechazarCookies()` en Barrett: no «se pulsa una vez y se sigue», es
+«se espera a la señal real y se actúa según lo que de verdad haya».
+
+**Lección:** Cuando se investiga un control nuevo de una web ajena antes
+de automatizarlo, no basta con probarlo desde el estado por defecto de la
+página — hay que probarlo en la MISMA SECUENCIA y con el MISMO ESTADO
+PREVIO que el adaptador va a dejar antes de llegar a él (aquí: modo
+tórico, no el modo por defecto). Un control puede comportarse distinto
+según qué haya pasado antes en la misma pantalla, y solo se descubre
+reproduciendo el camino real, no el más corto para llegar hasta él.
+
+**Contexto:** `packages/integrations/src/adapters/kane.ts`,
+`asegurarKeratoconus()`. Extensible a cualquier interruptor o campo nuevo
+de una web que dependa de un `rellenar()` con varios pasos: probar el
+campo aislado no basta si el adaptador real llega a él con la página en
+otro estado.
