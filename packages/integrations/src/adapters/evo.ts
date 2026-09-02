@@ -84,6 +84,14 @@ const SEL = {
   ojoDerecho: '#RadioButtonRLEye_0',
   ojoIzquierdo: '#RadioButtonRLEye_1',
   modeloTorico: '#DropDownToric',
+  /**
+   * «Biometer» — con qué aparato se midió la córnea posterior. Siempre
+   * visible en el formulario, no depende de rellenar PK1/PK2 (comprobado en
+   * vivo el 01/09/2026). Por defecto está en «IOLMaster 700»; si el aparato
+   * real es otro y este programa sabe cuál es su nombre exacto aquí
+   * (`dispositivoCaraPosterior`, ver `preparar-entradas.ts`), se cambia.
+   */
+  dispositivoPosterior: '#DropDownListPK',
   calcular: '#btnCalculate',
   // Resultado
   recomendadaEsfera: '#LabelRecIOL',
@@ -227,6 +235,10 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
       if (valor === undefined) continue
       const paraEvo = 'magnitud' in config && config.magnitud ? Math.abs(valor) : valor
       await pagina.fill(config.selector, paraEvo.toFixed(config.decimales))
+    }
+
+    if (entradas.dispositivoCaraPosterior !== undefined) {
+      await pagina.selectOption(SEL.dispositivoPosterior, { label: entradas.dispositivoCaraPosterior })
     }
   }
 

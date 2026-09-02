@@ -261,6 +261,18 @@ export interface EntradasCalculadora {
   /** Modelo de lente elegido, tal y como lo llama esa web. */
   readonly modeloLente?: string
   readonly fabricanteLente?: string
+  /**
+   * Qué aparato midió la córnea posterior (PK1/PK2), tal y como lo llama
+   * el desplegable «Biometer»/«Device» de ESTA web — petición expresa del
+   * dueño del proyecto (01/09/2026): EVO y Barrett piden explícitamente
+   * qué instrumento dio esa medida, porque cada uno aplica una corrección
+   * propia según el aparato. Sin este dato, las dos webs se quedan en su
+   * propio valor por defecto («IOLMaster 700»/«IOLMaster 700 TK»), aunque
+   * el aparato real fuera otro — ver `dispositivoCaraPosteriorPara()` en
+   * `preparar-entradas.ts`. Kane no tiene ningún campo de córnea posterior
+   * (D51): este dato nunca le llega.
+   */
+  readonly dispositivoCaraPosterior?: string
   /** El sexo, solo para la calculadora que lo pide. */
   readonly sexo?: Sexo
   /** El nombre del cirujano, si el caso lo tiene. Ver D41. */

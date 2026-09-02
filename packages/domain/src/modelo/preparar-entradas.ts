@@ -20,7 +20,7 @@ import { fichaDe } from './calculadoras.js'
 import type { Caso } from './caso.js'
 import { autorizadoACalcular, ojoDe } from './caso.js'
 import type { Lateralidad } from './lateralidad.js'
-import { obtener } from './medida.js'
+import { APARATO_PRINCIPAL, obtener } from './medida.js'
 
 export type ResultadoPreparacion =
   | { readonly ok: true; readonly entradas: EntradasCalculadora }
@@ -42,24 +42,96 @@ export type ResultadoPreparacion =
  * Equivale al `canRun(case)` del contrato de adaptadores, pero vive en el
  * dominio para que ningún adaptador pueda saltárselo.
  */
-export function sePuedeCalcular(caso: Caso, calculadora: Calculadora, ojo: Lateralidad): boolean {
-  return prepararEntradas(caso, calculadora, ojo).ok
+export function sePuedeCalcular(
+  caso: Caso,
+  calculadora: Calculadora,
+  ojo: Lateralidad,
+  aparato: string = APARATO_PRINCIPAL,
+): boolean {
+  return prepararEntradas(caso, calculadora, ojo, aparato).ok
+}
+
+/**
+ * Cómo se llama la lente elegida en el desplegable de ESTA calculadora
+ * (petición expresa del dueño, 27/08/2026): un mismo modelo físico puede
+ * tener nombres distintos en cada web —«B&L LuxSmart» en EVO, «B+L
+ * LuxSmart Toric» en Kane— y elegir el equivocado no da un error: elige en
+ * silencio OTRA lente con su propia constante. Sin nombre específico para
+ * esta calculadora, se usa el general, igual que siempre.
+ */
+function nombreDeLentePara(caso: Caso, calculadora: Calculadora): string | undefined {
+  if (calculadora === 'EVO_TORIC' || calculadora === 'EVO_TORIC_SIN_CARA_POSTERIOR') {
+    return caso.lente?.nombreEnEvo ?? caso.lente?.modelo
+  }
+  if (calculadora === 'KANE') return caso.lente?.nombreEnKane ?? caso.lente?.modelo
+  return caso.lente?.modelo
+}
+
+/**
+ * Cómo se llama el mismo aparato en el desplegable «Biometer»/«Device» de
+ * EVO y de Barrett cuando ese aparato midió también la córnea posterior
+ * (petición expresa del dueño, 01/09/2026, con capturas de pantalla de
+ * los dos desplegables): las dos webs piden explícitamente qué
+ * instrumento dio esa medida —cada una aplica una corrección propia según
+ * el aparato— y por defecto se quedan en el primero de su lista
+ * («IOLMaster 700»/«IOLMaster 700 TK»), aunque el aparato real fuera
+ * otro. Mismo patrón que `nombreDeLentePara` para las lentes (D50): cada
+ * web tiene su propio texto exacto, comprobado en vivo el 01/09/2026
+ * contra las dos.
+ *
+ * Solo se listan los aparatos que este programa ya reconoce
+ * (`NOMBRE_DISPOSITIVO`, en `documento.ts`), más «Sirius» —visto en uso
+ * real, y que sí está en la lista de EVO—. Un aparato sin mapeo (incluido
+ * «Otro», texto libre) no se manda: la web se queda en su propio valor
+ * por defecto, igual que hasta ahora — no se adivina a cuál se refería.
+ */
+const DISPOSITIVO_EN_EVO: Partial<Record<string, string>> = {
+  'Heidelberg ANTERION': 'Anterion',
+  'ZEISS IOLMaster 700': 'IOLMaster 700',
+  'OCULUS Pentacam': 'Pentacam',
+  Sirius: 'Sirius',
+}
+
+/**
+ * Barrett, a diferencia de EVO, no tiene «Anterion» en su lista —
+ * comprobado en vivo el 01/09/2026: no hay equivalente, así que un caso
+ * con ANTERION no manda nada aquí y Barrett se queda en su propio
+ * defecto.
+ */
+const DISPOSITIVO_EN_BARRETT: Partial<Record<string, string>> = {
+  'ZEISS IOLMaster 700': 'IOLMaster 700 TK',
+  'OCULUS Pentacam': 'Pentacam',
+}
+
+function dispositivoCaraPosteriorPara(calculadora: Calculadora, aparato: string): string | undefined {
+  if (calculadora === 'EVO_TORIC') return DISPOSITIVO_EN_EVO[aparato]
+  if (calculadora === 'BARRETT_TORIC_CON_CARA_POSTERIOR') return DISPOSITIVO_EN_BARRETT[aparato]
+  return undefined
 }
 
 export function camposQueFaltan(
   caso: Caso,
   calculadora: Calculadora,
   ojo: Lateralidad,
+  aparato: string = APARATO_PRINCIPAL,
 ): readonly CampoBiometrico[] {
   const ficha = fichaDe(calculadora)
-  const datos = ojoDe(caso, ojo)
+  const datos = ojoDe(caso, ojo, aparato)
   return ficha.requeridos.filter((c) => obtener(datos, c) === undefined)
 }
 
+/**
+ * @param aparato De qué biómetro coger los datos (D47, 27/08/2026). Sin
+ *   especificarlo, `APARATO_PRINCIPAL` — el único que existe en un caso que no
+ *   usa varios. La comprobación de «cada campo revisado» (paso 3, más abajo)
+ *   mira solo ESTE dataset, así que un aparato ya confirmado puede calcular
+ *   aunque otro del mismo ojo siga a medias — es la independencia de D47.
+ */
 export function prepararEntradas(
   caso: Caso,
   calculadora: Calculadora,
   ojo: Lateralidad,
+  aparato: string = APARATO_PRINCIPAL,
 ): ResultadoPreparacion {
   // 1 — Nada sale de un caso que no haya confirmado una persona.
   if (!autorizadoACalcular(caso)) {
@@ -67,7 +139,7 @@ export function prepararEntradas(
   }
 
   const ficha = fichaDe(calculadora)
-  const datos = ojoDe(caso, ojo)
+  const datos = ojoDe(caso, ojo, aparato)
 
   // 2 — El sexo, si esta calculadora lo pide. Y tiene que estar REVISADO: un
   // sexo deducido del nombre que nadie ha mirado no sale hacia ninguna web.
@@ -112,7 +184,7 @@ export function prepararEntradas(
       ojo,
       codigoCaso: caso.codigo,
       valores,
-      modeloLente: caso.lente?.modelo,
+      modeloLente: nombreDeLentePara(caso, calculadora),
       fabricanteLente: caso.lente?.fabricante,
       // Solo viaja si esa calculadora lo pide. No se manda un dato de la persona
       // a una web que no lo necesita.
@@ -122,6 +194,12 @@ export function prepararEntradas(
       // avisos explícitos sobre lo que implica.
       nombreCirujano: caso.nombreCirujano,
       nombrePaciente: caso.nombrePaciente,
+      // El aparato de córnea posterior, si se ha elegido uno distinto del
+      // general (02/09/2026, corrige D58) — si no, el general de siempre.
+      dispositivoCaraPosterior: dispositivoCaraPosteriorPara(
+        calculadora,
+        datos.aparatoCaraPosterior ?? datos.aparato,
+      ),
     },
   }
 }

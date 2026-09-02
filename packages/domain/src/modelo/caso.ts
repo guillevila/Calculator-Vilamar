@@ -17,7 +17,7 @@ import type { Lateralidad } from './lateralidad.js'
 import type { LenteDetectada } from './lente.js'
 import type { SexoDelCaso } from './sexo.js'
 import type { OjoBiometrico } from './medida.js'
-import { ojoVacio, tiene, todasConfirmadas } from './medida.js'
+import { APARATO_PRINCIPAL, ojoVacio, todasConfirmadas } from './medida.js'
 
 export type EstadoCaso =
   /** Recién creado, sin nada dentro. */
@@ -56,12 +56,48 @@ export interface Caso {
   readonly creadoEn: string
   readonly actualizadoEn: string
   readonly documentos: readonly DocumentoCargado[]
-  /** Un ojo, el otro, o los dos. Un caso puede tener solo uno. */
-  readonly ojos: Readonly<Partial<Record<Lateralidad, OjoBiometrico>>>
-  /** Resultados por calculadora y ojo. La clave es `${calculadora}:${ojo}`. */
+  /**
+   * Los conjuntos de medidas de cada ojo — uno por aparato/biómetro (D47,
+   * 27/08/2026).
+   *
+   * Antes de D47 cada ojo tenía como mucho un `OjoBiometrico`. Ahora puede
+   * tener varios, en paralelo, cada uno con su propio `aparato`
+   * (`OjoBiometrico.aparato`) — el mismo OD leído por el IOLMaster y por el
+   * ANTERION son dos entradas distintas de esta misma lista, ninguna pisa a
+   * la otra. Un caso que solo usa un aparato tiene siempre exactamente una
+   * entrada por ojo, con `aparato: APARATO_PRINCIPAL` — así no cambia nada
+   * para quien no necesita varios. Se accede con `ojoDe`/`datasetsDe`, nunca
+   * indexando este campo directamente.
+   */
+  readonly ojos: Readonly<Partial<Record<Lateralidad, readonly OjoBiometrico[]>>>
+  /**
+   * Resultados por calculadora, ojo y aparato. La clave es
+   * `${calculadora}:${ojo}:${aparato}` (`claveResultado`).
+   */
   readonly resultados: Readonly<Record<string, ResultadoCalculadora>>
-  /** Modelo de lente elegido para este caso. */
+  /**
+   * Qué ojos tienen ya reconocida una discrepancia entre sus aparatos (D47,
+   * 27/08/2026) — petición expresa del dueño del proyecto: si dos biómetros
+   * del mismo ojo dan datos muy distintos, no se calcula sin que una persona
+   * lo haya comprobado explícitamente. Se BORRA (no se enseña aquí, lo hace
+   * `apps/desktop`) en cuanto se edita cualquier dato de ese ojo, para que un
+   * reconocimiento viejo no tape una discrepancia nueva.
+   */
+  readonly discrepanciasReconocidas?: Readonly<Partial<Record<Lateralidad, boolean>>>
+  /** Modelo de lente elegido para este caso — la que se calcula ahora mismo. */
   readonly lente?: LenteElegida
+  /**
+   * Una segunda lente candidata, para comparar con la misma biometría sin
+   * volver a escribir ningún dato (D55, 01/09/2026).
+   *
+   * **No participa en ningún cálculo mientras esté aquí.** Solo es una
+   * elección aparcada — `intercambiarLentes()` es lo único que la activa,
+   * y al hacerlo pasa a ser `lente` (con su propia constante A, con las
+   * mismas cuatro reglas de `elegirLente`) y la que era `lente` pasa aquí.
+   * Nunca hay dos lentes activas a la vez: `lente` es siempre la única que
+   * de verdad viaja a las tres calculadoras.
+   */
+  readonly lenteSecundaria?: LenteElegida
   /**
    * Las lentes que el informe nombra, con la constante que les asocia.
    *
@@ -114,8 +150,16 @@ export interface Caso {
 export interface LenteElegida {
   readonly fabricante?: string
   readonly modelo?: string
-  /** Cómo se llama ese modelo en cada web, cuando difiere. */
+  /**
+   * Cómo se llama ese modelo en el desplegable propio de cada web, cuando
+   * difiere del nombre general (petición expresa del dueño, 27/08/2026):
+   * el mismo B&L LuxSmart, por ejemplo, es «B&L LuxSmart» en EVO y «B+L
+   * LuxSmart Toric» en Kane. Sin especificarlo, cada adaptador busca
+   * `modelo` tal cual — sigue funcionando para las lentes que ya se llaman
+   * igual en las tres.
+   */
   readonly nombreEnEvo?: string
+  readonly nombreEnKane?: string
   readonly nombreEnBarrett?: string
   /**
    * Si la `CONSTANTE_A` del caso salió de la tabla de lentes del informe, de qué
@@ -131,8 +175,12 @@ export interface LenteElegida {
   readonly constanteDeLaTabla?: { readonly modelo: string; readonly valor: number }
 }
 
-export function claveResultado(calculadora: Calculadora, ojo: Lateralidad): string {
-  return `${calculadora}:${ojo}`
+export function claveResultado(
+  calculadora: Calculadora,
+  ojo: Lateralidad,
+  aparato: string = APARATO_PRINCIPAL,
+): string {
+  return `${calculadora}:${ojo}:${aparato}`
 }
 
 export function casoNuevo(id: string, codigo: string, cuando: string): Caso {
@@ -148,52 +196,126 @@ export function casoNuevo(id: string, codigo: string, cuando: string): Caso {
   }
 }
 
-export function ojosDelCaso(caso: Caso): readonly Lateralidad[] {
-  return (['OD', 'OS'] as const).filter((l) => caso.ojos[l] !== undefined)
+/** Todos los conjuntos de medidas de un ojo — uno por aparato. Vacío si el ojo no tiene ninguno. */
+export function datasetsDe(caso: Caso, lado: Lateralidad): readonly OjoBiometrico[] {
+  return caso.ojos[lado] ?? []
 }
 
-export function ojoDe(caso: Caso, lado: Lateralidad): OjoBiometrico {
-  return caso.ojos[lado] ?? ojoVacio(lado)
+/** Solo los nombres de los aparatos presentes en ese ojo, para pintar un selector. */
+export function aparatosDe(caso: Caso, lado: Lateralidad): readonly string[] {
+  return datasetsDe(caso, lado).map((o) => o.aparato)
+}
+
+export function ojosDelCaso(caso: Caso): readonly Lateralidad[] {
+  return (['OD', 'OS'] as const).filter((l) => datasetsDe(caso, l).length > 0)
 }
 
 /**
- * Las calculadoras a mostrar para un ojo, en orden — añadiendo, junto a cada
- * una que tenga variante de córnea posterior (D45), esa variante, pero solo
- * si el ojo de verdad tiene PK1 o PK2.
+ * El conjunto de medidas de un ojo y un aparato concretos.
  *
- * Es la misma condición con la que se planifica el cálculo
- * (`conVariantesDeCaraPosterior`, en `apps/desktop`) y con la que se generan
- * las hojas del informe (`recopilarResultadosParaInforme`): las tres tienen
- * que decidir lo mismo, o una pantalla enseñaría columnas que otra no calculó.
- *
- * El orden dentro de cada pareja es siempre el mismo — la que NO tiene córnea
- * posterior primero, la que SÍ la tiene después — sea cuál sea la base y cuál
- * la variante (EVO se la quita; Barrett se la añade).
+ * Sin especificar `aparato`, coge `APARATO_PRINCIPAL` — el que usan todos los
+ * casos que no necesitan varios biómetros (D47). Si ese aparato todavía no
+ * existe para este ojo, devuelve un ojo vacío con esa etiqueta, nunca lanza:
+ * es el mismo patrón perezoso de siempre, ahora también en esta dimensión.
  */
-export function columnasComparativa(caso: Caso, ojo: Lateralidad): readonly Calculadora[] {
-  const datos = ojoDe(caso, ojo)
-  const hayCaraPosterior = tiene(datos, 'PK1') || tiene(datos, 'PK2')
-  return CALCULADORAS.flatMap((c) => {
-    const variante = VARIANTE_CARA_POSTERIOR[c]
-    if (!variante || !hayCaraPosterior) return [c]
-    return variante.sentido === 'SIN' ? [variante.calculadora, c] : [c, variante.calculadora]
-  })
+export function ojoDe(
+  caso: Caso,
+  lado: Lateralidad,
+  aparato: string = APARATO_PRINCIPAL,
+): OjoBiometrico {
+  return datasetsDe(caso, lado).find((o) => o.aparato === aparato) ?? ojoVacio(lado, aparato)
 }
 
+/**
+ * Las calculadoras a mostrar en la comparativa, en orden.
+ *
+ * Desde el 28/08/2026, cada variante de córnea posterior (D45: EVO
+ * «Predicted»/«Measured PCA», Barrett «Predicted»/«Measured PCA») es una
+ * casilla que se pide por su cuenta, con su propio botón en la pantalla de
+ * cálculo — ya no se añade sola detrás de su base cuando el dataset tiene
+ * PK1 o PK2. Por eso esta lista ya no depende de ningún caso ni ojo
+ * concreto: son las mismas cinco columnas siempre, y la que no se haya
+ * pedido para un ojo sale como «no calculada» en su casilla, no desaparece
+ * de la tabla — así se ve que existía la opción, no solo lo que se usó.
+ *
+ * El orden dentro de cada pareja es siempre el mismo — Predicted primero,
+ * Measured PCA después — sea cuál sea la base y cuál la variante (EVO se la
+ * quita; Barrett se la añade).
+ */
+export const COLUMNAS_COMPARATIVA: readonly Calculadora[] = CALCULADORAS.flatMap((c) => {
+  const variante = VARIANTE_CARA_POSTERIOR[c]
+  if (!variante) return [c]
+  return variante.sentido === 'SIN' ? [variante.calculadora, c] : [c, variante.calculadora]
+})
+
+/**
+ * Añade o sustituye un conjunto de medidas. La clave es `(lateralidad, aparato)`:
+ * dos llamadas con el mismo ojo y el mismo aparato sustituyen esa entrada; con
+ * aparatos distintos, se guardan las dos, una junto a la otra (D47).
+ */
 export function conOjo(caso: Caso, ojo: OjoBiometrico, cuando: string): Caso {
+  const previos = datasetsDe(caso, ojo.lateralidad)
+  const yaEstaba = previos.some((o) => o.aparato === ojo.aparato)
+  const actualizados = yaEstaba
+    ? previos.map((o) => (o.aparato === ojo.aparato ? ojo : o))
+    : [...previos, ojo]
   return {
     ...caso,
-    ojos: { ...caso.ojos, [ojo.lateralidad]: ojo },
+    ojos: { ...caso.ojos, [ojo.lateralidad]: actualizados },
     actualizadoEn: cuando,
   }
 }
 
-export function conResultado(caso: Caso, resultado: ResultadoCalculadora, cuando: string): Caso {
+/**
+ * Cambia el nombre de un aparato ya existente, sin tocar sus medidas
+ * (petición expresa del dueño, 27/08/2026): el primer aparato de un ojo
+ * arranca siempre como `APARATO_PRINCIPAL` (D47) y, hasta ahora, la única
+ * forma de decir de qué biómetro era de verdad era añadir uno SEGUNDO — con
+ * esto se puede elegir o escribir el nombre del primero sin necesitar un
+ * segundo aparato.
+ *
+ * No hace nada si `aparatoViejo` no existe en ese ojo (nada que renombrar)
+ * ni si ya coincide con `aparatoNuevo`. **Lanza** si `aparatoNuevo` ya
+ * pertenece a OTRO aparato de ese mismo ojo — fusionar dos conjuntos de
+ * medidas distintos bajo el mismo nombre perdería uno de los dos en
+ * silencio, y eso es justo lo que este programa no hace.
+ */
+export function conAparatoRenombrado(
+  caso: Caso,
+  lado: Lateralidad,
+  aparatoViejo: string,
+  aparatoNuevo: string,
+  cuando: string,
+): Caso {
+  if (aparatoViejo === aparatoNuevo) return caso
+  const datasets = datasetsDe(caso, lado)
+  if (!datasets.some((o) => o.aparato === aparatoViejo)) return caso
+  if (datasets.some((o) => o.aparato === aparatoNuevo)) {
+    throw new Error(
+      `Ya hay un aparato llamado «${aparatoNuevo}» en ${lado}. Elige otro nombre, o edita ese aparato directamente.`,
+    )
+  }
+  const actualizados = datasets.map((o) =>
+    o.aparato === aparatoViejo ? { ...o, aparato: aparatoNuevo } : o,
+  )
+  return {
+    ...caso,
+    ojos: { ...caso.ojos, [lado]: actualizados },
+    actualizadoEn: cuando,
+  }
+}
+
+export function conResultado(
+  caso: Caso,
+  resultado: ResultadoCalculadora,
+  cuando: string,
+  aparato: string = APARATO_PRINCIPAL,
+): Caso {
   return {
     ...caso,
     resultados: {
       ...caso.resultados,
-      [claveResultado(resultado.calculadora, resultado.ojo)]: resultado,
+      [claveResultado(resultado.calculadora, resultado.ojo, aparato)]: resultado,
     },
     actualizadoEn: cuando,
   }
@@ -203,30 +325,47 @@ export function resultadoDe(
   caso: Caso,
   calculadora: Calculadora,
   ojo: Lateralidad,
+  aparato: string = APARATO_PRINCIPAL,
 ): ResultadoCalculadora | undefined {
-  return caso.resultados[claveResultado(calculadora, ojo)]
+  return caso.resultados[claveResultado(calculadora, ojo, aparato)]
 }
 
 /**
- * ¿Se puede pasar a CONFIRMADO?
+ * ¿Se puede confirmar este dataset concreto (un ojo, un aparato)?
  *
- * Hace falta al menos un ojo y que TODOS los datos presentes de los ojos que se
- * van a calcular estén revisados. Un dato sin revisar no sale de aquí.
+ * Desde D47 (27/08/2026), la confirmación es independiente por aparato —
+ * petición expresa del dueño del proyecto: se puede confirmar y calcular un
+ * biómetro mientras otro, del mismo ojo, sigue a medias. Ya no existe un
+ * único «¿se puede confirmar EL CASO?» que exija todos los ojos y aparatos a
+ * la vez.
+ */
+export function sePuedeConfirmarDataset(caso: Caso, lado: Lateralidad, aparato: string): boolean {
+  return todasConfirmadas(ojoDe(caso, lado, aparato))
+}
+
+/**
+ * ¿Hay al menos un dataset, de algún ojo, ya confirmado?
+ *
+ * Es la condición mínima para que el caso deje de estar «en revisión» y
+ * pueda entrar en la pantalla de cálculo — no exige que TODO esté
+ * confirmado, porque desde D47 nunca hace falta: cada dataset se calcula
+ * cuando el suyo lo esté, sin esperar a los demás.
  */
 export function sePuedeConfirmar(caso: Caso): boolean {
-  const ojos = ojosDelCaso(caso)
-  if (ojos.length === 0) return false
-  return ojos.every((l) => todasConfirmadas(ojoDe(caso, l)))
+  return ojosDelCaso(caso).some((lado) =>
+    datasetsDe(caso, lado).some((o) => sePuedeConfirmarDataset(caso, lado, o.aparato)),
+  )
 }
 
 /**
- * Confirma el caso. Es la puerta por la que pasan los datos hacia las webs, y
- * solo se abre con una acción explícita de una persona.
+ * Marca el caso como CONFIRMADO — la puerta que le deja entrar en la
+ * pantalla de cálculo. No es lo mismo que «todo listo para calcular»: eso lo
+ * decide, dataset a dataset, `sePuedeConfirmarDataset`.
  */
 export function confirmar(caso: Caso, cuando: string): Caso {
   if (!sePuedeConfirmar(caso)) {
     throw new Error(
-      'No se puede confirmar un caso con datos sin revisar. ' +
+      'No se puede confirmar un caso sin ningún conjunto de medidas ya revisado. ' +
         'Todo lo que se envía a una calculadora tiene que haberlo mirado una persona.',
     )
   }
@@ -234,16 +373,18 @@ export function confirmar(caso: Caso, cuando: string): Caso {
 }
 
 /**
- * ¿Ha pulsado el usuario «Confirmar» en este caso?
+ * ¿Ha pulsado el usuario «Confirmar» en este caso alguna vez?
  *
  * Es la PRIMERA de las dos barreras que hay antes de una web externa, y solo
- * mira el estado: si hubo un acto explícito de confirmación.
+ * mira el estado del CASO: si hubo al menos un acto explícito de
+ * confirmación, para poder entrar en la pantalla de cálculo.
  *
- * La segunda barrera —que CADA campo que se va a enviar esté revisado— vive en
- * `prepararEntradas`, y es la que importa cuando alguien añade un dato nuevo
- * después de confirmar. Se dejan separadas a propósito: si esta función
- * volviera a comprobar campo por campo, la de abajo sería inalcanzable y no se
- * podría probar que funciona.
+ * La segunda barrera —que CADA campo que se va a enviar esté revisado, para
+ * ESE dataset en concreto— vive en `sePuedeConfirmarDataset` y, más abajo en
+ * la cadena, en `prepararEntradas`. Se dejan separadas a propósito: esta
+ * función no puede sustituir a la fina, porque un caso con un dataset
+ * confirmado y otro a medias tiene que dejar calcular el primero y bloquear
+ * el segundo, no todo o nada.
  */
 export function autorizadoACalcular(caso: Caso): boolean {
   return (

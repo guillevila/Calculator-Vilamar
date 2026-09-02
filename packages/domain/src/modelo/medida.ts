@@ -79,13 +79,48 @@ export interface Medida {
  */
 export type MapaMedidas = Partial<Readonly<Record<CampoBiometrico, Medida>>>
 
+/**
+ * El aparato de un `OjoBiometrico` cuando el caso solo usa uno.
+ *
+ * Casi todos los casos son así: un ojo, un conjunto de medidas. Que ese
+ * conjunto único lleve siempre esta misma etiqueta —en vez de, por ejemplo,
+ * el nombre del primer aparato que se use— es lo que permite que un caso de
+ * un solo aparato no vea ningún selector nuevo ni tenga que escribir nada
+ * distinto de lo que ya escribía antes de que existieran varios biómetros
+ * por ojo (D47).
+ */
+export const APARATO_PRINCIPAL = 'Principal'
+
 export interface OjoBiometrico {
   readonly lateralidad: Lateralidad
+  /**
+   * De qué biómetro es este conjunto de medidas.
+   *
+   * Es lo que distingue, para el MISMO ojo, un conjunto de datos de otro
+   * (D47): el IOLMaster y el ANTERION del mismo OD son dos `OjoBiometrico`
+   * distintos, cada uno con su propio `aparato`. Texto libre a propósito —el
+   * dominio no necesita conocer la lista cerrada de aparatos que ofrece el
+   * desplegable de la interfaz, solo guardar lo que llegue.
+   */
+  readonly aparato: string
+  /**
+   * Con qué aparato se midió la córnea posterior (PK1/PK2) de ESTE dataset,
+   * si es distinto del aparato general (`aparato`) de arriba.
+   *
+   * Petición expresa del dueño del proyecto (02/09/2026), corrigiendo D58:
+   * a veces los datos generales —AL, K1/K2, ACD…— vienen de un aparato y la
+   * córnea posterior se ha medido con OTRO, aparte —EVO y Barrett enseñan un
+   * desplegable propio para esto, independiente del que usan para el resto
+   * del formulario—. Sin valor, `dispositivoCaraPosteriorPara()` (en
+   * `preparar-entradas.ts`) usa `aparato` como hasta ahora: la mayoría de
+   * los casos no necesitan este campo.
+   */
+  readonly aparatoCaraPosterior?: string
   readonly medidas: MapaMedidas
 }
 
-export function ojoVacio(lateralidad: Lateralidad): OjoBiometrico {
-  return { lateralidad, medidas: {} }
+export function ojoVacio(lateralidad: Lateralidad, aparato: string = APARATO_PRINCIPAL): OjoBiometrico {
+  return { lateralidad, aparato, medidas: {} }
 }
 
 export function crearMedida(
@@ -183,6 +218,21 @@ export function conMedida(ojo: OjoBiometrico, medida: Medida): OjoBiometrico {
     )
   }
   return { ...ojo, medidas: { ...ojo.medidas, [medida.campo]: medida } }
+}
+
+/**
+ * Fija (o quita, con `undefined`) el aparato de córnea posterior de este
+ * dataset, cuando es distinto del aparato general (02/09/2026, corrige D58).
+ */
+export function conAparatoCaraPosterior(
+  ojo: OjoBiometrico,
+  aparatoCaraPosterior: string | undefined,
+): OjoBiometrico {
+  if (aparatoCaraPosterior === undefined) {
+    const { aparatoCaraPosterior: _quitado, ...resto } = ojo
+    return resto
+  }
+  return { ...ojo, aparatoCaraPosterior }
 }
 
 /**

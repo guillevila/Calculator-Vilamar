@@ -19,11 +19,10 @@
 
 import type { CampoBiometrico } from './campos.js'
 import type { Caso, LenteElegida } from './caso.js'
-import { ojosDelCaso, ojoDe } from './caso.js'
+import { conOjo, ojosDelCaso, ojoDe } from './caso.js'
 import type { Lateralidad } from './lateralidad.js'
 import type { Emparejamiento, LenteDetectada } from './lente.js'
 import { describirLente, emparejarLente } from './lente.js'
-import type { OjoBiometrico } from './medida.js'
 import { conMedida, crearMedida, obtener, sinMedida } from './medida.js'
 import type { Procedencia } from './procedencia.js'
 import { esManual } from './procedencia.js'
@@ -32,6 +31,13 @@ import { esManual } from './procedencia.js'
 export interface EleccionLente {
   readonly fabricante?: string
   readonly modelo: string
+  /**
+   * Cómo se llama esta misma lente en el desplegable de EVO/Kane, cuando
+   * difiere del nombre general (petición expresa del dueño, 27/08/2026).
+   * Ver `LenteElegida` en `caso.ts`.
+   */
+  readonly nombreEnEvo?: string
+  readonly nombreEnKane?: string
 }
 
 export interface ResultadoSeleccion {
@@ -69,6 +75,8 @@ export function elegirLente(
   const base: LenteElegida = {
     fabricante: eleccion.fabricante === '' ? undefined : eleccion.fabricante,
     modelo: eleccion.modelo,
+    ...(eleccion.nombreEnEvo ? { nombreEnEvo: eleccion.nombreEnEvo } : {}),
+    ...(eleccion.nombreEnKane ? { nombreEnKane: eleccion.nombreEnKane } : {}),
   }
 
   if (emparejamiento.estado === 'AMBIGUA') {
@@ -116,7 +124,7 @@ export function elegirLente(
       continue
     }
 
-    resultado = conOjoDelCaso(
+    resultado = conOjo(
       resultado,
       conMedida(
         ojo,
@@ -184,7 +192,7 @@ function quitarSiEraDeLaTabla(
       if (actual === undefined || esManual(actual.procedencia) || actual.valor !== anterior.valor) {
         continue
       }
-      resultado = conOjoDelCaso(resultado, sinMedida(ojo, 'CONSTANTE_A'), cuando)
+      resultado = conOjo(resultado, sinMedida(ojo, 'CONSTANTE_A'), cuando)
       quitada = true
     }
     if (quitada) {
@@ -212,11 +220,6 @@ function procedenciaDeLaTabla(lente: LenteDetectada, cuando: string): Procedenci
   return { ...lente.procedencia, registradoEn: cuando }
 }
 
-/** `conOjo` de `caso.ts`, repetido aquí para no crear un ciclo de importaciones. */
-function conOjoDelCaso(caso: Caso, ojo: OjoBiometrico, cuando: string): Caso {
-  return { ...caso, ojos: { ...caso.ojos, [ojo.lateralidad]: ojo }, actualizadoEn: cuando }
-}
-
 /**
  * Qué campos de un ojo dependen de la lente elegida.
  *
@@ -225,3 +228,79 @@ function conOjoDelCaso(caso: Caso, ojo: OjoBiometrico, cuando: string): Caso {
  * deduce de aquí.
  */
 export const CAMPOS_DE_LA_LENTE: readonly CampoBiometrico[] = ['CONSTANTE_A']
+
+/**
+ * Aparca una segunda lente candidata, sin tocar el cálculo — petición
+ * expresa del dueño del proyecto (01/09/2026): poder comparar dos lentes
+ * con la misma biometría sin escribir los datos dos veces.
+ *
+ * A propósito NO aplica ninguna de las cuatro reglas de `elegirLente`
+ * (constante A, avisos, emparejamiento): mientras está aquí aparcada, esta
+ * lente no participa en ningún cálculo, así que no hay nada suyo que
+ * resolver todavía. Eso ocurre solo al activarla con `intercambiarLentes`.
+ */
+export function elegirLenteSecundaria(
+  caso: Caso,
+  eleccion: EleccionLente | undefined,
+  cuando: string,
+): Caso {
+  if (eleccion === undefined) {
+    const { lenteSecundaria: _borrada, ...resto } = caso
+    return { ...resto, actualizadoEn: cuando }
+  }
+  const lenteSecundaria: LenteElegida = {
+    fabricante: eleccion.fabricante === '' ? undefined : eleccion.fabricante,
+    modelo: eleccion.modelo,
+    ...(eleccion.nombreEnEvo ? { nombreEnEvo: eleccion.nombreEnEvo } : {}),
+    ...(eleccion.nombreEnKane ? { nombreEnKane: eleccion.nombreEnKane } : {}),
+  }
+  return { ...caso, lenteSecundaria, actualizadoEn: cuando }
+}
+
+/**
+ * Activa la lente aparcada: pasa a ser `lente` —con su propia constante A,
+ * resuelta con las mismas cuatro reglas de `elegirLente`— y la que era
+ * `lente` pasa a `lenteSecundaria`, lista para volver a intercambiarse.
+ *
+ * **Los resultados ya calculados se borran.** Son del cálculo anterior, con
+ * la lente anterior —y con Barrett, con SU constante A—; conservarlos
+ * enseñaría un informe que dice hablar de una lente pero calculó con otra.
+ * Nunca se adivina cuál seguiría siendo válida: se avisa con un caso vacío
+ * y se recalcula. El caso vuelve a `CONFIRMADO`: los datos de biometría
+ * siguen revisados, pero hace falta un cálculo nuevo antes de tener nada
+ * que enseñar.
+ *
+ * Sin lente aparcada no hay nada que intercambiar: se devuelve el caso tal
+ * cual, sin avisos.
+ */
+export function intercambiarLentes(caso: Caso, cuando: string): ResultadoSeleccion {
+  // El segundo caso (sin `modelo`) no debería darse nunca en la práctica:
+  // `elegirLenteSecundaria` siempre lo exige. Se comprueba igual porque
+  // `LenteElegida.modelo` es opcional en el tipo, y esta función no puede
+  // fabricar un modelo que no está.
+  const modelo = caso.lenteSecundaria?.modelo
+  if (caso.lenteSecundaria === undefined || modelo === undefined) {
+    return { caso, avisos: [], emparejamiento: { estado: 'NO_ESTA' } }
+  }
+  const lenteSecundaria = caso.lenteSecundaria
+  const resultado = elegirLente(
+    caso,
+    {
+      fabricante: lenteSecundaria.fabricante,
+      modelo,
+      ...(lenteSecundaria.nombreEnEvo ? { nombreEnEvo: lenteSecundaria.nombreEnEvo } : {}),
+      ...(lenteSecundaria.nombreEnKane ? { nombreEnKane: lenteSecundaria.nombreEnKane } : {}),
+    },
+    cuando,
+  )
+  return {
+    ...resultado,
+    caso: {
+      ...resultado.caso,
+      lenteSecundaria: caso.lente,
+      resultados: {},
+      estado: caso.estado === 'COMPLETADO' ? 'CONFIRMADO' : caso.estado,
+      actualizadoEn: cuando,
+    },
+  }
+}

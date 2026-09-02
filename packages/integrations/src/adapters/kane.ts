@@ -432,7 +432,8 @@ export async function calculadoraDeKaneLista(pagina: Page): Promise<boolean> {
 /**
  * Lee una fila de la tabla tórica de Kane.
  *
- * Sus dos celdas, tal y como las escribe (capturado el 13/08/2026):
+ * Sus dos celdas, tal y como las escribe con el modelo genérico (capturado el
+ * 13/08/2026):
  *
  *     "Non-toric (0.00)"   "0.42 D Axis 80"
  *     "T2 (1.00)"          "0.24 D Axis 170"
@@ -443,8 +444,20 @@ export async function calculadoraDeKaneLista(pagina: Page): Promise<boolean> {
  * poner ninguna, y se conserva porque es justo la que dice cuánto astigmatismo se
  * deja sin corregir.
  *
- * Si una celda no encaja con esta forma se devuelve `null` y la fila se descarta.
- * No se adivina qué quería decir.
+ * Cuando en vez del modelo genérico se elige una lente concreta (comprobado el
+ * 28/08/2026 con «B+L LuxSmart Toric»), Kane cambia la cabecera de la columna a su
+ * propio nombre («B+L Cylinder Power») y dentro escribe **solo el número**, sin
+ * designación ni paréntesis:
+ *
+ *     "0.75"   "0.29 D Axis 75"
+ *     "1.00"   "0.12 D Axis 75"
+ *     "1.50"   "0.21 D Axis 165"
+ *
+ * También es una fila tórica válida: el número ES el cilindro, y como no trae
+ * ningún nombre que mostrar aparte se usa el propio texto de la celda.
+ *
+ * Si una celda no encaja con ninguna de las dos formas se devuelve `null` y la fila
+ * se descarta. No se adivina qué quería decir.
  */
 export function leerFilaToricaDeKane(celdas: readonly (string | undefined)[]): {
   readonly designacion: string
@@ -454,11 +467,25 @@ export function leerFilaToricaDeKane(celdas: readonly (string | undefined)[]): {
 } | null {
   const izquierda = (celdas[0] ?? '').trim()
   const derecha = (celdas[1] ?? '').trim()
+  if (!izquierda) return null
 
-  const m = /^(.+?)\s*\(\s*([-+]?[\d.,]+)\s*\)\s*$/.exec(izquierda)
-  if (!m?.[1] || m[2] === undefined) return null
-  const cilindro = leerNumeroDeTexto(m[2])
-  if (cilindro === undefined) return null
+  let designacion: string
+  let cilindro: number
+
+  const conDesignacion = /^(.+?)\s*\(\s*([-+]?[\d.,]+)\s*\)\s*$/.exec(izquierda)
+  if (conDesignacion?.[1] && conDesignacion[2] !== undefined) {
+    const c = leerNumeroDeTexto(conDesignacion[2])
+    if (c === undefined) return null
+    designacion = conDesignacion[1].trim()
+    cilindro = c
+  } else {
+    const esSoloUnNumero = /^[-+]?[\d.,]+$/.test(izquierda)
+    if (!esSoloUnNumero) return null
+    const c = leerNumeroDeTexto(izquierda)
+    if (c === undefined) return null
+    designacion = izquierda
+    cilindro = c
+  }
 
   // El residual es opcional a propósito: la designación y su cilindro son el dato
   // principal, y una fila sin residual legible sigue valiendo.
@@ -466,7 +493,7 @@ export function leerFilaToricaDeKane(celdas: readonly (string | undefined)[]): {
   const eje = leerNumeroDeTexto(/Axis\s*([\d.,]+)/i.exec(derecha)?.[1])
 
   return {
-    designacion: m[1].trim(),
+    designacion,
     cilindro,
     ...(residual !== undefined ? { cilindroResidual: residual } : {}),
     ...(eje !== undefined ? { ejeResidual: eje } : {}),
@@ -1138,6 +1165,33 @@ export class AdaptadorKane implements AdaptadorCalculadora {
       modo === 'TORICO'
         ? `Kane da ${toricasLeidas} opciones tóricas con el astigmatismo que quedaría con cada una, pero **no destaca ninguna**: la elección de la potencia tórica la deja a quien opera. Por eso las casillas de cilindro de su columna están vacías y no porque falte el dato.`
         : 'A Kane se le ha pedido el cálculo NO tórico, porque falta alguno de los datos que su modo tórico necesita (eje de K1, eje de K2, SIA y eje de la incisión). Da esfera y refracción prevista, no cilindro.'
+
+    // ⚠️ Investigado en vivo (27/08/2026, noche): esperar más tiempo —dos
+    // fotogramas de animación, 800 ms, 3000 ms fijos— no cambiaba nada, el
+    // PNG salía idéntico byte a byte. Pero en otra vuelta de pruebas, la
+    // MISMA espera corta (400 ms) a veces capturó la tabla bien y a veces
+    // en blanco: es flakiness real de Chromium (el back-buffer del
+    // `screenshot()` a veces no refleja el último cambio del DOM), no un
+    // problema estructural del HTML de Kane — inspeccionado el CSS de la
+    // tabla en una captura correcta y no hay nada oculto ni de tamaño cero.
+    // La mitigación habitual para esto es forzar un reflow síncrono y
+    // desplazar la tabla a la vista justo antes de la foto, para que el
+    // compositor tenga que recomponer esa región sí o sí.
+    await pagina.waitForTimeout(400)
+    const selectorTablaResultado = (torico: boolean): string =>
+      torico ? 'table.res_tab42' : 'table.res_tab3'
+    const tablaResultado = pagina
+      .locator(selectorTablaResultado(modo === 'TORICO'))
+      .nth(indiceDelOjo)
+    await tablaResultado.scrollIntoViewIfNeeded().catch(() => {
+      // Si no se puede desplazar, se sigue igual: la foto de abajo dirá si
+      // de verdad no hay nada que ver.
+    })
+    await pagina.evaluate(() => {
+      // Forzar un reflow síncrono leyendo un layout property. No hace nada
+      // por sí solo, pero obliga al navegador a recalcular antes de seguir.
+      void document.body.getBoundingClientRect()
+    })
 
     // La captura se toma aquí, con el eco del AL ya comprobado contra el ojo
     // que se pidió: es la evidencia sin interpretar de lo que ha devuelto Kane.

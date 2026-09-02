@@ -12,15 +12,20 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  APARATO_PRINCIPAL,
+  aparatosDe,
   autorizadoACalcular,
   camposDerivados,
   camposManuales,
   casoNuevo,
   confirmar,
   confirmarTodas,
+  conAparatoRenombrado,
   conMedida,
   conOjo,
   crearMedida,
+  datasetsDe,
+  detectarDiscrepancias,
   esLecturaAutomatica,
   formatearMedida,
   necesitaComprobacionHumana,
@@ -30,6 +35,7 @@ import {
   ojoVacio,
   prepararEntradas,
   sePuedeConfirmar,
+  sePuedeConfirmarDataset,
   sinMedida,
   TEXTO_AUSENTE,
   tiene,
@@ -434,7 +440,7 @@ describe('Invariante 10 — nada sin confirmar llega a una calculadora', () => {
   it('no se puede confirmar un caso con datos sin revisar', () => {
     const caso = casoCon([odCompleto()]) // sin confirmar las medidas
     expect(sePuedeConfirmar(caso)).toBe(false)
-    expect(() => confirmar(caso, CUANDO)).toThrow(/sin revisar/)
+    expect(() => confirmar(caso, CUANDO)).toThrow(/sin ningún conjunto de medidas/)
   })
 
   it('un campo añadido DESPUÉS de confirmar no viaja sin revisar', () => {
@@ -571,7 +577,7 @@ describe('Invariante 11 — un dato leído por una máquina no se da por bueno s
     ojo = conMedida(ojo, crearMedida('AL', 'OD', 24.81, DE_OCR)) // vuelve a entrar sin confirmar
     const caso = casoCon([ojo])
     expect(sePuedeConfirmar(caso)).toBe(false)
-    expect(() => confirmar(caso, CUANDO)).toThrow(/sin revisar/)
+    expect(() => confirmar(caso, CUANDO)).toThrow(/sin ningún conjunto de medidas/)
   })
 
   it('comprobado uno a uno, sí se puede confirmar', () => {
@@ -580,5 +586,93 @@ describe('Invariante 11 — un dato leído por una máquina no se da por bueno s
     ojo = confirmarTodas(ojo) // el equivalente a haber pulsado «Está bien» en cada uno
     const caso = confirmar(casoCon([ojo]), CUANDO)
     expect(prepararEntradas(caso, 'EVO_TORIC', 'OD').ok).toBe(true)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Invariante 12 — los aparatos del mismo ojo no se mezclan sin que la persona lo pida (D47)', () => {
+  it('dos conjuntos de medidas del mismo ojo, aparatos distintos, conviven sin pisarse', () => {
+    let caso = casoNuevo('caso-1', 'CV-2026-0001', CUANDO)
+    caso = conOjo(caso, odCompleto(), CUANDO) // aparato por defecto: APARATO_PRINCIPAL
+    const otro = conMedida(ojoVacio('OD', 'ANTERION'), crearMedida('AL', 'OD', 24.5, EXTRAIDO))
+    caso = conOjo(caso, otro, CUANDO)
+
+    expect(aparatosDe(caso, 'OD')).toEqual([APARATO_PRINCIPAL, 'ANTERION'])
+    expect(ojoDe(caso, 'OD', APARATO_PRINCIPAL).medidas.AL?.valor).toBe(24.07)
+    expect(ojoDe(caso, 'OD', 'ANTERION').medidas.AL?.valor).toBe(24.5)
+  })
+
+  it('guardar el mismo aparato dos veces sustituye, no acumula', () => {
+    let caso = casoNuevo('caso-1', 'CV-2026-0001', CUANDO)
+    caso = conOjo(caso, conMedida(ojoVacio('OD', 'ANTERION'), crearMedida('AL', 'OD', 24.0, EXTRAIDO)), CUANDO)
+    caso = conOjo(caso, conMedida(ojoVacio('OD', 'ANTERION'), crearMedida('AL', 'OD', 24.3, EXTRAIDO)), CUANDO)
+
+    expect(datasetsDe(caso, 'OD')).toHaveLength(1)
+    expect(ojoDe(caso, 'OD', 'ANTERION').medidas.AL?.valor).toBe(24.3)
+  })
+
+  it('confirmar un aparato NO confirma el otro del mismo ojo', () => {
+    let caso = casoNuevo('caso-1', 'CV-2026-0001', CUANDO)
+    caso = conOjo(caso, confirmarTodas(odCompleto()), CUANDO)
+    caso = conOjo(caso, conMedida(ojoVacio('OD', 'ANTERION'), crearMedida('AL', 'OD', 24.5, EXTRAIDO)), CUANDO)
+
+    expect(sePuedeConfirmarDataset(caso, 'OD', APARATO_PRINCIPAL)).toBe(true)
+    expect(sePuedeConfirmarDataset(caso, 'OD', 'ANTERION')).toBe(false)
+  })
+
+  it('se puede confirmar el caso con un aparato listo, aunque otro del mismo ojo siga a medias', () => {
+    let caso = casoNuevo('caso-1', 'CV-2026-0001', CUANDO)
+    caso = conOjo(caso, confirmarTodas(odCompleto()), CUANDO)
+    caso = conOjo(caso, conMedida(ojoVacio('OD', 'ANTERION'), crearMedida('AL', 'OD', 24.5, EXTRAIDO)), CUANDO)
+
+    expect(sePuedeConfirmar(caso)).toBe(true)
+    expect(() => confirmar(caso, CUANDO)).not.toThrow()
+  })
+
+  it('una discrepancia real entre dos aparatos confirmados del mismo ojo se detecta', () => {
+    const principal = confirmarTodas(odCompleto())
+    const anterion = confirmarTodas(
+      conMedida(ojoVacio('OD', 'ANTERION'), crearMedida('AL', 'OD', 25.5, EXTRAIDO)), // 1.43 mm de diferencia con AL=24.07
+    )
+    const discrepancias = detectarDiscrepancias([principal, anterion])
+    expect(discrepancias.length).toBeGreaterThan(0)
+    expect(discrepancias.some((d) => d.campo === 'AL')).toBe(true)
+  })
+
+  it('sin ninguna discrepancia real, no se inventa ninguna', () => {
+    const principal = confirmarTodas(odCompleto())
+    const anterion = confirmarTodas(
+      conMedida(ojoVacio('OD', 'ANTERION'), crearMedida('AL', 'OD', 24.09, EXTRAIDO)), // dentro del umbral
+    )
+    expect(detectarDiscrepancias([principal, anterion])).toHaveLength(0)
+  })
+
+  it('renombrar un aparato conserva sus medidas, sin crear uno nuevo', () => {
+    let caso = casoNuevo('caso-1', 'CV-2026-0001', CUANDO)
+    caso = conOjo(caso, odCompleto(), CUANDO) // APARATO_PRINCIPAL
+    caso = conAparatoRenombrado(caso, 'OD', APARATO_PRINCIPAL, 'ZEISS IOLMaster 700', CUANDO)
+
+    expect(aparatosDe(caso, 'OD')).toEqual(['ZEISS IOLMaster 700'])
+    expect(ojoDe(caso, 'OD', 'ZEISS IOLMaster 700').medidas.AL?.valor).toBe(24.07)
+    expect(ojoDe(caso, 'OD', APARATO_PRINCIPAL).medidas.AL).toBeUndefined()
+  })
+
+  it('renombrar a un nombre que ya usa OTRO aparato del mismo ojo lanza, no fusiona en silencio', () => {
+    let caso = casoNuevo('caso-1', 'CV-2026-0001', CUANDO)
+    caso = conOjo(caso, odCompleto(), CUANDO) // APARATO_PRINCIPAL
+    caso = conOjo(caso, conMedida(ojoVacio('OD', 'ANTERION'), crearMedida('AL', 'OD', 24.5, EXTRAIDO)), CUANDO)
+
+    expect(() => conAparatoRenombrado(caso, 'OD', APARATO_PRINCIPAL, 'ANTERION', CUANDO)).toThrow()
+    // Los dos siguen intactos: el intento fallido no ha tocado nada.
+    expect(ojoDe(caso, 'OD', APARATO_PRINCIPAL).medidas.AL?.valor).toBe(24.07)
+    expect(ojoDe(caso, 'OD', 'ANTERION').medidas.AL?.valor).toBe(24.5)
+  })
+
+  it('renombrar un aparato que no existe, o al mismo nombre que ya tiene, no hace nada', () => {
+    let caso = casoNuevo('caso-1', 'CV-2026-0001', CUANDO)
+    caso = conOjo(caso, odCompleto(), CUANDO)
+
+    expect(conAparatoRenombrado(caso, 'OD', 'ANTERION', 'Otro', CUANDO)).toBe(caso)
+    expect(conAparatoRenombrado(caso, 'OD', APARATO_PRINCIPAL, APARATO_PRINCIPAL, CUANDO)).toBe(caso)
   })
 })

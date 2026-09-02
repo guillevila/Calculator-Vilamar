@@ -41,6 +41,8 @@
 
 import type { Calculadora, Caso, Lateralidad, ResultadoCalculadora } from '@vilamar/domain'
 import {
+  APARATO_PRINCIPAL,
+  aparatosDe,
   explicarBloqueo,
   fichaDe,
   ojosDelCaso,
@@ -91,36 +93,52 @@ export function crearAdaptadores(): Readonly<Record<Calculadora, AdaptadorCalcul
 }
 
 /**
- * Una casilla del cálculo: qué web y para qué ojo.
+ * Una casilla del cálculo: qué web, para qué ojo y de qué aparato.
  *
  * Es la unidad de todo lo que hace este fichero — planificar, ejecutar y
  * reintentar—, y es la misma clave con la que el caso guarda los resultados
- * (`${calculadora}:${ojo}`). Que sea la misma no es casualidad: es lo que impide
- * que un resultado acabe en la casilla de otro.
+ * (`${calculadora}:${ojo}:${aparato}`). Que sea la misma no es casualidad: es lo
+ * que impide que un resultado acabe en la casilla de otro.
+ *
+ * `aparato` es de D47 (27/08/2026): un caso que solo usa un biómetro lleva
+ * siempre `APARATO_PRINCIPAL` aquí, así que no cambia nada para quien no
+ * necesita varios.
  */
 export interface TareaCalculo {
   readonly calculadora: Calculadora
   readonly ojo: Lateralidad
+  readonly aparato: string
 }
 
 /**
  * Qué hay que ejecutar para este caso.
  *
- * Calculadora a calculadora y, dentro de cada una, los ojos que el caso tiene.
- * Un caso de un solo ojo produce la mitad de tareas; no se inventa el que falta.
+ * Calculadora a calculadora, dentro de cada una los ojos que el caso tiene, y
+ * dentro de cada ojo, cada aparato/biómetro que ese ojo tenga (D47). Un caso
+ * de un solo ojo y un solo aparato produce las mismas tareas que antes de
+ * D47; no se inventa el que falta.
  */
 export function planificarCaso(
   caso: Caso,
   opciones?: {
     readonly calculadoras?: readonly Calculadora[]
     readonly ojos?: readonly Lateralidad[]
+    /** Restringe a estos aparatos, cuando el ojo los tenga. Sin especificar, todos. */
+    readonly aparatos?: readonly string[]
   },
 ): readonly TareaCalculo[] {
   const calculadoras = opciones?.calculadoras ?? ORDEN_POR_DEFECTO
   const disponibles = ojosDelCaso(caso)
   const ojos = (opciones?.ojos ?? ORDEN_OJOS).filter((o) => disponibles.includes(o))
 
-  return calculadoras.flatMap((calculadora) => ojos.map((ojo) => ({ calculadora, ojo })))
+  return calculadoras.flatMap((calculadora) =>
+    ojos.flatMap((ojo) => {
+      const aparatosDelOjo = aparatosDe(caso, ojo).filter(
+        (a) => opciones?.aparatos === undefined || opciones.aparatos.includes(a),
+      )
+      return aparatosDelOjo.map((aparato) => ({ calculadora, ojo, aparato }))
+    }),
+  )
 }
 
 /**
@@ -141,10 +159,11 @@ export function tareasPendientes(
   opciones?: {
     readonly calculadoras?: readonly Calculadora[]
     readonly ojos?: readonly Lateralidad[]
+    readonly aparatos?: readonly string[]
   },
 ): readonly TareaCalculo[] {
   return planificarCaso(caso, opciones).filter((t) => {
-    const r = resultadoDe(caso, t.calculadora, t.ojo)
+    const r = resultadoDe(caso, t.calculadora, t.ojo, t.aparato)
     return r === undefined || sePuedeReintentar(r.estado)
   })
 }
@@ -168,8 +187,15 @@ export interface OpcionesCaso {
    */
   readonly contexto?: BrowserContext
   readonly progreso: (evento: EventoProgreso) => void
-  /** Cada resultado, en cuanto está. Permite ir pintando la pantalla. */
-  readonly alTerminarUna: (resultado: ResultadoCalculadora) => void
+  /**
+   * Cada resultado, en cuanto está. Permite ir pintando la pantalla.
+   *
+   * Lleva también la `tarea` de la que salió: un `ResultadoCalculadora` no
+   * sabe de qué aparato son sus datos (D47) — esa información solo existe en
+   * la tarea que lo pidió, así que quien guarda el resultado la necesita para
+   * guardarlo bajo la clave correcta.
+   */
+  readonly alTerminarUna: (resultado: ResultadoCalculadora, tarea: TareaCalculo) => void
   readonly ahora: () => string
   readonly guardarDiagnostico: (d: DatosDiagnostico) => Promise<string>
   readonly guardarCaptura: (d: DatosCaptura) => Promise<string>
@@ -219,6 +245,7 @@ export async function ejecutarCaso(
       const resultado = await ejecutarUnaCalculadoraParaUnOjo(adaptador, contexto, {
         caso: opciones.caso,
         ojo: tarea.ojo,
+        aparato: tarea.aparato,
         // El adaptador no sabe de qué ojo habla el aviso que emite, así que se
         // le añade aquí. Sin esto, la pantalla enseñaría «Calculando en EVO…»
         // dos veces seguidas sin decir de cuál de los dos ojos.
@@ -230,7 +257,7 @@ export async function ejecutarCaso(
       })
 
       resultados.push(resultado)
-      opciones.alTerminarUna(resultado)
+      opciones.alTerminarUna(resultado, tarea)
     }
   } finally {
     if (contextoPropio) await contexto.close().catch(() => undefined)
@@ -243,6 +270,8 @@ export async function ejecutarCaso(
 export interface OpcionesUnaCasilla {
   readonly caso: Caso
   readonly ojo: Lateralidad
+  /** De qué biómetro coger los datos (D47). Sin especificar, `APARATO_PRINCIPAL`. */
+  readonly aparato?: string
   readonly progreso: (evento: EventoProgreso) => void
   readonly ahora: () => string
   readonly guardarDiagnostico: (d: DatosDiagnostico) => Promise<string>
@@ -275,9 +304,10 @@ export async function ejecutarUnaCalculadoraParaUnOjo(
   opciones: OpcionesUnaCasilla,
 ): Promise<ResultadoCalculadora> {
   const { caso, ojo, ahora } = opciones
+  const aparato = opciones.aparato ?? APARATO_PRINCIPAL
 
   // 1 — El dominio decide si esto puede salir. El adaptador no puede saltárselo.
-  const preparacion = prepararEntradas(caso, adaptador.calculadora, ojo)
+  const preparacion = prepararEntradas(caso, adaptador.calculadora, ojo, aparato)
   if (!preparacion.ok) {
     const motivo = explicarBloqueo(preparacion) ?? 'Faltan datos.'
     return {

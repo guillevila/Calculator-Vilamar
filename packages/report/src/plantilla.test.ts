@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { Caso, OjoBiometrico, Procedencia, ResultadoCalculadora } from '@vilamar/domain'
 import {
+  APARATO_PRINCIPAL,
   casoNuevo,
   corregirMedida,
   confirmar,
@@ -255,13 +256,24 @@ describe('un dato ausente se dice, no se rellena', () => {
 //  fallo, nada de tabla comparativa, biometría, diagramas ni trazabilidad.
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Construye el informe simplificado a partir de una lista de resultados hecha a mano. */
-function htmlSimple(resultados: readonly ResultadoInforme[], codigo = 'CV-2026-0042'): string {
+/**
+ * Construye el informe simplificado a partir de una lista de resultados hecha
+ * a mano. `aparato` es opcional en las llamadas de este fichero: cuando no se
+ * da, se rellena con `APARATO_PRINCIPAL` — los tests de aquí no son sobre
+ * D47, así que no necesitan repetirlo en cada literal.
+ */
+function htmlSimple(
+  resultados: readonly (Omit<ResultadoInforme, 'aparato'> & { readonly aparato?: string })[],
+  codigo = 'CV-2026-0042',
+): string {
   const caso = confirmar(
     conOjo(casoNuevo('c1', codigo, CUANDO), confirmarTodas(ojoVacio('OD')), CUANDO),
     CUANDO,
   )
-  return generarHtmlInforme(recopilarInforme(caso, { version: '0.1.0', generadoEn: CUANDO, resultados }))
+  const conAparato = resultados.map((r) => ({ ...r, aparato: r.aparato ?? APARATO_PRINCIPAL }))
+  return generarHtmlInforme(
+    recopilarInforme(caso, { version: '0.1.0', generadoEn: CUANDO, resultados: conAparato }),
+  )
 }
 
 describe('el informe simplificado (generarHtmlInforme)', () => {
@@ -271,7 +283,10 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
         calculadora: 'EVO_TORIC',
         ojo: 'OD',
         dataUri: 'data:image/png;base64,QUFB',
-        recomendada: { esfera: 21.5, cilindro: 1, eje: 81 },
+        // `eje` (el meridiano corneal, fijo) es a propósito distinto de
+        // `ejeResidual` (el que enseña el informe) — ver el fallo real
+        // documentado en `recomendacion.ts`, 01/09/2026.
+        recomendada: { esfera: 21.5, cilindro: 1, eje: 40, ejeResidual: 81 },
       },
     ])
     expect(h).toContain('<img src="data:image/png;base64,QUFB"')
@@ -387,6 +402,36 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
       expect(cuadro.toLowerCase()).not.toContain('ha elegido')
     })
 
+    it('el eje que enseña es el residual de cada calculadora, no el meridiano corneal fijo (fallo real, 01/09/2026)', () => {
+      // Caso real: el meridiano corneal («eje») es el mismo para todo el
+      // ojo — aquí 0°, repetido en las cinco casillas de un PDF real—,
+      // mientras que el eje que cada calculadora dice que quedaría
+      // («ejeResidual») varía. Enseñar `eje` (como hacía el fallo) daba
+      // «Eje 0°» cinco veces seguidas, sin ninguna información real.
+      const h = htmlSimple([
+        { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 29.5, eje: 0, ejeResidual: 94 } },
+        { calculadora: 'BARRETT_TORIC', ojo: 'OD', recomendada: { esfera: 28.5, eje: 0, ejeResidual: 4 } },
+        { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 29.0, eje: 0, ejeResidual: 5 } },
+      ])
+      const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))
+      expect(cuadro).toContain('Eje 94°')
+      expect(cuadro).toContain('Eje 4°')
+      expect(cuadro).toContain('Eje 5°')
+      expect(cuadro).not.toContain('Eje 0°')
+    })
+
+    it('la tabla comparativa detallada también enseña el eje residual, no el corneal fijo', () => {
+      const h = htmlSimple([
+        { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 29.5, eje: 0, ejeResidual: 94 } },
+        { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 29.0, eje: 0, ejeResidual: 5 } },
+      ])
+      const inicio = h.indexOf('Tabla comparativa detallada')
+      const tabla = h.slice(inicio, h.indexOf('</table>', inicio))
+      expect(tabla).toContain('94°')
+      expect(tabla).toContain('5°')
+      expect(tabla).not.toContain('0°')
+    })
+
     it('un ojo sin ninguna estimación (todo fallos) no saca cuadro', () => {
       const h = htmlSimple([
         { calculadora: 'EVO_TORIC', ojo: 'OD', fallo: 'Falta la constante A.' },
@@ -404,7 +449,7 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
       // hay algo que poner una al lado de otra.
       expect(h).toContain('Comparación orientativa')
       const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))
-      expect(cuadro).toContain('EVO Toric (sin córnea posterior)')
+      expect(cuadro).toContain('EVO Toric — estimado')
       expect(cuadro).toContain('22.00 D')
     })
 
@@ -417,14 +462,33 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
       ])
       const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))
       expect(cuadro).toContain('EVO Toric')
-      expect(cuadro).toContain('EVO Toric (sin córnea posterior)')
+      expect(cuadro).toContain('EVO Toric — estimado')
       expect(cuadro).toContain('Barrett Toric')
       expect(cuadro).toContain('Kane')
       expect(cuadro).toContain('30.00 D')
     })
+
+    it('D47: con un solo aparato, la tarjeta no menciona ningún nombre de aparato', () => {
+      const h = htmlSimple([
+        { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
+        { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 21.5 } },
+      ])
+      expect(h).toContain('<div class="tarjeta-nombre">EVO Toric</div>')
+      expect(h).toContain('<div class="tarjeta-nombre">Kane</div>')
+    })
+
+    it('D47: con dos aparatos del mismo ojo, cada tarjeta dice de cuál es', () => {
+      const h = htmlSimple([
+        { calculadora: 'EVO_TORIC', ojo: 'OD', aparato: 'IOLMaster 700', recomendada: { esfera: 21.5 } },
+        { calculadora: 'EVO_TORIC', ojo: 'OD', aparato: 'ANTERION', recomendada: { esfera: 22.0 } },
+      ])
+      const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))
+      expect(cuadro).toContain('EVO Toric (IOLMaster 700)')
+      expect(cuadro).toContain('EVO Toric (ANTERION)')
+    })
   })
 
-  it('D45: una casilla de la variante «sin córnea posterior» usa el nombre de su propia ficha', () => {
+  it('D45: una casilla de la variante «sin córnea posterior» dice «estimado» en su título (petición del dueño, 27/08/2026)', () => {
     const h = htmlSimple([
       {
         calculadora: 'EVO_TORIC_SIN_CARA_POSTERIOR',
@@ -433,10 +497,10 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
         recomendada: { esfera: 22.0 },
       },
     ])
-    expect(h).toContain('EVO Toric (sin córnea posterior)')
+    expect(h).toContain('EVO Toric — estimado')
   })
 
-  it('D45: la variante «con córnea posterior» de Barrett usa el nombre de su propia ficha', () => {
+  it('D45: la variante «con córnea posterior» de Barrett dice «con córnea posterior medida» en su título (petición del dueño, 27/08/2026)', () => {
     const h = htmlSimple([
       {
         calculadora: 'BARRETT_TORIC_CON_CARA_POSTERIOR',
@@ -445,7 +509,46 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
         recomendada: { esfera: 21.0 },
       },
     ])
-    expect(h).toContain('Barrett Toric (con córnea posterior)')
+    expect(h).toContain('Barrett Toric — con córnea posterior medida')
+  })
+
+  it('D45+D47: EVO_TORIC (la base) NO dice «con córnea posterior medida» cuando el ojo no tiene PK1 ni PK2 — sería mentira', () => {
+    // Sin esta comprobación, un ojo normal (sin córnea posterior) con solo
+    // la calculadora base habría dicho «medida» sin haber medido nada.
+    const h = htmlSimple([
+      {
+        calculadora: 'EVO_TORIC',
+        ojo: 'OD',
+        dataUri: 'data:image/png;base64,QUFB',
+        recomendada: { esfera: 21.5 },
+      },
+    ])
+    expect(h).not.toContain('con córnea posterior medida')
+    expect(h).toContain('EVO Toric · Ojo derecho (OD)')
+  })
+
+  it('D45+D47: EVO_TORIC (la base) SÍ dice «con córnea posterior medida» cuando el dataset de verdad tiene PK1/PK2', () => {
+    let ojo = ojoVacio('OD')
+    ojo = conMedida(ojo, crearMedida('PK1', 'OD', -6, A_MANO))
+    ojo = conMedida(ojo, crearMedida('PK2', 'OD', -6.1, A_MANO))
+    ojo = confirmarTodas(ojo)
+    const caso = confirmar(conOjo(casoNuevo('c1', 'CV-2026-0042', CUANDO), ojo, CUANDO), CUANDO)
+    const h = generarHtmlInforme(
+      recopilarInforme(caso, {
+        version: '0.1.0',
+        generadoEn: CUANDO,
+        resultados: [
+          {
+            calculadora: 'EVO_TORIC',
+            ojo: 'OD',
+            aparato: APARATO_PRINCIPAL,
+            dataUri: 'data:image/png;base64,QUFB',
+            recomendada: { esfera: 21.5 },
+          },
+        ],
+      }),
+    )
+    expect(h).toContain('EVO Toric — con córnea posterior medida')
   })
 })
 

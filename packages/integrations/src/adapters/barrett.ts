@@ -126,6 +126,14 @@ const SEL = {
   steepKPosterior: '#MainContent_K2_PC',
   ejeSteepPosterior: '#MainContent_PCTK_Axis',
   /**
+   * «Device» — con qué aparato se midió la córnea posterior. Solo aparece
+   * dentro de este mismo panel, tras marcar `medidaPCA` (comprobado en vivo
+   * el 01/09/2026). Por defecto está en «IOLMaster 700 TK»; si el aparato
+   * real es otro y este programa sabe cuál es su nombre exacto aquí
+   * (`dispositivoCaraPosterior`, ver `preparar-entradas.ts`), se cambia.
+   */
+  dispositivoPosterior: '#MainContent_Device',
+  /**
    * El «Calculate» del panel de córnea posterior medida. NO es el mismo
    * botón que `calcular` (`Button1`) — comprobado en vivo el 27/08/2026:
    * un volcado sin filtrar de todos los botones de la página lo confirmó
@@ -402,6 +410,10 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
         SEL.medidaPCA,
         error,
       )
+    }
+
+    if (entradas.dispositivoCaraPosterior !== undefined) {
+      await calc.selectOption(SEL.dispositivoPosterior, { label: entradas.dispositivoCaraPosterior })
     }
 
     const plano = Math.abs(PK1) <= Math.abs(PK2) ? { k: PK1, eje: PK1_EJE } : { k: PK2, eje: PK2_EJE }

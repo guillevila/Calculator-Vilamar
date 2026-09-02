@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { ResultadoCalculadora } from '../modelo/calculadoras.js'
 import type { Caso } from '../modelo/caso.js'
-import { casoNuevo, confirmar, conOjo, conResultado } from '../modelo/caso.js'
+import { casoNuevo, confirmar, conOjo, conResultado, ojoDe } from '../modelo/caso.js'
 import { conMedida, confirmarTodas, crearMedida, ojoVacio } from '../modelo/medida.js'
 import type { Procedencia } from '../modelo/procedencia.js'
 import {
@@ -98,7 +98,7 @@ describe('la discrepancia queda registrada', () => {
   it('NO se corrige el caso: la constante enviada sigue siendo la que era', () => {
     const caso = casoCon(119.1, resultadoEvo('A Constant: 119.2'))
     discrepanciasDeConstante(caso)
-    expect(caso.ojos.OD?.medidas.CONSTANTE_A?.valor).toBe(119.1)
+    expect(ojoDe(caso, 'OD').medidas.CONSTANTE_A?.valor).toBe(119.1)
   })
 
   it('si coinciden, no se dice nada', () => {

@@ -18,12 +18,34 @@
  *
  * ## El criterio, tal cual se pidió
  *
- *  - **Esfera**: de menor a mayor potencia, la primera opción cuya refracción
- *    prevista ya es negativa.
+ *  - **Esfera**: entre las opciones cuya refracción prevista es negativa, la
+ *    más cercana a cero — **salvo en la familia Lux de Bausch & Lomb**
+ *    (LuxSmart, LuxLife, LuxGood), donde el criterio se invierte: entre las
+ *    de refracción POSITIVA, la más cercana a cero. Petición expresa del
+ *    dueño del proyecto (29/08/2026): la familia enVista (enVista
+ *    normal/MX60T, MX60ET/PT, Aspire, Envy) y cualquier otra lente —incluida
+ *    ninguna elegida— siguen con el criterio de siempre. Ver
+ *    `criterioEsferaPara()`.
+ *
+ *    ⚠️ **«La más cercana a cero» y «la primera subiendo potencia» NO son lo
+ *    mismo del lado positivo.** Al subir la potencia de la lente, la
+ *    refracción prevista baja de forma continua (de hiperópico a miópico).
+ *    Del lado negativo las dos frases coinciden: la primera negativa
+ *    subiendo YA es la más cercana a cero, porque justo se acaba de cruzar
+ *    el cero. Del lado positivo NO: la primera positiva subiendo es la MÁS
+ *    ALEJADA de cero (el extremo de baja potencia); la más cercana a cero es
+ *    la ÚLTIMA positiva antes de cruzar a negativo. Fallo real encontrado el
+ *    29/08/2026 con una LuxSmart: la primera implementación tomaba «la
+ *    primera positiva de la lista» y EVO daba 18 D (refracción 0.77) en vez
+ *    de 19 D (refracción 0.14), que es la que de verdad no llega a cruzar a
+ *    miopía. Por eso el código no busca «la primera que cumple el signo»:
+ *    busca la de menor `Math.abs(refraccionPrevista)` entre las que cumplen
+ *    el signo, válido para los dos criterios sin caso especial.
  *  - **Cilindro**: de menor a mayor cilindro, entre las opciones tóricas cuyo
  *    eje residual coincide con el eje curvo de la córnea (K más curva), la
  *    ÚLTIMA antes de que ese eje cambie de orientación — el mayor cilindro
- *    que no llega a invertir el astigmatismo residual.
+ *    que no llega a invertir el astigmatismo residual. Este criterio NO
+ *    cambia con la familia de lente.
  *
  * **Las dos partes se ordenan explícitamente antes de recorrerlas — nunca se
  * confía en el orden en que llega `opciones`.** Esto no es cosmético: EVO
@@ -71,21 +93,77 @@ export function ejeCurvoDe(ojo: OjoBiometrico): number | undefined {
 export interface LenteEstimada {
   readonly esfera: number
   readonly cilindro?: number
-  /** Solo presente junto con `cilindro`: es el eje curvo, no un eje residual. */
+  /**
+   * El meridiano corneal curvo (K1 o K2, el más curvo) — NO el eje que
+   * quedaría implantando esta opción. Solo presente junto con `cilindro`.
+   *
+   * ⚠️ **No es el dato que se enseña al cirujano.** Es el criterio con el
+   * que se ELIGE la fila (`ejeResidual` de una opción tiene que compartir
+   * este eje, o esa opción no se considera — ver el docstring del
+   * fichero), no el que describe el resultado: eso es `ejeResidual`, el
+   * que la propia calculadora dice que quedaría con esta opción. Fallo
+   * real encontrado el 01/09/2026 con un PDF real: el informe enseñaba
+   * este campo (`eje`, el mismo para las cinco casillas de un ojo — salía
+   * «Eje 0°» repetido cinco veces) en vez de `ejeResidual` (el que sí
+   * varía: 4°, 3°, 2°… según la calculadora y si usó córnea posterior
+   * medida). Corregido en `packages/report/src/plantilla.ts`: las tres
+   * pantallas de la estimación propia muestran `ejeResidual`, nunca `eje`.
+   */
   readonly eje?: number
+  /**
+   * Refracción esférica prevista de la opción elegida para `esfera` — el
+   * mismo dato que trae `OpcionLente.refraccionPrevista` de esa fila
+   * concreta, no un cálculo nuevo (petición expresa del dueño, 27/08/2026,
+   * para la tabla comparativa detallada del informe).
+   */
+  readonly refraccionPrevista?: number
+  /**
+   * Astigmatismo y eje residuales de la opción elegida para `cilindro` —
+   * pueden venir de una fila DISTINTA de la de `refraccionPrevista`, porque
+   * el criterio de esfera y el de cilindro se buscan por separado (ver el
+   * docstring del fichero). Solo presentes junto con `cilindro`.
+   */
+  readonly cilindroResidual?: number
+  readonly ejeResidual?: number
 }
 
 /** Cuánto puede separarse el eje residual del eje curvo y seguir contando como «el mismo». */
 const UMBRAL_MISMO_EJE = 45
 
+/** Qué signo de refracción prevista marca «la elegida», según la familia de lente. */
+export type CriterioEsfera = 'PRIMERA_NEGATIVA' | 'PRIMERA_POSITIVA'
+
 /**
- * Aplica el criterio. Devuelve `undefined` si no hay ninguna opción con
- * refracción prevista negativa: no se inventa una esfera cuando el criterio,
- * tal cual está definido, no señala ninguna.
+ * La familia Lux de Bausch & Lomb (LuxSmart, LuxLife, LuxGood) usa el
+ * criterio de esfera INVERTIDO — primera refracción prevista POSITIVA, no
+ * negativa. Petición expresa del dueño del proyecto (29/08/2026).
+ *
+ * Se compara por el nombre CANÓNICO del catálogo (`LenteElegida.modelo`),
+ * nunca por `nombreEnEvo`/`nombreEnKane` (D50): el mismo modelo físico se
+ * llama distinto en cada web, y el criterio es del modelo, no del texto que
+ * se le manda a una calculadora en concreto.
+ */
+const MODELOS_CON_CRITERIO_POSITIVO: ReadonlySet<string> = new Set([
+  'B&L LuxSmart',
+  'B&L LuxLife',
+  'B&L LuxGood',
+])
+
+export function criterioEsferaPara(modeloLente: string | undefined): CriterioEsfera {
+  return modeloLente !== undefined && MODELOS_CON_CRITERIO_POSITIVO.has(modeloLente)
+    ? 'PRIMERA_POSITIVA'
+    : 'PRIMERA_NEGATIVA'
+}
+
+/**
+ * Aplica el criterio. Devuelve `undefined` si no hay ninguna opción que lo
+ * cumpla: no se inventa una esfera cuando el criterio, tal cual está
+ * definido, no señala ninguna.
  */
 export function estimarLenteRecomendada(
   opciones: readonly OpcionLente[],
   ejeCurvo: number | undefined,
+  criterioEsfera: CriterioEsfera = 'PRIMERA_NEGATIVA',
 ): LenteEstimada | undefined {
   const conEsferaYRefraccion = opciones
     .filter(
@@ -93,10 +171,28 @@ export function estimarLenteRecomendada(
         o.esfera !== undefined && o.refraccionPrevista !== undefined,
     )
     .sort((a, b) => a.esfera - b.esfera)
-  const elegidaEsfera = conEsferaYRefraccion.find((o) => o.refraccionPrevista < 0)
-  if (!elegidaEsfera) return undefined
+  // «La primera» no es «la primera de la lista al ordenar de menor a mayor
+  // potencia» — es la más cercana a cero DEL LADO que toca (negativo para la
+  // mayoría de lentes, positivo para la familia Lux). Al subir la potencia la
+  // refracción prevista baja de forma continua, así que el lado negativo más
+  // cercano a cero es efectivamente el primero que se cruza subiendo — pero
+  // el lado POSITIVO más cercano a cero es el ÚLTIMO antes de cruzar a
+  // negativo, no el primero de la lista (encontrado con un caso real,
+  // 29/08/2026: con 18→0.77, 18.5→0.46, 19→0.14, 19.5→-0.19, «la primera
+  // positiva» tomada como «el primer elemento positivo de la lista» daba
+  // 18/0.77 en vez de 19/0.14, que es la que de verdad está más cerca de la
+  // emetropía sin cruzar a miopía).
+  const delLadoQueToca = conEsferaYRefraccion.filter((o) =>
+    criterioEsfera === 'PRIMERA_POSITIVA' ? o.refraccionPrevista > 0 : o.refraccionPrevista < 0,
+  )
+  if (delLadoQueToca.length === 0) return undefined
+  const elegidaEsfera = delLadoQueToca.reduce((mejor, o) =>
+    Math.abs(o.refraccionPrevista) < Math.abs(mejor.refraccionPrevista) ? o : mejor,
+  )
 
-  if (ejeCurvo === undefined) return { esfera: elegidaEsfera.esfera }
+  const conRefraccion = { refraccionPrevista: elegidaEsfera.refraccionPrevista }
+
+  if (ejeCurvo === undefined) return { esfera: elegidaEsfera.esfera, ...conRefraccion }
 
   const toricas = opciones
     .filter(
@@ -108,7 +204,16 @@ export function estimarLenteRecomendada(
     (o) => separacionDeEjes(o.ejeResidual, ejeCurvo) < UMBRAL_MISMO_EJE,
   )
   const ultima = conElMismoEje[conElMismoEje.length - 1]
-  if (!ultima) return { esfera: elegidaEsfera.esfera }
+  if (!ultima) return { esfera: elegidaEsfera.esfera, ...conRefraccion }
 
-  return { esfera: elegidaEsfera.esfera, cilindro: ultima.cilindro, eje: ejeCurvo }
+  return {
+    esfera: elegidaEsfera.esfera,
+    cilindro: ultima.cilindro,
+    eje: ejeCurvo,
+    ...conRefraccion,
+    ...(ultima.cilindroResidual !== undefined
+      ? { cilindroResidual: ultima.cilindroResidual }
+      : {}),
+    ejeResidual: ultima.ejeResidual,
+  }
 }

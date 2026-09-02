@@ -15,7 +15,7 @@ import type {
 } from '@vilamar/domain'
 import {
   camposQueFaltan,
-  columnasComparativa,
+  COLUMNAS_COMPARATIVA,
   compararOjo,
   ojoDe,
   ojosDelCaso,
@@ -36,18 +36,37 @@ export interface OpcionesInforme {
    * una función pura y no lee ficheros: solo traslada lo que se le pasa.
    */
   readonly resultados?: readonly ResultadoInforme[]
+  /**
+   * Recopila solo este ojo (D47, 27/08/2026) — es lo que permite un PDF por
+   * ojo en vez de uno por caso: `generarPdf()` llama a esto una vez por cada
+   * ojo del caso, con `soloOjo` puesto y `resultados` ya filtrado a ese ojo.
+   * Sin especificarlo, se recopilan todos los ojos del caso, como antes.
+   */
+  readonly soloOjo?: Lateralidad
 }
 
+/**
+ * ⚠️ `comparativas`, `avisos` y `ausenciasRelevantes` de este resultado
+ * reflejan solo el aparato PRINCIPAL de cada ojo — no se han hecho
+ * conscientes de que un ojo puede tener varios aparatos en paralelo (D47),
+ * porque el informe que de verdad genera la aplicación (`generarHtmlInforme`,
+ * D39) no los usa: solo usa `resultados` y `caso`, que sí llevan el aparato
+ * de cada uno. Si algún día se retoma el informe detallado
+ * (`generarHtmlInformeDetallado`) con varios aparatos, esto necesitará
+ * revisarse.
+ */
 export function recopilarInforme(caso: Caso, opciones: OpcionesInforme): DatosInforme {
-  const ojos = ojosDelCaso(caso)
-  // Si no se fuerza un orden desde fuera, las columnas se deciden por ojo:
-  // cada uno saca sus variantes de córnea posterior solo si de verdad tiene
-  // PK1 o PK2 (D45) — ver `columnasComparativa`.
-  const columnasDe = (ojo: Lateralidad): readonly Calculadora[] =>
-    opciones.ordenColumnas ?? columnasComparativa(caso, ojo)
+  const ojos =
+    opciones.soloOjo !== undefined
+      ? ojosDelCaso(caso).filter((o) => o === opciones.soloOjo)
+      : ojosDelCaso(caso)
+  // Si no se fuerza un orden desde fuera, se usan las cinco columnas de
+  // siempre (D45/D48: cada variante de córnea posterior es su propia
+  // casilla, ya no depende de si ESE ojo tiene PK1 o PK2 — ver
+  // `COLUMNAS_COMPARATIVA`).
+  const orden = opciones.ordenColumnas ?? COLUMNAS_COMPARATIVA
 
   const comparativas: Comparativa[] = ojos.map((ojo) => {
-    const orden = columnasDe(ojo)
     const resultados: Partial<Record<Calculadora, ReturnType<typeof resultadoDe>>> = {}
     for (const c of orden) {
       const r = resultadoDe(caso, c, ojo)
@@ -67,7 +86,7 @@ export function recopilarInforme(caso: Caso, opciones: OpcionesInforme): DatosIn
     campos: readonly CampoBiometrico[]
   }[] = []
   for (const ojo of ojos) {
-    for (const c of columnasDe(ojo)) {
+    for (const c of orden) {
       const faltan = camposQueFaltan(caso, c, ojo)
       if (faltan.length > 0) ausenciasRelevantes.push({ calculadora: c, ojo, campos: faltan })
     }
