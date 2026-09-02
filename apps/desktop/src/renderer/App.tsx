@@ -92,13 +92,23 @@ export function App(): JSX.Element {
 
   // Igual que con el ojo: si el aparato activo deja de existir para el ojo
   // activo (p. ej. al cambiar de ojo), se cae al primero que ese ojo tenga.
+  //
+  // EXCEPTO en revisión (02/09/2026): ahí, «Añadir otro biómetro» elige a
+  // propósito un aparato que TODAVÍA no existe como dataset —se crea solo
+  // en cuanto se escribe el primer campo, igual que en el cuestionario
+  // manual—. Sin esta excepción, esta misma corrección deshacía la
+  // elección antes de que diera tiempo a escribir nada: `aparatoActivo`
+  // volvía al aparato original en el mismo instante en que se elegía el
+  // nuevo, porque `aparatosDelOjo` (los que el caso ya tiene de verdad)
+  // no lo conocía todavía.
   const aparatosDelOjo = useMemo(() => (caso ? aparatosDe(caso, ojoActivo) : []), [caso, ojoActivo])
   useEffect(() => {
+    if (paso === 'REVISION') return
     if (aparatosDelOjo.length > 0 && !aparatosDelOjo.includes(aparatoActivo)) {
       const primero = aparatosDelOjo[0]
       if (primero) setAparatoActivo(primero)
     }
-  }, [aparatosDelOjo, aparatoActivo])
+  }, [aparatosDelOjo, aparatoActivo, paso])
 
   const refrescarAvisos = useCallback(async () => {
     setAvisos(await api().validar())
@@ -401,11 +411,14 @@ export function App(): JSX.Element {
               ojo={ojoActivo}
               estados={estados}
               ocupado={ocupado}
-              // Sin filtro: calcula TODO el caso (los dos ojos, todos los
-              // aparatos que ya estén confirmados) — igual que siempre.
-              // Filtrar por el ojo/aparato activo aquí reintroduciría el
-              // fallo ya corregido de «solo calcula la pestaña que se ve».
-              onCalcular={(c) => void calcular(c)}
+              // Por defecto, sin filtro: calcula TODO el caso (los dos
+              // ojos, todos los aparatos que ya estén confirmados) — igual
+              // que siempre. El filtro por ojo aquí es una ELECCIÓN
+              // explícita de la persona (D66, el selector «Ojos a
+              // calcular»), no un valor automático — eso sí reintroduciría
+              // el fallo ya corregido de «solo calcula la pestaña que se
+              // ve» sin que nadie lo pidiera.
+              onCalcular={(c, filtro) => void calcular(c, filtro)}
               onCancelar={() => void api().cancelarCalculo()}
               onVerResultados={() => setPaso('RESULTADOS')}
               onVolverARevisar={() => setPaso('REVISION')}

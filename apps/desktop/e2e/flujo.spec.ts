@@ -705,3 +705,225 @@ test('los pasos ya recorridos de la barra de arriba se pueden volver a pulsar', 
   // Y «4. Resultados», que de verdad no se ha alcanzado nunca, sigue sin poder pulsarse.
   await expect(ventana.getByTestId('paso-RESULTADOS')).toBeDisabled()
 })
+
+/**
+ * Petición expresa del dueño del proyecto (02/09/2026), probando a cargar
+ * fotos leídas por un lector externo: la pantalla de revisión (para un
+ * documento cargado) no tenía forma de añadir un segundo aparato, y el
+ * orden de los campos no coincidía con el del cuestionario manual — las
+ * dos vías de entrada tienen que llevar a la misma experiencia.
+ * `SelectorAparato.tsx` es ahora el mismo componente en las dos pantallas.
+ */
+test('la pantalla de revisión (documento cargado) permite añadir un segundo aparato, igual que el manual', async () => {
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  await p.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <pre>OD
+AL            23.90 mm
+K1            41.00 D @ 10
+K2            42.50 D @ 100
+ACD (epi)      3.10 mm</pre>
+    </body>`)
+  const rutaPdf = join(carpetaDatos, 'informe-otro-aparato.pdf')
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  const resultado = await ventana.evaluate(
+    async (ruta) =>
+      window.vilamar?.cargarDocumentos([{ nombre: 'informe-otro-aparato.pdf', ruta }]),
+    rutaPdf,
+  )
+  expect(resultado?.caso?.ojos?.OD?.[0]?.medidas?.AL?.valor).toBe(23.9)
+
+  // Cargar el documento por el canal, sin pasar por la ventana, no cambia
+  // de pantalla sola — se entra en la revisión con el paso de la barra
+  // (D64: siempre pulsable en cuanto hay un caso).
+  await ventana.getByTestId('paso-REVISION').click()
+
+  // El botón para añadir un segundo biómetro, antes solo en el cuestionario
+  // manual, ahora también está aquí.
+  await expect(ventana.getByTestId('manual-anadir-aparato')).toBeVisible()
+  await ventana.getByTestId('manual-anadir-aparato').click()
+  await ventana.getByTestId('manual-anadir-aparato-select').selectOption('OCULUS Pentacam')
+  await ventana.getByTestId('manual-anadir-aparato-confirmar').click()
+
+  // Elegir un aparato nuevo no crea el dataset todavía —solo cambia cuál
+  // está activo, igual que en el cuestionario manual—, así que el campo
+  // arranca vacío: sin pisar el primero.
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('')
+
+  // En cuanto se escribe el primer dato, el dataset nuevo existe de
+  // verdad y aparece como pestaña — sin que el original desaparezca.
+  await ventana.getByTestId('campo-AL').fill('24.50')
+  await ventana.getByTestId('campo-AL').press('Tab')
+  await expect(ventana.getByTestId('manual-aparato-OCULUS Pentacam')).toBeVisible()
+
+  const aparatoOriginal = (await ventana.evaluate(() => window.vilamar?.casoActual()))?.ojos?.OD?.[0]
+    ?.aparato
+  expect(aparatoOriginal).toBeTruthy()
+  await expect(ventana.getByTestId(`manual-aparato-${aparatoOriginal}`)).toBeVisible()
+
+  // Y volver al aparato original enseña SU dato, no el 24.50 del nuevo.
+  await ventana.getByTestId(`manual-aparato-${aparatoOriginal}`).click()
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('23.9')
+
+  // Y el orden de los campos coincide con el cuestionario manual: AL y las
+  // dos K, antes que la constante A (que vive en «Lente e incisión», no en
+  // «Decisiones del cirujano» como antes).
+  const etiquetas = await ventana.getByTestId(/^campo-/).evaluateAll((els) =>
+    els.map((el) => el.getAttribute('data-testid')),
+  )
+  const posAL = etiquetas.indexOf('campo-AL')
+  const posConstanteA = etiquetas.indexOf('campo-CONSTANTE_A')
+  const posPK1 = etiquetas.indexOf('campo-PK1')
+  expect(posAL).toBeLessThan(posConstanteA)
+  expect(posConstanteA).toBeLessThan(posPK1)
+})
+
+/**
+ * Petición expresa del dueño del proyecto (02/09/2026): al meter la
+ * constante A de un ojo, que aparezca sola en el otro — casi siempre es la
+ * misma lente en los dos — sin tener que escribirla dos veces. Pero nunca
+ * pisando lo que ya haya: ni la del otro ojo si ya tenía la suya, ni al
+ * revés.
+ */
+test('la constante A escrita en un ojo se copia sola al otro, sin pisar la que ya hubiera (D66)', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  // OD: un dato de biometría y la constante.
+  await ventana.getByTestId('manual-campo-AL').fill('24.00')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-campo-CONSTANTE_A').fill('119.10')
+  await ventana.getByTestId('manual-campo-CONSTANTE_A').press('Tab')
+
+  // OS todavía no tiene ningún dato: no hay nada que copiar todavía.
+  await ventana.getByTestId('manual-ojo-OS').click()
+  await expect(ventana.getByTestId('manual-campo-CONSTANTE_A')).toHaveValue('')
+
+  // En cuanto OS tiene su primer dato, hereda la constante de OD sola.
+  await ventana.getByTestId('manual-campo-AL').fill('24.30')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await expect(ventana.getByTestId('manual-campo-CONSTANTE_A')).toHaveValue('119.1')
+
+  // Si la persona la cambia a propósito en OS, esa es la que se queda — y
+  // la de OD, que se escribió antes, tampoco se toca.
+  await ventana.getByTestId('manual-campo-CONSTANTE_A').fill('118.50')
+  await ventana.getByTestId('manual-campo-CONSTANTE_A').press('Tab')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.medidas?.CONSTANTE_A?.valor).toBe(119.1)
+  expect(caso?.ojos?.OS?.[0]?.medidas?.CONSTANTE_A?.valor).toBe(118.5)
+})
+
+/**
+ * Petición expresa del dueño del proyecto (02/09/2026): con datos completos
+ * en los dos ojos, poder elegir calcular los dos a la vez o solo uno, en
+ * vez de lanzar siempre las dos calculadoras aunque solo haga falta una.
+ */
+test('se puede elegir calcular los dos ojos o solo uno (D66)', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  const datosOjo: [string, string][] = [
+    ['manual-campo-AL', '24.07'],
+    ['manual-campo-K1', '41.22'],
+    ['manual-campo-K1_EJE', '175'],
+    ['manual-campo-K2', '42.52'],
+    ['manual-campo-K2_EJE', '85'],
+    ['manual-campo-ACD', '3.18'],
+    ['manual-campo-LT', '4.53'],
+    ['manual-campo-CCT', '530'],
+    ['manual-campo-REFRACCION_OBJETIVO', '0'],
+    ['manual-campo-SIA', '0.3'],
+    ['manual-campo-EJE_INCISION', '90'],
+    ['manual-campo-CONSTANTE_A', '119'],
+  ]
+  for (const [id, valor] of datosOjo) {
+    await ventana.getByTestId(id).fill(valor)
+    await ventana.getByTestId(id).press('Tab')
+  }
+
+  await ventana.getByTestId('manual-ojo-OS').click()
+  for (const [id, valor] of datosOjo) {
+    // La constante A ya llegó copiada de OD (ver el test anterior).
+    if (id === 'manual-campo-CONSTANTE_A') continue
+    await ventana.getByTestId(id).fill(valor)
+    await ventana.getByTestId(id).press('Tab')
+  }
+  await expect(ventana.getByTestId('manual-campo-CONSTANTE_A')).toHaveValue('119')
+
+  await ventana.getByTestId('identificacion-cirujano').fill('Dra. Prueba')
+  await ventana.getByTestId('identificacion-cirujano').press('Tab')
+  await ventana.getByTestId('identificacion-paciente').fill('Paciente de prueba')
+  await ventana.getByTestId('identificacion-paciente').press('Tab')
+
+  await ventana.getByTestId('manual-continuar').click()
+  await ventana.getByTestId('confirmar').click()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
+
+  // Con datos en los dos ojos aparece el selector, con «Los dos ojos»
+  // activo de partida — el comportamiento de siempre, para no sorprender a
+  // quien no lo toca.
+  await expect(ventana.getByTestId('alcance-ojos-AMBOS')).toBeVisible()
+  await expect(ventana.getByTestId('alcance-ojos-OD')).toBeVisible()
+  await expect(ventana.getByTestId('alcance-ojos-OS')).toBeVisible()
+  await expect(ventana.getByTestId('lanzar-calculo')).not.toContainText('solo')
+
+  await ventana.getByTestId('alcance-ojos-OD').click()
+  await expect(ventana.getByTestId('lanzar-calculo')).toContainText('solo OD')
+})
+
+/**
+ * Petición expresa del dueño del proyecto (02/09/2026), a partir de dos
+ * pantallazos de EVO y Kane: un ojo con córnea alterada por LASIK/PRK/RK
+ * previo o queratocono necesita un campo especial en EVO y Kane, y una
+ * calculadora ENTERAMENTE DISTINTA en vez de Barrett Toric —Barrett True K
+ * Toric—, porque la fórmula normal de Barrett da un resultado erróneo ahí.
+ *
+ * Solo se prueba aquí la parte de INTERFAZ (el selector, y que aparece/
+ * desaparece lo que tiene que aparecer/desaparecer) — el bloqueo mutuo entre
+ * las dos calculadoras de Barrett ya está probado a fondo en
+ * `preparar-entradas.test.ts`, en el dominio, sin necesitar la aplicación
+ * entera. No se pulsa «Calcular» aquí a propósito: aunque el bloqueo pasa
+ * antes de abrir ninguna página, pulsarlo abre igualmente un navegador real
+ * —Barrett exige ventana visible—, y esta prueba no depende de eso para
+ * comprobar lo que le toca comprobar.
+ */
+test('el selector de córnea especial, y sus dos campos de LASIK, solo aparecen cuando hacen falta (D67)', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  await ventana.getByTestId('manual-campo-AL').fill('24.07')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  // Sin tocar nada, la córnea especial está en «Ninguna» y las dos
+  // refracciones de LASIK no se enseñan: no son un dato que casi nadie
+  // necesite.
+  await expect(ventana.getByTestId('situacion-corneal-select')).toHaveValue('')
+  await expect(ventana.getByTestId('manual-campo-REFRACCION_PRE_LASIK')).toHaveCount(0)
+
+  // Se marca OD como queratocono. Los dos campos de LASIK aparecen solos
+  // (opcionales: no hace falta rellenarlos para seguir), y el aviso explica
+  // qué cambia para Barrett.
+  await ventana.getByTestId('situacion-corneal-select').selectOption('QUERATOCONO')
+  await expect(ventana.getByTestId('manual-campo-REFRACCION_PRE_LASIK')).toBeVisible()
+  await expect(ventana.getByTestId('manual-campo-REFRACCION_POST_LASIK')).toBeVisible()
+  await expect(ventana.getByTestId('situacion-corneal-aviso')).toContainText('True K Toric')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.situacionCorneal).toBe('QUERATOCONO')
+
+  // Cambiando a «Ninguna» otra vez, los dos campos vuelven a esconderse —
+  // no se enseña un hueco vacío que confunda al usar el formulario normal.
+  await ventana.getByTestId('situacion-corneal-select').selectOption('')
+  await expect(ventana.getByTestId('manual-campo-REFRACCION_PRE_LASIK')).toHaveCount(0)
+
+  // Y en OS, sin haber tocado nada, sigue siendo «Ninguna»: es un dato por
+  // ojo, no del caso entero.
+  await ventana.getByTestId('manual-ojo-OS').click()
+  await expect(ventana.getByTestId('situacion-corneal-select')).toHaveValue('')
+})

@@ -16,6 +16,7 @@ import type {
   Sexo,
   Aviso,
   ResultadoCalculadora,
+  SituacionCornealEspecial,
 } from '@vilamar/domain'
 
 /**
@@ -183,6 +184,16 @@ export interface ApiVilamar {
     aparatoCaraPosterior: string | undefined,
   ) => Promise<Caso>
   /**
+   * Si este ojo tiene una córnea alterada por cirugía refractiva previa o
+   * queratocono (D67, 02/09/2026) — `undefined` la quita, y vuelve a ser un
+   * ojo normal.
+   */
+  readonly editarSituacionCorneal: (
+    ojo: Lateralidad,
+    aparato: string,
+    situacionCorneal: SituacionCornealEspecial | undefined,
+  ) => Promise<Caso>
+  /**
    * Elige el modelo de lente y resuelve su constante A desde la tabla del informe.
    *
    * Devuelve los avisos junto al caso, y no solo el caso, porque lo importante de
@@ -295,6 +306,7 @@ export const CANALES = {
   reconocerDiscrepancia: 'vilamar:reconocer-discrepancia',
   renombrarAparato: 'vilamar:renombrar-aparato',
   editarAparatoCaraPosterior: 'vilamar:editar-aparato-cara-posterior',
+  editarSituacionCorneal: 'vilamar:editar-situacion-corneal',
   elegirLente: 'vilamar:elegir-lente',
   elegirLenteSecundaria: 'vilamar:elegir-lente-secundaria',
   intercambiarLentes: 'vilamar:intercambiar-lentes',

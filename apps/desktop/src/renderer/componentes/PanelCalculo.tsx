@@ -27,7 +27,9 @@ import {
   definicionDe,
   fichaDe,
   formatearConUnidad,
+  nombreCortoLateralidad,
   ojoDe,
+  ojosDelCaso,
   resultadoDe,
   textoEstado,
   valorDe,
@@ -40,11 +42,17 @@ interface Props {
   readonly ojo: Lateralidad
   readonly estados: readonly EstadoCalculo[]
   readonly ocupado: boolean
-  readonly onCalcular: (calculadoras?: readonly Calculadora[]) => void
+  readonly onCalcular: (
+    calculadoras?: readonly Calculadora[],
+    filtro?: { readonly ojo?: Lateralidad },
+  ) => void
   readonly onCancelar: () => void
   readonly onVerResultados: () => void
   readonly onVolverARevisar: () => void
 }
+
+/** Con qué ojos calcular: los dos (de siempre) o solo uno (D66). */
+type AlcanceOjos = 'AMBOS' | Lateralidad
 
 // Las cinco casillas de siempre (D45/D48, 28/08/2026): EVO y Barrett, cada
 // una con su Predicted y su Measured PCA por separado, y Kane — que se
@@ -156,6 +164,13 @@ export function PanelCalculo({
   const [seleccionadas, setSeleccionadas] =
     useState<readonly Calculadora[]>(SELECCION_POR_DEFECTO)
 
+  // El selector de ojos solo se enseña si el caso tiene datos de los dos —
+  // con uno solo, elegir sería ruido. «Los dos ojos» de partida: es el
+  // comportamiento de siempre, nadie pierde nada por no tocarlo (D66).
+  const dosOjos = ojosDelCaso(caso).length > 1
+  const [alcanceOjos, setAlcanceOjos] = useState<AlcanceOjos>('AMBOS')
+  const filtroOjos = alcanceOjos === 'AMBOS' ? undefined : { ojo: alcanceOjos }
+
   function alternar(clave: Calculadora): void {
     setSeleccionadas((previas) =>
       previas.includes(clave) ? previas.filter((c) => c !== clave) : [...previas, clave],
@@ -262,11 +277,30 @@ export function PanelCalculo({
                 </button>
               ))}
             </div>
-            <p className="pie-nota" style={{ marginBottom: 10 }}>
+            <p className="pie-nota" style={{ marginBottom: dosOjos ? 4 : 10 }}>
               «Measured PCA» solo cambia el resultado en los ojos donde el aparato trajo la córnea
               posterior medida (PK1/PK2). Sin ese dato calcula igual que «Predicted PCA» — no hace
               falta para el uso habitual.
             </p>
+            {dosOjos && (
+              <div className="fila" style={{ gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+                <span className="pie-nota" style={{ marginRight: 2 }}>
+                  Ojos a calcular:
+                </span>
+                {(['AMBOS', 'OD', 'OS'] as const).map((a) => (
+                  <button
+                    key={a}
+                    type="button"
+                    className={alcanceOjos === a ? 'activo' : ''}
+                    aria-pressed={alcanceOjos === a}
+                    onClick={() => setAlcanceOjos(a)}
+                    data-testid={`alcance-ojos-${a}`}
+                  >
+                    {a === 'AMBOS' ? 'Los dos ojos' : `Solo ${nombreCortoLateralidad(a)}`}
+                  </button>
+                ))}
+              </div>
+            )}
           </>
         )}
 
@@ -280,13 +314,13 @@ export function PanelCalculo({
           {!ocupado && (
             <button
               className="principal"
-              onClick={() => onCalcular(seleccionadas)}
+              onClick={() => onCalcular(seleccionadas, filtroOjos)}
               disabled={seleccionadas.length === 0}
               data-testid="lanzar-calculo"
             >
               {`${hayAlguno ? 'Volver a calcular' : 'Calcular'} (${seleccionadas
                 .map((c) => etiquetaDe(c))
-                .join(', ')})`}
+                .join(', ')}${dosOjos && alcanceOjos !== 'AMBOS' ? ` — solo ${nombreCortoLateralidad(alcanceOjos)}` : ''})`}
             </button>
           )}
           {/*

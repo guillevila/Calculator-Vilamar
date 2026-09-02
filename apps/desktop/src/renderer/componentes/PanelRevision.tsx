@@ -28,7 +28,6 @@ import type { JSX } from 'react'
 import type { Aviso, CampoBiometrico, Caso, Lateralidad, Medida } from '@vilamar/domain'
 import {
   aparatosDe,
-  camposDeCategoria,
   exigenciaDe,
   fichaDe,
   quienNoPuedeCalcular,
@@ -50,6 +49,7 @@ import type { ApiVilamar } from '../../compartido/ipc.js'
 import { api } from '../api.js'
 import { BloqueSexo } from './BloqueSexo.js'
 import { faltaIdentificacion, IdentificacionCaso } from './Identificacion.js'
+import { SelectorAparato, SelectorAparatoCaraPosterior, SelectorSituacionCorneal } from './SelectorAparato.js'
 import { SelectorLente } from './SelectorLente.js'
 
 interface Props {
@@ -67,11 +67,48 @@ interface Props {
 
 type Discrepancia = Awaited<ReturnType<ApiVilamar['discrepanciasDe']>>[number]
 
-const GRUPOS: { titulo: string; categoria: Parameters<typeof camposDeCategoria>[0] }[] = [
-  { titulo: 'Biometría', categoria: 'BIOMETRIA' },
-  { titulo: 'Córnea posterior', categoria: 'CORNEA_POSTERIOR' },
-  { titulo: 'Decisiones del cirujano', categoria: 'QUIRURGICO' },
-  { titulo: 'Lente y constantes', categoria: 'LENTE' },
+/**
+ * Mismo orden y mismos grupos que `FormularioManual.tsx` (02/09/2026,
+ * petición expresa del dueño del proyecto): las dos vías de entrada —cargar
+ * un documento o escribir a mano— tienen que llevar a la misma experiencia,
+ * no a dos formularios distintos.
+ *
+ * La única diferencia real: aquí SÍ se enseñan los campos que un documento
+ * puede traer pero que ninguna calculadora usa —AQD, TK1/TK2, el índice
+ * queratométrico, el factor de lente—, porque esta pantalla tiene que
+ * enseñar TODO lo que se ha leído (ver el docstring de arriba). El
+ * cuestionario manual no los pide porque nadie los escribe a mano sin que
+ * ninguna calculadora los vaya a usar nunca.
+ */
+const GRUPOS: { titulo: string; campos: readonly CampoBiometrico[] }[] = [
+  {
+    titulo: 'Biometría',
+    campos: [
+      'AL',
+      'K1',
+      'K1_EJE',
+      'K2',
+      'K2_EJE',
+      'ACD',
+      'AQD',
+      'LT',
+      'CCT',
+      'WTW',
+      'TK1',
+      'TK1_EJE',
+      'TK2',
+      'TK2_EJE',
+      'REFRACCION_OBJETIVO',
+    ],
+  },
+  {
+    titulo: 'Lente e incisión',
+    campos: ['CONSTANTE_A', 'SIA', 'EJE_INCISION', 'FACTOR_LENTE', 'INDICE_QUERATOMETRICO'],
+  },
+  {
+    titulo: 'Córnea posterior',
+    campos: ['PK1', 'PK1_EJE', 'PK2', 'PK2_EJE'],
+  },
 ]
 
 export function PanelRevision({
@@ -206,27 +243,20 @@ export function PanelRevision({
         </div>
       )}
 
-      {/* Selector de aparato (D47): solo se ve cuando este ojo tiene más de
-          uno — un caso de un solo biómetro no nota ningún cambio aquí. */}
-      {aparatos.length > 1 && (
-        <div className="fila" style={{ marginBottom: 14 }}>
-          <span className="pie-nota" style={{ marginRight: 2 }}>
-            Aparato:
-          </span>
-          <div className="selector-ojo">
-            {aparatos.map((a) => (
-              <button
-                key={a}
-                className={a === aparatoActivo ? 'activo' : ''}
-                onClick={() => onCambiarAparato(a)}
-                data-testid={`revision-aparato-${a}`}
-              >
-                {a}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/*
+        Selector de aparato (D47) — mismo componente que el formulario
+        manual, con el mismo botón para añadir un segundo biómetro
+        (02/09/2026): un caso cargado desde un documento tiene la misma
+        necesidad que uno escrito a mano de decir de qué aparato son estos
+        datos, o de añadir uno segundo si la biometría se midió dos veces.
+      */}
+      <SelectorAparato
+        caso={caso}
+        lado={ojoActivo}
+        aparatoActivo={aparatoActivo}
+        onElegir={onCambiarAparato}
+        onCambio={onCambio}
+      />
 
       {/*
         Alarma de discrepancia (D47, decisión 2): si dos aparatos del mismo
@@ -318,9 +348,19 @@ export function PanelRevision({
 
       {GRUPOS.map((grupo) => (
         <GrupoCampos
-          key={grupo.categoria}
+          key={grupo.titulo}
           titulo={grupo.titulo}
-          campos={camposDeCategoria(grupo.categoria)}
+          campos={
+            // Las dos refracciones de LASIK solo se enseñan cuando este ojo
+            // tiene marcada una córnea especial (D67) — a diferencia de los
+            // demás campos informativos de este grupo, estas dos nunca vienen
+            // de ningún documento, así que enseñarlas siempre sería ruido en
+            // el caso normal.
+            grupo.titulo === 'Lente e incisión' &&
+            ojoDe(caso, ojoActivo, aparatoActivo).situacionCorneal !== undefined
+              ? [...grupo.campos, 'REFRACCION_PRE_LASIK', 'REFRACCION_POST_LASIK']
+              : grupo.campos
+          }
           caso={caso}
           ojoActivo={ojoActivo}
           aparatoActivo={aparatoActivo}
@@ -456,6 +496,29 @@ function GrupoCampos({
   return (
     <div className="tarjeta">
       <h2>{titulo}</h2>
+      {titulo === 'Córnea posterior' && (
+        <>
+          <p className="pie-nota" style={{ marginTop: -4, marginBottom: 8 }}>
+            Por defecto es el mismo aparato de arriba. Cámbialo aquí SOLO si la córnea posterior
+            se midió con otro instrumento — EVO y Barrett enseñan su propio desplegable
+            «Biometer»/«Device» para esto, aparte del resto del formulario.
+          </p>
+          <SelectorAparatoCaraPosterior
+            caso={caso}
+            lado={ojoActivo}
+            aparatoActivo={aparatoActivo}
+            onCambio={onCambio}
+          />
+        </>
+      )}
+      {titulo === 'Lente e incisión' && (
+        <SelectorSituacionCorneal
+          caso={caso}
+          lado={ojoActivo}
+          aparatoActivo={aparatoActivo}
+          onCambio={onCambio}
+        />
+      )}
       <table className="revision">
         <thead>
           <tr>

@@ -47,6 +47,8 @@ const api: ApiVilamar = {
     ipcRenderer.invoke(CANALES.renombrarAparato, ojo, aparatoViejo, aparatoNuevo),
   editarAparatoCaraPosterior: (ojo, aparato, aparatoCaraPosterior) =>
     ipcRenderer.invoke(CANALES.editarAparatoCaraPosterior, ojo, aparato, aparatoCaraPosterior),
+  editarSituacionCorneal: (ojo, aparato, situacionCorneal) =>
+    ipcRenderer.invoke(CANALES.editarSituacionCorneal, ojo, aparato, situacionCorneal),
   elegirLente: (fabricante, modelo, nombreEnEvo, nombreEnKane) =>
     ipcRenderer.invoke(CANALES.elegirLente, fabricante, modelo, nombreEnEvo, nombreEnKane),
   elegirLenteSecundaria: (eleccion) =>

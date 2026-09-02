@@ -21,6 +21,7 @@ import type {
   Aviso,
   ResultadoCalculadora,
   Sexo,
+  SituacionCornealEspecial,
 } from '@vilamar/domain'
 import {
   APARATO_PRINCIPAL,
@@ -33,6 +34,7 @@ import {
   confirmarMedida,
   conAparatoCaraPosterior,
   conAparatoRenombrado,
+  conSituacionCorneal,
   conOjo,
   conResultado,
   corregirMedida,
@@ -455,15 +457,54 @@ export class ServicioCasos {
     aparato: string = APARATO_PRINCIPAL,
   ): Caso {
     const caso = this.exigirCaso()
+    const yaExistiaElDataset = aparatosDe(caso, lado).includes(aparato)
     const ojo = ojoDe(caso, lado, aparato)
     const actualizado =
       valor === null ? sinMedida(ojo, campo) : corregirMedida(ojo, campo, valor, this.iso())
-    const conElOjo = conOjo(caso, actualizado, this.iso())
+    let conElOjo = conOjo(caso, actualizado, this.iso())
+    const ladosTocados: Lateralidad[] = [lado]
+    const otroLado: Lateralidad = lado === 'OD' ? 'OS' : 'OD'
+
+    // La constante A es casi siempre la misma lente en los dos ojos
+    // (petición expresa del dueño, 02/09/2026). Se propaga sola entre los
+    // dos datasets del mismo aparato, en el sentido que corresponda según
+    // cuál se acaba de tocar — nunca pisa un valor que YA hubiera, venga de
+    // donde venga (a mano o del catálogo), así que borrarla en un ojo no la
+    // hace reaparecer sola.
+    if (campo === 'CONSTANTE_A' && valor !== null) {
+      // 1. Se acaba de escribir aquí: si el otro ojo ya tiene este mismo
+      //    aparato pero sin su propia constante, se copia hacia allí.
+      const otroOjo = ojoDe(conElOjo, otroLado, aparato)
+      if (aparatosDe(conElOjo, otroLado).includes(aparato) && otroOjo.medidas.CONSTANTE_A === undefined) {
+        conElOjo = conOjo(conElOjo, corregirMedida(otroOjo, campo, valor, this.iso()), this.iso())
+        ladosTocados.push(otroLado)
+      }
+    } else if (campo !== 'CONSTANTE_A' && !yaExistiaElDataset && valor !== null) {
+      // 2. Se acaba de crear un dataset nuevo con este primer dato: si el
+      //    otro ojo ya tenía este mismo aparato CON su constante puesta, se
+      //    hereda aquí — solo en el momento de crearse, nunca en ediciones
+      //    posteriores (para no revivir una que la persona borró a propósito).
+      const constanteDelOtro = ojoDe(conElOjo, otroLado, aparato).medidas.CONSTANTE_A
+      if (constanteDelOtro !== undefined) {
+        conElOjo = conOjo(
+          conElOjo,
+          corregirMedida(
+            ojoDe(conElOjo, lado, aparato),
+            'CONSTANTE_A',
+            constanteDelOtro.valor,
+            this.iso(),
+          ),
+          this.iso(),
+        )
+      }
+    }
+
     // Un reconocimiento de discrepancia viejo no puede tapar una discrepancia
-    // nueva: cualquier edición de este ojo lo borra, y hace falta volver a
+    // nueva: cualquier edición de un ojo lo borra, y hace falta volver a
     // comprobar (D47).
-    const { [lado]: _borrado, ...resto } = conElOjo.discrepanciasReconocidas ?? {}
-    return this.establecer({ ...conElOjo, discrepanciasReconocidas: resto })
+    const restantes = { ...conElOjo.discrepanciasReconocidas }
+    for (const l of ladosTocados) delete restantes[l]
+    return this.establecer({ ...conElOjo, discrepanciasReconocidas: restantes })
   }
 
   /**
@@ -482,6 +523,22 @@ export class ServicioCasos {
     const caso = this.exigirCaso()
     const ojo = ojoDe(caso, lado, aparato)
     const actualizado = conAparatoCaraPosterior(ojo, aparatoCaraPosterior)
+    return this.establecer(conOjo(caso, actualizado, this.iso()))
+  }
+
+  /**
+   * Si este ojo tiene una córnea alterada por cirugía refractiva previa o
+   * queratocono (D67, 02/09/2026). `undefined` la quita y vuelve a ser un
+   * ojo normal.
+   */
+  editarSituacionCorneal(
+    lado: Lateralidad,
+    aparato: string,
+    situacionCorneal: SituacionCornealEspecial | undefined,
+  ): Caso {
+    const caso = this.exigirCaso()
+    const ojo = ojoDe(caso, lado, aparato)
+    const actualizado = conSituacionCorneal(ojo, situacionCorneal)
     return this.establecer(conOjo(caso, actualizado, this.iso()))
   }
 
