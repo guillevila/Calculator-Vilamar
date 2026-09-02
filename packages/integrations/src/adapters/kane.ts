@@ -1306,19 +1306,14 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     }
 
     // Un caso real (CV-2026-0096, 02/09/2026) SIGUIÓ saliendo en blanco pese
-    // a lo de arriba: el evento de ratón tampoco basta siempre. Se añade un
-    // segundo forzado, de un tipo distinto — un scroll de verdad, un píxel
-    // y vuelta— porque desplazar la página es lo que más fiablemente obliga
-    // a Chromium a recomponer la capa que se está desplazando, más que un
-    // simple movimiento de ratón que no toca ninguna capa.
-    await pagina
-      .evaluate(() => {
-        window.scrollBy(0, 1)
-        window.scrollBy(0, -1)
-      })
-      .catch(() => {})
-    await pagina.waitForTimeout(150)
-
+    // a lo de arriba: un solo forzado no basta siempre, y esperar más
+    // tiempo sin más tampoco cambia nada (comprobado el 27/08/2026: el PNG
+    // sale idéntico byte a byte). En vez de perseguir un forzado perfecto
+    // aquí, `capturarResultado()` (packages/integrations/src/captura.ts)
+    // ahora prueba varias fotos seguidas, con su propio forzado entre una y
+    // otra, y se queda con la que de verdad tiene contenido — mismo
+    // mecanismo para las tres calculadoras, no solo para Kane.
+    //
     // La captura se toma aquí, con el eco del AL ya comprobado contra el ojo
     // que se pidió: es la evidencia sin interpretar de lo que ha devuelto Kane.
     const capturaId = await capturarResultado(pagina, ctx, this.calculadora)

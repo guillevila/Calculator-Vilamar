@@ -36,7 +36,11 @@ function contexto(overrides: Partial<ContextoEjecucion> = {}): ContextoEjecucion
 }
 
 function paginaFalsa(comportamiento: () => Promise<Uint8Array>): Page {
-  return { screenshot: comportamiento } as unknown as Page
+  return {
+    screenshot: comportamiento,
+    waitForTimeout: async () => undefined,
+    evaluate: async () => undefined,
+  } as unknown as Page
 }
 
 describe('capturarResultado', () => {
@@ -80,5 +84,49 @@ describe('capturarResultado', () => {
       'BARRETT_TORIC',
     )
     expect(id).toBeUndefined()
+  })
+
+  it('prueba varias fotos y se queda con la que pesa más — la señal de que de verdad tiene contenido (D67, 02/09/2026)', async () => {
+    // Comprobado con Kane real: una tabla en blanco comprime a un PNG mucho
+    // más pequeño que la misma tabla con números — este test reproduce esa
+    // diferencia con tres «fotos» de tamaño distinto y ninguna decodifica
+    // ningún píxel.
+    const fotos = [new Uint8Array(5), new Uint8Array(50), new Uint8Array(20)]
+    let llamada = 0
+    const recibidos: DatosCaptura[] = []
+    const ctx = contexto({
+      guardarCaptura: async (d) => {
+        recibidos.push(d)
+        return 'captura-mejor'
+      },
+    })
+
+    const id = await capturarResultado(
+      paginaFalsa(async () => fotos[llamada++] ?? new Uint8Array(0)),
+      ctx,
+      'KANE',
+    )
+
+    expect(id).toBe('captura-mejor')
+    expect(recibidos).toHaveLength(1)
+    expect(recibidos[0]?.png).toBe(fotos[1]) // la de 50 bytes, la más grande
+  })
+
+  it('si una foto falla a mitad, se queda con la mejor que ya tenía en vez de perderla', async () => {
+    let llamada = 0
+    const buena = new Uint8Array(50)
+    const ctx = contexto()
+
+    const id = await capturarResultado(
+      paginaFalsa(async () => {
+        llamada++
+        if (llamada === 1) return buena
+        throw new Error('el navegador se ha cerrado a mitad de los intentos')
+      }),
+      ctx,
+      'EVO_TORIC',
+    )
+
+    expect(id).toBe('captura-1') // el `guardarCaptura` por defecto del contexto de prueba
   })
 })

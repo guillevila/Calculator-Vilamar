@@ -12,7 +12,7 @@
  * hace falta duplicarlos.
  */
 
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import type { JSX } from 'react'
 
 import type { CampoBiometrico, Caso, Lateralidad } from '@vilamar/domain'
@@ -31,16 +31,33 @@ interface Props {
 
 /** Un grupo de campos, en el orden en que se pidieron. */
 interface GrupoDeCampos {
+  readonly numero: string
   readonly titulo: string
-  /** Qué azul le toca — ver `.grupo-manual` en estilos.css. */
-  readonly clase: 'biometria' | 'lente' | 'cornea'
+  readonly subtitulo: string
+  /** Qué franja de color le toca — ver `.tarjeta-seccion` en estilos.css. */
+  readonly clase: 'biometria' | 'lente' | 'posterior'
+  /** «Obligatorios» en rojo, «Opcional» en ámbar, o nada. */
+  readonly etiqueta?: { readonly texto: string; readonly clase: 'obligatorios' | 'opcional' }
   readonly campos: readonly (readonly [CampoBiometrico, CampoBiometrico | null])[]
 }
 
+/**
+ * Los seis datos que EVO, Barrett y Kane piden siempre para poder calcular
+ * algo — se destacan en rojo, con asterisco, en el rediseño del
+ * 02/09/2026 (sobre una maqueta que trajo el dueño del proyecto). No
+ * sustituye la exigencia real de cada campo —que depende de la
+ * calculadora, y ya se explica en la pantalla de revisión—: es solo el
+ * núcleo mínimo, destacado para que no se olvide al escribir a mano.
+ */
+const CAMPOS_DESTACADOS: readonly CampoBiometrico[] = ['AL', 'K1', 'K1_EJE', 'K2', 'K2_EJE', 'ACD']
+
 const GRUPOS: readonly GrupoDeCampos[] = [
   {
-    titulo: 'Biometría',
+    numero: '02',
+    titulo: 'Biometría y queratometría',
+    subtitulo: 'Parámetros principales del ojo',
     clase: 'biometria',
+    etiqueta: { texto: '* Obligatorios', clase: 'obligatorios' },
     campos: [
       ['AL', null],
       ['K1', 'K1_EJE'],
@@ -53,7 +70,9 @@ const GRUPOS: readonly GrupoDeCampos[] = [
     ],
   },
   {
+    numero: '03',
     titulo: 'Lente e incisión',
+    subtitulo: 'Constante de cálculo y decisiones quirúrgicas',
     clase: 'lente',
     campos: [
       ['CONSTANTE_A', null],
@@ -62,8 +81,11 @@ const GRUPOS: readonly GrupoDeCampos[] = [
     ],
   },
   {
-    titulo: 'Córnea posterior',
-    clase: 'cornea',
+    numero: '04',
+    titulo: 'Mediciones de cara posterior',
+    subtitulo: 'Información complementaria',
+    clase: 'posterior',
+    etiqueta: { texto: 'Opcional', clase: 'opcional' },
     campos: [
       ['PK1', 'PK1_EJE'],
       ['PK2', 'PK2_EJE'],
@@ -102,14 +124,34 @@ export function FormularioManual({ caso, onCambio, onContinuar }: Props): JSX.El
     onContinuar()
   }
 
+  const ojoActivoDatos = ojoDe(caso, ladoActivo, aparatoActivo)
+  const camposNucleo: readonly CampoBiometrico[] = [...CAMPOS_DESTACADOS, 'CONSTANTE_A']
+  const hechos = camposNucleo.filter((c) => ojoActivoDatos.medidas[c] !== undefined).length
+  const porcentaje = Math.round((hechos / camposNucleo.length) * 100)
+
   return (
     <>
+      <div className="cabecera-bio">
+        <div className="distintivo">
+          <span className="insignia">BIO</span>
+          <div>
+            <h2>Formulario de biometría ocular</h2>
+            <p>Registro de mediciones y lente intraocular</p>
+          </div>
+        </div>
+        <div className="progreso">
+          <span>{porcentaje}% completo — {nombreLateralidad(ladoActivo)}</span>
+          <div className="progreso-barra">
+            <div className="progreso-relleno" style={{ width: `${porcentaje}%` }} />
+          </div>
+        </div>
+      </div>
+
       <IdentificacionCaso caso={caso} onCambio={onCambio} />
 
       <SelectorLente caso={caso} onCambio={onCambio} />
 
       <div className="tarjeta">
-        <h2>Datos del ojo</h2>
         <div className="fila" style={{ marginBottom: 14, alignItems: 'center' }}>
           <span style={{ fontWeight: 600, color: 'var(--azul)' }}>Editando:</span>
           <div className="selector-ojo grande">
@@ -125,6 +167,9 @@ export function FormularioManual({ caso, onCambio, onContinuar }: Props): JSX.El
             ))}
           </div>
         </div>
+        <p className="pie-nota" style={{ marginTop: -6, marginBottom: 12 }}>
+          Vista individual — los datos del otro ojo se quedan guardados tal cual, sin tocarlos.
+        </p>
 
         <SelectorAparato
           caso={caso}
@@ -133,77 +178,97 @@ export function FormularioManual({ caso, onCambio, onContinuar }: Props): JSX.El
           onElegir={(aparato) => setAparatoPorOjo((previo) => ({ ...previo, [ladoActivo]: aparato }))}
           onCambio={onCambio}
         />
+      </div>
 
-        {GRUPOS.map((grupo) => (
-          <div key={grupo.titulo} className={`grupo-manual ${grupo.clase}`}>
-            <h3 style={{ fontSize: 13, marginBottom: 8 }}>{grupo.titulo}</h3>
-            {grupo.titulo === 'Córnea posterior' && (
-              <>
-                <p className="pie-nota" style={{ marginTop: -4, marginBottom: 8 }}>
-                  Por defecto es el mismo aparato de arriba. Cámbialo aquí SOLO si la córnea
-                  posterior se midió con otro instrumento — EVO y Barrett enseñan su propio
-                  desplegable «Biometer»/«Device» para esto, aparte del resto del formulario.
-                </p>
-                <SelectorAparatoCaraPosterior
-                  caso={caso}
-                  lado={ladoActivo}
-                  aparatoActivo={aparatoActivo}
-                  onCambio={onCambio}
-                />
-              </>
+      {GRUPOS.map((grupo) => (
+        <div key={grupo.titulo} className={`tarjeta-seccion ${grupo.clase}`}>
+          <div className="seccion-cabecera">
+            <span className="seccion-numero">{grupo.numero}</span>
+            <div className="seccion-titulo">
+              <h3>{grupo.titulo}</h3>
+              <p>{grupo.subtitulo}</p>
+            </div>
+            {grupo.etiqueta && (
+              <span className={`seccion-etiqueta ${grupo.etiqueta.clase}`}>{grupo.etiqueta.texto}</span>
             )}
-            {grupo.titulo === 'Lente e incisión' && (
-              <SelectorSituacionCorneal
+          </div>
+          {grupo.titulo === 'Mediciones de cara posterior' && (
+            <>
+              <p className="pie-nota" style={{ marginTop: -4, marginBottom: 8 }}>
+                Por defecto es el mismo aparato de arriba. Cámbialo aquí SOLO si la córnea
+                posterior se midió con otro instrumento — EVO y Barrett enseñan su propio
+                desplegable «Biometer»/«Device» para esto, aparte del resto del formulario.
+              </p>
+              <SelectorAparatoCaraPosterior
                 caso={caso}
                 lado={ladoActivo}
                 aparatoActivo={aparatoActivo}
                 onCambio={onCambio}
               />
-            )}
-            <div className="rejilla-manual">
-              {grupo.campos.map(([campo, campoEje]) => (
+            </>
+          )}
+          {grupo.titulo === 'Lente e incisión' && (
+            <SelectorSituacionCorneal
+              caso={caso}
+              lado={ladoActivo}
+              aparatoActivo={aparatoActivo}
+              onCambio={onCambio}
+            />
+          )}
+          <div className="rejilla-manual">
+            {grupo.campos.map(([campo, campoEje]) => (
+              // El «borrador» de cada casilla es estado local del componente
+              // (D47): sin `ojo`/`aparato` en la clave, React reutiliza la
+              // MISMA instancia al cambiar de aparato y el texto del
+              // biómetro anterior se queda pegado en pantalla, aunque el
+              // dato de verdad ya sea de otro dataset vacío.
+              <Fragment key={`${ladoActivo}-${aparatoActivo}-${campo}`}>
                 <CampoManual
-                  // El «borrador» de cada casilla es estado local del
-                  // componente (D47): sin `ojo`/`aparato` en la clave, React
-                  // reutiliza la MISMA instancia al cambiar de aparato y el
-                  // texto del biómetro anterior se queda pegado en pantalla,
-                  // aunque el dato de verdad ya sea de otro dataset vacío.
-                  key={`${ladoActivo}-${aparatoActivo}-${campo}`}
                   caso={caso}
                   ojo={ladoActivo}
                   aparato={aparatoActivo}
                   campo={campo}
-                  campoEje={campoEje}
+                  destacado={CAMPOS_DESTACADOS.includes(campo)}
                   onCambio={onCambio}
                 />
-              ))}
-              {grupo.titulo === 'Lente e incisión' &&
-                ojoDe(caso, ladoActivo, aparatoActivo).situacionCorneal !== undefined && (
-                  <>
-                    <CampoManual
-                      key={`${ladoActivo}-${aparatoActivo}-REFRACCION_PRE_LASIK`}
-                      caso={caso}
-                      ojo={ladoActivo}
-                      aparato={aparatoActivo}
-                      campo="REFRACCION_PRE_LASIK"
-                      campoEje={null}
-                      onCambio={onCambio}
-                    />
-                    <CampoManual
-                      key={`${ladoActivo}-${aparatoActivo}-REFRACCION_POST_LASIK`}
-                      caso={caso}
-                      ojo={ladoActivo}
-                      aparato={aparatoActivo}
-                      campo="REFRACCION_POST_LASIK"
-                      campoEje={null}
-                      onCambio={onCambio}
-                    />
-                  </>
+                {campoEje && (
+                  <CampoManual
+                    caso={caso}
+                    ojo={ladoActivo}
+                    aparato={aparatoActivo}
+                    campo={campoEje}
+                    destacado={CAMPOS_DESTACADOS.includes(campoEje)}
+                    onCambio={onCambio}
+                  />
                 )}
-            </div>
+              </Fragment>
+            ))}
+            {grupo.titulo === 'Lente e incisión' &&
+              ojoDe(caso, ladoActivo, aparatoActivo).situacionCorneal !== undefined && (
+                <>
+                  <CampoManual
+                    key={`${ladoActivo}-${aparatoActivo}-REFRACCION_PRE_LASIK`}
+                    caso={caso}
+                    ojo={ladoActivo}
+                    aparato={aparatoActivo}
+                    campo="REFRACCION_PRE_LASIK"
+                    destacado={false}
+                    onCambio={onCambio}
+                  />
+                  <CampoManual
+                    key={`${ladoActivo}-${aparatoActivo}-REFRACCION_POST_LASIK`}
+                    caso={caso}
+                    ojo={ladoActivo}
+                    aparato={aparatoActivo}
+                    campo="REFRACCION_POST_LASIK"
+                    destacado={false}
+                    onCambio={onCambio}
+                  />
+                </>
+              )}
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
 
       <div className="tarjeta">
         <div className="fila derecha">
@@ -212,8 +277,9 @@ export function FormularioManual({ caso, onCambio, onContinuar }: Props): JSX.El
           </button>
         </div>
         <p className="pie-nota">
-          En la siguiente pantalla ves todo lo escrito, con el sexo del paciente si Kane lo
-          necesita, y confirmas antes de calcular — igual que si vinieras de un documento.
+          * Campo obligatorio. En la siguiente pantalla ves todo lo escrito, con el sexo del
+          paciente si Kane lo necesita, y confirmas antes de calcular — igual que si vinieras de
+          un documento.
         </p>
       </div>
     </>
@@ -226,8 +292,11 @@ interface PropsCampoManual {
   /** De qué biómetro es este campo (D47). */
   readonly aparato: string
   readonly campo: CampoBiometrico
-  /** Si este campo lleva un eje asociado, se pinta al lado. */
-  readonly campoEje: CampoBiometrico | null
+  /**
+   * Si es uno de los seis datos que EVO, Barrett y Kane piden siempre
+   * (rediseño 02/09/2026): fondo rojo, borde rojo y asterisco.
+   */
+  readonly destacado: boolean
   readonly onCambio: () => Promise<void>
 }
 
@@ -247,7 +316,7 @@ const VALOR_POR_DEFECTO: Partial<Record<CampoBiometrico, string>> = {
  * cualquier otro sitio del programa: un hueco no se rellena solo (D3),
  * salvo estas excepciones ya decididas (D38).
  */
-function CampoManual({ caso, ojo, aparato, campo, campoEje, onCambio }: PropsCampoManual): JSX.Element {
+function CampoManual({ caso, ojo, aparato, campo, destacado, onCambio }: PropsCampoManual): JSX.Element {
   const datosOjo = ojoDe(caso, ojo, aparato)
   const def = definicionDe(campo)
   const medida = datosOjo.medidas[campo]
@@ -272,75 +341,22 @@ function CampoManual({ caso, ojo, aparato, campo, campoEje, onCambio }: PropsCam
   }
 
   return (
-    <div className="campo-manual">
+    <div className={`campo-manual${destacado ? ' obligatorio' : ''}`}>
       <label>
         {def.etiqueta}
         {def.unidad !== 'ninguna' ? ` (${def.unidad})` : ''}
       </label>
-      <div className="fila" style={{ gap: 6 }}>
-        <input
-          value={mostrado}
-          inputMode="decimal"
-          aria-label={def.etiqueta}
-          data-testid={`manual-campo-${campo}`}
-          onChange={(e) => setBorrador(e.target.value)}
-          onBlur={(e) => void guardar(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void guardar((e.target as HTMLInputElement).value)
-          }}
-        />
-        {campoEje && (
-          <CampoEje caso={caso} ojo={ojo} aparato={aparato} campo={campoEje} onCambio={onCambio} />
-        )}
-      </div>
+      <input
+        value={mostrado}
+        inputMode="decimal"
+        aria-label={def.etiqueta}
+        data-testid={`manual-campo-${campo}`}
+        onChange={(e) => setBorrador(e.target.value)}
+        onBlur={(e) => void guardar(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void guardar((e.target as HTMLInputElement).value)
+        }}
+      />
     </div>
-  )
-}
-
-/** El eje que acompaña a una K: mismo mecanismo, sin valor por defecto. */
-function CampoEje({
-  caso,
-  ojo,
-  aparato,
-  campo,
-  onCambio,
-}: {
-  readonly caso: Caso
-  readonly ojo: Lateralidad
-  readonly aparato: string
-  readonly campo: CampoBiometrico
-  readonly onCambio: () => Promise<void>
-}): JSX.Element {
-  const datosOjo = ojoDe(caso, ojo, aparato)
-  const medida = datosOjo.medidas[campo]
-  const [borrador, setBorrador] = useState<string | null>(null)
-  const mostrado = borrador ?? (medida ? String(medida.valor) : '')
-
-  async function guardar(texto: string): Promise<void> {
-    const limpio = texto.trim().replace(',', '.')
-    if (limpio === '') {
-      await api().editarMedida(ojo, campo, null, aparato)
-    } else {
-      const n = Number(limpio)
-      if (!Number.isFinite(n)) return
-      await api().editarMedida(ojo, campo, n, aparato)
-    }
-    setBorrador(null)
-    await onCambio()
-  }
-
-  return (
-    <input
-      value={mostrado}
-      inputMode="decimal"
-      placeholder="eje °"
-      aria-label={definicionDe(campo).etiqueta}
-      data-testid={`manual-campo-${campo}`}
-      onChange={(e) => setBorrador(e.target.value)}
-      onBlur={(e) => void guardar(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') void guardar((e.target as HTMLInputElement).value)
-      }}
-    />
   )
 }

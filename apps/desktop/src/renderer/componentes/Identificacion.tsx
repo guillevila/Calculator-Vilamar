@@ -76,9 +76,15 @@ export function IdentificacionCaso({
   readonly onCambio: () => Promise<void>
 }): JSX.Element {
   return (
-    <div className="tarjeta tarjeta-destacada">
-      <h2>Quién es</h2>
-      <p className="sub">
+    <div className="tarjeta-seccion identificacion">
+      <div className="seccion-cabecera">
+        <span className="seccion-numero">01</span>
+        <div className="seccion-titulo">
+          <h3>Identificación</h3>
+          <p>Datos generales del estudio</p>
+        </div>
+      </div>
+      <p className="pie-nota" style={{ marginTop: -6, marginBottom: 12 }}>
         Ninguno de los dos sale en el PDF ni en el informe local, pero los dos son
         obligatorios: EVO, Barrett y Kane piden un nombre en su formulario, y las tres
         calculadoras lo reciben si su formulario lo pide.

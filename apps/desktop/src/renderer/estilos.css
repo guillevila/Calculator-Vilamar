@@ -21,12 +21,19 @@
   --verde: #1e6b45;
   --verde-suave: #eaf5ef;
   --radio: 6px;
-  /* Tres azules distintos, solo para separar visualmente los apartados del
-     cuestionario manual — no tienen relación con los colores de las
-     calculadoras en el informe (esos son otra escala, en el PDF). */
-  --grupo-biometria: #eef4fb;
-  --grupo-lente: #e3ecf7;
-  --grupo-cornea: #d7e5f3;
+  /* Rediseño del cuestionario manual (02/09/2026, sobre una maqueta que
+     trajo el dueño del proyecto): una franja de color por sección —
+     identificación, biometría, lente, córnea posterior— para que se
+     distingan de un vistazo, además del número y el título. Colores
+     nuevos, sin relación con --grupo-* de arriba (que se quedan por si
+     algún sitio los sigue usando) ni con los de las calculadoras del
+     informe. */
+  --seccion-identificacion: #2563a8;
+  --seccion-biometria: #1e8a5f;
+  --seccion-lente: #6b3fa0;
+  --seccion-lente-suave: #f2ecf9;
+  --seccion-posterior: #b8860b;
+  --seccion-posterior-suave: #fbf3e0;
 }
 
 * {
@@ -592,22 +599,11 @@ table.opciones .na {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 12px 16px;
 }
-/* Cada apartado del cuestionario (Biometría / Lente e incisión / Córnea
-   posterior) con su propio azul, para distinguirlos de un vistazo — antes
-   solo los separaba un `<h3>` y los tres se veían idénticos. */
-.grupo-manual {
-  border-radius: var(--radio);
-  padding: 12px 14px 4px;
-  margin-bottom: 16px;
-}
-.grupo-manual.biometria {
-  background: var(--grupo-biometria);
-}
-.grupo-manual.lente {
-  background: var(--grupo-lente);
-}
-.grupo-manual.cornea {
-  background: var(--grupo-cornea);
+.campo-manual {
+  border: 1px solid var(--linea);
+  border-radius: 8px;
+  padding: 8px 10px 9px;
+  background: #fff;
 }
 .campo-manual label {
   display: block;
@@ -730,4 +726,155 @@ table.opciones .na {
 }
 .lentes-informe button.lente.elegida .lente-constante {
   color: var(--azul);
+}
+
+/* ── Cabecera del cuestionario manual (rediseño 02/09/2026) ─────────────────
+   Sobre una maqueta del dueño del proyecto: insignia BIO, título, y una
+   barra de progreso con los datos «núcleo» del ojo que se está editando —
+   los mismos seis que llevan fondo rojo más abajo, más la constante. */
+.cabecera-bio {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 22px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  background: linear-gradient(120deg, #0f2f4d, #1a5c6b);
+  color: #fff;
+}
+.cabecera-bio .distintivo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.cabecera-bio .insignia {
+  background: #1f9c7f;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+.cabecera-bio h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #fff;
+}
+.cabecera-bio p {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.78);
+}
+.cabecera-bio .progreso {
+  width: 160px;
+  flex-shrink: 0;
+  text-align: right;
+}
+.cabecera-bio .progreso span {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+}
+.cabecera-bio .progreso-barra {
+  height: 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+  margin-top: 5px;
+}
+.cabecera-bio .progreso-relleno {
+  height: 100%;
+  background: #4fd1a5;
+  transition: width 0.2s ease;
+}
+
+/* ── Tarjetas de sección, con franja de color y numeración ──────────────── */
+.tarjeta-seccion {
+  background: #fff;
+  border: 1px solid var(--linea);
+  border-top: 4px solid var(--color-seccion, var(--azul));
+  border-radius: 10px;
+  padding: 16px 20px 18px;
+  margin-bottom: 18px;
+}
+.tarjeta-seccion.identificacion {
+  --color-seccion: var(--seccion-identificacion);
+}
+.tarjeta-seccion.biometria {
+  --color-seccion: var(--seccion-biometria);
+}
+.tarjeta-seccion.lente {
+  --color-seccion: var(--seccion-lente);
+}
+.tarjeta-seccion.posterior {
+  --color-seccion: var(--seccion-posterior);
+}
+.seccion-cabecera {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin-bottom: 14px;
+}
+.seccion-numero {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--color-seccion, var(--azul)) 14%, white);
+  color: var(--color-seccion, var(--azul));
+  font-weight: 700;
+  font-size: 12.5px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.seccion-titulo {
+  flex: 1;
+}
+.seccion-titulo h3 {
+  margin: 0;
+  font-size: 14.5px;
+  color: var(--texto);
+}
+.seccion-titulo p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--gris);
+}
+.seccion-etiqueta {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.seccion-etiqueta.obligatorios {
+  background: var(--rojo-suave);
+  color: var(--rojo);
+}
+.seccion-etiqueta.opcional {
+  background: var(--ambar-suave);
+  color: var(--ambar);
+}
+
+/* ── Campos obligatorios destacados (rediseño 02/09/2026) ────────────────
+   Los mismos seis que EVO, Barrett y Kane piden siempre para poder
+   calcular algo — AL, K1 y su eje, K2 y su eje, ACD — llevan fondo rojo
+   suave, borde rojo y un asterisco en la etiqueta. El resto de campos
+   (algunos obligatorios SOLO para una calculadora en concreto, como SIA o
+   la constante) se quedan neutros: esta marca es la del núcleo mínimo, no
+   sustituye a los avisos de «obligatorio para Barrett» que ya da la
+   pantalla de revisión. */
+.campo-manual.obligatorio {
+  background: var(--rojo-suave);
+  border-color: #e3a8a8;
+  border-radius: 8px;
+}
+.campo-manual.obligatorio label::after {
+  content: ' *';
+  color: var(--rojo);
+  font-weight: 700;
 }
