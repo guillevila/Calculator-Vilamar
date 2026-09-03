@@ -1263,56 +1263,58 @@ export class AdaptadorKane implements AdaptadorCalculadora {
         ? `Kane da ${toricasLeidas} opciones tóricas con el astigmatismo que quedaría con cada una, pero **no destaca ninguna**: la elección de la potencia tórica la deja a quien opera. Por eso las casillas de cilindro de su columna están vacías y no porque falte el dato.`
         : 'A Kane se le ha pedido el cálculo NO tórico, porque falta alguno de los datos que su modo tórico necesita (eje de K1, eje de K2, SIA y eje de la incisión). Da esfera y refracción prevista, no cilindro.'
 
-    // ⚠️ Investigado en vivo (27/08/2026, noche): esperar más tiempo —dos
-    // fotogramas de animación, 800 ms, 3000 ms fijos— no cambiaba nada, el
-    // PNG salía idéntico byte a byte. Pero en otra vuelta de pruebas, la
-    // MISMA espera corta (400 ms) a veces capturó la tabla bien y a veces
-    // en blanco: es flakiness real de Chromium (el back-buffer del
-    // `screenshot()` a veces no refleja el último cambio del DOM), no un
-    // problema estructural del HTML de Kane — inspeccionado el CSS de la
-    // tabla en una captura correcta y no hay nada oculto ni de tamaño cero.
-    // La mitigación habitual para esto es forzar un reflow síncrono y
-    // desplazar la tabla a la vista justo antes de la foto, para que el
-    // compositor tenga que recomponer esa región sí o sí.
-    await pagina.waitForTimeout(400)
-    const selectorTablaResultado = (torico: boolean): string =>
-      torico ? 'table.res_tab42' : 'table.res_tab3'
-    const tablaResultado = pagina
-      .locator(selectorTablaResultado(modo === 'TORICO'))
-      .nth(indiceDelOjo)
-    await tablaResultado.scrollIntoViewIfNeeded().catch(() => {
-      // Si no se puede desplazar, se sigue igual: la foto de abajo dirá si
-      // de verdad no hay nada que ver.
-    })
-    await pagina.evaluate(() => {
-      // Forzar un reflow síncrono leyendo un layout property. No hace nada
-      // por sí solo, pero obliga al navegador a recalcular antes de seguir.
-      void document.body.getBoundingClientRect()
-    })
+    // ⚠️ La CAUSA REAL, encontrada el 03/09/2026 con un caso real
+    // (CV-2026-0096) — las dos investigaciones anteriores (27/08 y
+    // 02/09/2026, más arriba en el historial de git) perseguían la
+    // hipótesis equivocada: no es que `screenshot()` capture un fotograma
+    // viejo del compositor. Es que las celdas de ESTE bloque de resultado
+    // tienen **`opacity: 0` de verdad en el DOM** en el momento de la foto
+    // —comprobado con `getComputedStyle()`, no supuesto—, casi seguro
+    // porque Kane las anima con un fade-in (por CSS o por una librería
+    // como jQuery) que aquí nunca llega a completarse: probado a mano en
+    // un navegador normal, el dueño del proyecto lo ve perfectamente, así
+    // que la animación solo se queda a medias cuando lo conduce un script
+    // en vez de una persona — probablemente porque depende de que la
+    // pestaña tenga el foco de verdad, o de un evento que un
+    // `page.fill()`/`page.click()` de Playwright no dispara igual que un
+    // clic real. Esperar, forzar un reflow o mover el ratón —lo que se
+    // probó en las dos investigaciones anteriores— nunca iba a arreglar
+    // esto: ninguna de esas técnicas cambia una opacidad que se ha
+    // quedado enganchada en 0.
+    //
+    // La corrección va a la causa: se fuerza `opacity: 1` —y se apagan la
+    // transición y la animación, para que no puedan volver a bajarla— en
+    // TODO lo que haya dentro del bloque de resultados de este ojo, justo
+    // antes de la foto. No hace falta saber qué elemento exacto es el que
+    // se está animando: forzarlo en todos es inofensivo para los que ya
+    // estaban en `opacity: 1`, y ya no importa CUÁNDO se dispara la
+    // animación de Kane si el resultado final nunca depende de que
+    // termine.
+    const bloqueSelector = modo === 'TORICO' ? '.res_toric' : '.res_nontoric'
+    await pagina
+      .evaluate(
+        ({ indice, selector }) => {
+          const bloque = document.querySelectorAll(selector)[indice]
+          bloque?.querySelectorAll('*').forEach((el) => {
+            const elemento = el as HTMLElement
+            elemento.style.setProperty('opacity', '1', 'important')
+            elemento.style.setProperty('transition', 'none', 'important')
+            elemento.style.setProperty('animation', 'none', 'important')
+          })
+        },
+        { indice: indiceDelOjo, selector: bloqueSelector },
+      )
+      .catch(() => {
+        // Si esto falla, se sigue igual: la foto de abajo dirá si de
+        // verdad no hay nada que ver, como siempre.
+      })
+    await pagina.waitForTimeout(200)
 
-    // Un caso real (CV-2026-0091, 02/09/2026) volvió a salir con la tabla en
-    // blanco pese a esta mitigación: el reflow de arriba fuerza el LAYOUT,
-    // pero no garantiza que el compositor de Chromium ya haya pintado ese
-    // fotograma cuando `screenshot()` lo pide — la investigación del
-    // 27/08/2026 (ver arriba) ya había descartado esperar más tiempo, así
-    // que aquí se prueba algo distinto: un evento de ratón DE VERDAD (no
-    // disparado desde JS) es lo que suele obligar a un navegador headless a
-    // programar un fotograma nuevo. Si no se puede mover el ratón, se sigue
-    // igual — la foto de abajo dirá si de verdad no hay nada que ver.
-    const caja = await tablaResultado.boundingBox().catch(() => null)
-    if (caja) {
-      await pagina.mouse.move(caja.x + 1, caja.y + 1).catch(() => {})
-      await pagina.waitForTimeout(150)
-    }
-
-    // Un caso real (CV-2026-0096, 02/09/2026) SIGUIÓ saliendo en blanco pese
-    // a lo de arriba: un solo forzado no basta siempre, y esperar más
-    // tiempo sin más tampoco cambia nada (comprobado el 27/08/2026: el PNG
-    // sale idéntico byte a byte). En vez de perseguir un forzado perfecto
-    // aquí, `capturarResultado()` (packages/integrations/src/captura.ts)
-    // ahora prueba varias fotos seguidas, con su propio forzado entre una y
-    // otra, y se queda con la que de verdad tiene contenido — mismo
-    // mecanismo para las tres calculadoras, no solo para Kane.
+    // Red de seguridad adicional, por si algún día aparece OTRA causa
+    // distinta de foto en blanco: `capturarResultado()`
+    // (packages/integrations/src/captura.ts) prueba varias fotos seguidas
+    // y se queda con la que de verdad tiene contenido — mismo mecanismo
+    // para las tres calculadoras, no solo para Kane.
     //
     // La captura se toma aquí, con el eco del AL ya comprobado contra el ojo
     // que se pidió: es la evidencia sin interpretar de lo que ha devuelto Kane.
