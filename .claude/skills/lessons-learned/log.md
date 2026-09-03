@@ -1893,3 +1893,53 @@ problema.
 `leerResultado()`. Extensible a cualquier lectura de pantalla automatizada
 (Playwright u otro) que falle de forma intermitente contra una web con
 animaciones o transiciones CSS.
+
+## 03/09/2026 (2) — Un botón que llamaba a la función «correcta» por el nombre («Reintentar») en realidad iba por un camino distinto y más flojo que el botón que sí funcionaba
+
+**Error o aprendizaje:** El botón «Reintentar X» de la pantalla de
+resultados (`PanelResultados.tsx`) no funcionaba para una calculadora que
+nunca se había lanzado, tras reabrir un caso desde «Casos guardados» —
+obligaba a volver a la pantalla de revisión, confirmar otra vez, y
+lanzarla desde la pantalla de cálculo, donde SÍ funcionaba. Antes de tocar
+código se sospechó de varias cosas plausibles (un guardia sobre
+`caso.estado`, el caso reabierto sin hidratar bien, una condición de
+carrera) — ninguna era la causa real.
+
+**Causa raíz:** El botón llamaba a `ServicioCasos.reintentar()`, una
+función CON ESE NOMBRE PARA ESO, que a falta de un aparato explícito
+asumía `APARATO_PRINCIPAL` («Principal»). El botón «Calcular» de la
+pantalla anterior, en cambio, llama a `ServicioCasos.calcular()`, que
+resuelve el aparato real de cada ojo a través de `planificarCaso()` en vez
+de asumir nada. Para un caso donde el usuario eligió un aparato con nombre
+propio en el desplegable (p. ej. «ZEISS IOLMaster 700», nada raro: es
+justo lo que ofrece el propio selector), `reintentar()` buscaba un
+conjunto de datos con aparato «Principal» que no existe, encontraba uno
+vacío, y la calculadora fallaba por «faltan todos los campos» — un fallo
+real, no simulado, pero que parecía «no hace nada» porque no hay ningún
+mensaje visible en pantalla que diga POR QUÉ falló una casilla que nunca
+se había intentado.
+
+**Cómo se confirmó, sin adivinar:** en vez de teorizar más, se cogió el
+caso real guardado del dueño (`CV-2026-0101.json`, aparato real «ZEISS
+IOLMaster 700») y se llamó `prepararEntradas()` dos veces, directamente:
+con `'Principal'` (el bug) devolvía `FALTAN_DATOS` con los nueve campos
+vacíos; con el aparato real, todo correcto. Cero suposiciones — el propio
+dato del dueño demostró la causa antes de escribir el arreglo.
+
+**Lección:** Cuando dos botones que deberían hacer «lo mismo» (aquí:
+lanzar una casilla de cálculo) se comportan distinto, no asumir que el que
+lleva el nombre más obvio («Reintentar») es el camino correcto o el más
+robusto — comparar los DOS caminos de código exactamente, función a
+función, hasta encontrar dónde divergen. Y cuando un valor tiene un caso
+por defecto razonable (`APARATO_PRINCIPAL`) para el uso más común, revisar
+si TODOS los sitios que lo asumen sin preguntarlo siguen siendo válidos
+según el producto crece — aquí lo era en `casoNuevo()` y en la primera
+carga de un documento, pero dejó de serlo en un tercer sitio nuevo
+(`reintentar()`) escrito antes de que D47 (varios aparatos por ojo)
+hiciera que el aparato real pudiera ser cualquier texto.
+
+**Contexto:** `apps/desktop/src/renderer/App.tsx` (wiring del botón),
+`apps/desktop/src/main/servicio-casos.ts` (`reintentar()` vs `calcular()`).
+Arreglado haciendo que el botón use `calcular()` en vez de `reintentar()`,
+en vez de enseñarle a `reintentar()` a resolver el aparato real —menos
+código nuevo, y reutiliza un camino que ya estaba probado.

@@ -4,6 +4,55 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.21] — 03/09/2026
+
+feat(dominio): sexo por defecto (D68) · fix(app): «Reintentar» en
+resultados fallaba en silencio con un aparato con nombre propio.
+
+### Qué se pidió
+
+El dueño, tras probar el rediseño («funciona perfectamente»), pidió: (1)
+que la casilla de sexo salga marcada en «Hombre» por defecto, para no
+bloquear el cálculo si se olvida tocarla; (2) que al reabrir un caso
+desde «Casos guardados» y pulsar «Reintentar» sobre una calculadora
+nunca lanzada, funcione directamente — hoy obliga a volver a la pantalla
+de revisión y confirmar otra vez.
+
+### El cambio
+
+**Sexo por defecto**: `sexo.ts` gana `sexoPorDefecto()`, con una
+procedencia nueva y propia (`DEFECTO`, en `procedencia.ts`, con su
+`OrigenDato` `POR_DEFECTO`) — nunca `MANUAL`, así que nunca se confunde
+con un dato que alguien haya escrito. `ServicioCasos.nuevo()` lo aplica a
+todo caso nuevo; `conDatosDePaciente()` lo sustituye en cuanto el informe
+trae el sexo real o se puede deducir del nombre, con la misma prioridad
+de siempre. Rompe D3 («no se inventa un dato que falta»): Claude hizo
+pushback explícito antes de construirlo, con una alternativa más
+conservadora sobre la mesa; el dueño, informado, mantuvo su petición.
+Decisión D68.
+
+**«Reintentar», corregido**: la causa, confirmada con el caso real del
+dueño (CV-2026-0101, aparato «ZEISS IOLMaster 700»): `ServicioCasos
+.reintentar()` asumía el aparato «Principal» a falta de otro dato — cierto
+solo para quien nunca elige un aparato con nombre propio. Con un aparato
+real, el programa buscaba un conjunto de datos que no existe, encontraba
+uno vacío, y la calculadora fallaba por falta de datos aunque estuvieran
+todos ahí. `App.tsx`: el botón «Reintentar» de `PanelResultados.tsx` pasa
+a usar `calcular()` — el mismo camino que la pantalla de cálculo, que sí
+averigua el aparato real de cada ojo a través de `planificarCaso()` — en
+vez del `reintentar()` del IPC.
+
+### Verificado
+
+`pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+en verde (698 tests unitarios, 5 nuevos sobre `sexoPorDefecto`; 37 de
+interfaz). El fallo de «Reintentar» y su corrección se confirmaron
+directamente contra el caso real del dueño: `prepararEntradas(caso,
+'BARRETT_TORIC', 'OD', 'Principal')` da `FALTAN_DATOS` con los nueve
+campos vacíos; con `'ZEISS IOLMaster 700'`, todo correcto.
+
+---
+
 ## [1.15.20] — 03/09/2026
 
 fix(integraciones): encontrada la causa real de la foto en blanco de

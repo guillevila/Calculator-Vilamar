@@ -9,7 +9,46 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 03/09/2026 · **La causa real de la foto en
+**Última actualización:** 03/09/2026 (2) · **Sexo por defecto (D68) y un
+fallo real corregido: «Reintentar» en la pantalla de resultados fallaba en
+silencio para cualquier aparato con nombre propio.** El dueño probó el
+rediseño en pantalla —«funciona perfectamente»— y pidió dos cosas más.
+
+**1. Sexo por defecto.** El dueño pidió que la casilla «Hombre» salga ya
+marcada en todo caso nuevo, para no bloquear el cálculo si se olvida
+tocarla. Rompe D3 («ningún dato que falta se inventa»), así que Claude
+hizo pushback explícito antes de construirlo y ofreció una alternativa más
+conservadora (recordar el último sexo usado, sin autoconfirmar); el dueño,
+informado del riesgo, mantuvo su petición original. Construido con una
+salvaguarda: procedencia propia `DEFECTO` (nunca `MANUAL`), así que la
+pantalla y el informe siempre pueden distinguir «lo puso el programa» de
+«lo confirmó una persona» — nunca se ve ni se guarda como si fuera lo
+segundo. Si el informe trae el sexo, o se deduce del nombre, esa fuente
+manda igual que siempre; el valor por defecto solo se queda cuando ninguna
+de las dos funciona. Decisión D68 en `SYSTEM_VISION.md`.
+
+**2. «Reintentar» en la pantalla de resultados, corregido — fallo real,
+verificado contra un caso real del dueño.** Al reabrir un caso desde
+«Casos guardados» y pulsar «Reintentar» sobre una calculadora que nunca se
+había lanzado, no funcionaba: obligaba a volver a la pantalla de revisión,
+pulsar «Confirmar datos» otra vez, y lanzarla desde la pantalla de
+cálculo, donde SÍ funcionaba. Causa encontrada y confirmada con el caso
+real del dueño (CV-2026-0101, aparato «ZEISS IOLMaster 700»): el botón
+«Reintentar» iba por un camino del programa (`ServicioCasos.reintentar()`)
+que, a falta de otro dato, asume que el ojo usa el aparato «Principal» —
+cierto solo si nadie eligió un aparato con nombre propio en el
+desplegable. Con un aparato real como «ZEISS IOLMaster 700», el programa
+buscaba un conjunto de datos que no existe, encontraba uno vacío, y la
+calculadora fallaba por «faltan todos los datos» aunque estuvieran todos
+ahí — confirmado con el propio caso del dueño: `prepararEntradas(...,
+'Principal')` da `FALTAN_DATOS` con los nueve campos vacíos;
+`prepararEntradas(..., 'ZEISS IOLMaster 700')` da todo correcto. El
+botón ahora usa el mismo camino que la pantalla de cálculo (`calcular()`,
+que sí averigua el aparato real de cada ojo), así que se comporta igual
+en las dos pantallas. `pnpm lint && pnpm typecheck && pnpm test && pnpm
+build && pnpm test:e2e` en verde (698 tests unitarios, 37 de interfaz).
+
+Antes de esto — **La causa real de la foto en
 blanco de Kane, encontrada — no era lo que se pensaba.** El dueño compartió
 un PDF real más (CV-2026-0096) reportando dos fallos juntos: la tabla de
 resultado seguía en blanco en la captura, y además el sistema eligió una
