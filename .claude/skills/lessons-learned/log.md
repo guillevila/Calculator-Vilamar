@@ -1850,3 +1850,46 @@ reproduciendo el camino real, no el más corto para llegar hasta él.
 de una web que dependa de un `rellenar()` con varios pasos: probar el
 campo aislado no basta si el adaptador real llega a él con la página en
 otro estado.
+
+## 03/09/2026 — Dos investigaciones seguidas «mitigaron» la foto en blanco de Kane sin comprobar el estilo real de la celda; la tercera lo miró y la causa era otra completamente distinta
+
+**Error o aprendizaje:** Las investigaciones del 27/08 y del 02/09
+(entradas de arriba) diagnosticaron la foto en blanco de Kane como
+«flakiness del compositor de Chromium» — el navegador a veces no ha
+pintado el último cambio del DOM cuando `screenshot()` lo pide — y
+probaron mitigaciones sucesivas del mismo tipo: esperar más, forzar un
+reflow, mover el ratón, hacer scroll. Todas verificadas en vivo, todas
+descartadas en vivo cuando el dueño volvió a mandar un PDF con la tabla en
+blanco. Ninguna funcionó porque ninguna atacaba la causa real: nunca se
+inspeccionó el ESTILO COMPUTADO de la celda en el momento exacto de la
+foto, solo se ensayaban técnicas para «forzar un repintado» a ciegas.
+
+**Causa raíz (la de verdad, encontrada esta vez):** las celdas de la
+tabla de resultado tienen `opacity: 0` DE VERDAD en el DOM en el momento
+de la foto —confirmado con `getComputedStyle(celda).opacity === "0"`, no
+supuesto—, casi seguro una animación de fade-in de Kane que no llega a
+completarse cuando la conduce un script en vez de una persona. La pista
+que lo destapó fue el propio dueño: probó la web de Kane a mano y le
+funcionó perfecto, lo que apuntaba a una diferencia entre interacción real
+y automatizada, no a timing del navegador. Ninguna de las mitigaciones
+anteriores podía haber funcionado nunca: esperar, hacer reflow o mover el
+ratón no cambian una opacidad que se ha quedado enganchada en 0.
+
+**Lección:** Cuando una foto o una lectura de pantalla sale mal de forma
+intermitente, antes de probar una «mitigación de timing» (esperar más,
+forzar reflow, mover el ratón, hacer scroll) hay que **inspeccionar el
+estado real del elemento en el momento del fallo** —`getComputedStyle()`,
+tamaño, visibilidad— para saber si el problema es de verdad de timing o
+si el contenido genuinamente no se ha terminado de mostrar. Una mitigación
+que «a veces parece ayudar» sin una causa confirmada es indistinguible de
+la flakiness que se está intentando arreglar, y dos rondas seguidas de
+mitigaciones sin diagnóstico confirmado es la señal de parar y mirar el
+estilo real antes de intentar una tercera. También: cuando el dueño diga
+«a mí me funciona a mano», es una pista de diagnóstico, no un comentario
+de pasada — señala automatización vs. interacción real como el eje del
+problema.
+
+**Contexto:** `packages/integrations/src/adapters/kane.ts`,
+`leerResultado()`. Extensible a cualquier lectura de pantalla automatizada
+(Playwright u otro) que falle de forma intermitente contra una web con
+animaciones o transiciones CSS.

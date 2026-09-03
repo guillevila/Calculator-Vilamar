@@ -4,6 +4,60 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.20] — 03/09/2026
+
+fix(integraciones): encontrada la causa real de la foto en blanco de
+Kane — `opacity: 0` en el DOM, no timing del navegador · feat(app):
+rediseño visual del formulario manual.
+
+### Qué se pidió
+
+El dueño compartió un PDF real más (CV-2026-0096) con dos fallos juntos
+en Kane: la tabla de resultado seguía saliendo en blanco en la captura, y
+además el sistema eligió una lente con decimales que no van de 0.5 en
+0.5. Dio una pista clave: probó la web de Kane a mano y le funcionó
+perfecta — apuntaba a la automatización, no a Kane.
+
+### El cambio
+
+`kane.ts`, `leerResultado()`: la tabla se lee dos veces con 400 ms de por
+medio y solo se acepta cuando coinciden byte a byte (arregla la lectura a
+medio repintar — la lente rara era una fila con datos viejos y nuevos
+mezclados). Para la foto en blanco: inspeccionando el estilo real de la
+celda con `getComputedStyle()` en el momento de la foto apareció que
+tenía `opacity: 0` de verdad en el DOM — no era timing del compositor de
+Chromium, como se pensó en las dos investigaciones anteriores (27/08 y
+02/09), sino una animación de fade-in de Kane que no llega a completarse
+cuando la conduce un script. Se fuerza `opacity: 1` y se apaga
+transición/animación en todo el bloque de resultados justo antes de la
+foto. Verificado en vivo de punta a punta contra la web real, incluida
+una vuelta completa por la aplicación: la captura salió correcta por
+primera vez en toda esta investigación.
+
+`captura.ts`, `capturarResultado()`: red de seguridad adicional para las
+tres calculadoras — prueba hasta 3 fotos con un scroll real entre una y
+otra, y se queda con la que más pesa (una tabla en blanco comprime a un
+PNG más pequeño que la misma tabla con texto).
+
+`FormularioManual.tsx` / `Identificacion.tsx` / `estilos.css`: rediseño
+visual del formulario manual sobre una maqueta que aportó el dueño —
+cabecera con barra de progreso, secciones con color por tema, y los seis
+datos que las tres calculadoras piden siempre destacados en rojo. Cambio
+puramente visual: toda la funcionalidad existente se mantiene por delante
+del diseño de la maqueta (aparatos independientes por ojo, D47; paciente
+obligatorio, D61).
+
+### Verificado
+
+`pnpm lint && pnpm typecheck && pnpm test && pnpm build` en verde (693
+tests; el único fallo es el previo y sin relación en
+`block-subagent-external.test.mjs`). El fix de Kane, verificado en vivo
+contra la web real una vez por esta sesión — sin confirmar todavía por el
+dueño con su propio uso. El rediseño, sin probar todavía en pantalla por
+el dueño.
+
+---
+
 ## [1.15.19] — 02/09/2026
 
 fix(integraciones): Kane se quedaba bloqueado al activar Keratoconus —

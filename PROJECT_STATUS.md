@@ -9,7 +9,61 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 02/09/2026 · **Kane se quedaba bloqueado al
+**Última actualización:** 03/09/2026 · **La causa real de la foto en
+blanco de Kane, encontrada — no era lo que se pensaba.** El dueño compartió
+un PDF real más (CV-2026-0096) reportando dos fallos juntos: la tabla de
+resultado seguía en blanco en la captura, y además el sistema eligió una
+lente rara con decimales que no van de 0.5 en 0.5 (indicio de una lectura
+a medio repintar). El dueño también dio la pista clave: **probó la web de
+Kane a mano y funciona perfectamente** — apuntaba a que el fallo no estaba
+en Kane, sino en cómo Playwright la conduce.
+
+Investigado en vivo contra la web real: la tabla se lee dos veces con
+400 ms de por medio y solo se acepta cuando las dos lecturas coinciden
+byte a byte (arregla la lente rara — era una fila leída a mitad de
+repintado, mezclando datos viejos y nuevos). Para la foto en blanco, las
+dos investigaciones anteriores (27/08 y 02/09, más abajo) perseguían la
+hipótesis equivocada — «flakiness del compositor de Chromium»— y ninguna
+de sus mitigaciones (esperar, forzar un reflow, mover el ratón, hacer
+scroll) llegó a arreglarlo de verdad. Inspeccionando el estilo real de la
+celda con `getComputedStyle()` en el momento de la foto apareció la causa
+de verdad: **`opacity: 0` en el DOM**, casi seguro una animación de
+fade-in de Kane que no llega a completarse cuando la conduce un script en
+vez de una persona (coherente con que al dueño le funcionara perfecto a
+mano). Corregido forzando `opacity: 1` y apagando transición/animación en
+todo el bloque de resultados justo antes de la foto —ya no importa si la
+animación de Kane termina o no—, en `leerResultado()` de
+`packages/integrations/src/adapters/kane.ts`.
+
+**Verificado en vivo, de punta a punta, contra la web real de Kane
+—incluida una vuelta completa por la aplicación real, no solo un script
+suelto—: la captura salió correcta por primera vez en toda esta
+investigación**, con la tabla tórica completa y visible. `pnpm lint &&
+pnpm typecheck && pnpm test && pnpm build` en verde (693 tests, el único
+fallo es el previo y sin relación en `block-subagent-external.test.mjs`).
+Con la cautela de siempre: verificado una vez por esta sesión, todavía sin
+que el dueño lo confirme con su propio uso. Corregido en ambas ramas
+activas (`feature/rediseno-formulario` y
+`feature/varios-biometros-por-ojo`, esta última llevaba las dos
+mitigaciones fallidas del 02/09 que ya se han retirado). Lección
+registrada en `.claude/skills/lessons-learned/log.md`.
+
+Junto con esto — **rediseño visual del formulario manual**, sobre una
+maqueta que aportó el dueño (PDF `guia-formulario-biometria-para-ia.pdf`):
+cabecera con barra de progreso, secciones con franja de color por tema
+(identificación azul, biometría verde, lente violeta, cara posterior
+ámbar) y los seis datos que las tres calculadoras piden siempre destacados
+en rojo con asterisco. Es un cambio puramente visual — a petición expresa
+del dueño se mantiene el 100% de la funcionalidad existente por delante
+del diseño de la maqueta: cada ojo sigue con sus propios aparatos
+independientes (D47, la maqueta los compartía) y paciente sigue
+obligatorio junto al doctor (D61, la maqueta lo dejaba opcional). Afecta a
+`FormularioManual.tsx`, `Identificacion.tsx` (compartido con la pantalla
+de revisión, que hereda el mismo estilo) y `estilos.css`. **No probado
+todavía por el dueño en pantalla.** `PanelRevision.tsx` queda sin
+rediseñar, a la espera de que el dueño vea este primer resultado.
+
+Antes de esto — **Kane se quedaba bloqueado al
 activar Keratoconus con datos reales (fallo de D67).** El dueño probó
 D67 con un caso real: EVO y Barrett True K Toric fueron bien, Kane no.
 Con su pantallazo se encontró la causa exacta: Kane enseña su PROPIO
