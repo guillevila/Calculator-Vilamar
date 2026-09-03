@@ -235,26 +235,6 @@ export function App(): JSX.Element {
     [],
   )
 
-  /**
-   * Reintentar: volver a ejecutar lo que FALLÓ, no conseguir el segundo ojo.
-   *
-   * Los dos ojos entran ya en el mismo ciclo de «Calcular», así que esto vuelve
-   * a ser lo que su nombre dice. Sin argumentos reintenta todo lo pendiente; con
-   * una calculadora y un ojo, esa casilla exacta. Lo que salió bien no se repite.
-   */
-  const reintentar = useCallback(async (calculadora?: Calculadora, ojo?: Lateralidad) => {
-    setError(null)
-    setOcupado(true)
-    setEstados((p) => (calculadora ? p.filter((e) => e.calculadora !== calculadora) : []))
-    try {
-      await api().reintentar(calculadora, ojo)
-      setPaso('RESULTADOS')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setOcupado(false)
-    }
-  }, [])
 
   if (!disponible) {
     return (
@@ -433,8 +413,17 @@ export function App(): JSX.Element {
               aparatoActivo={aparatoActivo}
               onCambiarAparato={setAparatoActivo}
               onReintentar={(c) => {
+                // Va por `calcular()`, no por el `reintentar()` del IPC: ese
+                // asume el aparato «Principal» a falta de otro dato, y un caso
+                // que nombra su biómetro real (p. ej. «ZEISS IOLMaster 700»,
+                // en vez del literal por defecto) no tiene NINGÚN dataset con
+                // ese nombre — la casilla se recalcula sobre un ojo vacío y
+                // falla por falta de datos, aunque estén todos ahí. `calcular()`
+                // resuelve el aparato de verdad a través de `planificarCaso()`,
+                // igual que el botón de la pantalla «Calcular» — por eso volver
+                // atrás y usar ESE botón sí funcionaba.
                 setPaso('CALCULANDO')
-                void reintentar(c, ojoActivo)
+                void calcular([c], { ojo: ojoActivo, aparato: aparatoActivo })
               }}
               onVolverARevisar={() => setPaso('REVISION')}
               estados={estados}
