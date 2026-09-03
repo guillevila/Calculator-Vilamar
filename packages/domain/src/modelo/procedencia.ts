@@ -19,6 +19,14 @@ export type MetodoExtraccion =
   | 'MANUAL'
   /** Se ha calculado a partir de otros datos. Siempre declarado, nunca oculto. */
   | 'DERIVADO'
+  /**
+   * No lo ha dicho nadie: es un valor de partida que pone el programa cuando
+   * no hay dato del informe, ni deducción, ni persona que lo haya escrito
+   * todavía. Distinto de `MANUAL` a propósito — `MANUAL` significa que una
+   * persona lo miró y lo escribió; esto significa lo contrario, y decirlo
+   * así es lo que evita que se confunda con un dato real. Ver `sexoPorDefecto`.
+   */
+  | 'DEFECTO'
 
 export const NOMBRE_METODO: Readonly<Record<MetodoExtraccion, string>> = {
   TEXTO_PDF: 'Leído del texto del PDF',
@@ -26,6 +34,7 @@ export const NOMBRE_METODO: Readonly<Record<MetodoExtraccion, string>> = {
   VISION: 'Leído por un modelo de visión',
   MANUAL: 'Escrito a mano',
   DERIVADO: 'Derivado de otros datos',
+  DEFECTO: 'Valor de partida del programa, no escrito por nadie',
 }
 
 /**
@@ -186,6 +195,8 @@ export type OrigenDato =
   | 'CORREGIDO'
   /** No está en el informe y todavía nadie lo ha aportado. */
   | 'NO_CONSTA'
+  /** Nadie lo ha escrito: es el valor de partida del programa (`DEFECTO`). */
+  | 'POR_DEFECTO'
 
 /**
  * Lo mínimo que hace falta para saber el origen de un dato.
@@ -217,6 +228,9 @@ export interface DatoConOrigen {
  */
 export function origenDe(dato: DatoConOrigen | undefined): OrigenDato {
   if (!dato) return 'NO_CONSTA'
+  // Un valor de partida no es ni del informe ni escrito por nadie: se dice
+  // así, antes que nada más, para que nunca se confunda con uno de los dos.
+  if (dato.procedencia.metodo === 'DEFECTO') return 'POR_DEFECTO'
   // Un dato calculado tiene estado propio. No es «del informe» —el papel no lo
   // dice— ni «aportado» —no lo ha escrito nadie—, y decir cualquiera de las dos
   // cosas haría imposible saber después de dónde salió el número.
@@ -242,6 +256,7 @@ export const TEXTO_ORIGEN: Readonly<Record<Exclude<OrigenDato, 'NO_CONSTA'>, str
   DERIVADO_DEL_INFORME: 'Derivado del informe',
   APORTADO: 'Aportado',
   CORREGIDO: 'Corregido',
+  POR_DEFECTO: 'Valor por defecto',
 }
 
 /** Los dos textos posibles cuando no hay valor. */

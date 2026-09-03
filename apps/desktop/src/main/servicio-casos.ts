@@ -51,6 +51,7 @@ import {
   fichaDe,
   sexoDeducidoDelNombre,
   sexoDelInforme,
+  sexoPorDefecto,
   formatoDeNombre,
   necesitaComprobacionHumana,
   nombreLateralidad,
@@ -187,7 +188,14 @@ export class ServicioCasos {
   nuevo(): Caso {
     const ahora = this.dep.ahora()
     const codigo = siguienteCodigo(this.dep.carpetas, ahora)
-    return this.establecer(crearCasoNuevo(nuevoId(), codigo, ahora.toISOString()))
+    const cuando = ahora.toISOString()
+    // Sexo con un valor de partida (D68, 03/09/2026): así un caso no se queda
+    // bloqueado si se olvida marcarlo. `conDatosDePaciente` lo sustituye en
+    // cuanto un documento trae el dato real o se puede deducir del nombre.
+    return this.establecer({
+      ...crearCasoNuevo(nuevoId(), codigo, cuando),
+      sexo: sexoPorDefecto(cuando),
+    })
   }
 
   /**
@@ -567,7 +575,11 @@ export class ServicioCasos {
       salida = { ...salida, nombrePaciente: p.nombre }
     }
 
-    if (salida.sexo !== undefined) return salida
+    // El valor de partida (D68) no cuenta como «ya lo puso alguien»: si el
+    // documento trae el dato real, o se puede deducir del nombre, tiene que
+    // poder sustituirlo. Solo se respeta si ya lo eligió una persona o si
+    // salió de otro documento/deducción anterior.
+    if (salida.sexo !== undefined && salida.sexo.procedencia.metodo !== 'DEFECTO') return salida
 
     if (p.sexo !== undefined) {
       salida = {
@@ -591,9 +603,10 @@ export class ServicioCasos {
     const deducido = deducirSexoDelNombre(nombre)
     if (deducido === null) {
       // No se adivina. Un nombre unisex o poco común se queda sin deducir, y esa
-      // es la respuesta correcta: lo elige una persona.
+      // es la respuesta correcta: lo elige una persona. Se queda con el valor
+      // de partida (D68) para no bloquear el cálculo, pero se avisa igual.
       avisos.push(
-        'No se ha podido deducir el sexo del nombre del informe, y Kane lo pide. Elígelo tú en la pantalla de revisión.',
+        'No se ha podido deducir el sexo del nombre del informe, y Kane lo pide. Se ha dejado «Hombre» por defecto: cámbialo en la pantalla de revisión si no es correcto.',
       )
       return salida
     }

@@ -645,6 +645,14 @@ table.opciones .na {
   color: #6f6f6f;
   font-style: italic;
 }
+/* Un valor de partida (D68, ej. el sexo por defecto): ni del informe ni
+   escrito por nadie, así que no se le da el color «tranquilizador» del verde
+   de aportado — pero tampoco el ámbar de aviso, porque no bloquea nada. */
+.origen.por_defecto {
+  background: var(--gris-claro);
+  color: #6f6f6f;
+  font-style: italic;
+}
 .origen-original {
   margin-top: 3px;
   font-size: 0.78rem;
@@ -653,6 +661,10 @@ table.opciones .na {
 }
 .estado-campo.vacio {
   color: #b9b9b9;
+}
+.estado-campo.defecto {
+  color: #6f6f6f;
+  font-style: italic;
 }
 
 /* ── Cuánta falta hace cada campo ───────────────────────────────────────────
