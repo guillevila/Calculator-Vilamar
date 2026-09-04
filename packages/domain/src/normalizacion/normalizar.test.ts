@@ -423,7 +423,11 @@ describe('una ACD derivada sirve para calcular', () => {
       CUANDO,
     )
 
-    for (const c of CALCULADORAS) {
+    // Barrett True-K Toric queda fuera de este bucle a propósito: bloquea
+    // por su propio motivo —falta la cirugía refractiva previa, D53—, que no
+    // tiene nada que ver con la ACD derivada, que es justo lo que prueba
+    // este test.
+    for (const c of CALCULADORAS.filter((c) => c !== 'BARRETT_TRUE_K_TORIC')) {
       const r = prepararEntradas(caso, c, 'OD')
       expect(r.ok).toBe(true)
       if (r.ok) expect(r.entradas.valores.ACD).toBe(3.18)

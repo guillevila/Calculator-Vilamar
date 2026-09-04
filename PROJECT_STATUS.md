@@ -615,6 +615,20 @@ Ninguno de los tres impide usar lo demás.
   mismo patrón ya automatizado del Barrett Toric normal, pero su formulario
   real bloqueó el acceso directo durante la investigación — priorizado
   después de EVO por decisión del dueño del proyecto.
+- **D53 (04/09/2026): Barrett True-K Toric ya está construido y VERIFICADO
+  EN VIVO contra la web real (`pnpm live`, con ventana, fixture sintético):
+  SUCCESS, con los tres resultados completos.** Es una cuarta calculadora
+  (`BARRETT_TRUE_K_TORIC`), con su propia casilla en la pantalla de cálculo,
+  nunca lanzada por defecto — solo para cirugía refractiva previa o
+  queratocono. Comprobado con lint, typecheck, tests unitarios nuevos y la
+  suite e2e completa, además de la prueba en vivo. **Dos cosas pendientes,
+  con todas las letras**: (1) el radio «K Index» y el «+ve/-ve Cylinder» del
+  formulario no se tocan —se dejan en su valor por defecto (1.3375 y
+  +ve)— y no se ha podido confirmar si +ve es la convención correcta para
+  este programa; compruébalo a mano en el navegador antes de fiarte de un
+  resultado real. (2) No se ha probado todavía con un caso real de un
+  paciente operado de refractiva — solo con el fixture sintético del
+  proyecto.
 
 ---
 

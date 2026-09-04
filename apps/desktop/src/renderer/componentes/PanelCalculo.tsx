@@ -23,7 +23,15 @@ interface Props {
   readonly onVerResultados: () => void
 }
 
-const ORDEN: readonly Calculadora[] = ['EVO_TORIC', 'BARRETT_TORIC', 'KANE']
+const ORDEN: readonly Calculadora[] = ['EVO_TORIC', 'BARRETT_TORIC', 'KANE', 'BARRETT_TRUE_K_TORIC']
+
+/**
+ * Las tres habituales, marcadas por defecto. Barrett True-K Toric NO —es
+ * para ojos con cirugía refractiva previa o queratocono, la minoría de los
+ * casos (D53)—: se marca a mano, caso a caso, igual que las demás se
+ * podrían desmarcar.
+ */
+const MARCADAS_POR_DEFECTO: readonly Calculadora[] = ['EVO_TORIC', 'BARRETT_TORIC', 'KANE']
 
 export function PanelCalculo({
   caso,
@@ -43,7 +51,9 @@ export function PanelCalculo({
    * «Calcular». No afecta a «Reintentar» de una fila, que ya elige su propia
    * calculadora sin mirar esto.
    */
-  const [seleccion, setSeleccion] = useState<ReadonlySet<Calculadora>>(new Set(ORDEN))
+  const [seleccion, setSeleccion] = useState<ReadonlySet<Calculadora>>(
+    new Set(MARCADAS_POR_DEFECTO),
+  )
 
   function alternar(clave: Calculadora): void {
     setSeleccion((previa) => {

@@ -224,9 +224,12 @@ describe('qué calculadoras piden el sexo', () => {
     expect(FICHAS.BARRETT_TORIC.exigeSexo).toBe(false)
   })
 
-  it('sin sexo, Kane no calcula y las otras dos sí', () => {
+  it('sin sexo, Kane no calcula y las demás sí', () => {
     const caso = casoSinSexo()
-    for (const c of CALCULADORAS) {
+    // Barrett True-K Toric queda fuera de este bucle a propósito: bloquea por
+    // su propio motivo —falta la cirugía refractiva previa, D53— que no
+    // tiene nada que ver con el sexo, que es justo lo que prueba este test.
+    for (const c of CALCULADORAS.filter((c) => c !== 'BARRETT_TRUE_K_TORIC')) {
       const r = prepararEntradas(caso, c, 'OD')
       if (c === 'KANE') {
         expect(r.ok, 'Kane no debería poder sin sexo').toBe(false)

@@ -15,7 +15,7 @@ import type { Caso } from './caso.js'
 import { casoNuevo, confirmar, conOjo } from './caso.js'
 import type { Catalogo } from './catalogo-lentes.js'
 import { confirmarTodas, conCirugiaRefractiva, conMedida, crearMedida, ojoVacio } from './medida.js'
-import { prepararEntradas, tieneConstanteFueraDelOjo } from './preparar-entradas.js'
+import { explicarBloqueo, prepararEntradas, tieneConstanteFueraDelOjo } from './preparar-entradas.js'
 
 const CUANDO = '2026-08-24T10:00:00.000Z'
 
@@ -144,5 +144,48 @@ describe('prepararEntradas y la cirugía refractiva previa', () => {
     const r = prepararEntradas(caso, 'EVO_TORIC', 'OD')
     expect(r.ok).toBe(true)
     if (r.ok) expect(r.entradas.cirugiaRefractivaPrevia).toBe('MIOPICA')
+  })
+})
+
+describe('Barrett True-K Toric: solo para ojos con cirugía refractiva previa (D53)', () => {
+  it('sin aportar nada, no puede lanzarse', () => {
+    const caso = casoListoSinConstante({ modelo: 'enVista ENVY', fabricante: 'Bausch & Lomb' })
+    const r = prepararEntradas(caso, 'BARRETT_TRUE_K_TORIC', 'OD')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.motivo).toBe('FALTA_LA_CIRUGIA_REFRACTIVA')
+  })
+
+  it('con «NINGUNA» aportada explícitamente, tampoco puede', () => {
+    let caso = casoListoSinConstante({ modelo: 'enVista ENVY', fabricante: 'Bausch & Lomb' })
+    const conNinguna = conCirugiaRefractiva(
+      caso.ojos.OD ?? ojoVacio('OD'),
+      'NINGUNA',
+      '2026-09-04T10:00:00.000Z',
+    )
+    caso = conOjo(caso, conNinguna, '2026-09-04T10:00:00.000Z')
+    const r = prepararEntradas(caso, 'BARRETT_TRUE_K_TORIC', 'OD')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.motivo).toBe('FALTA_LA_CIRUGIA_REFRACTIVA')
+  })
+
+  it('con una cirugía real aportada, sí puede — y viaja en las entradas', () => {
+    let caso = casoListoSinConstante({ modelo: 'enVista ENVY', fabricante: 'Bausch & Lomb' })
+    const conCirugia = conCirugiaRefractiva(
+      caso.ojos.OD ?? ojoVacio('OD'),
+      'HIPERMETROPICA',
+      '2026-09-04T10:00:00.000Z',
+    )
+    caso = conOjo(caso, conCirugia, '2026-09-04T10:00:00.000Z')
+    const r = prepararEntradas(caso, 'BARRETT_TRUE_K_TORIC', 'OD')
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.entradas.cirugiaRefractivaPrevia).toBe('HIPERMETROPICA')
+  })
+
+  it('el motivo se explica en lenguaje normal, sin jerga', () => {
+    const caso = casoListoSinConstante({ modelo: 'enVista ENVY', fabricante: 'Bausch & Lomb' })
+    const r = prepararEntradas(caso, 'BARRETT_TRUE_K_TORIC', 'OD')
+    const texto = explicarBloqueo(r) ?? ''
+    expect(texto).toMatch(/cirugía refractiva/i)
+    expect(texto).not.toMatch(/FALTA_LA_CIRUGIA_REFRACTIVA|undefined|null/)
   })
 })

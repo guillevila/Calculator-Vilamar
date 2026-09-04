@@ -71,6 +71,13 @@ export type ResultadoPreparacion =
    * de campo que no existe.
    */
   | { readonly ok: false; readonly motivo: 'FALTA_EL_SEXO'; readonly confirmado: boolean }
+  /**
+   * Falta decir si este ojo ha tenido cirugía refractiva previa (o
+   * queratocono), y esta calculadora EXISTE solo para eso — Barrett True-K
+   * Toric. «Ninguna» tampoco vale: lanzarla sin decir de qué historial se
+   * trata no tiene sentido.
+   */
+  | { readonly ok: false; readonly motivo: 'FALTA_LA_CIRUGIA_REFRACTIVA' }
 
 /**
  * ¿Se puede lanzar esta calculadora para este ojo?
@@ -124,6 +131,17 @@ export function prepararEntradas(
     }
     if (!caso.sexo.confirmadoPorUsuario) {
       return { ok: false, motivo: 'FALTA_EL_SEXO', confirmado: false }
+    }
+  }
+
+  // 2b — La cirugía refractiva previa, si esta calculadora EXISTE solo para
+  // eso (Barrett True-K Toric). «Ninguna» tampoco vale aquí: `aportarCirugiaRefractiva`
+  // deja el dato confirmado en cuanto se escribe, así que no hace falta
+  // comprobar `confirmadoPorUsuario` aparte, a diferencia del sexo.
+  if (ficha.exigeCirugiaRefractiva === true) {
+    const dato = datos.cirugiaRefractivaPrevia
+    if (dato === undefined || dato.valor === 'NINGUNA') {
+      return { ok: false, motivo: 'FALTA_LA_CIRUGIA_REFRACTIVA' }
     }
   }
 
@@ -189,6 +207,9 @@ export function explicarBloqueo(resultado: ResultadoPreparacion): string | null 
   if (resultado.ok) return null
   if (resultado.motivo === 'FALTA_EL_SEXO') {
     return 'Falta el sexo del paciente, y esta calculadora lo pide en su formulario. Elígelo arriba y márcalo como comprobado.'
+  }
+  if (resultado.motivo === 'FALTA_LA_CIRUGIA_REFRACTIVA') {
+    return 'Barrett True-K Toric es para ojos con cirugía refractiva previa o queratocono. Indica cuál en «Cirugía refractiva previa» antes de lanzarla.'
   }
   if (resultado.motivo === 'SIN_CONFIRMAR_EL_CASO') {
     return 'Todavía no has confirmado los datos. Revísalos y confírmalos antes de calcular.'

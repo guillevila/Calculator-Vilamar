@@ -26,17 +26,28 @@
 import type { Procedencia } from './procedencia.js'
 
 /**
- * Las opciones. Cerradas a propósito, y son exactamente las cuatro que ofrece
- * el desplegable de EVO —verificado contra su formulario real, 04/09/2026—:
- * «No», «Myopic», «Hyperopic», «Radial Keratotomy».
+ * Las opciones. Cerradas a propósito.
+ *
+ * Las cuatro primeras son las que ofrece el desplegable de EVO —verificado
+ * contra su formulario real, 04/09/2026—: «No», «Myopic», «Hyperopic»,
+ * «Radial Keratotomy». `QUERATOCONO` se añadió el mismo día al comprobar
+ * Barrett True-K Toric: su propio desplegable de historial («History») no
+ * tiene «No» —esa calculadora existe solo para ojos con historia que contar—
+ * y sí tiene una cuarta opción que EVO no tiene, «Keratoconus».
  */
-export type CirugiaRefractivaPrevia = 'NINGUNA' | 'MIOPICA' | 'HIPERMETROPICA' | 'RK'
+export type CirugiaRefractivaPrevia =
+  | 'NINGUNA'
+  | 'MIOPICA'
+  | 'HIPERMETROPICA'
+  | 'RK'
+  | 'QUERATOCONO'
 
 export const CIRUGIAS_REFRACTIVAS: readonly CirugiaRefractivaPrevia[] = [
   'NINGUNA',
   'MIOPICA',
   'HIPERMETROPICA',
   'RK',
+  'QUERATOCONO',
 ]
 
 export const TEXTO_CIRUGIA_REFRACTIVA: Readonly<Record<CirugiaRefractivaPrevia, string>> = {
@@ -44,6 +55,7 @@ export const TEXTO_CIRUGIA_REFRACTIVA: Readonly<Record<CirugiaRefractivaPrevia, 
   MIOPICA: 'Miópica (LASIK/PRK)',
   HIPERMETROPICA: 'Hipermetrópica (LASIK/PRK)',
   RK: 'Queratotomía radial (RK)',
+  QUERATOCONO: 'Queratocono',
 }
 
 /**

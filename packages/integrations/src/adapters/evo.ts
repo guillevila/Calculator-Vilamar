@@ -75,8 +75,14 @@ const CAMPOS = {
  * posterior». Se ha quitado esa entrada de `CAMPOS`: mandar ahí un dato de
  * Pentacam habría hecho que EVO pensara que esa es la queratometría de antes
  * de una cirugía refractiva que puede ni haber existido.
+ *
+ * Es un `Partial`, no un `Record` completo: `QUERATOCONO` no está, porque
+ * EVO no tiene esa opción —es propia de Barrett True-K Toric— y no hay value
+ * de su desplegable al que mandarla. Si algún ojo trae ese dato y se lanza
+ * EVO igualmente, no se toca el desplegable: se queda en su «No» de por
+ * defecto, que es lo más parecido a «no sé qué decirle a EVO sobre esto».
  */
-const CIRUGIA_REFRACTIVA_EN_EVO: Readonly<Record<CirugiaRefractivaPrevia, string>> = {
+const CIRUGIA_REFRACTIVA_EN_EVO: Readonly<Partial<Record<CirugiaRefractivaPrevia, string>>> = {
   NINGUNA: '0',
   MIOPICA: '1',
   HIPERMETROPICA: '2',
@@ -203,14 +209,15 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
 
     await pagina.check(entradas.ojo === 'OD' ? SEL.ojoDerecho : SEL.ojoIzquierdo)
 
-    // Si no se sabe si el ojo ha tenido cirugía refractiva, no se toca el
+    // Si no se sabe si el ojo ha tenido cirugía refractiva, o si el dato que
+    // hay no tiene equivalente en EVO (QUERATOCONO), no se toca el
     // desplegable: EVO ya empieza en «No» por su cuenta, y es lo mismo que
     // significa «no se ha dicho nada» en este dato (ver `CirugiaRefractivaPrevia`).
-    if (entradas.cirugiaRefractivaPrevia) {
-      await pagina.selectOption(
-        SEL.cirugiaRefractiva,
-        CIRUGIA_REFRACTIVA_EN_EVO[entradas.cirugiaRefractivaPrevia],
-      )
+    const valorEnEvo = entradas.cirugiaRefractivaPrevia
+      ? CIRUGIA_REFRACTIVA_EN_EVO[entradas.cirugiaRefractivaPrevia]
+      : undefined
+    if (valorEnEvo !== undefined) {
+      await pagina.selectOption(SEL.cirugiaRefractiva, valorEnEvo)
     }
 
     // El modelo va ANTES que la constante A. Si EVO reconoce el modelo,

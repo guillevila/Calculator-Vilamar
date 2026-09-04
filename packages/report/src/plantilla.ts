@@ -646,6 +646,7 @@ const COLOR_CALCULADORA: Readonly<Record<Calculadora, string>> = {
   EVO_TORIC: '#0B5F68',
   BARRETT_TORIC: '#1B4C86',
   KANE: '#5B3B8A',
+  BARRETT_TRUE_K_TORIC: '#8A4B00',
 }
 
 /**

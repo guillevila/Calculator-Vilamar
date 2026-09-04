@@ -4,6 +4,59 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.19] — 04/09/2026
+
+Barrett True-K Toric: cuarta calculadora, para cirugía refractiva previa.
+
+### El pedido
+
+El dueño del proyecto quiere poder hacer cálculos especiales para pacientes
+operados de refractiva, con la página de Barrett True-K Toric —distinta de
+la que ya se automatizaba (Barrett Toric)—.
+
+### El diseño
+
+Es una CUARTA calculadora (`BARRETT_TRUE_K_TORIC`), no una casilla del
+Barrett Toric normal: es una página distinta de verdad. Se le preguntó al
+dueño del proyecto cómo activarla y eligió la opción recomendada: una
+casilla más junto a Kane/EVO/Barrett en la pantalla de cálculo, marcada a
+mano caso a caso, nunca por defecto. La tabla comparativa y el informe PDF
+solo le dan columna cuando tiene un resultado de verdad, para no meter una
+columna vacía en el resto de casos.
+
+### La investigación, en vivo y en dos pasos
+
+- Primer intento, sin ventana: 403, el mismo aviso que Barrett Toric ya
+  documentaba para `calc.apacrs.org`. Con ventana, el formulario cargó
+  entero: misma plantilla que Barrett Toric, mismos identificadores de
+  campo, más un desplegable «History» (Myopic Lasik / Hyperopic Lasik /
+  Radial Keratotomy / Keratoconus, sin «Ninguna» — esta calculadora existe
+  solo para eso).
+- `CirugiaRefractivaPrevia` (del pedido de EVO, D52) se amplía con un quinto
+  valor, `QUERATOCONO`, que EVO no tiene y True-K sí.
+- **Hallazgo real que cambió el adaptador**: una casilla «Enter Data and
+  Calculate» empieza deshabilitada. Se probaron varios órdenes de relleno,
+  pulsaciones de teclado reales, clics adicionales — siguió deshabilitada
+  siempre. La prueba decisiva: calcular SIN tocarla funcionó igual, con los
+  tres resultados completos en la pestaña «Toric IOL». Es un control
+  vestigial; el adaptador no lo toca.
+- **Pendiente, dicho con todas las letras**: un radio «K Index» y otro
+  «+ve/-ve Cylinder» que el adaptador no toca —se queda con lo que trae por
+  defecto (1.3375 y +ve)— y no se ha podido confirmar si +ve es la
+  convención correcta para cómo este programa introduce el eje. Comprobarlo
+  a mano antes de fiarse de un resultado real.
+
+### Verificado
+
+`pnpm live` con ventana, fixture sintético con cirugía MIOPICA: SUCCESS, con
+las tres opciones leídas y la recomendada completa (esfera, cilindro, eje).
+
+Ver SYSTEM_VISION.md D53. Varios tests nuevos de dominio. lint, typecheck,
+672 tests unitarios (1 fallo preexistente y no relacionado) y 32 e2e en
+verde.
+
+---
+
 ## [1.2.18] — 04/09/2026
 
 EVO: cirugía refractiva previa («Post LASIK/PRK/RK»), y un fallo real de paso.

@@ -63,15 +63,20 @@ import type { Browser, BrowserContext } from 'playwright'
 
 import type { AdaptadorCalculadora, DatosDiagnostico, EventoProgreso } from './contrato.js'
 import { AdaptadorBarrettToric } from './adapters/barrett.js'
+import { AdaptadorBarrettTrueKToric } from './adapters/barrett-true-k-toric.js'
 import { AdaptadorEvoToric } from './adapters/evo.js'
 import { AdaptadorKane } from './adapters/kane.js'
 
 /**
- * Orden de ejecución.
+ * Orden de ejecución POR DEFECTO — las tres calculadoras habituales.
  *
  * EVO no pide nada a nadie. Barrett puede pedir una comprobación. Kane pide
  * aceptar sus condiciones. De menos a más intervención, para que el usuario ya
  * tenga resultados en pantalla cuando le toque hacer algo.
+ *
+ * Barrett True-K Toric NO está aquí a propósito: es para ojos con cirugía
+ * refractiva previa o queratocono, que son la minoría de los casos. Se lanza
+ * solo cuando el usuario la elige explícitamente (D53), nunca por defecto.
  */
 export const ORDEN_POR_DEFECTO: readonly Calculadora[] = ['EVO_TORIC', 'BARRETT_TORIC', 'KANE']
 
@@ -83,6 +88,7 @@ export function crearAdaptadores(): Readonly<Record<Calculadora, AdaptadorCalcul
     EVO_TORIC: new AdaptadorEvoToric(),
     BARRETT_TORIC: new AdaptadorBarrettToric(),
     KANE: new AdaptadorKane(),
+    BARRETT_TRUE_K_TORIC: new AdaptadorBarrettTrueKToric(),
   }
 }
 

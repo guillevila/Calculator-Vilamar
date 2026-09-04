@@ -108,10 +108,13 @@ export function PanelRevision({
     // El sexo entra en la cuenta: lo pide Kane y no es un campo del ojo. Sin
     // pasarlo, este aviso decía que Kane podía calcular y después salía «falta el
     // sexo» tras esperar el recorrido entero de las tres webs.
+    const hayCirugiaRefractivaAportada =
+      ojo.cirugiaRefractivaPrevia !== undefined && ojo.cirugiaRefractivaPrevia.valor !== 'NINGUNA'
     return quienNoPuedeCalcular(
       ojo.medidas,
       caso.sexo?.confirmadoPorUsuario === true,
       constantePorCalculadora,
+      hayCirugiaRefractivaAportada,
     )
   }, [ojo, caso, catalogo])
 

@@ -726,9 +726,18 @@ export class ServicioCasos {
    */
   async generarPdf(): Promise<{ ruta: string }> {
     const caso = this.exigirCaso()
+    // Barrett True-K Toric solo entra en la tabla del informe si se ha
+    // lanzado de verdad (D53): es para cirugía refractiva previa o
+    // queratocono, y una columna vacía en el resto de casos sería ruido.
+    const conTrueK = Object.values(caso.resultados).some(
+      (r) => r.calculadora === 'BARRETT_TRUE_K_TORIC',
+    )
     const datos = recopilarInforme(caso, {
       version: this.dep.version,
       generadoEn: this.iso(),
+      ordenColumnas: conTrueK
+        ? ['KANE', 'EVO_TORIC', 'BARRETT_TORIC', 'BARRETT_TRUE_K_TORIC']
+        : undefined,
     })
     const html = generarHtmlInforme(datos)
 

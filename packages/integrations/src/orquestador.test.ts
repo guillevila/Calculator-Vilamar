@@ -138,7 +138,13 @@ function contextoFalso(): BrowserContext {
 }
 
 interface Escenario {
-  readonly adaptadores: Record<Calculadora, AdaptadorCalculadora>
+  /**
+   * Solo hace falta dar un doble para las calculadoras que el test de verdad
+   * usa: `Barrett True-K Toric` no está en `ORDEN_POR_DEFECTO` (D53) y estos
+   * tests no la piden explícitamente, así que se completa sola con un doble
+   * inerte que no debería llegar a ejecutarse nunca.
+   */
+  readonly adaptadores: Partial<Record<Calculadora, AdaptadorCalculadora>>
   readonly caso?: Caso
   readonly calculadoras?: readonly Calculadora[]
   readonly catalogo?: Catalogo
@@ -163,7 +169,10 @@ async function ejecutar(escenario: Escenario) {
     },
     guardarCaptura: async () => 'captura-1',
     cancelado: () => false,
-    adaptadores: escenario.adaptadores,
+    adaptadores: {
+      BARRETT_TRUE_K_TORIC: adaptadorRevienta('BARRETT_TRUE_K_TORIC'),
+      ...escenario.adaptadores,
+    } as Record<Calculadora, AdaptadorCalculadora>,
   })
   return { resultados, recibidos, diagnosticos }
 }

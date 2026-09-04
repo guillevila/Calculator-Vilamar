@@ -151,6 +151,9 @@ function todosOk(): Record<Calculadora, AdaptadorCalculadora> {
     EVO_TORIC: adaptadorOk('EVO_TORIC'),
     BARRETT_TORIC: adaptadorOk('BARRETT_TORIC'),
     KANE: adaptadorOk('KANE'),
+    // No está en ORDEN_POR_DEFECTO (D53): estos tests no la piden
+    // explícitamente, así que este doble no debería llegar a ejecutarse.
+    BARRETT_TRUE_K_TORIC: adaptadorOk('BARRETT_TRUE_K_TORIC'),
   }
 }
 

@@ -29,7 +29,7 @@ interface Props {
 
 /** Quién lo pide de verdad, sacado de las fichas y no de una lista a mano. */
 const QUIEN_LO_PIDE = Object.values(FICHAS)
-  .filter((f) => f.clave === 'EVO_TORIC')
+  .filter((f) => f.clave === 'EVO_TORIC' || f.exigeCirugiaRefractiva === true)
   .map((f) => f.nombre)
 
 export function BloqueCirugiaRefractiva({ caso, ojoActivo, onCambio }: Props): JSX.Element {
@@ -56,7 +56,7 @@ export function BloqueCirugiaRefractiva({ caso, ojoActivo, onCambio }: Props): J
               <span className="exigencia opcional" data-testid="exigencia-cirugia-refractiva">
                 {QUIEN_LO_PIDE.length === 0
                   ? 'No se envía a ninguna calculadora'
-                  : `Solo lo usa ${QUIEN_LO_PIDE.join(' y ')}, si se aporta`}
+                  : `Lo usa ${QUIEN_LO_PIDE.join(' y ')} — opcional en EVO Toric, obligatorio para lanzar Barrett True-K Toric`}
               </span>
             </td>
             <td className="valor">

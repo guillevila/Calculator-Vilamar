@@ -22,6 +22,7 @@ import {
   compararOjo,
   describirLenteDeCatalogo,
   familiaDeLente,
+  fichaDe,
   lentesQueCubren,
   nombreLateralidad,
   ojosDelCaso,
@@ -307,11 +308,13 @@ export function PanelResultados({
     const r = resultadoDe(caso, c, ojoActivo)
     if (r) resultados[c] = r
   }
-  const comparativa = compararOjo(ojoActivo, resultados as never, [
-    'KANE',
-    'EVO_TORIC',
-    'BARRETT_TORIC',
-  ])
+  // Barrett True-K Toric solo entra en la tabla si se ha lanzado de verdad
+  // (D53): es para ojos con cirugía refractiva previa o queratocono, y una
+  // columna vacía en el resto de casos sería ruido, no información.
+  const ordenColumnas: readonly Calculadora[] = resultados.BARRETT_TRUE_K_TORIC
+    ? ['KANE', 'EVO_TORIC', 'BARRETT_TORIC', 'BARRETT_TRUE_K_TORIC']
+    : ['KANE', 'EVO_TORIC', 'BARRETT_TORIC']
+  const comparativa = compararOjo(ojoActivo, resultados as never, ordenColumnas)
   const familia = familiaDeLente(caso.lente?.modelo)
 
   async function generar(): Promise<void> {
@@ -488,13 +491,17 @@ export function PanelResultados({
         <h2>Reintentar una sola</h2>
         <p className="sub">Si alguna falló, puedes lanzarla otra vez sin perder las demás.</p>
         <div className="fila">
-          {CALCULADORAS.map((c) => {
+          {CALCULADORAS.filter(
+            // Barrett True-K Toric no se ofrece aquí salvo que ya se haya
+            // lanzado antes (D53): es para cirugía refractiva previa o
+            // queratocono, y no es un «reintentar», es un lanzamiento nuevo.
+            (c) => c !== 'BARRETT_TRUE_K_TORIC' || resultadoDe(caso, c, ojoActivo) !== undefined,
+          ).map((c) => {
             const r = resultadoDe(caso, c, ojoActivo)
             const fallo = !r || (r.estado !== 'SUCCESS' && r.estado !== 'PARTIAL')
             return (
               <button key={c} onClick={() => onReintentar(c)} disabled={!fallo && r !== undefined}>
-                {fallo ? 'Reintentar' : 'Repetir'}{' '}
-                {c === 'EVO_TORIC' ? 'EVO' : c === 'BARRETT_TORIC' ? 'Barrett' : 'Kane'}
+                {fallo ? 'Reintentar' : 'Repetir'} {fichaDe(c).nombre}
               </button>
             )
           })}

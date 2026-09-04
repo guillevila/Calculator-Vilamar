@@ -233,7 +233,7 @@ export function modeloDelCatalogoPara(
 export function constantesOrdenadas(
   constantesA: ConstantesPorCalculadora,
 ): readonly { readonly calculadora: Calculadora; readonly valor: number }[] {
-  return (['EVO_TORIC', 'BARRETT_TORIC', 'KANE'] as const)
+  return (['EVO_TORIC', 'BARRETT_TORIC', 'KANE', 'BARRETT_TRUE_K_TORIC'] as const)
     .map((c) => ({ calculadora: c, valor: constantesA[c] }))
     .filter((c): c is { calculadora: Calculadora; valor: number } => c.valor !== undefined)
 }
