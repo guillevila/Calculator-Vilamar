@@ -47,6 +47,7 @@ import {
 
 import type { ApiVilamar } from '../../compartido/ipc.js'
 import { api } from '../api.js'
+import { CAMPOS_DESTACADOS } from '../camposNucleo.js'
 import { BloqueSexo } from './BloqueSexo.js'
 import { faltaIdentificacion, IdentificacionCaso } from './Identificacion.js'
 import { SelectorAparato, SelectorAparatoCaraPosterior, SelectorSituacionCorneal } from './SelectorAparato.js'
@@ -67,22 +68,38 @@ interface Props {
 
 type Discrepancia = Awaited<ReturnType<ApiVilamar['discrepanciasDe']>>[number]
 
+/** Un grupo de campos, con la misma cabecera visual que `FormularioManual.tsx`. */
+interface GrupoDeCampos {
+  readonly numero: string
+  readonly titulo: string
+  readonly subtitulo: string
+  /** Qué franja de color le toca — ver `.tarjeta-seccion` en estilos.css. */
+  readonly clase: 'biometria' | 'lente' | 'posterior'
+  /** «Obligatorios» en rojo, «Opcional» en ámbar, o nada. */
+  readonly etiqueta?: { readonly texto: string; readonly clase: 'obligatorios' | 'opcional' }
+  readonly campos: readonly CampoBiometrico[]
+}
+
 /**
- * Mismo orden y mismos grupos que `FormularioManual.tsx` (02/09/2026,
- * petición expresa del dueño del proyecto): las dos vías de entrada —cargar
- * un documento o escribir a mano— tienen que llevar a la misma experiencia,
- * no a dos formularios distintos.
+ * Mismo orden, mismos grupos y misma cabecera visual que `FormularioManual.tsx`
+ * (02/09/2026, ampliado 04/09/2026: las dos vías de entrada —cargar un
+ * documento o escribir a mano— tienen que llevar a la misma experiencia, no
+ * a dos formularios que se ven distintos).
  *
- * La única diferencia real: aquí SÍ se enseñan los campos que un documento
- * puede traer pero que ninguna calculadora usa —AQD, TK1/TK2, el índice
- * queratométrico, el factor de lente—, porque esta pantalla tiene que
- * enseñar TODO lo que se ha leído (ver el docstring de arriba). El
+ * La única diferencia real de contenido: aquí SÍ se enseñan los campos que
+ * un documento puede traer pero que ninguna calculadora usa —AQD, TK1/TK2,
+ * el índice queratométrico, el factor de lente—, porque esta pantalla tiene
+ * que enseñar TODO lo que se ha leído (ver el docstring de arriba). El
  * cuestionario manual no los pide porque nadie los escribe a mano sin que
  * ninguna calculadora los vaya a usar nunca.
  */
-const GRUPOS: { titulo: string; campos: readonly CampoBiometrico[] }[] = [
+const GRUPOS: readonly GrupoDeCampos[] = [
   {
+    numero: '02',
     titulo: 'Biometría',
+    subtitulo: 'Parámetros principales del ojo',
+    clase: 'biometria',
+    etiqueta: { texto: '* Obligatorios', clase: 'obligatorios' },
     campos: [
       'AL',
       'K1',
@@ -102,11 +119,18 @@ const GRUPOS: { titulo: string; campos: readonly CampoBiometrico[] }[] = [
     ],
   },
   {
+    numero: '03',
     titulo: 'Lente e incisión',
+    subtitulo: 'Constante de cálculo y decisiones quirúrgicas',
+    clase: 'lente',
     campos: ['CONSTANTE_A', 'SIA', 'EJE_INCISION', 'FACTOR_LENTE', 'INDICE_QUERATOMETRICO'],
   },
   {
+    numero: '04',
     titulo: 'Córnea posterior',
+    subtitulo: 'Información complementaria',
+    clase: 'posterior',
+    etiqueta: { texto: 'Opcional', clase: 'opcional' },
     campos: ['PK1', 'PK1_EJE', 'PK2', 'PK2_EJE'],
   },
 ]
@@ -224,8 +248,33 @@ export function PanelRevision({
   const leidosPorMaquina = porComprobar.filter((m) => esLecturaAutomatica(m.procedencia))
   const calculados = porComprobar.filter((m) => !esLecturaAutomatica(m.procedencia))
 
+  // Misma cabecera y barra de progreso que `FormularioManual.tsx` (rediseño
+  // 04/09/2026): las dos pantallas de entrada de datos tienen que verse
+  // como la misma experiencia, venga el caso de un documento o de a mano.
+  const camposNucleo: readonly CampoBiometrico[] = [...CAMPOS_DESTACADOS, 'CONSTANTE_A']
+  const hechos = camposNucleo.filter((c) => ojo.medidas[c] !== undefined).length
+  const porcentaje = Math.round((hechos / camposNucleo.length) * 100)
+
   return (
     <>
+      <div className="cabecera-bio">
+        <div className="distintivo">
+          <span className="insignia">BIO</span>
+          <div>
+            <h2>Formulario de biometría ocular</h2>
+            <p>Registro de mediciones y lente intraocular</p>
+          </div>
+        </div>
+        <div className="progreso">
+          <span>
+            {porcentaje}% completo — {nombreLateralidad(ojoActivo)}
+          </span>
+          <div className="progreso-barra">
+            <div className="progreso-relleno" style={{ width: `${porcentaje}%` }} />
+          </div>
+        </div>
+      </div>
+
       {ojos.length > 1 && (
         <div className="fila" style={{ marginBottom: 14 }}>
           <div className="selector-ojo">
@@ -350,6 +399,10 @@ export function PanelRevision({
         <GrupoCampos
           key={grupo.titulo}
           titulo={grupo.titulo}
+          numero={grupo.numero}
+          subtitulo={grupo.subtitulo}
+          clase={grupo.clase}
+          etiqueta={grupo.etiqueta}
           campos={
             // Las dos refracciones de LASIK solo se enseñan cuando este ojo
             // tiene marcada una córnea especial (D67) — a diferencia de los
@@ -474,6 +527,10 @@ export function PanelRevision({
 
 interface PropsGrupo {
   readonly titulo: string
+  readonly numero: string
+  readonly subtitulo: string
+  readonly clase: 'biometria' | 'lente' | 'posterior'
+  readonly etiqueta?: { readonly texto: string; readonly clase: 'obligatorios' | 'opcional' }
   readonly campos: readonly CampoBiometrico[]
   readonly caso: Caso
   readonly ojoActivo: Lateralidad
@@ -484,6 +541,10 @@ interface PropsGrupo {
 
 function GrupoCampos({
   titulo,
+  numero,
+  subtitulo,
+  clase,
+  etiqueta,
   campos,
   caso,
   ojoActivo,
@@ -494,8 +555,15 @@ function GrupoCampos({
   const ojo = ojoDe(caso, ojoActivo, aparatoActivo)
 
   return (
-    <div className="tarjeta">
-      <h2>{titulo}</h2>
+    <div className={`tarjeta-seccion ${clase}`}>
+      <div className="seccion-cabecera">
+        <span className="seccion-numero">{numero}</span>
+        <div className="seccion-titulo">
+          <h3>{titulo}</h3>
+          <p>{subtitulo}</p>
+        </div>
+        {etiqueta && <span className={`seccion-etiqueta ${etiqueta.clase}`}>{etiqueta.texto}</span>}
+      </div>
       {titulo === 'Córnea posterior' && (
         <>
           <p className="pie-nota" style={{ marginTop: -4, marginBottom: 8 }}>

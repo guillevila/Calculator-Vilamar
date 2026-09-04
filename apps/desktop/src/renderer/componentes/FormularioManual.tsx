@@ -19,6 +19,7 @@ import type { CampoBiometrico, Caso, Lateralidad } from '@vilamar/domain'
 import { APARATO_PRINCIPAL, aparatosDe, definicionDe, nombreLateralidad, ojoDe } from '@vilamar/domain'
 
 import { api } from '../api.js'
+import { CAMPOS_DESTACADOS } from '../camposNucleo.js'
 import { IdentificacionCaso } from './Identificacion.js'
 import { SelectorAparato, SelectorAparatoCaraPosterior, SelectorSituacionCorneal } from './SelectorAparato.js'
 import { SelectorLente } from './SelectorLente.js'
@@ -40,16 +41,6 @@ interface GrupoDeCampos {
   readonly etiqueta?: { readonly texto: string; readonly clase: 'obligatorios' | 'opcional' }
   readonly campos: readonly (readonly [CampoBiometrico, CampoBiometrico | null])[]
 }
-
-/**
- * Los seis datos que EVO, Barrett y Kane piden siempre para poder calcular
- * algo — se destacan en rojo, con asterisco, en el rediseño del
- * 02/09/2026 (sobre una maqueta que trajo el dueño del proyecto). No
- * sustituye la exigencia real de cada campo —que depende de la
- * calculadora, y ya se explica en la pantalla de revisión—: es solo el
- * núcleo mínimo, destacado para que no se olvide al escribir a mano.
- */
-const CAMPOS_DESTACADOS: readonly CampoBiometrico[] = ['AL', 'K1', 'K1_EJE', 'K2', 'K2_EJE', 'ACD']
 
 const GRUPOS: readonly GrupoDeCampos[] = [
   {

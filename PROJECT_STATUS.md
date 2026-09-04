@@ -9,7 +9,24 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 03/09/2026 (2) · **Sexo por defecto (D68) y un
+**Última actualización:** 04/09/2026 · **`PanelRevision.tsx` (la pantalla
+de revisión, para cuando los datos vienen de un documento cargado) tiene ya
+el mismo rediseño visual que `FormularioManual.tsx`** — misma cabecera con
+insignia BIO y barra de progreso, mismas tarjetas de sección numeradas con
+franja de color por tema. Petición expresa del dueño del proyecto: las dos
+vías de entrada de datos (a mano o revisando un documento) tienen que
+sentirse como la misma pantalla, no como dos formularios distintos. La
+lista `CAMPOS_DESTACADOS` (los seis datos que las tres calculadoras piden
+siempre) se sacó a un fichero compartido (`camposNucleo.ts`) para que las
+dos pantallas no puedan divergir en silencio. Se mantiene TODO lo propio de
+la revisión —Origen, Estado, evidencia, botones «Está bien»/«Borrar»— por
+delante del rediseño: esta pantalla sigue siendo la que deja comprobar lo
+que ha leído un documento, cosa que el cuestionario manual no necesita.
+`pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+en verde (698 tests unitarios, 37 de interfaz). **No probado todavía por
+el dueño en pantalla.**
+
+Antes de esto — **Sexo por defecto (D68) y un
 fallo real corregido: «Reintentar» en la pantalla de resultados fallaba en
 silencio para cualquier aparato con nombre propio.** El dueño probó el
 rediseño en pantalla —«funciona perfectamente»— y pidió dos cosas más.
