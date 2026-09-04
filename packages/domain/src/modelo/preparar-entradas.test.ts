@@ -14,7 +14,7 @@ import type { Calculadora } from './calculadoras.js'
 import type { Caso } from './caso.js'
 import { casoNuevo, confirmar, conOjo } from './caso.js'
 import type { Catalogo } from './catalogo-lentes.js'
-import { confirmarTodas, conMedida, crearMedida, ojoVacio } from './medida.js'
+import { confirmarTodas, conCirugiaRefractiva, conMedida, crearMedida, ojoVacio } from './medida.js'
 import { prepararEntradas, tieneConstanteFueraDelOjo } from './preparar-entradas.js'
 
 const CUANDO = '2026-08-24T10:00:00.000Z'
@@ -122,5 +122,27 @@ describe('prepararEntradas con la constante fuera del ojo', () => {
     const r = prepararEntradas(caso, 'EVO_TORIC', 'OD')
     expect(r.ok).toBe(true)
     if (r.ok) expect(r.entradas.valores.CONSTANTE_A).toBeUndefined()
+  })
+})
+
+describe('prepararEntradas y la cirugía refractiva previa', () => {
+  it('si no se ha aportado nada, las entradas no la llevan — no bloquea nada', () => {
+    const caso = casoListoSinConstante({ modelo: 'enVista ENVY', fabricante: 'Bausch & Lomb' })
+    const r = prepararEntradas(caso, 'EVO_TORIC', 'OD')
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.entradas.cirugiaRefractivaPrevia).toBeUndefined()
+  })
+
+  it('si se ha aportado, viaja en las entradas de EVO', () => {
+    let caso = casoListoSinConstante({ modelo: 'enVista ENVY', fabricante: 'Bausch & Lomb' })
+    const conCirugia = conCirugiaRefractiva(
+      caso.ojos.OD ?? ojoVacio('OD'),
+      'MIOPICA',
+      '2026-09-04T10:00:00.000Z',
+    )
+    caso = conOjo(caso, conCirugia, '2026-09-04T10:00:00.000Z')
+    const r = prepararEntradas(caso, 'EVO_TORIC', 'OD')
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.entradas.cirugiaRefractivaPrevia).toBe('MIOPICA')
   })
 })

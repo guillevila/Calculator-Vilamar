@@ -169,6 +169,12 @@ export function prepararEntradas(
       // Solo viaja si esa calculadora lo pide. No se manda un dato de la persona
       // a una web que no lo necesita.
       sexo: ficha.exigeSexo === true ? caso.sexo?.valor : undefined,
+      // Si no se ha dicho nada, no bloquea ni se envía nada: el adaptador que
+      // la usa (EVO) trata «no se sabe» igual que «ninguna», que es lo que
+      // pasa en la inmensa mayoría de los ojos. `aportarCirugiaRefractiva`
+      // siempre deja el dato confirmado en cuanto una persona lo escribe, así
+      // que no hace falta una comprobación de «sin revisar» aparte.
+      cirugiaRefractivaPrevia: datos.cirugiaRefractivaPrevia?.valor,
     },
   }
 }

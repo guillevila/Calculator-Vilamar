@@ -48,6 +48,7 @@ import {
 } from '@vilamar/domain'
 
 import { api } from '../api.js'
+import { BloqueCirugiaRefractiva } from './BloqueCirugiaRefractiva.js'
 import { BloqueSexo } from './BloqueSexo.js'
 import { SelectorLente } from './SelectorLente.js'
 
@@ -214,6 +215,8 @@ export function PanelRevision({
           onCambio={onCambio}
         />
       ))}
+
+      <BloqueCirugiaRefractiva caso={caso} ojoActivo={ojoActivo} onCambio={onCambio} />
 
       <BloqueSexo caso={caso} onCambio={onCambio} />
 

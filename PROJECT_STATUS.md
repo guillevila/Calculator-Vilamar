@@ -602,6 +602,19 @@ Ninguno de los tres impide usar lo demás.
   en la aplicación abierta** — pendiente de que el dueño del proyecto lo
   vea con datos suyos y confirme que la fila que se marca es la que él
   habría elegido a mano.
+- **D52 (04/09/2026): EVO reconoce su desplegable «Post LASIK/PRK/RK»
+  (cirugía refractiva previa, por ojo), y se corrigió de paso un fallo real
+  —el PK1/PK2 del dominio (córnea posterior, Pentacam) se mandaba a los
+  campos «Pre-LASIK K» de EVO, dos conceptos distintos con el mismo nombre
+  corto.** Investigado contra el formulario real de EVO antes de construir.
+  Comprobado con 15 tests nuevos, lint, typecheck, la suite e2e completa, Y
+  **una prueba en vivo contra la EVO real** (`pnpm live evo`, fixture
+  sintético) que confirmó que el desplegable cambia de verdad el resultado
+  y reveló que EVO limita su lista de modelos tóricos en modo
+  post-refractiva. **Barrett True-K Toric queda pendiente**: existe, usa el
+  mismo patrón ya automatizado del Barrett Toric normal, pero su formulario
+  real bloqueó el acceso directo durante la investigación — priorizado
+  después de EVO por decisión del dueño del proyecto.
 
 ---
 

@@ -284,6 +284,9 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   ipcMain.handle(CANALES.confirmarCampo, (_e, ojo, campo) => s().confirmarCampo(ojo, campo))
   ipcMain.handle(CANALES.elegirSexo, (_e, sexo) => s().elegirSexo(sexo))
   ipcMain.handle(CANALES.confirmarSexo, () => s().confirmarSexo())
+  ipcMain.handle(CANALES.elegirCirugiaRefractiva, (_e, ojo, valor) =>
+    s().elegirCirugiaRefractiva(ojo, valor),
+  )
   ipcMain.handle(CANALES.confirmarTodo, () => s().confirmarTodo())
   ipcMain.handle(CANALES.validar, () => s().validar())
   ipcMain.handle(CANALES.elegirLente, (_e, fabricante, modelo) =>

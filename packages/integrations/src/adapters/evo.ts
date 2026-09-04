@@ -24,7 +24,12 @@
  *    haberle mandado.
  */
 
-import type { EntradasCalculadora, OpcionLente, ResultadoCalculadora } from '@vilamar/domain'
+import type {
+  CirugiaRefractivaPrevia,
+  EntradasCalculadora,
+  OpcionLente,
+  ResultadoCalculadora,
+} from '@vilamar/domain'
 import type { Page } from 'playwright'
 
 import type { AdaptadorCalculadora, ContextoEjecucion } from '../contrato.js'
@@ -47,17 +52,43 @@ const CAMPOS = {
   CONSTANTE_A: { selector: '#txtAConstant', decimales: 2 },
   SIA: { selector: '#TxtSIA', decimales: 2 },
   EJE_INCISION: { selector: '#TxtSIAaxis', decimales: 0 },
-  PK1: { selector: '#txtPK1', decimales: 2 },
-  PK1_EJE: { selector: '#TxtPK1axis', decimales: 0 },
-  PK2: { selector: '#txtPK2', decimales: 2 },
-  PK2_EJE: { selector: '#TxtPK2axis', decimales: 0 },
 } as const
+
+/**
+ * El desplegable «Post LASIK/PRK/RK» de EVO, y el valor de opción de cada una.
+ *
+ * Verificado abriendo la página real (04/09/2026): `#DropDownLASIK`, con
+ * cuatro opciones cuyo `value` es un índice — «0» No, «1» Myopic, «2»
+ * Hyperopic, «3» Radial Keratotomy — no el texto.
+ *
+ * EVO tiene, junto a este desplegable, campos para la queratometría y la
+ * refracción de ANTES de la cirugía refractiva (`#txtPK1`, `#txtPK2`,
+ * `#txtPreLASIK`, `#txtPostLASIK`…). Confirmado por el dueño del proyecto
+ * (04/09/2026): en la práctica casi nunca se tienen esos datos históricos, así
+ * que el modelo de este programa NO los pide y esos campos se dejan como
+ * están — EVO calcula con su método sin historial en cuanto sabe que hubo
+ * cirugía y de qué tipo.
+ *
+ * ⚠️ Antes de esto, el adaptador mandaba el PK1/PK2 del dominio —la curvatura
+ * corneal POSTERIOR, de un Pentacam— a `#txtPK1`/`#txtPK2`. Son conceptos
+ * distintos que solo comparten nombre: aquí «PK» es «Pre-LASIK K», no «córnea
+ * posterior». Se ha quitado esa entrada de `CAMPOS`: mandar ahí un dato de
+ * Pentacam habría hecho que EVO pensara que esa es la queratometría de antes
+ * de una cirugía refractiva que puede ni haber existido.
+ */
+const CIRUGIA_REFRACTIVA_EN_EVO: Readonly<Record<CirugiaRefractivaPrevia, string>> = {
+  NINGUNA: '0',
+  MIOPICA: '1',
+  HIPERMETROPICA: '2',
+  RK: '3',
+}
 
 const SEL = {
   nombre: '#TextBoxName',
   ojoDerecho: '#RadioButtonRLEye_0',
   ojoIzquierdo: '#RadioButtonRLEye_1',
   modeloTorico: '#DropDownToric',
+  cirugiaRefractiva: '#DropDownLASIK',
   calcular: '#btnCalculate',
   // Resultado
   recomendadaEsfera: '#LabelRecIOL',
@@ -171,6 +202,16 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
     await pagina.fill(SEL.nombre, entradas.codigoCaso)
 
     await pagina.check(entradas.ojo === 'OD' ? SEL.ojoDerecho : SEL.ojoIzquierdo)
+
+    // Si no se sabe si el ojo ha tenido cirugía refractiva, no se toca el
+    // desplegable: EVO ya empieza en «No» por su cuenta, y es lo mismo que
+    // significa «no se ha dicho nada» en este dato (ver `CirugiaRefractivaPrevia`).
+    if (entradas.cirugiaRefractivaPrevia) {
+      await pagina.selectOption(
+        SEL.cirugiaRefractiva,
+        CIRUGIA_REFRACTIVA_EN_EVO[entradas.cirugiaRefractivaPrevia],
+      )
+    }
 
     // El modelo va ANTES que la constante A. Si EVO reconoce el modelo,
     // RELLENA SOLA su propia constante para esa lente — comprobado en vivo:

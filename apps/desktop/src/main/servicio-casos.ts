@@ -16,6 +16,7 @@ import type {
   Calculadora,
   CampoBiometrico,
   Caso,
+  CirugiaRefractivaPrevia,
   Lateralidad,
   Aviso,
   ResultadoCalculadora,
@@ -25,6 +26,7 @@ import {
   casoNuevo as crearCasoNuevo,
   confirmar,
   confirmarMedida,
+  conCirugiaRefractiva,
   conOjo,
   conRefraccionObjetivoPorDefecto,
   conResultado,
@@ -394,6 +396,17 @@ export class ServicioCasos {
     const actualizado =
       valor === null ? sinMedida(ojo, campo) : corregirMedida(ojo, campo, valor, this.iso())
     return this.establecer(conOjo(caso, actualizado, this.iso()))
+  }
+
+  /**
+   * Dice si este ojo ha tenido cirugía refractiva antes, y de qué tipo. Solo
+   * EVO lo usa (su desplegable «Post LASIK/PRK/RK»). Conserva lo que hubiera
+   * antes, como cualquier dato.
+   */
+  elegirCirugiaRefractiva(lado: Lateralidad, valor: CirugiaRefractivaPrevia): Caso {
+    const caso = this.exigirCaso()
+    const ojo = ojoDe(caso, lado)
+    return this.establecer(conOjo(caso, conCirugiaRefractiva(ojo, valor, this.iso()), this.iso()))
   }
 
   /**

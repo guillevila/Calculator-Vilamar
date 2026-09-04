@@ -16,6 +16,8 @@
 
 import type { CampoBiometrico, Unidad } from './campos.js'
 import { definicionDe, formatearConUnidad } from './campos.js'
+import type { CirugiaRefractivaDelOjo, CirugiaRefractivaPrevia } from './cirugia-refractiva.js'
+import { aportarCirugiaRefractiva } from './cirugia-refractiva.js'
 import type { Lateralidad } from './lateralidad.js'
 import type { Procedencia } from './procedencia.js'
 import { esDerivado, esManual, esMedido, procedenciaManual, procedenciaPorDefecto } from './procedencia.js'
@@ -82,6 +84,16 @@ export type MapaMedidas = Partial<Readonly<Record<CampoBiometrico, Medida>>>
 export interface OjoBiometrico {
   readonly lateralidad: Lateralidad
   readonly medidas: MapaMedidas
+  /**
+   * Si este ojo ha tenido cirugía refractiva antes, y de qué tipo.
+   *
+   * `undefined` es «no se ha dicho», no «ninguna»: hasta que una persona lo
+   * aporta, no se sabe. Ver `cirugia-refractiva.ts` para por qué es del ojo y
+   * no del caso, y por qué solo se guarda el tipo —sin datos de antes de la
+   * cirugía refractiva, que casi nunca se tienen (confirmado por el dueño del
+   * proyecto, 04/09/2026).
+   */
+  readonly cirugiaRefractivaPrevia?: CirugiaRefractivaDelOjo
 }
 
 export function ojoVacio(lateralidad: Lateralidad): OjoBiometrico {
@@ -220,6 +232,21 @@ export function sinMedida(ojo: OjoBiometrico, campo: CampoBiometrico): OjoBiomet
   const medidas: Record<string, Medida> = { ...(ojo.medidas as Record<string, Medida>) }
   delete medidas[campo]
   return { ...ojo, medidas: medidas as MapaMedidas }
+}
+
+/**
+ * Escribe a mano si este ojo ha tenido cirugía refractiva antes, y de qué
+ * tipo. Conserva lo que hubiera antes, igual que `corregirMedida`.
+ */
+export function conCirugiaRefractiva(
+  ojo: OjoBiometrico,
+  valor: CirugiaRefractivaPrevia,
+  cuando: string,
+): OjoBiometrico {
+  return {
+    ...ojo,
+    cirugiaRefractivaPrevia: aportarCirugiaRefractiva(ojo.cirugiaRefractivaPrevia, valor, cuando),
+  }
 }
 
 /** Marca un dato como revisado por una persona. */

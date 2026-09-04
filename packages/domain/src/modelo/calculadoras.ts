@@ -11,6 +11,7 @@
  */
 
 import type { CampoBiometrico } from './campos.js'
+import type { CirugiaRefractivaPrevia } from './cirugia-refractiva.js'
 import type { Lateralidad } from './lateralidad.js'
 import type { Sexo } from './sexo.js'
 
@@ -184,6 +185,12 @@ export interface EntradasCalculadora {
   readonly lenteTorica?: boolean
   /** El sexo, solo para la calculadora que lo pide. */
   readonly sexo?: Sexo
+  /**
+   * Si el ojo ha tenido cirugía refractiva antes, y de qué tipo. Solo EVO lo
+   * pide (su desplegable «Post LASIK/PRK/RK»). `undefined` es «no se sabe»,
+   * y se trata igual que «ninguna»: EVO calcula con su fórmula estándar.
+   */
+  readonly cirugiaRefractivaPrevia?: CirugiaRefractivaPrevia
 }
 
 export interface FaltanEntradas {

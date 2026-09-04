@@ -10,6 +10,7 @@
 import type {
   Calculadora,
   Caso,
+  CirugiaRefractivaPrevia,
   Lateralidad,
   CampoBiometrico,
   Sexo,
@@ -102,6 +103,11 @@ export interface ApiVilamar {
   readonly elegirSexo: (sexo: Sexo) => Promise<Caso>
   /** Da por bueno un sexo deducido del nombre. Sin esto no sale hacia Kane. */
   readonly confirmarSexo: () => Promise<Caso>
+  /** Si este ojo ha tenido cirugía refractiva antes, y de qué tipo. Solo lo usa EVO. */
+  readonly elegirCirugiaRefractiva: (
+    ojo: Lateralidad,
+    valor: CirugiaRefractivaPrevia,
+  ) => Promise<Caso>
   readonly confirmarTodo: () => Promise<Caso>
   readonly validar: () => Promise<readonly Aviso[]>
   /**
@@ -181,6 +187,7 @@ export const CANALES = {
   confirmarCampo: 'vilamar:confirmar-campo',
   elegirSexo: 'vilamar:elegir-sexo',
   confirmarSexo: 'vilamar:confirmar-sexo',
+  elegirCirugiaRefractiva: 'vilamar:elegir-cirugia-refractiva',
   confirmarTodo: 'vilamar:confirmar-todo',
   validar: 'vilamar:validar',
   elegirLente: 'vilamar:elegir-lente',

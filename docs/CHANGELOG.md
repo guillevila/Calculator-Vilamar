@@ -4,6 +4,63 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.18] — 04/09/2026
+
+EVO: cirugía refractiva previa («Post LASIK/PRK/RK»), y un fallo real de paso.
+
+### El pedido
+
+El dueño del proyecto pidió el desplegable de EVO para pacientes operados
+antes de miopía, hipermetropía o queratotomía radial, y mencionó también
+Barrett True-K Toric —una calculadora aparte para estos mismos pacientes—.
+Se investigó primero contra la web real de EVO antes de tocar código.
+
+### Lo que trae esta versión (EVO)
+
+- Nuevo dato del modelo, `CirugiaRefractivaPrevia` — del OJO, no del caso: un
+  paciente puede estar operado de un ojo y no del otro. Sin ambigüedad
+  clínica que decidir por nuestra cuenta: solo se guarda si hubo cirugía y
+  de qué tipo, porque el dueño del proyecto confirmó que en la práctica casi
+  nunca hay más datos que esos —ni la queratometría de antes, ni la
+  refracción antes/después, aunque EVO tiene campos para ellos—.
+- Tarjeta nueva en la revisión, `BloqueCirugiaRefractiva.tsx`, dentro de la
+  revisión de cada ojo. No aportar nada no bloquea: se trata igual que
+  «ninguna».
+- `evo.ts` selecciona `#DropDownLASIK` (verificado contra el formulario
+  real) antes de rellenar el resto.
+
+### El fallo encontrado de paso
+
+Investigando el formulario real se vio que `evo.ts` llevaba mandando el
+PK1/PK2 del dominio —la curvatura corneal POSTERIOR, de un Pentacam— a los
+campos `#txtPK1`/`#txtPK2` de EVO, que en realidad son «Pre-LASIK K1/K2».
+Mismo nombre corto, conceptos clínicos distintos. Se ha quitado esa entrada
+de `evo.ts`; ningún test la cubría, así que no rompía nada visible, pero
+era un dato mal dirigido en cuanto un caso tuviera las dos cosas a la vez.
+
+### Verificado en vivo
+
+`pnpm live evo`, con y sin cirugía refractiva marcada, fixture sintético:
+EVO responde de verdad al cambio (la refracción prevista cambia), y se
+descubrió que la lista de modelos tóricos de EVO es más corta en modo
+post-refractiva — un modelo que sí aparecía en modo normal puede no estar,
+y el adaptador cae correctamente al camino ya existente («modelo no
+encontrado, usa la constante A escrita a mano», D38). No es un fallo nuevo:
+es un comportamiento real de EVO que conviene tener anotado.
+
+### Lo que NO trae esta versión
+
+**Barrett True-K Toric** sigue pendiente. Existe como página aparte
+(`ascrs.org/en/tools/barrett-true-k-toric-calculator`), con el mismo patrón
+ya automatizado del Barrett Toric normal, pero su formulario real bloqueó
+el acceso directo durante la investigación y hace falta más trabajo antes
+de construir nada. El dueño del proyecto priorizó EVO primero.
+
+Ver SYSTEM_VISION.md D52. 15 tests nuevos (dominio). lint, typecheck, 667
+tests unitarios (1 fallo preexistente y no relacionado) y 32 e2e en verde.
+
+---
+
 ## [1.2.17] — 25/08/2026
 
 La sugerencia dice de dónde sale de verdad: el fabricante, no «tu criterio».
