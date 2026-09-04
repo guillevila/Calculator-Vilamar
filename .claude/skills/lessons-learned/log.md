@@ -1943,3 +1943,41 @@ hiciera que el aparato real pudiera ser cualquier texto.
 Arreglado haciendo que el botón use `calcular()` en vez de `reintentar()`,
 en vez de enseñarle a `reintentar()` a resolver el aparato real —menos
 código nuevo, y reutiliza un camino que ya estaba probado.
+
+## 04/09/2026 — «Kane sigue fallando» no siempre es la app: la web puede estar caída, y se comprueba en 30 segundos antes de tocar código
+
+**Error o aprendizaje:** El dueño reportó otro fallo de Kane con un PDF real
+(«Kane no ha respondido como se esperaba»). Dado el historial de esta
+misma sesión —dos investigaciones previas del mismo mensaje genérico que
+sí eran bugs reales (repintado a medias, opacity:0)— el reflejo habría
+sido asumir un tercer bug en el adaptador y ponerse a investigar el DOM
+otra vez.
+
+**Causa raíz (esta vez):** no era código. El diagnóstico que la propia app
+guarda (`diagnostico/kane-*/informe.json`) decía `net::ERR_TIMED_OUT` /
+`TimeoutError` al cargar `https://www.iolformula.com/` — **ni siquiera
+llegaba a abrir la página**, antes de tocar ningún selector. Confirmado en
+30 segundos con `curl`/`Test-NetConnection` fuera de la app (mismo
+timeout; Google y EVO respondían al instante) y, de forma definitiva, con
+el propio dueño abriendo esa URL en DOS navegadores normales de su
+ordenador (Edge y otro) — mismo `ERR_TIMED_OUT` en los dos. La web de Kane
+(o la red hacia ella) estaba inalcanzable para cualquiera, no solo para el
+adaptador.
+
+**Lección:** Antes de investigar un fallo de Kane/EVO/Barrett como un bug
+del adaptador, **mirar primero el `errorTecnico` guardado en
+`diagnostico/<adaptador>-<fecha>/informe.json`** — si dice
+`ERR_TIMED_OUT`/`TimeoutError` en el `page.goto()` inicial (antes de
+`CALCULANDO` haber llegado a ningún selector), es una señal de que la web
+externa podría no estar respondiendo, no de que el código esté mal. Se
+comprueba en segundos con `curl <url>` o pidiéndole al dueño que abra esa
+URL él mismo en su navegador normal — si tampoco carga ahí, es la web
+externa (o la red), y ningún cambio de código lo arregla. Solo si la
+página SÍ carga pero el adaptador falla dentro de ella, hace falta
+investigar el DOM.
+
+**Contexto:** Cualquier fallo de los tres adaptadores
+(`packages/integrations/src/adapters/`) con mensaje «no ha respondido
+como se esperaba». El `errorTecnico` de cada diagnóstico dice siempre en
+qué fase y contra qué URL falló — es el primer sitio que hay que mirar,
+antes de sospechar del código.
