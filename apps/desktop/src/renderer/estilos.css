@@ -653,6 +653,14 @@ table.opciones .na {
   color: #6f6f6f;
   font-style: italic;
 }
+/* Un valor del catálogo propio de la app (D69, ej. la constante A oficial
+   de una lente): sí es de fiar —por eso lleva el verde de «aportado», no
+   el gris apagado de un valor de partida—, pero no es del informe de este
+   paciente, así que necesita su propio color para no confundirse con él. */
+.origen.del_catalogo {
+  background: #eaf5ea;
+  color: #1f5c2e;
+}
 .origen-original {
   margin-top: 3px;
   font-size: 0.78rem;

@@ -1985,3 +1985,43 @@ investigar el DOM.
 como se esperaba». El `errorTecnico` de cada diagnóstico dice siempre en
 qué fase y contra qué URL falló — es el primer sitio que hay que mirar,
 antes de sospechar del código.
+
+## 05/09/2026 — Al construir «un dato de repuesto para cuando el informe no lo trae», asumí que el informe manda por defecto — el dueño sabía, por su oficio, que esa tabla concreta falla a menudo
+
+**Error o aprendizaje:** D69 (constante A oficial por lente, para Barrett)
+se implementó dos veces el mismo día. La primera versión hizo que la
+constante del catálogo propio de la app solo se usara si la lente NO
+estaba en la tabla de lentes del informe del paciente —si estaba, la
+tabla mandaba siempre—, siguiendo el mismo principio que ya regía D33
+(«un dato específico de este paciente pesa más que uno general»). El
+dueño del proyecto, que sabe de biometría por su oficio, corrigió esto de
+inmediato: la tabla de lentes que imprimen algunos aparatos **viene
+equivocada con frecuencia**, y los cinco valores que había dado eran los
+oficiales del fabricante —los mismos que usan los propios desplegables de
+EVO y Kane—, así que la prioridad tenía que ser la contraria.
+
+**Causa raíz:** Apliqué un principio general de diseño de este proyecto
+(«el dato específico de este caso manda sobre el genérico») sin
+preguntar si de verdad se cumplía para ESTA fuente concreta de datos. Es
+una buena regla por defecto —evita inventar con datos genéricos cuando
+hay uno real delante—, pero aquí fallaba la premisa: el dato «específico»
+(la tabla del informe) no era más fiable que el genérico, era menos. El
+dueño lo sabía porque lo ha visto pasar en consulta; yo no tenía forma de
+saberlo sin preguntarlo, y no lo pregunté — dí por hecho que «viene del
+informe de este paciente» implicaba «es más de fiar».
+
+**Lección:** Un principio de diseño ya establecido en el proyecto («lo
+específico de este caso gana a lo genérico») no se aplica en automático a
+una fuente de datos nueva sin comprobar que la premisa se cumple ahí
+también — sobre todo cuando el dueño conoce, por su oficio, la fiabilidad
+real de esa fuente concreta (aquí: que una tabla de lentes impresa por un
+aparato es autogenerada y a veces incorrecta, algo que un no-clínico no
+tendría forma de saber sin que se lo dijeran). Cuando una regla de
+prioridad afecta a un dato clínico, conviene preguntar explícitamente
+«¿esta fuente es la más fiable de las dos, en tu experiencia?» en vez de
+asumirlo por analogía con una decisión anterior parecida.
+
+**Contexto:** `packages/domain/src/modelo/seleccion-lente.ts`,
+`elegirLente()`. Extensible a cualquier caso donde compitan dos fuentes
+para el mismo dato y el proyecto ya tenga una regla de prioridad para un
+caso parecido — la regla parecida no es una prueba de que aplique aquí.

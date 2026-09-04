@@ -9,28 +9,31 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 05/09/2026 · **Constante A conocida por lente,
-para Barrett (D69, amplía D33).** Petición expresa del dueño: igual que
-EVO y Kane resuelven su propia constante en su propio desplegable,
-Barrett —que no tiene desplegable de lentes propio— ahora puede recibir
-una constante A conocida directamente al elegir la lente en el
-cuestionario, en vez de exigir escribirla a mano siempre. Cinco modelos de
-Bausch & Lomb llevan ya su constante en el catálogo de la app (B&L
-Aspire 119.1, MX60ET/PT 119.1, Envy 119.28, LuxSmart 118.4, LuxLife
-118.63) — valores que dio el propio dueño, confirmados como **generales
-del fabricante, no verificados específicamente para la fórmula de
-Barrett**. Por eso se aplican con procedencia `DERIVADO` y piden
-comprobación humana antes de calcular — no se envían a Barrett sin que
-alguien las mire, igual que cualquier otro dato que aporta el programa
-sin revisar. Solo se usan si el informe del paciente no trae su propia
-tabla de lentes para ese modelo (si la trae, esa constante manda
-siempre) y nunca pisan una constante escrita a mano. Un test nuevo
-(6 casos) en `packages/domain/src/modelo/lente.test.ts` cubre las cuatro
-reglas: se aplica sin informe, no gana a la del informe, no pisa lo
-manual, y se quita sola al cambiar de lente. `pnpm lint && pnpm typecheck
-&& pnpm test && pnpm build && pnpm test:e2e` en verde (704 tests
-unitarios, 37 de interfaz). **No probado todavía por el dueño en
-pantalla.**
+**Última actualización:** 05/09/2026 (2) · **Constante A oficial por
+lente, para Barrett (D69, amplía Y CORRIGE D33) — dos errores del primer
+intento, corregidos el mismo día.** El dueño probó la primera versión y
+avisó de dos cosas: la constante de LuxSmart estaba mal (118.5, no 118.4,
+error de transcripción de Claude) y, más importante, **la prioridad
+estaba al revés** — la primera versión hacía ganar siempre a la tabla de
+lentes del informe del paciente sobre el valor del catálogo, y el dueño
+explicó que esa tabla viene equivocada con frecuencia, mientras que estos
+cinco valores (B&L Aspire 119.1, MX60ET/PT 119.1, Envy 119.28, LuxSmart
+118.5, LuxLife 118.63) son los oficiales del fabricante, los mismos que
+usan los propios desplegables de EVO y Kane. Corregido: **el catálogo
+manda sobre la tabla del informe**, no al revés — lo único que sigue sin
+pisar nunca es una constante escrita a mano. También se quitó el «pendiente
+de comprobar»: al ser valores ya verificados, se guardan con una
+procedencia propia (`CATALOGO`, nueva, distinta de `DERIVADO`) que no pide
+revisión humana ni bloquea nada — se rellenan directamente en el
+formulario, como pidió el dueño. Un test nuevo detectó, de nuevo, un fallo
+real al implementar la corrección (el marcador de «lente anterior» no
+limpiaba una constante de catálogo si el nuevo modelo no tenía otra propia)
+— corregido antes de dar el cambio por bueno. `pnpm lint && pnpm typecheck
+&& pnpm test && pnpm build && pnpm test:e2e` en verde (705 tests
+unitarios, 37 de interfaz, incluido un ajuste al test e2e de «lente
+alternativa» que asumía el comportamiento antiguo). **No probado todavía
+por el dueño en pantalla** —la primera versión tampoco llegó a probarse
+antes de corregirse—.
 
 Antes de esto — **`PanelRevision.tsx` (la pantalla
 de revisión, para cuando los datos vienen de un documento cargado) tiene ya

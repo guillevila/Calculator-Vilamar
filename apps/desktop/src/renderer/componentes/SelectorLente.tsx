@@ -47,16 +47,17 @@ interface Props {
  * adaptador busca `modelo` tal cual — sigue así para los modelos de esta
  * lista que ya se llaman igual en las dos webs.
  *
- * `constanteConocida` es la excepción a D33 (ampliada 04/09/2026, petición
- * expresa del dueño del proyecto): Barrett no tiene desplegable de lentes,
- * así que —a diferencia de EVO y Kane, que resuelven su propia constante en
- * su propia web— nunca tenía forma de recibir una sin escribirla a mano
- * cada vez. Son valores **generales del fabricante que dio el propio
- * dueño**, confirmados como tales pero **no verificados específicamente
- * para la fórmula de Barrett** — por eso, al aplicarse, quedan marcados
- * como derivados y piden comprobación humana antes de calcular (ver
- * `seleccion-lente.ts`). Solo se usan si el informe no trae su propia tabla
- * de lentes para ese modelo — si la trae, esa constante manda siempre.
+ * `constanteConocida` es D69 (corregida 05/09/2026, petición expresa del
+ * dueño del proyecto): Barrett no tiene desplegable de lentes, así que —a
+ * diferencia de EVO y Kane, que resuelven su propia constante en su propia
+ * web— nunca tenía forma de recibir una sin escribirla a mano cada vez.
+ * Son las constantes **oficiales del fabricante, dadas por el propio
+ * dueño** — las mismas que usan los desplegables de EVO y Kane. **Tienen
+ * prioridad sobre la tabla de lentes del propio informe**, si la hubiera:
+ * el dueño confirmó que esa tabla viene equivocada con frecuencia. Se
+ * aplican directamente, sin pedir comprobación humana (ver
+ * `seleccion-lente.ts`) — lo único que respetan por encima es una
+ * constante que haya escrito una persona.
  */
 const MODELOS: readonly {
   fabricante: string
@@ -97,7 +98,7 @@ const MODELOS: readonly {
     modelo: 'B&L LuxSmart',
     nombreEnEvo: 'B&L LuxSmart',
     nombreEnKane: 'B+L LuxSmart Toric',
-    constanteConocida: 118.4,
+    constanteConocida: 118.5,
   },
   {
     fabricante: 'Bausch & Lomb',
@@ -273,8 +274,7 @@ export function SelectorLente({ caso, onCambio }: Props): JSX.Element {
           ) : caso.lente.constanteDelCatalogo ? (
             <>
               . Constante A <strong>{caso.lente.constanteDelCatalogo.valor.toFixed(2)}</strong>, del
-              catálogo — un valor general, no confirmado específicamente para Barrett;
-              compruébala en «Biometría» antes de calcular.
+              catálogo — la oficial del fabricante, la misma que EVO y Kane.
             </>
           ) : (
             '. Si una calculadora no tiene ese modelo, usará la constante A que hayas puesto y lo indicará.'

@@ -174,11 +174,11 @@ export interface LenteElegida {
    */
   readonly constanteDeLaTabla?: { readonly modelo: string; readonly valor: number }
   /**
-   * Constante A general de esta lente, del catálogo propio de la app —no
-   * del informe de este paciente— (D33, ampliada 04/09/2026). Solo se
-   * guarda para poder llevarla de la lente aparcada (`lenteSecundaria`) a
-   * la activa cuando se intercambian con `intercambiarLentes`; la que de
-   * verdad se ha escrito en `CONSTANTE_A` la marca `constanteDelCatalogo`.
+   * Constante A oficial de esta lente, del catálogo propio de la app —no
+   * del informe de este paciente— (D69, 05/09/2026). Solo se guarda para
+   * poder llevarla de la lente aparcada (`lenteSecundaria`) a la activa
+   * cuando se intercambian con `intercambiarLentes`; la que de verdad se
+   * ha escrito en `CONSTANTE_A` la marca `constanteDelCatalogo`.
    */
   readonly constanteConocida?: number
   /**
@@ -186,12 +186,13 @@ export interface LenteElegida {
    * del informe de este paciente), de qué modelo y con qué valor.
    *
    * Mismo motivo que `constanteDeLaTabla`, y la misma regla: permite
-   * quitarla sola al cambiar de lente, sin arrastrarla de una a otra. Una
-   * constante del catálogo es un valor GENERAL de fabricante, no
-   * confirmado para la fórmula concreta de Barrett — por eso se escribe
-   * con procedencia `DERIVADO` y pide comprobación humana antes de
-   * calcular, a diferencia de la de la tabla del informe (que si el
-   * informe la trae, es específica de este paciente).
+   * quitarla sola al cambiar de lente, sin arrastrarla de una a otra. A
+   * diferencia de la de la tabla del informe, esta **tiene prioridad**
+   * sobre ella (D69, corregido 05/09/2026): son las constantes oficiales
+   * del fabricante, confirmadas por el dueño del proyecto y coincidentes
+   * con las que usan los propios desplegables de EVO y Kane — la tabla que
+   * imprime un informe viene equivocada con frecuencia. Se escriben con
+   * procedencia `CATALOGO`, ya verificada, y no piden comprobación humana.
    */
   readonly constanteDelCatalogo?: { readonly modelo: string; readonly valor: number }
 }

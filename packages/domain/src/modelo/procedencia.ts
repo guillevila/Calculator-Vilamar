@@ -27,6 +27,16 @@ export type MetodoExtraccion =
    * así es lo que evita que se confunda con un dato real. Ver `sexoPorDefecto`.
    */
   | 'DEFECTO'
+  /**
+   * Un valor de referencia fijo del catálogo propio de la app (no del
+   * informe de este paciente), dado como oficial y verificado por el
+   * dueño del proyecto — hoy, la constante A de ciertas lentes para
+   * Barrett (D69). A diferencia de `DERIVADO`, no necesita comprobación
+   * humana caso a caso: no es una cuenta sobre datos de ESTE paciente que
+   * nadie ha visto, es un dato de catálogo ya verificado de una vez, igual
+   * que `NOMBRE_DISPOSITIVO` u otras tablas fijas del programa.
+   */
+  | 'CATALOGO'
 
 export const NOMBRE_METODO: Readonly<Record<MetodoExtraccion, string>> = {
   TEXTO_PDF: 'Leído del texto del PDF',
@@ -35,6 +45,7 @@ export const NOMBRE_METODO: Readonly<Record<MetodoExtraccion, string>> = {
   MANUAL: 'Escrito a mano',
   DERIVADO: 'Derivado de otros datos',
   DEFECTO: 'Valor de partida del programa, no escrito por nadie',
+  CATALOGO: 'Del catálogo de la app, verificado',
 }
 
 /**
@@ -197,6 +208,8 @@ export type OrigenDato =
   | 'NO_CONSTA'
   /** Nadie lo ha escrito: es el valor de partida del programa (`DEFECTO`). */
   | 'POR_DEFECTO'
+  /** Un valor de referencia del catálogo propio de la app, ya verificado (`CATALOGO`). */
+  | 'DEL_CATALOGO'
 
 /**
  * Lo mínimo que hace falta para saber el origen de un dato.
@@ -231,6 +244,7 @@ export function origenDe(dato: DatoConOrigen | undefined): OrigenDato {
   // Un valor de partida no es ni del informe ni escrito por nadie: se dice
   // así, antes que nada más, para que nunca se confunda con uno de los dos.
   if (dato.procedencia.metodo === 'DEFECTO') return 'POR_DEFECTO'
+  if (dato.procedencia.metodo === 'CATALOGO') return 'DEL_CATALOGO'
   // Un dato calculado tiene estado propio. No es «del informe» —el papel no lo
   // dice— ni «aportado» —no lo ha escrito nadie—, y decir cualquiera de las dos
   // cosas haría imposible saber después de dónde salió el número.
@@ -257,6 +271,7 @@ export const TEXTO_ORIGEN: Readonly<Record<Exclude<OrigenDato, 'NO_CONSTA'>, str
   APORTADO: 'Aportado',
   CORREGIDO: 'Corregido',
   POR_DEFECTO: 'Valor por defecto',
+  DEL_CATALOGO: 'Del catálogo, verificado',
 }
 
 /** Los dos textos posibles cuando no hay valor. */

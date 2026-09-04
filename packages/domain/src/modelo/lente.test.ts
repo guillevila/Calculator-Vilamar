@@ -375,7 +375,7 @@ describe('una lente que no está en el informe', () => {
   })
 })
 
-describe('constante conocida del catálogo propio (D33, ampliada 04/09/2026) — solo cuando el informe no la trae', () => {
+describe('constante conocida del catálogo propio (D69, corregida 05/09/2026) — tiene prioridad sobre la tabla del informe', () => {
   it('se aplica cuando la lente no está en el informe', () => {
     const r = elegirLente(
       casoConLentes(),
@@ -386,24 +386,25 @@ describe('constante conocida del catálogo propio (D33, ampliada 04/09/2026) —
     expect(constanteDe(r.caso)?.valor).toBe(119.1)
   })
 
-  it('queda como DERIVADO y pide comprobación humana — es un valor general, no confirmado para Barrett', () => {
+  it('queda como CATALOGO, ya confirmada — no pide comprobación humana ni bloquea nada', () => {
     const r = elegirLente(
       casoConLentes(),
       { modelo: 'Alcon SN6ATx', constanteConocida: 119.1 },
       LUEGO,
     )
     const m = constanteDe(r.caso)
-    expect(m?.procedencia.metodo).toBe('DERIVADO')
-    expect(m && necesitaComprobacionHumana(m.procedencia)).toBe(true)
-    expect(r.avisos.join(' ')).toMatch(/no confirmado específicamente para la fórmula de Barrett/i)
+    expect(m?.procedencia.metodo).toBe('CATALOGO')
+    expect(m?.confirmadoPorUsuario).toBe(true)
+    expect(m && necesitaComprobacionHumana(m.procedencia)).toBe(false)
+    expect(r.avisos.join(' ')).toMatch(/la oficial del fabricante/i)
   })
 
-  it('si el informe SÍ trae esta lente con su propia constante, esa manda, no la del catálogo', () => {
-    // 'LUX SMART' está en `LAS_CUATRO` con 118.5 — un valor de catálogo
-    // distinto no puede ganarle a un dato específico de este paciente.
+  it('gana a la constante de la tabla del informe, no al revés — la tabla del informe viene equivocada con frecuencia', () => {
+    // 'LUX SMART' está en `LAS_CUATRO` con 118.5 — pero si hay una
+    // constante conocida del catálogo, esa manda (D69, corregido
+    // 05/09/2026: al revés de como se implementó primero).
     const r = elegirLente(casoConLentes(), { modelo: 'LUX SMART', constanteConocida: 119.9 }, LUEGO)
-    expect(r.emparejamiento.estado).toBe('ENCONTRADA')
-    expect(constanteDe(r.caso)?.valor).toBe(118.5)
+    expect(constanteDe(r.caso)?.valor).toBe(119.9)
   })
 
   it('no pisa una constante escrita a mano', () => {
@@ -425,6 +426,24 @@ describe('constante conocida del catálogo propio (D33, ampliada 04/09/2026) —
     const otra = elegirLente(conCatalogo.caso, { modelo: 'Alcon SA6ATx' }, LUEGO)
     expect(constanteDe(otra.caso)).toBeUndefined()
     expect(otra.avisos.join(' ')).toMatch(/no se hereda de una lente a otra/i)
+  })
+
+  it('cambiar de una lente con constante conocida a una del informe usa la del informe, sin arrastrar la anterior', () => {
+    const conCatalogo = elegirLente(
+      casoConLentes(),
+      { modelo: 'Alcon SN6ATx', constanteConocida: 119.1 },
+      LUEGO,
+    )
+    expect(constanteDe(conCatalogo.caso)?.valor).toBe(119.1)
+
+    const otra = elegirLente(
+      conCatalogo.caso,
+      { modelo: 'Bausch&Lomb Akreos AO MI60' },
+      LUEGO,
+    )
+    expect(constanteDe(otra.caso)?.valor).toBe(119.1) // la de Akreos en LAS_CUATRO también es 119.1…
+    expect(constanteDe(otra.caso)?.procedencia.metodo).not.toBe('CATALOGO') // …pero esta viene del informe, no del catálogo
+    expect(origenDe(constanteDe(otra.caso))).toBe('DEL_INFORME')
   })
 
   it('la lente aparcada lleva su constante conocida, y se aplica al intercambiarla', () => {

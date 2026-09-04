@@ -4,6 +4,51 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.23] — 05/09/2026
+
+fix(dominio): corregir D69 -- el catalogo de lentes manda sobre la tabla
+del informe, no al reves; LuxSmart es 118.5, no 118.4.
+
+### Qué se pidió
+
+El dueño probó la primera versión de D69 (constante A oficial por lente
+para Barrett) y corrigió dos cosas: la constante de LuxSmart estaba mal
+transcrita, y la prioridad estaba invertida -- la tabla de lentes que
+imprime el informe del paciente viene equivocada con frecuencia, y los
+cinco valores que dio son los oficiales del fabricante, los mismos que
+usan los propios desplegables de EVO y Kane. También pidió quitar el
+aviso de "pendiente de comprobar": son valores ya verificados.
+
+### El cambio
+
+`seleccion-lente.ts`: la constante conocida del catálogo se comprueba
+PRIMERO, antes de mirar la tabla del informe -- si hay una, gana siempre,
+salvo que una persona haya escrito la suya a mano (eso nunca se pisa).
+`quitarSiEraDeLaTabla()` (renombrada en su doc, no en su nombre) ahora
+limpia el marcador de la lente anterior venga de la tabla del informe O
+del catálogo, indistintamente.
+
+`procedencia.ts` gana un método nuevo, `CATALOGO` ("Del catálogo de la
+app, verificado"), y su origen `DEL_CATALOGO` -- distinto de `DERIVADO`:
+no pide comprobación humana, porque no es una cuenta sobre datos de este
+paciente que nadie ha visto, es un dato de catálogo ya verificado por el
+dueño del proyecto. `estilos.css` gana el color de badge correspondiente.
+
+`SelectorLente.tsx`: LuxSmart corregido a 118.5.
+
+### Verificado
+
+Un test nuevo detectó, otra vez, un fallo real durante la implementación
+de la corrección: el marcador de "cuál era la lente anterior" no limpiaba
+una constante de catálogo si la nueva lente no traía otra propia --
+corregido antes de dar el cambio por bueno. `pnpm lint && pnpm typecheck
+&& pnpm test && pnpm build && pnpm test:e2e` en verde (705 tests
+unitarios -- 52 en `lente.test.ts`, cubriendo las cuatro reglas de
+prioridad; 37 de interfaz, con el test e2e de "lente alternativa"
+actualizado para reflejar el nuevo comportamiento correcto).
+
+---
+
 ## [1.15.22] — 05/09/2026
 
 feat(dominio): constante A conocida por lente, para Barrett (D69, amplía

@@ -508,9 +508,11 @@ test('lente alternativa: compara sin volver a escribir los datos, y no arrastra 
   caso = await ventana.evaluate(() => window.vilamar?.casoActual())
   expect(caso?.lente?.modelo).toBe('B&L LuxSmart')
   expect(caso?.lenteSecundaria?.modelo).toBe('Bausch&Lomb Akreos AO MI60')
-  // «B&L LuxSmart» no está en este informe: no hereda la constante de
-  // Akreos ni la de ninguna otra.
-  expect(caso?.ojos?.OD?.[0]?.medidas?.CONSTANTE_A).toBeUndefined()
+  // «B&L LuxSmart» no está en este informe, así que no hereda la
+  // constante de Akreos (119.1) — pero SÍ lleva la suya propia, del
+  // catálogo (D69, 118.5), que es de la lente y no del informe.
+  expect(caso?.ojos?.OD?.[0]?.medidas?.CONSTANTE_A?.valor).toBe(118.5)
+  expect(caso?.ojos?.OD?.[0]?.medidas?.CONSTANTE_A?.procedencia?.metodo).toBe('CATALOGO')
 
   await ventana.screenshot({ path: 'test-results/15-lentes-intercambiadas.png', fullPage: true })
 })
