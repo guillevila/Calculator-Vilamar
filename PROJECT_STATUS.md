@@ -9,8 +9,13 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 12/08/2026 · tras hacer que un solo «Calcular» procese
-los dos ojos, y modelar el sexo del paciente que pide Kane
+**Última actualización:** 25/08/2026 · refracción objetivo por defecto (D44).
+⚠️ El resto de este documento (secciones 1–5 y 7) no se ha revisado desde
+12/08/2026 y no refleja el trabajo hecho después —catálogo de lentes,
+selección de modelo en Kane/EVO, PDF por calculadora, carpeta de informes
+configurable, correcciones de Kane (D38–D43)—. Hace falta una pasada completa
+para que vuelva a ser fuente de verdad; mientras tanto, `docs/CHANGELOG.md` y
+las decisiones D37–D44 de `SYSTEM_VISION.md` son lo más al día que hay.
 
 ---
 
@@ -414,6 +419,40 @@ Ampliar ×3 **empeora** —apareció un 24.97 donde ponía 24.07—, así que ha
 
 ## 3. ⚠️ Qué NO funciona todavía
 
+- **Catálogo de lentes propio: construido y probado con datos sintéticos, sin
+  usar todavía con un inventario real.** Ajustes → «Tu catálogo de lentes»
+  guarda modelo, constante A y rango de esfera/cilindro; los resultados
+  cruzan la potencia calculada contra ese catálogo y dicen qué lentes lo
+  cubren — nunca cuál implantar (concreta D14, ver SYSTEM_VISION.md D37). Los
+  13 tests de dominio y los 4 de interfaz (añadir, editar, borrar, tórica sin
+  rango de cilindro) pasan, y se ha visto la pantalla funcionando de verdad.
+  Lo que falta: que el dueño del proyecto meta su inventario real y compruebe
+  que el cruce con los resultados de Kane/EVO/Barrett dice lo que espera.
+- **Selección de modelo en Kane: construida, sin ejecutar todavía contra la
+  web real.** Kane ahora también elige el modelo en su desplegable «IOL Type»
+  —igual que EVO y Barrett— y usa la constante que rellena solo si lo
+  encuentra. Antes de este cambio Kane nunca elegía modelo a propósito, por un
+  problema medido: una lente tórica le cambia el modo del formulario y podía
+  borrar lo ya escrito. La solución (elegir el modelo LO PRIMERO de todo, y
+  leer el modo que resulte con `modoActivo` en vez de suponerlo) tipa bien,
+  pasa lint y no rompe ningún test existente — pero, como con las tres
+  calculadoras, **no hay tests automáticos contra la web real** (D25): hace
+  falta ejecutar un cálculo de verdad, con el acuerdo de Kane ya aceptado en
+  el navegador de la aplicación, para confirmar que el modo se lee bien y que
+  no se pierde ningún dato al cambiar de modelo a mitad de formulario.
+  **Ya se encontró y se arregló un fallo real probando esto a mano**: la
+  pantalla de revisión seguía pidiendo escribir la constante A aunque la
+  lente elegida ya la diera (D40) — señal de que probar a mano, aunque sea
+  parcial, encuentra cosas que lint y los tests no ven.
+- **PDF por calculadora: construido, sin ejecutar todavía contra las webs
+  reales.** «Generar PDF» crea ahora una carpeta con el informe comparativo
+  de siempre y, junto a él, un PDF de una hoja por cada calculadora con la
+  captura de su propia pantalla de resultados (ver SYSTEM_VISION.md D39).
+  tipa bien y no rompe ningún test, pero la captura solo se puede probar
+  calculando de verdad contra EVO, Barrett y Kane —no hay forma de
+  simularla— y generando el PDF después. Falta comprobar a mano que las tres
+  capturas salen legibles y que la carpeta se abre bien desde «Abrir la
+  carpeta».
 - **DOCUMENT EXTRACTION NOT YET VALIDATED ON REAL REPORTS.** Lo repito en inglés
   porque es la frase que pidió el pliego y porque es la limitación que más
   importa. Los parsers funcionan sobre textos sintéticos. Con un informe real
@@ -498,6 +537,98 @@ Ninguno de los tres impide usar lo demás.
   el informe no hereda la de otra.
 - **D34: si una web externa dice haber usado otra constante, se registra y se
   enseña; no se corrige.** El resultado es el de la constante que usó la web.
+- **D44 (25/08/2026): Refracción objetivo se propone en 0, marcada como valor
+  por defecto (no como dato del informe ni escrito a mano), editable como
+  cualquier otro dato.** Construido y comprobado con tests unitarios (7 nuevos)
+  y con la suite e2e completa (31, en verde); **no** se ha comprobado todavía
+  abriendo la aplicación real y mirando la pantalla de revisión con un caso
+  nuevo — pendiente de que el dueño del proyecto lo pruebe.
+- **D45 (25/08/2026): en la pantalla de cálculo se puede elegir con qué
+  calculadoras trabajar, con una casilla por calculadora, antes de pulsar
+  «Calcular».** Empieza con las tres marcadas. Construido y comprobado con
+  lint, typecheck, tests unitarios y la suite e2e (32, con 1 test nuevo para
+  esto); **no** se ha comprobado todavía abriendo la aplicación real —
+  pendiente de que el dueño del proyecto lo pruebe.
+- **D46 (25/08/2026): la carpeta de informes lleva el nombre del paciente,
+  cuando el informe lo trae — excepción explícita y documentada a que ese
+  dato no sale del ordenador ni entra en ningún PDF.** Se hizo pushback antes
+  de tocar nada; el dueño del proyecto lo confirmó igualmente. También se
+  amplió el reconocimiento del nombre para la etiqueta «Paciente:» a secas.
+  Construido y comprobado con lint, typecheck, tests unitarios (1 nuevo) y
+  la suite e2e; **la construcción del nombre de carpeta en sí no tiene test
+  automático** —habla con el sistema de archivos, como el resto de
+  `generarPdf`— así que sigue pendiente de que el dueño del proyecto genere
+  un informe real y compruebe el nombre de la carpeta.
+- **D47 (25/08/2026): tres huecos de lectura reales, encontrados con la
+  primera biometría de IOLMaster que subió el dueño del proyecto.** Un ojo
+  repetido se quedaba con el trozo más largo (perdía la AL); el IOLMaster no
+  leía su tabla de lentes; la refracción objetivo exigía decimales. Los tres
+  arreglados y comprobados con 4 tests nuevos (fixtures sintéticas, sin
+  ningún dato del informe real), lint, typecheck y la suite e2e completa.
+  **No** se ha vuelto a probar contra el informe real que trajo el problema
+  —no se guarda en ningún sitio persistente— así que sigue pendiente de que
+  el dueño del proyecto vuelva a subir esa biometría y confirme que ahora sí
+  se lee entera.
+- **D48 (25/08/2026): un tercer biómetro habitual (ANTERION, pantalla de
+  cálculo de LIO) usa una tabla a tres columnas con la etiqueta puesta una
+  sola vez; `segmentarPorPosicion` ya sabe leerla, ignorando la columna de
+  diferencia.** Construido y comprobado con 1 test nuevo (posiciones
+  sintéticas, ningún dato real), lint, typecheck y la suite e2e completa —el
+  primer intento rompió un test e2e existente y se corrigió antes de seguir.
+  **No probado con una foto real**: eso pasa por OCR, que no se ha ejecutado
+  contra una imagen de verdad de este formato, así que sigue pendiente de
+  que el dueño del proyecto lo confirme subiendo esa biometría.
+- **D49 (25/08/2026): un título centrado en la fila de la cabecera («Cálculo
+  de IOL») desplazaba la frontera entre OD y OS y hacía desaparecer un ojo
+  entero.** Encontrado con un segundo informe real de IOLMaster el mismo
+  día. Corregido cambiando cómo se calcula el hueco entre columnas (D48 lo
+  documenta junto con el fallo anterior). Comprobado con 2 tests nuevos
+  (posiciones sintéticas), lint, typecheck y la suite e2e completa. Mismo
+  aviso que D48: no probado con una foto real de este documento.
+- **D50 (25/08/2026): en algunas pantallas de ANTERION, la queratometría se
+  llama «SimK (flat)» / «SimK (steep)» en vez de «K1»/«K2»; ahora se
+  reconoce.** Tercer informe real de ANTERION probado el mismo día. Este era
+  un PDF de texto nativo (no una foto), así que sí se ha comprobado contra
+  la forma exacta del documento real —aunque con una fixture sintética, no
+  con el informe en sí—. Construido y comprobado con 3 tests nuevos, lint,
+  typecheck y la suite e2e completa.
+- **D51 (25/08/2026): sugerencia según el criterio del cirujano (Envista =
+  residual negativo más cercano a cero; Lux = positivo más cercano a cero;
+  tórica = mayor cilindro sin salto de eje ~90°), separada de lo que destaca
+  cada calculadora.** Se hizo pushback citando D14/D37 antes de construir; el
+  dueño del proyecto lo confirmó igualmente, como sugerencia no vinculante.
+  Construido y comprobado con 20 tests nuevos (tablas inventadas), lint,
+  typecheck y la suite e2e completa; **no probado todavía con un caso real
+  en la aplicación abierta** — pendiente de que el dueño del proyecto lo
+  vea con datos suyos y confirme que la fila que se marca es la que él
+  habría elegido a mano.
+- **D52 (04/09/2026): EVO reconoce su desplegable «Post LASIK/PRK/RK»
+  (cirugía refractiva previa, por ojo), y se corrigió de paso un fallo real
+  —el PK1/PK2 del dominio (córnea posterior, Pentacam) se mandaba a los
+  campos «Pre-LASIK K» de EVO, dos conceptos distintos con el mismo nombre
+  corto.** Investigado contra el formulario real de EVO antes de construir.
+  Comprobado con 15 tests nuevos, lint, typecheck, la suite e2e completa, Y
+  **una prueba en vivo contra la EVO real** (`pnpm live evo`, fixture
+  sintético) que confirmó que el desplegable cambia de verdad el resultado
+  y reveló que EVO limita su lista de modelos tóricos en modo
+  post-refractiva. **Barrett True-K Toric queda pendiente**: existe, usa el
+  mismo patrón ya automatizado del Barrett Toric normal, pero su formulario
+  real bloqueó el acceso directo durante la investigación — priorizado
+  después de EVO por decisión del dueño del proyecto.
+- **D53 (04/09/2026): Barrett True-K Toric ya está construido y VERIFICADO
+  EN VIVO contra la web real (`pnpm live`, con ventana, fixture sintético):
+  SUCCESS, con los tres resultados completos.** Es una cuarta calculadora
+  (`BARRETT_TRUE_K_TORIC`), con su propia casilla en la pantalla de cálculo,
+  nunca lanzada por defecto — solo para cirugía refractiva previa o
+  queratocono. Comprobado con lint, typecheck, tests unitarios nuevos y la
+  suite e2e completa, además de la prueba en vivo. **Dos cosas pendientes,
+  con todas las letras**: (1) el radio «K Index» y el «+ve/-ve Cylinder» del
+  formulario no se tocan —se dejan en su valor por defecto (1.3375 y
+  +ve)— y no se ha podido confirmar si +ve es la convención correcta para
+  este programa; compruébalo a mano en el navegador antes de fiarte de un
+  resultado real. (2) No se ha probado todavía con un caso real de un
+  paciente operado de refractiva — solo con el fixture sintético del
+  proyecto.
 
 ---
 

@@ -100,6 +100,19 @@ describe('separar los dos ojos', () => {
     expect(valorDe(os!, 'CCT')).toBe(548)
   })
 
+  it('un ojo que aparece dos veces —resumen y transcripción— junta las dos, no se queda solo con la más larga', () => {
+    // Caso real (25/08/2026): la transcripción detallada es más larga que el
+    // resumen, pero el resumen es el único sitio con la AL. Quedarse solo con
+    // la más larga (comportamiento antiguo) hacía desaparecer la AL sin aviso.
+    const r = leer(fx.IOLMASTER_RESUMEN_Y_TRANSCRIPCION)
+    expect(r.disposicion).toBe('SECCIONES')
+    const od = r.ojos.OD!
+    const os = r.ojos.OS!
+    expect(valorDe(od, 'AL')).toBe(23.5)
+    expect(valorDe(os, 'AL')).toBe(23.6)
+    expect(valorDe(os, 'WTW')).toBe(11.6)
+  })
+
   it('un informe de un solo ojo no inventa el otro', () => {
     const r = leer(fx.ANTERION_SOLO_OD)
     expect(r.ojos.OD).toBeDefined()
@@ -125,6 +138,37 @@ describe('separar los dos ojos', () => {
     expect(s.disposicion).toBe('DOS_COLUMNAS')
     expect(s.porOjo.OD).toContain('24.07')
     expect(s.porOjo.OS).toContain('24.01')
+  })
+
+  it('una etiqueta puesta UNA vez, con una tercera columna de diferencia al lado, se reparte en los dos ojos sin la diferencia', () => {
+    // Caso real (25/08/2026): un informe de biometría de ANTERION que no
+    // repite la etiqueta bajo cada ojo, la pone una vez a la izquierda de
+    // las dos columnas, y añade una tercera columna con la diferencia
+    // OD-OS que no interesa. Antes la etiqueta caía solo del lado de OD —por
+    // estar más a la izquierda que la frontera— y OS se quedaba con el
+    // número suelto, sin la palabra que la regla de lectura necesita.
+    const bloques = [
+      { texto: 'OD', x: 0.35, y: 0.1, ancho: 0.03, alto: 0.02 },
+      { texto: 'OS', x: 0.55, y: 0.1, ancho: 0.03, alto: 0.02 },
+      { texto: 'Diferencia', x: 0.75, y: 0.1, ancho: 0.08, alto: 0.02 },
+      { texto: 'CCT', x: 0.05, y: 0.2, ancho: 0.05, alto: 0.02 },
+      { texto: '(vertex)', x: 0.11, y: 0.2, ancho: 0.06, alto: 0.02 },
+      { texto: '472', x: 0.36, y: 0.2, ancho: 0.04, alto: 0.02 },
+      { texto: 'um', x: 0.41, y: 0.2, ancho: 0.03, alto: 0.02 },
+      { texto: '457', x: 0.56, y: 0.2, ancho: 0.04, alto: 0.02 },
+      { texto: 'um', x: 0.61, y: 0.2, ancho: 0.03, alto: 0.02 },
+      { texto: '15', x: 0.76, y: 0.2, ancho: 0.03, alto: 0.02 },
+      { texto: 'um', x: 0.8, y: 0.2, ancho: 0.03, alto: 0.02 },
+    ]
+    const s = segmentarPorOjo(reconstruirLineas(bloques), bloques)
+    expect(s.disposicion).toBe('DOS_COLUMNAS')
+    expect(s.porOjo.OD).toMatch(/CCT[\s\S]*472/)
+    expect(s.porOjo.OS).toMatch(/CCT[\s\S]*457/)
+    // Ni el valor del otro ojo ni la diferencia se cuelan en ninguno.
+    expect(s.porOjo.OD).not.toContain('457')
+    expect(s.porOjo.OS).not.toContain('472')
+    expect(s.porOjo.OD).not.toContain('15')
+    expect(s.porOjo.OS).not.toContain('15')
   })
 
   it('si OS está a la izquierda, se respeta y no se asume el orden', () => {
@@ -158,6 +202,45 @@ describe('IOLMaster: la queratometría total va aparte de la estándar', () => {
     expect(valorDe(od, 'TK1')).toBe(43.02)
     expect(valorDe(od, 'K1_EJE')).toBe(12)
     expect(valorDe(od, 'TK1_EJE')).toBe(14)
+  })
+})
+
+describe('ANTERION: «SimK (flat)» y «SimK (steep)» son K1 y K2, al revés que «Flat K»', () => {
+  it('lee K1 de «SimK (flat)» y K2 de «SimK (steep)», con su eje', () => {
+    // Caso real (25/08/2026): esta pantalla de ANTERION no imprime «K1»/«K2»
+    // en ningún sitio, solo «SimK (flat)»/«SimK (steep)» — el orden de las
+    // palabras es el contrario al de «Flat K»/«Steep K», que ya se leía.
+    const r = leer(fx.ANTERION_CON_SIMK_FLAT_STEEP)
+    const od = r.ojos.OD!
+    const os = r.ojos.OS!
+
+    expect(valorDe(od, 'K1')).toBe(44.07)
+    expect(valorDe(od, 'K1_EJE')).toBe(109)
+    expect(valorDe(od, 'K2')).toBe(44.37)
+    expect(valorDe(od, 'K2_EJE')).toBe(19)
+
+    expect(valorDe(os, 'K1')).toBe(43.88)
+    expect(valorDe(os, 'K1_EJE')).toBe(73)
+    expect(valorDe(os, 'K2')).toBe(44.73)
+    expect(valorDe(os, 'K2_EJE')).toBe(163)
+  })
+
+  it('«SimK mean» no se confunde con K1 ni con K2', () => {
+    // No hay campo para la media: solo interesan el plano y el curvo. Que la
+    // línea de la media aparezca primero en el documento no debe colarse
+    // como si fuera K1.
+    const r = leer(fx.ANTERION_CON_SIMK_FLAT_STEEP)
+    expect(valorDe(r.ojos.OD!, 'K1')).not.toBe(44.22)
+    expect(valorDe(r.ojos.OD!, 'K2')).not.toBe(44.22)
+  })
+
+  it('sigue leyendo el resto de la biometría del resumen de la primera página', () => {
+    // El resumen y la SimK están en secciones distintas del mismo documento
+    // (regresión D47: se juntan, no se elige una). AL solo está en el
+    // resumen; K1/K2 solo en la transcripción detallada.
+    const r = leer(fx.ANTERION_CON_SIMK_FLAT_STEEP)
+    expect(valorDe(r.ojos.OD!, 'AL')).toBe(23.97)
+    expect(valorDe(r.ojos.OS!, 'AL')).toBe(23.96)
   })
 })
 
@@ -369,6 +452,32 @@ describe('regresión — el hueco entre columnas no es «el hueco más grande»'
   })
 })
 
+describe('regresión — un título centrado entre OD y OS no desplaza la frontera', () => {
+  it('la columna izquierda no se traga la derecha por culpa de un título en medio', () => {
+    // Caso real (25/08/2026, IOLMaster): la cabecera trae «OD» a la izquierda,
+    // «OS» a la derecha, y un título centrado —«Cálculo de IOL»— justo entre
+    // los dos, en la misma fila. Contarlo al buscar el hueco entre columnas
+    // ensanchaba la zona de OD hasta el centro de la página y el ojo
+    // izquierdo entero (con la ÚNICA AL que tiene ese lado) acababa
+    // clasificado como si fuera del derecho.
+    const bloques = [
+      { texto: 'OD', x: 0.08, y: 0.05, ancho: 0.04, alto: 0.03 },
+      { texto: 'Cálculo de IOL', x: 0.4, y: 0.05, ancho: 0.2, alto: 0.03 },
+      { texto: 'OS', x: 0.85, y: 0.05, ancho: 0.04, alto: 0.03 },
+      { texto: 'AL: 24.67 mm', x: 0.08, y: 0.2, ancho: 0.15, alto: 0.02 },
+      { texto: 'K1: 40.21 D @161', x: 0.08, y: 0.23, ancho: 0.2, alto: 0.02 },
+      { texto: 'AL: 23.61 mm', x: 0.65, y: 0.2, ancho: 0.15, alto: 0.02 },
+      { texto: 'K1: 38.84 D @20', x: 0.65, y: 0.23, ancho: 0.2, alto: 0.02 },
+    ]
+    const s = segmentarPorOjo(reconstruirLineas(bloques), bloques)
+    expect(s.disposicion).toBe('DOS_COLUMNAS')
+    expect(s.porOjo.OD).toContain('24.67')
+    expect(s.porOjo.OS).toContain('23.61')
+    expect(s.porOjo.OD).not.toContain('23.61')
+    expect(s.porOjo.OS).not.toContain('24.67')
+  })
+})
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  Datos del ANTERION que antes se tiraban
 // ═══════════════════════════════════════════════════════════════════════════
@@ -408,6 +517,35 @@ describe('ANTERION: refracción objetivo y nk', () => {
   it('nk queda dentro de su rango válido y no genera aviso', () => {
     const avisos = validarOjo(r.ojos.OD!).filter((a) => a.campo === 'INDICE_QUERATOMETRICO')
     expect(avisos.filter((a) => a.nivel === 'INVALID')).toHaveLength(0)
+  })
+
+  it('lee la refracción objetivo también sin decimales, «0 D» a secas', () => {
+    // Informe real (25/08/2026, IOLMaster): imprime «Target refraction 0 D»,
+    // sin punto decimal. El patrón exigía uno y se quedaba sin leer el valor.
+    const r2 = leer(`CARL ZEISS IOLMASTER
+
+OD
+AL            23.50 mm
+K1            42.10 D @ 10
+K2            43.80 D @ 100
+Target refraction 0 D
+`)
+    expect(valorDe(r2.ojos.OD!, 'REFRACCION_OBJETIVO')).toBe(0)
+  })
+
+  it('la refracción objetivo se reconoce en cualquier aparato, no solo ANTERION', () => {
+    // No es una etiqueta propia de ANTERION: «Target Refraction» es un término
+    // habitual de biometría. Antes solo estaba en la tabla de reglas de
+    // ANTERION y el mismo texto en un IOLMaster no se leía.
+    const r2 = leer(`CARL ZEISS IOLMASTER
+
+OD
+AL            23.50 mm
+K1            42.10 D @ 10
+K2            43.80 D @ 100
+Target refraction -0.5 D
+`)
+    expect(valorDe(r2.ojos.OD!, 'REFRACCION_OBJETIVO')).toBe(-0.5)
   })
 
   it('no se inventa ninguno cuando el informe no los trae', () => {
@@ -590,6 +728,16 @@ describe('modelos de lente y su constante A', () => {
     expect(r.lentes).toHaveLength(0)
   })
 
+  it('el IOLMaster 700 también lista modelo y constante por fórmula, como ANTERION', () => {
+    // Comprobado con un informe real (25/08/2026): antes el perfil del
+    // IOLMaster 700 decía «no se ha comprobado» y no leía la tabla nunca.
+    const r = leer(fx.IOLMASTER_RESUMEN_Y_TRANSCRIPCION)
+    expect(r.dispositivo.dispositivo).toBe('IOLMASTER_700')
+    expect(r.lentes).toHaveLength(1)
+    expect(r.lentes[0]!.modelo).toBe('Ejemplo IOL Modelo Sintetico')
+    expect(r.lentes[0]!.constanteA).toBe(118.9)
+  })
+
   it('un ANTERION sin tabla de lentes devuelve la lista vacía, no un error', () => {
     const r = leer(fx.ANTERION_OD_OS)
     expect(r.dispositivo.dispositivo).toBe('ANTERION')
@@ -725,6 +873,21 @@ describe('sexo y nombre del informe', () => {
     const r = leer(fx.ANTERION_OD_OS)
     expect(r.paciente.sexo).toBeUndefined()
     expect(r.paciente.nombre).toBeUndefined()
+  })
+
+  it('lee el nombre con la etiqueta «Paciente:» a secas, sin «Nombre» delante', () => {
+    // Caso real que trajo el dueño del proyecto (25/08/2026): su informe no
+    // dice «Nombre del paciente», dice solo «Paciente:».
+    const r = leer(`HEIDELBERG ENGINEERING ANTERION
+Cataract App
+Paciente: Sintético De Prueba
+
+OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+`)
+    expect(r.paciente.nombre).toBe('Sintético De Prueba')
   })
 
   it('el sexo y el nombre NO se guardan dentro de un ojo', () => {

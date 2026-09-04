@@ -1,42 +1,67 @@
 /**
- * barrett.ts — Adaptador de Barrett Toric.
+ * barrett-true-k-toric.ts — Adaptador de Barrett True-K Toric.
  *
- *   Página:      https://www.ascrs.org/en/tools/barrett-toric-calculator
- *   Calculadora: https://calc.apacrs.org/toric_calculator20/Toric Calculator.aspx (dentro de un iframe)
+ *   Página:      https://www.ascrs.org/en/tools/barrett-true-k-toric-calculator
+ *   Calculadora: https://calc.apacrs.org/TrueKToricTK_preview/TrueKToricTK.aspx (dentro de un iframe)
  *
- * Es la más incómoda de las tres, y conviene tener claro por qué antes de
- * tocarla. Todo esto está comprobado abriéndola, no supuesto:
+ * Es la calculadora de Barrett para ojos con cirugía refractiva previa
+ * (miopía, hipermetropía, queratotomía radial) o queratocono. Comprobado
+ * abriendo su formulario real, con ventana (04/09/2026) — sin ventana el
+ * iframe no llega a cargar, igual que en Barrett Toric.
  *
- *  1. La calculadora NO está en la página de la ASCRS: está en un iframe de
- *     otro dominio. Entrar directamente a ese dominio devuelve 403 («Just a
- *     moment…»): tiene protección anti-robot. **No se rodea.** Se entra por
- *     donde entra una persona: abriendo la página de la ASCRS.
+ *  1. Es la MISMA plantilla que Barrett Toric: los campos de biometría
+ *     (K1/K2 con eje, AL, ACD, SIA, eje de incisión, LT, WTW, modelo de
+ *     lente, constante A, factor de lente, nombre del paciente, ojo) usan
+ *     LOS MISMOS identificadores. Solo cambian la URL de entrada y el
+ *     desplegable de historial.
  *
- *  2. Con el navegador SIN VENTANA el iframe no llega a cargar. Con ventana,
- *     carga. Por eso este adaptador exige navegador visible; no es estética.
+ *  2. El desplegable «History» (`#MainContent_RefractProcedure`) no tiene
+ *     «Ninguna»: esta página existe SOLO para ojos con historia que contar.
+ *     Sus cuatro opciones son «Myopic Lasik», «Hyperopic Lasik», «Radial
+ *     Keratotomy» y «Keratoconus» — el texto visible ES el valor de la
+ *     opción, verificado en el HTML real.
  *
- *  3. La ASCRS enseña un aviso de cookies que tapa la página entera y se come
- *     los clics. Se elige RECHAZAR: declinar cookies opcionales no es aceptar
- *     nada en nombre de nadie, y es lo que menos datos comparte.
+ *  3. Hay una casilla, «Enter Data and Calculate»
+ *     (`#MainContent_ConfirmCheckBox`), que este adaptador NO TOCA, y es
+ *     deliberado. Empieza deshabilitada y, comprobado en vivo (04/09/2026),
+ *     ninguna combinación de campos rellenados ni de envíos de formulario la
+ *     habilita —se probó rellenar antes y después del historial, con
+ *     pulsaciones de teclado reales y con clics adicionales—. Y no hace
+ *     falta: con la casilla deshabilitada y sin marcar, «Calculate» calcula
+ *     igual y la pestaña «Toric IOL» sale con los resultados completos. Es
+ *     un control vestigial de esta página.
  *
- *  4. Exige «Patient Name». Se le manda el CÓDIGO LOCAL del caso. «Doctor Name»
- *     y «Patient ID» se quedan vacíos.
+ *  4. Igual que Barrett Toric: exige «Patient Name» (se le manda el código
+ *     local del caso), tiene un aviso de cookies que hay que rechazar, y
+ *     elegir el modelo de lente rellena sola la constante A y el factor de
+ *     lente con un envío del formulario.
  *
- *  5. Elegir el modelo de lente rellena solo el factor de lente y la constante
- *     A, y lo hace con un envío del formulario. Hay que esperarlo.
+ *  5. ⚠️ **Sin verificar todavía, y hay que decirlo con todas las letras**:
+ *     el formulario tiene además un radio «K Index» (1.3375 / 1.332) y un
+ *     radio «+ve Cylinder» / «-ve Cylinder» que este adaptador NO toca —se
+ *     queda con lo que la página trae marcado por defecto—. Comprobado que
+ *     por defecto están en 1.3375 y +ve Cylinder, pero NO se ha podido
+ *     confirmar si +ve Cylinder es la convención correcta para cómo este
+ *     programa introduce el eje. Antes de fiarse de un resultado real,
+ *     comprobar ese control a mano en el navegador que se abre.
  *
- *  6. Los resultados NO salen en la misma pestaña: hay que abrir la pestaña
- *     «Toric IOL», que es otro envío del formulario dentro del iframe.
+ *  6. Admite datos de ANTES de la cirugía refractiva si se conocen
+ *     (`#MainContent_PreLasik`, `#MainContent_PostLasik`,
+ *     `#MainContent_Koptional1/2`, `#MainContent_NetCornealAstig`,
+ *     `#MainContent_IOLPower`). Confirmado por el dueño del proyecto
+ *     (04/09/2026): en la práctica casi nunca se tienen, así que el modelo
+ *     de este programa no los pide y estos campos se dejan vacíos.
  */
 
 import type { EntradasCalculadora, OpcionLente, ResultadoCalculadora } from '@vilamar/domain'
+import type { CirugiaRefractivaPrevia } from '@vilamar/domain'
 import type { Frame, Page } from 'playwright'
 
 import type { AdaptadorCalculadora, ContextoEjecucion } from '../contrato.js'
 import { ErrorAdaptador, esperarAlUsuario } from '../contrato.js'
 import { leerCilindroConEje, leerNumeroDeTexto } from '../normalizar.js'
 
-const PAGINA_PADRE = 'https://www.ascrs.org/en/tools/barrett-toric-calculator'
+const PAGINA_PADRE = 'https://www.ascrs.org/en/tools/barrett-true-k-toric-calculator'
 const HOST_CALCULADORA = 'calc.apacrs.org'
 
 const CAMPOS = {
@@ -55,7 +80,6 @@ const CAMPOS = {
 
 const SEL = {
   rechazarCookies: '[data-cky-tag="reject-button"]',
-  // La capa que tapa la página. Es esto lo que hay que ver desaparecer.
   capaCookies: '.cky-overlay',
   nombrePaciente: '#MainContent_PatientName',
   modeloLente: '#MainContent_IOLModel',
@@ -63,23 +87,47 @@ const SEL = {
   factorLente: '#MainContent_LensFactor',
   ojoDerecho: '#MainContent_Rad1',
   ojoIzquierdo: '#MainContent_Rad2',
+  historial: '#MainContent_RefractProcedure',
   calcular: '#MainContent_Button1',
   anclaFormulario: '#MainContent_AxLength',
   tablaPotencias: '#MainContent_GridView1',
   tablaToricas: '#MainContent_GridView2',
 } as const
 
-export class AdaptadorBarrettToric implements AdaptadorCalculadora {
-  readonly calculadora = 'BARRETT_TORIC' as const
-  readonly nombre = 'Barrett Toric'
+/**
+ * El desplegable «History», y el texto exacto de cada opción — verificado
+ * abriendo el HTML real (04/09/2026): el `value` de cada `<option>` es su
+ * propio texto visible, no un código aparte.
+ *
+ * `NINGUNA` no está: esta calculadora no tiene esa opción, y `validarEntradas`
+ * la rechaza antes de llegar aquí.
+ */
+const HISTORIAL_EN_TRUE_K: Readonly<Partial<Record<CirugiaRefractivaPrevia, string>>> = {
+  MIOPICA: 'Myopic Lasik',
+  HIPERMETROPICA: 'Hyperopic Lasik',
+  RK: 'Radial Keratotomy',
+  QUERATOCONO: 'Keratoconus',
+}
+
+export class AdaptadorBarrettTrueKToric implements AdaptadorCalculadora {
+  readonly calculadora = 'BARRETT_TRUE_K_TORIC' as const
+  readonly nombre = 'Barrett True-K Toric'
   readonly url = PAGINA_PADRE
-  /** No es una preferencia: sin ventana, el iframe no carga. Comprobado. */
+  /** Mismo motivo que Barrett Toric: sin ventana, el iframe no carga. */
   readonly requiereNavegadorVisible = true
 
   validarEntradas(entradas: EntradasCalculadora): readonly string[] {
     const problemas: string[] = []
     if (entradas.valores.CONSTANTE_A === undefined && entradas.valores.FACTOR_LENTE === undefined) {
-      problemas.push('Barrett necesita la constante A o el factor de lente.')
+      problemas.push('Barrett True-K Toric necesita la constante A o el factor de lente.')
+    }
+    if (
+      entradas.cirugiaRefractivaPrevia === undefined ||
+      entradas.cirugiaRefractivaPrevia === 'NINGUNA'
+    ) {
+      problemas.push(
+        'Barrett True-K Toric es para ojos con cirugía refractiva previa o queratocono. Indícalo en la revisión antes de lanzarla.',
+      )
     }
     return problemas
   }
@@ -93,7 +141,7 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
       progreso({
         calculadora: this.calculadora,
         fase: 'NAVEGANDO',
-        mensaje: 'Abriendo Barrett Toric en la web de la ASCRS…',
+        mensaje: 'Abriendo Barrett True-K Toric en la web de la ASCRS…',
       })
       await pagina.goto(PAGINA_PADRE, { waitUntil: 'domcontentloaded', timeout: 90_000 })
 
@@ -109,7 +157,7 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
       progreso({
         calculadora: this.calculadora,
         fase: 'RELLENANDO',
-        mensaje: 'Rellenando los datos en Barrett…',
+        mensaje: 'Rellenando los datos en Barrett True-K Toric…',
       })
       // Segunda pasada: entre la carga de la página y la del iframe pasan
       // varios segundos, y el aviso puede haber salido en ese hueco.
@@ -119,7 +167,7 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
       progreso({
         calculadora: this.calculadora,
         fase: 'CALCULANDO',
-        mensaje: 'Calculando en Barrett…',
+        mensaje: 'Calculando en Barrett True-K Toric…',
       })
       await calc.click(SEL.calcular)
       await pagina.waitForTimeout(3000)
@@ -141,33 +189,17 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
     }
   }
 
-  /**
-   * El aviso de cookies tapa la página entera y se come los clics. Se rechaza.
-   *
-   * No basta con pulsar «Rechazar» una vez: el aviso aparece unos segundos
-   * después de cargar la página, y pulsar antes de que esté listo no hace nada.
-   * Lo que importa no es haber pulsado, sino que **la capa que tapa ya no esté**,
-   * así que se comprueba eso y se reintenta hasta conseguirlo.
-   *
-   * Esta función ya falló una vez por dar por bueno el clic sin mirar el
-   * resultado: el síntoma fue un tiempo de espera agotado al rellenar el primer
-   * campo, treinta segundos más tarde y en otro sitio del código.
-   */
+  /** Mismo mecanismo que Barrett Toric — ver la explicación allí. */
   private async rechazarCookies(pagina: Page): Promise<void> {
     const boton = pagina.locator(SEL.rechazarCookies).first()
     const capa = pagina.locator(SEL.capaCookies).first()
 
-    // Primero hay que ESPERAR A QUE APAREZCA. Comprobar nada más cargar la
-    // página y no verlo no significa que no vaya a salir: sale unos segundos
-    // después. Ese fue justamente el fallo — se daba por resuelto antes de que
-    // el aviso existiera, y reaparecía a tiempo de comerse el primer clic.
     try {
       await boton.waitFor({ state: 'visible', timeout: 20_000 })
     } catch {
-      return // No hay aviso de cookies en esta visita.
+      return
     }
 
-    // Y después, pulsar hasta que la capa que tapa DESAPAREZCA de verdad.
     const limite = Date.now() + 20_000
     while (Date.now() < limite) {
       await boton.click({ timeout: 5000 }).catch(() => undefined)
@@ -175,17 +207,9 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
       const sigueTapando = await capa.isVisible().catch(() => false)
       if (!sigueTapando) return
     }
-    // Si sigue ahí, se deja continuar: el fallo posterior lo dirá con su
-    // captura, y así no se traga el problema en silencio.
   }
 
-  /**
-   * Espera al iframe de la calculadora.
-   *
-   * Si el dominio de la calculadora presenta una comprobación anti-robot, aquí
-   * es donde una persona la resuelve en el navegador visible. El programa no la
-   * resuelve ni la rodea: espera.
-   */
+  /** Mismo mecanismo que Barrett Toric — ver la explicación allí. */
   private async esperarCalculadora(pagina: Page, ctx: ContextoEjecucion): Promise<Frame> {
     const buscar = async (): Promise<Frame | null> => {
       for (const marco of pagina.frames()) {
@@ -202,7 +226,6 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
     let calc = await buscar()
     if (calc) return calc
 
-    // Primer intento corto: lo normal es que tarde unos segundos.
     const rapido = await esperarAlUsuario(pagina, async () => (await buscar()) !== null, {
       limiteMs: 25_000,
       cancelado: ctx.cancelado,
@@ -212,13 +235,12 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
       if (calc) return calc
     }
 
-    // No ha cargado sola: puede haber una comprobación esperando a una persona.
     ctx.progreso({
       calculadora: this.calculadora,
       fase: 'ESPERANDO_AL_USUARIO',
       requiereUsuario: true,
       mensaje:
-        'BARRETT REQUIERE TU INTERVENCIÓN. Mira el navegador que se ha abierto: puede estar pidiendo una comprobación de seguridad. Complétala y Calculator Vilamar seguirá solo.',
+        'BARRETT TRUE-K TORIC REQUIERE TU INTERVENCIÓN. Mira el navegador que se ha abierto: puede estar pidiendo una comprobación de seguridad. Complétala y Calculator Vilamar seguirá solo.',
     })
 
     const conAyuda = await esperarAlUsuario(pagina, async () => (await buscar()) !== null, {
@@ -230,7 +252,7 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
 
     throw new ErrorAdaptador(
       'NEEDS_USER_ACTION',
-      'La calculadora de Barrett no llegó a cargar. Suele ser una comprobación de seguridad de su web. Puedes reintentar solo Barrett sin perder el resto.',
+      'La calculadora de Barrett True-K Toric no llegó a cargar. Suele ser una comprobación de seguridad de su web. Puedes reintentar solo esta sin perder el resto.',
       'ESPERANDO_AL_USUARIO',
       SEL.anclaFormulario,
     )
@@ -240,16 +262,24 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
     await calc.check(entradas.ojo === 'OD' ? SEL.ojoDerecho : SEL.ojoIzquierdo)
     await pagina.waitForTimeout(1500) // el radio hace envío del formulario
 
+    // El desplegable de historial. `validarEntradas` ya ha comprobado que hay
+    // un valor y que no es NINGUNA antes de llegar aquí.
+    const historial = entradas.cirugiaRefractivaPrevia
+      ? HISTORIAL_EN_TRUE_K[entradas.cirugiaRefractivaPrevia]
+      : undefined
+    if (historial !== undefined) {
+      await calc.selectOption(SEL.historial, historial)
+      await pagina.waitForTimeout(1500) // también hace envío del formulario
+    }
+
     // Elegir el modelo rellena solo la constante A y el factor de lente.
     if (entradas.modeloLente) {
       const puesto = await this.elegirModelo(calc, entradas.modeloLente)
       if (puesto) await pagina.waitForTimeout(1500)
     }
 
-    // Barrett exige nombre: se le da el código local del caso.
     await calc.fill(SEL.nombrePaciente, entradas.codigoCaso)
 
-    // La constante A que traiga el caso manda sobre la que ponga el modelo.
     if (entradas.valores.CONSTANTE_A !== undefined) {
       await calc.fill(SEL.constanteA, entradas.valores.CONSTANTE_A.toFixed(2))
     }
@@ -259,9 +289,19 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
 
     for (const [campo, config] of Object.entries(CAMPOS)) {
       const valor = entradas.valores[campo as keyof typeof entradas.valores]
-      if (valor === undefined) continue // ausente no se rellena
+      if (valor === undefined) continue
       await calc.fill(config.selector, valor.toFixed(config.decimales))
     }
+
+    // La casilla «Enter Data and Calculate» (`#MainContent_ConfirmCheckBox`)
+    // NO se toca — y es a propósito, tras comprobarlo en vivo (04/09/2026).
+    // Empieza deshabilitada, y ninguna combinación de campos rellenados ni de
+    // envíos de formulario la habilita: se probó rellenar antes o después del
+    // historial, con `fill`, con pulsaciones de teclado reales y con clics
+    // adicionales, y siguió deshabilitada siempre. Y no hacía falta: con la
+    // casilla deshabilitada y sin marcar, pulsar «Calculate» calcula igual y
+    // la pestaña «Toric IOL» sale con los resultados completos. Es un control
+    // vestigial de esta página, no una condición para calcular.
   }
 
   private async elegirModelo(calc: Frame, modelo: string): Promise<boolean> {
@@ -278,14 +318,6 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
     }
   }
 
-  /**
-   * «Net Astigmatism: 0.72 D @ 81 Degrees», que sale en la pestaña de datos.
-   *
-   * Se lee del texto completo del marco y no con un localizador por texto: esa
-   * frase no está en un elemento propio, así que buscarla como nodo no la
-   * encuentra. Es un dato opcional —solo enriquece el informe—, de modo que si
-   * no aparece se sigue sin él en lugar de fallar.
-   */
   private async leerAstigmatismoNeto(
     calc: Frame,
   ): Promise<{ magnitud: number; eje: number } | undefined> {
@@ -308,7 +340,7 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
     } catch (error) {
       throw new ErrorAdaptador(
         'ADAPTER_BROKEN',
-        'No se ha encontrado la pestaña de resultados de Barrett. Puede que la web haya cambiado.',
+        'No se ha encontrado la pestaña de resultados de Barrett True-K Toric. Puede que la web haya cambiado.',
         'LEYENDO_RESULTADO',
         'enlace «Toric IOL»',
         error,
@@ -322,12 +354,11 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
     inicio: number,
     neto: { magnitud: number; eje: number } | undefined,
   ): Promise<ResultadoCalculadora> {
-    // Tras el cambio de pestaña el marco puede ser otro objeto: se vuelve a buscar.
     const calc = pagina.frames().find((m) => m.url().includes(HOST_CALCULADORA))
     if (!calc) {
       throw new ErrorAdaptador(
         'EXTERNAL_ERROR',
-        'Se ha perdido la calculadora de Barrett al cambiar de pestaña.',
+        'Se ha perdido la calculadora de Barrett True-K Toric al cambiar de pestaña.',
         'LEYENDO_RESULTADO',
       )
     }
@@ -341,15 +372,13 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
       })
     }
 
-    // Tabla 1: IOL Power | Toric Power | Refraction (S.E.Q.)
     const potencias = await filas(SEL.tablaPotencias)
-    // Tabla 2: Toric Power | IOL Cylinder | Residual Astigmatism
     const toricas = await filas(SEL.tablaToricas)
 
     if (potencias.length <= 1 && toricas.length <= 1) {
       throw new ErrorAdaptador(
         'EXTERNAL_ERROR',
-        'Barrett no ha devuelto resultados. Comprueba que los datos son correctos y reinténtalo.',
+        'Barrett True-K Toric no ha devuelto resultados. Comprueba que los datos son correctos y reinténtalo.',
         'LEYENDO_RESULTADO',
         SEL.tablaPotencias,
       )
@@ -357,7 +386,6 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
 
     const opciones: OpcionLente[] = []
 
-    // La fila del medio de la tabla de potencias es la que Barrett destaca.
     const filasPotencia = potencias.slice(1)
     const indiceDestacada = Math.floor(filasPotencia.length / 2)
 
@@ -372,8 +400,6 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
       })
     })
 
-    // La tabla de tóricas da cilindro de lente y astigmatismo residual.
-    // Se busca la que corresponde a la designación de la opción destacada.
     const destacada = opciones[indiceDestacada]
     let cilindro: number | undefined
     let ejeResidual: number | undefined
@@ -396,8 +422,6 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
           cilindro,
           cilindroResidual,
           ejeResidual,
-          // Barrett no publica un «eje de la lente» aparte: usa el del
-          // astigmatismo residual. No se inventa uno.
           eje: ejeResidual,
         }
       : undefined
@@ -407,9 +431,6 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
     const entradasSegunLaWeb: Record<string, string> = {}
     if (neto) entradasSegunLaWeb['Astigmatismo neto'] = `${neto.magnitud} D @ ${neto.eje}°`
 
-    // La prueba de que la web dijo esto: una captura de SU pantalla de
-    // resultados, convertida en PDF al generar el informe. Que falle no puede
-    // tumbar un cálculo que ya ha salido bien — por eso no lleva `throw`.
     const capturaId = await pagina
       .screenshot({ fullPage: true })
       .then((datos) => ctx.guardarCaptura(this.calculadora, ctx.entradas.ojo, datos))
@@ -428,7 +449,7 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
       ...(capturaId !== undefined ? { capturaId } : {}),
       mensaje: recomendada
         ? undefined
-        : 'Barrett ha calculado, pero no se ha podido leer la opción destacada.',
+        : 'Barrett True-K Toric ha calculado, pero no se ha podido leer la opción destacada.',
     }
   }
 
@@ -458,7 +479,7 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
       opciones: [],
       mensaje: esAdaptador
         ? error.mensajeUsuario
-        : 'Barrett no ha respondido como se esperaba. Tus datos no se han perdido: puedes reintentar solo Barrett.',
+        : 'Barrett True-K Toric no ha respondido como se esperaba. Tus datos no se han perdido: puedes reintentar solo esta.',
       diagnosticoId,
     }
   }

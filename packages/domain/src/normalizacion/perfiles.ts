@@ -90,9 +90,12 @@ export const PERFILES: Readonly<Record<Dispositivo, PerfilDispositivo>> = {
     acdDesdeAqdMasCct: false,
     // No publica AQD, así que la cuestión ni se plantea: no hay de qué derivar.
     razonAcd: 'El IOLMaster 700 no publica AQD, así que no hay nada de lo que derivar la ACD.',
-    tablaDeLentes: 'NINGUNA',
+    // Comprobado con un informe real (25/08/2026, dueño del proyecto): el
+    // IOLMaster 700 también lista el modelo de lente y, debajo, la constante
+    // por fórmula —«SRK/T: 119.70»—, igual que ANTERION.
+    tablaDeLentes: 'CONSTANTES_POR_FORMULA',
     razonTablaDeLentes:
-      'No se ha comprobado cómo presenta el IOLMaster 700 sus constantes de lente, así que no se interpretan.',
+      'Comprobado con un informe real: el IOLMaster 700 lista el modelo de lente y, debajo, la constante que usa cada fórmula, en el mismo formato que ANTERION.',
   },
   PENTACAM: {
     dispositivo: 'PENTACAM',

@@ -9,7 +9,13 @@
 
 import { describe, expect, it, vi } from 'vitest'
 
-import type { Calculadora, Caso, EntradasCalculadora, ResultadoCalculadora } from '@vilamar/domain'
+import type {
+  Calculadora,
+  Caso,
+  Catalogo,
+  EntradasCalculadora,
+  ResultadoCalculadora,
+} from '@vilamar/domain'
 import {
   casoNuevo,
   confirmar,
@@ -132,9 +138,16 @@ function contextoFalso(): BrowserContext {
 }
 
 interface Escenario {
-  readonly adaptadores: Record<Calculadora, AdaptadorCalculadora>
+  /**
+   * Solo hace falta dar un doble para las calculadoras que el test de verdad
+   * usa: `Barrett True-K Toric` no está en `ORDEN_POR_DEFECTO` (D53) y estos
+   * tests no la piden explícitamente, así que se completa sola con un doble
+   * inerte que no debería llegar a ejecutarse nunca.
+   */
+  readonly adaptadores: Partial<Record<Calculadora, AdaptadorCalculadora>>
   readonly caso?: Caso
   readonly calculadoras?: readonly Calculadora[]
+  readonly catalogo?: Catalogo
 }
 
 async function ejecutar(escenario: Escenario) {
@@ -144,6 +157,7 @@ async function ejecutar(escenario: Escenario) {
     caso: escenario.caso ?? casoListo(),
     ojos: ['OD'],
     calculadoras: escenario.calculadoras,
+    catalogo: escenario.catalogo,
     navegador: {} as never,
     contexto: contextoFalso(),
     progreso: () => undefined,
@@ -153,8 +167,12 @@ async function ejecutar(escenario: Escenario) {
       diagnosticos.push(d.errorTecnico)
       return 'diag-1'
     },
+    guardarCaptura: async () => 'captura-1',
     cancelado: () => false,
-    adaptadores: escenario.adaptadores,
+    adaptadores: {
+      BARRETT_TRUE_K_TORIC: adaptadorRevienta('BARRETT_TRUE_K_TORIC'),
+      ...escenario.adaptadores,
+    } as Record<Calculadora, AdaptadorCalculadora>,
   })
   return { resultados, recibidos, diagnosticos }
 }
@@ -334,6 +352,213 @@ describe('decisiones de ejecución', () => {
     expect(resultados).toHaveLength(1)
     expect(resultados[0]?.calculadora).toBe('BARRETT_TORIC')
     expect(resultados[0]?.estado).toBe('SUCCESS')
+  })
+})
+
+describe('la constante A del catálogo, una por calculadora', () => {
+  /** Caso listo, con la lente elegida y su constante compartida en 119 D. */
+  function casoConLente(): Caso {
+    return { ...casoListo(), lente: { fabricante: 'Bausch & Lomb', modelo: 'enVista ENVY' } }
+  }
+
+  const catalogo: Catalogo = [
+    {
+      id: 'envy',
+      modelo: 'enVista ENVY',
+      fabricante: 'Bausch & Lomb',
+      torica: false,
+      constantesA: { BARRETT_TORIC: 119.15, KANE: 119.33 },
+    },
+  ]
+
+  /** Un adaptador que solo captura las entradas que le llegan. */
+  function capturador(calculadora: Calculadora, capturadas: { valor?: EntradasCalculadora }) {
+    return {
+      ...adaptadorOk(calculadora, 21),
+      ejecutar: async (ctx: Parameters<AdaptadorCalculadora['ejecutar']>[0]) => {
+        capturadas.valor = ctx.entradas
+        return adaptadorOk(calculadora, 21).ejecutar(ctx)
+      },
+    }
+  }
+
+  it('Barrett usa la constante del catálogo para la lente elegida, no la del ojo', async () => {
+    const capturadas: { valor?: EntradasCalculadora } = {}
+    await ejecutar({
+      caso: casoConLente(),
+      catalogo,
+      calculadoras: ['BARRETT_TORIC'],
+      adaptadores: {
+        EVO_TORIC: adaptadorOk('EVO_TORIC', 21),
+        BARRETT_TORIC: capturador('BARRETT_TORIC', capturadas),
+        KANE: adaptadorOk('KANE', 21),
+      },
+    })
+    expect(capturadas.valor?.valores.CONSTANTE_A).toBe(119.15)
+  })
+
+  it('Kane usa SU PROPIA constante, distinta de la de Barrett para la misma lente', async () => {
+    const capturadas: { valor?: EntradasCalculadora } = {}
+    await ejecutar({
+      caso: casoConLente(),
+      catalogo,
+      calculadoras: ['KANE'],
+      adaptadores: {
+        EVO_TORIC: adaptadorOk('EVO_TORIC', 21),
+        BARRETT_TORIC: adaptadorOk('BARRETT_TORIC', 21),
+        KANE: capturador('KANE', capturadas),
+      },
+    })
+    expect(capturadas.valor?.valores.CONSTANTE_A).toBe(119.33)
+  })
+
+  it('EVO también recibe la del catálogo como reserva, pero es un FALLBACK: usarla o no lo decide el propio adaptador', async () => {
+    const capturadas: { valor?: EntradasCalculadora } = {}
+    await ejecutar({
+      caso: casoConLente(),
+      // A este nivel (orquestador) la sustitución es igual para las tres
+      // calculadoras: aquí solo se decide QUÉ NÚMERO viaja en `entradas`. Que
+      // EVO acabe usándolo de verdad o lo ignore porque reconoce el modelo en
+      // su propia web y rellena la suya es una decisión de `evo.ts`, no de
+      // este orquestador — y por eso no se puede comprobar aquí con un doble.
+      catalogo: [{ ...catalogo[0]!, constantesA: { ...catalogo[0]!.constantesA, EVO_TORIC: 999 } }],
+      calculadoras: ['EVO_TORIC'],
+      adaptadores: {
+        EVO_TORIC: capturador('EVO_TORIC', capturadas),
+        BARRETT_TORIC: adaptadorOk('BARRETT_TORIC', 21),
+        KANE: adaptadorOk('KANE', 21),
+      },
+    })
+    expect(capturadas.valor?.valores.CONSTANTE_A).toBe(999)
+  })
+
+  it('sin catálogo, Barrett y Kane siguen usando la constante compartida del ojo — nada cambia', async () => {
+    const capturadas: { valor?: EntradasCalculadora } = {}
+    await ejecutar({
+      caso: casoConLente(),
+      calculadoras: ['BARRETT_TORIC'],
+      adaptadores: {
+        EVO_TORIC: adaptadorOk('EVO_TORIC', 21),
+        BARRETT_TORIC: capturador('BARRETT_TORIC', capturadas),
+        KANE: adaptadorOk('KANE', 21),
+      },
+    })
+    expect(capturadas.valor?.valores.CONSTANTE_A).toBe(119)
+  })
+
+  it('si la lente elegida no está en el catálogo, se queda con la constante del ojo', async () => {
+    const capturadas: { valor?: EntradasCalculadora } = {}
+    await ejecutar({
+      caso: { ...casoListo(), lente: { modelo: 'Una lente que no está en ningún sitio' } },
+      catalogo,
+      calculadoras: ['BARRETT_TORIC'],
+      adaptadores: {
+        EVO_TORIC: adaptadorOk('EVO_TORIC', 21),
+        BARRETT_TORIC: capturador('BARRETT_TORIC', capturadas),
+        KANE: adaptadorOk('KANE', 21),
+      },
+    })
+    expect(capturadas.valor?.valores.CONSTANTE_A).toBe(119)
+  })
+})
+
+describe('el nombre de la lente que se busca en el desplegable de cada web', () => {
+  // El fallo real: el catálogo guardaba «Lux Life», pero Kane la llama
+  // «B+L LuxLife» en su desplegable. Comparando el nombre bonito contra el
+  // de la web, nunca se encontraba — aunque la lente SÍ estuviera en la
+  // lista — y Kane terminaba diciendo «no tiene la lente» teniéndola.
+  function casoConLuxLife(): Caso {
+    return { ...casoListo(), lente: { fabricante: 'Bausch & Lomb', modelo: 'Lux Life' } }
+  }
+
+  const catalogo: Catalogo = [
+    {
+      id: 'luxlife',
+      modelo: 'Lux Life',
+      fabricante: 'Bausch & Lomb',
+      torica: false,
+      constantesA: { BARRETT_TORIC: 118.63 },
+      nombresEnWeb: { EVO_TORIC: 'B&L LuxLife', KANE: 'B+L LuxLife' },
+    },
+  ]
+
+  function capturador(calculadora: Calculadora, capturadas: { valor?: EntradasCalculadora }) {
+    return {
+      ...adaptadorOk(calculadora, 21),
+      ejecutar: async (ctx: Parameters<AdaptadorCalculadora['ejecutar']>[0]) => {
+        capturadas.valor = ctx.entradas
+        return adaptadorOk(calculadora, 21).ejecutar(ctx)
+      },
+    }
+  }
+
+  it('a Kane se le manda el nombre exacto de su desplegable, no el del catálogo', async () => {
+    const capturadas: { valor?: EntradasCalculadora } = {}
+    await ejecutar({
+      caso: casoConLuxLife(),
+      catalogo,
+      calculadoras: ['KANE'],
+      adaptadores: {
+        EVO_TORIC: adaptadorOk('EVO_TORIC', 21),
+        BARRETT_TORIC: adaptadorOk('BARRETT_TORIC', 21),
+        KANE: capturador('KANE', capturadas),
+      },
+    })
+    expect(capturadas.valor?.modeloLente).toBe('B+L LuxLife')
+  })
+
+  it('a EVO se le manda el nombre exacto de SU desplegable, distinto del de Kane', async () => {
+    const capturadas: { valor?: EntradasCalculadora } = {}
+    await ejecutar({
+      caso: casoConLuxLife(),
+      catalogo,
+      calculadoras: ['EVO_TORIC'],
+      adaptadores: {
+        EVO_TORIC: capturador('EVO_TORIC', capturadas),
+        BARRETT_TORIC: adaptadorOk('BARRETT_TORIC', 21),
+        KANE: adaptadorOk('KANE', 21),
+      },
+    })
+    expect(capturadas.valor?.modeloLente).toBe('B&L LuxLife')
+  })
+
+  it('sin nombre declarado para esa web (Barrett), se manda el nombre del catálogo tal cual', async () => {
+    const capturadas: { valor?: EntradasCalculadora } = {}
+    await ejecutar({
+      caso: casoConLuxLife(),
+      catalogo,
+      calculadoras: ['BARRETT_TORIC'],
+      adaptadores: {
+        EVO_TORIC: adaptadorOk('EVO_TORIC', 21),
+        BARRETT_TORIC: capturador('BARRETT_TORIC', capturadas),
+        KANE: adaptadorOk('KANE', 21),
+      },
+    })
+    expect(capturadas.valor?.modeloLente).toBe('Lux Life')
+  })
+
+  it('a Kane también le llega si la lente elegida es tórica, para que decida el modo antes de buscarla', async () => {
+    const capturadas: { valor?: EntradasCalculadora } = {}
+    await ejecutar({
+      caso: { ...casoListo(), lente: { fabricante: 'Bausch & Lomb', modelo: 'Lux Life Toric' } },
+      catalogo: [
+        {
+          id: 'luxlife-toric',
+          modelo: 'Lux Life Toric',
+          fabricante: 'Bausch & Lomb',
+          torica: true,
+          constantesA: {},
+          nombresEnWeb: { KANE: 'B+L LuxLife Toric' },
+        },
+      ],
+      calculadoras: ['KANE'],
+      adaptadores: {
+        EVO_TORIC: adaptadorOk('EVO_TORIC', 21),
+        BARRETT_TORIC: adaptadorOk('BARRETT_TORIC', 21),
+        KANE: capturador('KANE', capturadas),
+      },
+    })
+    expect(capturadas.valor?.lenteTorica).toBe(true)
   })
 })
 

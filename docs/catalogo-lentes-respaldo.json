@@ -1,0 +1,221 @@
+{
+  "_nota": "Copia de respaldo del catalogo de lentes del dueno del proyecto, guardada en el repositorio a peticion suya (24/08/2026). NO la lee la aplicacion: el catalogo real y activo vive en %APPDATA%calculator-vilamarcatalogo-lentes.json, fuera del repositorio (ver SYSTEM_VISION.md D18 y D41, y almacen.ts). Si hay que restaurar el catalogo, copiar el array \"lentes\" de aqui a ese fichero.",
+  "actualizadoEn": "2026-08-24",
+  "lentes": [
+    {
+      "id": "63bacd1b-29af-44ef-946e-c03ee0d07b8a",
+      "modelo": "enVista ENVY",
+      "fabricante": "Bausch & Lomb",
+      "constantesA": {
+        "EVO_TORIC": 119.24,
+        "BARRETT_TORIC": 119.28,
+        "KANE": 119.33
+      },
+      "torica": false,
+      "rangoEsfera": {
+        "min": 6,
+        "max": 34
+      },
+      "nombresEnWeb": {
+        "KANE": "B+L enVista Envy",
+        "EVO_TORIC": "B&L Envy"
+      }
+    },
+    {
+      "id": "f8230540-8644-42da-bd36-9309b9150daf",
+      "modelo": "enVista ENVY TORIC",
+      "fabricante": "Bausch & Lomb",
+      "constantesA": {
+        "EVO_TORIC": 119.24,
+        "BARRETT_TORIC": 119.28,
+        "KANE": 119.33
+      },
+      "torica": true,
+      "rangoEsfera": {
+        "min": 6,
+        "max": 34
+      },
+      "rangoCilindro": {
+        "min": 0.9,
+        "max": 5.75
+      },
+      "notas": "Cilindro en plano de la LIO (no plano corneal). Mismas constantes que enVista ENVY: la ficha no da unas distintas para la version torica.",
+      "nombresEnWeb": {
+        "KANE": "B+L enVista Envy Toric",
+        "EVO_TORIC": "B&L Envy"
+      }
+    },
+    {
+      "id": "02b29e0e-3255-4e2d-b611-0413a541fb41",
+      "modelo": "enVista Aspire",
+      "fabricante": "Bausch & Lomb",
+      "constantesA": {
+        "EVO_TORIC": 119.1,
+        "BARRETT_TORIC": 119.1,
+        "KANE": 119.1
+      },
+      "torica": false,
+      "rangoEsfera": {
+        "min": 6,
+        "max": 34
+      },
+      "nombresEnWeb": {
+        "KANE": "B+L enVista Aspire",
+        "EVO_TORIC": "B&L Aspire"
+      }
+    },
+    {
+      "id": "e78c0a65-1ba1-4439-9e06-8a3861986498",
+      "modelo": "enVista Aspire Toric",
+      "fabricante": "Bausch & Lomb",
+      "constantesA": {
+        "EVO_TORIC": 119.1,
+        "BARRETT_TORIC": 119.1,
+        "KANE": 119.1
+      },
+      "torica": true,
+      "rangoEsfera": {
+        "min": 6,
+        "max": 34
+      },
+      "rangoCilindro": {
+        "min": 0.9,
+        "max": 5.75
+      },
+      "notas": "Cilindro en plano de la LIO.",
+      "nombresEnWeb": {
+        "KANE": "B+L enVista Aspire Toric",
+        "EVO_TORIC": "B&L Aspire"
+      }
+    },
+    {
+      "id": "3336e4d2-6111-4d44-b26b-615dae797323",
+      "modelo": "Lux Life",
+      "fabricante": "Bausch & Lomb",
+      "constantesA": {
+        "EVO_TORIC": 118.62,
+        "BARRETT_TORIC": 118.63,
+        "KANE": 118.69
+      },
+      "torica": false,
+      "rangoEsfera": {
+        "min": 5,
+        "max": 32
+      },
+      "nombresEnWeb": {
+        "KANE": "B+L LuxLife",
+        "EVO_TORIC": "B&L LuxLife"
+      }
+    },
+    {
+      "id": "0600002b-0634-45ee-b544-2ea74e03c218",
+      "modelo": "Lux Life Toric",
+      "fabricante": "Bausch & Lomb",
+      "constantesA": {
+        "EVO_TORIC": 118.62,
+        "BARRETT_TORIC": 118.63,
+        "KANE": 118.69
+      },
+      "torica": true,
+      "rangoEsfera": {
+        "min": 6,
+        "max": 34
+      },
+      "rangoCilindro": {
+        "min": 0.75,
+        "max": 6
+      },
+      "notas": "Cilindro en plano de la LIO.",
+      "nombresEnWeb": {
+        "KANE": "B+L LuxLife Toric",
+        "EVO_TORIC": "B&L LuxLife"
+      }
+    },
+    {
+      "id": "e2fc6a30-165e-4851-b22b-924557ae33ee",
+      "modelo": "Lux Smart",
+      "fabricante": "Bausch & Lomb",
+      "constantesA": {
+        "EVO_TORIC": 118.45,
+        "BARRETT_TORIC": 118.4,
+        "KANE": 118.45
+      },
+      "torica": false,
+      "rangoEsfera": {
+        "min": 6,
+        "max": 34
+      },
+      "notas": "La ficha da EVO A 118.5, pero en vivo (23/08/2026) la web de EVO rellena 118.45 para B&L LuxSmart: se usa la de la web, no la de la ficha.",
+      "nombresEnWeb": {
+        "KANE": "B+L LuxSmart",
+        "EVO_TORIC": "B&L LuxSmart"
+      }
+    },
+    {
+      "id": "69268081-440a-4bc7-b681-080df26aadd4",
+      "modelo": "Lux Smart Toric",
+      "fabricante": "Bausch & Lomb",
+      "constantesA": {
+        "EVO_TORIC": 118.45,
+        "BARRETT_TORIC": 118.4,
+        "KANE": 118.45
+      },
+      "torica": true,
+      "rangoEsfera": {
+        "min": 6,
+        "max": 34
+      },
+      "rangoCilindro": {
+        "min": 0.75,
+        "max": 6
+      },
+      "notas": "Cilindro en plano de la LIO. La ficha da EVO A 118.5, pero en vivo la web de EVO rellena 118.45 para B&L LuxSmart: se usa la de la web.",
+      "nombresEnWeb": {
+        "KANE": "B+L LuxSmart Toric",
+        "EVO_TORIC": "B&L LuxSmart"
+      }
+    },
+    {
+      "id": "6214e9dc-4b07-4b36-91e6-986c46899da6",
+      "modelo": "enVista",
+      "fabricante": "Bausch & Lomb",
+      "constantesA": {
+        "EVO_TORIC": 119.1,
+        "BARRETT_TORIC": 119.1,
+        "KANE": 119.31
+      },
+      "torica": false,
+      "rangoEsfera": {
+        "min": 6,
+        "max": 34
+      },
+      "notas": "Mismos parametros que enVista Aspire (confirmado por el dueno del proyecto, 24/08/2026). Ojo: en vivo, B&L MX60T dio 119.20 en EVO -- no se usa ese valor aqui a proposito.",
+      "nombresEnWeb": {
+        "KANE": "B+L enVista"
+      }
+    },
+    {
+      "id": "cb614fd6-c70a-450a-a967-578c82658c02",
+      "modelo": "enVista Toric",
+      "fabricante": "Bausch & Lomb",
+      "constantesA": {
+        "EVO_TORIC": 119.1,
+        "BARRETT_TORIC": 119.1,
+        "KANE": 119.25
+      },
+      "torica": true,
+      "rangoEsfera": {
+        "min": 6,
+        "max": 34
+      },
+      "rangoCilindro": {
+        "min": 0.9,
+        "max": 5.75
+      },
+      "notas": "Mismos parametros que enVista Aspire Toric. Cilindro en plano de la LIO. Ojo: en vivo, B&L MX60T dio 119.20 en EVO -- no se usa ese valor aqui a proposito.",
+      "nombresEnWeb": {
+        "KANE": "B+L enVista Toric"
+      }
+    }
+  ]
+}

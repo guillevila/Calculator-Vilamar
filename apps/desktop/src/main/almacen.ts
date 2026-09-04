@@ -15,7 +15,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import type { Caso } from '@vilamar/domain'
+import type { Caso, LenteDeCatalogo } from '@vilamar/domain'
 
 export interface Carpetas {
   readonly raiz: string
@@ -24,6 +24,8 @@ export interface Carpetas {
   readonly informes: string
   readonly diagnostico: string
   readonly sesiones: string
+  /** Capturas de éxito de cada calculadora, una subcarpeta por caso. */
+  readonly capturas: string
 }
 
 export function prepararCarpetas(rutaDatos: string): Carpetas {
@@ -31,10 +33,16 @@ export function prepararCarpetas(rutaDatos: string): Carpetas {
     raiz: rutaDatos,
     casos: join(rutaDatos, 'casos'),
     documentos: join(rutaDatos, 'documentos'),
-    informes: join(rutaDatos, 'informes'),
+    // Dónde se guardan los informes es lo único que se puede cambiar desde
+    // fuera: es lo que se quiere poder ver a simple vista, sin entrar en la
+    // carpeta de datos de la aplicación (que en Windows está oculta). El resto
+    // —casos, documentos, sesión del navegador— se queda siempre en local,
+    // porque puede llevar biometría o cookies y no tiene sentido moverlo.
+    informes: process.env['VILAMAR_CARPETA_INFORMES'] || join(rutaDatos, 'informes'),
     diagnostico: join(rutaDatos, 'diagnostico'),
     // El perfil del navegador: cookies y sesiones. Local y solo local.
     sesiones: join(rutaDatos, 'sesion-navegador'),
+    capturas: join(rutaDatos, 'capturas'),
   }
   for (const ruta of Object.values(carpetas)) mkdirSync(ruta, { recursive: true })
   return carpetas
@@ -108,6 +116,62 @@ export function guardarDocumento(
 export function leerDocumento(ruta: string): Uint8Array | null {
   try {
     return new Uint8Array(readFileSync(ruta))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * El catálogo de lentes propio del usuario.
+ *
+ * Un único fichero, no una carpeta: a diferencia de los casos, es una lista
+ * pequeña que gestiona una persona a mano en Ajustes, no un registro que crece
+ * solo. No pertenece a ningún caso — vive junto a ellos, en la raíz de los
+ * datos de la aplicación.
+ */
+export function leerCatalogo(carpetas: Carpetas): readonly LenteDeCatalogo[] {
+  try {
+    return JSON.parse(
+      readFileSync(join(carpetas.raiz, 'catalogo-lentes.json'), 'utf8'),
+    ) as readonly LenteDeCatalogo[]
+  } catch {
+    return []
+  }
+}
+
+export function guardarCatalogo(carpetas: Carpetas, catalogo: readonly LenteDeCatalogo[]): void {
+  writeFileSync(
+    join(carpetas.raiz, 'catalogo-lentes.json'),
+    JSON.stringify(catalogo, null, 2),
+    'utf8',
+  )
+}
+
+/**
+ * La captura de la pantalla de resultados de una calculadora, para un caso.
+ *
+ * Una carpeta por caso — no un fichero por captura suelto en la raíz — para
+ * que borrar un caso viejo también se lleve sus capturas, el día que haga
+ * falta. El nombre del fichero es su propio identificador
+ * (`${calculadora}-${ojo}`): no hace falta guardar un índice aparte.
+ */
+export function guardarCaptura(
+  carpetas: Carpetas,
+  codigoCaso: string,
+  calculadora: string,
+  ojo: string,
+  datos: Uint8Array,
+): string {
+  const id = `${calculadora}-${ojo}`
+  const destino = join(carpetas.capturas, codigoCaso)
+  mkdirSync(destino, { recursive: true })
+  writeFileSync(join(destino, `${id}.png`), datos)
+  return id
+}
+
+export function leerCaptura(carpetas: Carpetas, codigoCaso: string, id: string): Uint8Array | null {
+  try {
+    return new Uint8Array(readFileSync(join(carpetas.capturas, codigoCaso, `${id}.png`)))
   } catch {
     return null
   }

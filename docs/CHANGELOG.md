@@ -4,6 +4,717 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.19] — 04/09/2026
+
+Barrett True-K Toric: cuarta calculadora, para cirugía refractiva previa.
+
+### El pedido
+
+El dueño del proyecto quiere poder hacer cálculos especiales para pacientes
+operados de refractiva, con la página de Barrett True-K Toric —distinta de
+la que ya se automatizaba (Barrett Toric)—.
+
+### El diseño
+
+Es una CUARTA calculadora (`BARRETT_TRUE_K_TORIC`), no una casilla del
+Barrett Toric normal: es una página distinta de verdad. Se le preguntó al
+dueño del proyecto cómo activarla y eligió la opción recomendada: una
+casilla más junto a Kane/EVO/Barrett en la pantalla de cálculo, marcada a
+mano caso a caso, nunca por defecto. La tabla comparativa y el informe PDF
+solo le dan columna cuando tiene un resultado de verdad, para no meter una
+columna vacía en el resto de casos.
+
+### La investigación, en vivo y en dos pasos
+
+- Primer intento, sin ventana: 403, el mismo aviso que Barrett Toric ya
+  documentaba para `calc.apacrs.org`. Con ventana, el formulario cargó
+  entero: misma plantilla que Barrett Toric, mismos identificadores de
+  campo, más un desplegable «History» (Myopic Lasik / Hyperopic Lasik /
+  Radial Keratotomy / Keratoconus, sin «Ninguna» — esta calculadora existe
+  solo para eso).
+- `CirugiaRefractivaPrevia` (del pedido de EVO, D52) se amplía con un quinto
+  valor, `QUERATOCONO`, que EVO no tiene y True-K sí.
+- **Hallazgo real que cambió el adaptador**: una casilla «Enter Data and
+  Calculate» empieza deshabilitada. Se probaron varios órdenes de relleno,
+  pulsaciones de teclado reales, clics adicionales — siguió deshabilitada
+  siempre. La prueba decisiva: calcular SIN tocarla funcionó igual, con los
+  tres resultados completos en la pestaña «Toric IOL». Es un control
+  vestigial; el adaptador no lo toca.
+- **Pendiente, dicho con todas las letras**: un radio «K Index» y otro
+  «+ve/-ve Cylinder» que el adaptador no toca —se queda con lo que trae por
+  defecto (1.3375 y +ve)— y no se ha podido confirmar si +ve es la
+  convención correcta para cómo este programa introduce el eje. Comprobarlo
+  a mano antes de fiarse de un resultado real.
+
+### Verificado
+
+`pnpm live` con ventana, fixture sintético con cirugía MIOPICA: SUCCESS, con
+las tres opciones leídas y la recomendada completa (esfera, cilindro, eje).
+
+Ver SYSTEM_VISION.md D53. Varios tests nuevos de dominio. lint, typecheck,
+672 tests unitarios (1 fallo preexistente y no relacionado) y 32 e2e en
+verde.
+
+---
+
+## [1.2.18] — 04/09/2026
+
+EVO: cirugía refractiva previa («Post LASIK/PRK/RK»), y un fallo real de paso.
+
+### El pedido
+
+El dueño del proyecto pidió el desplegable de EVO para pacientes operados
+antes de miopía, hipermetropía o queratotomía radial, y mencionó también
+Barrett True-K Toric —una calculadora aparte para estos mismos pacientes—.
+Se investigó primero contra la web real de EVO antes de tocar código.
+
+### Lo que trae esta versión (EVO)
+
+- Nuevo dato del modelo, `CirugiaRefractivaPrevia` — del OJO, no del caso: un
+  paciente puede estar operado de un ojo y no del otro. Sin ambigüedad
+  clínica que decidir por nuestra cuenta: solo se guarda si hubo cirugía y
+  de qué tipo, porque el dueño del proyecto confirmó que en la práctica casi
+  nunca hay más datos que esos —ni la queratometría de antes, ni la
+  refracción antes/después, aunque EVO tiene campos para ellos—.
+- Tarjeta nueva en la revisión, `BloqueCirugiaRefractiva.tsx`, dentro de la
+  revisión de cada ojo. No aportar nada no bloquea: se trata igual que
+  «ninguna».
+- `evo.ts` selecciona `#DropDownLASIK` (verificado contra el formulario
+  real) antes de rellenar el resto.
+
+### El fallo encontrado de paso
+
+Investigando el formulario real se vio que `evo.ts` llevaba mandando el
+PK1/PK2 del dominio —la curvatura corneal POSTERIOR, de un Pentacam— a los
+campos `#txtPK1`/`#txtPK2` de EVO, que en realidad son «Pre-LASIK K1/K2».
+Mismo nombre corto, conceptos clínicos distintos. Se ha quitado esa entrada
+de `evo.ts`; ningún test la cubría, así que no rompía nada visible, pero
+era un dato mal dirigido en cuanto un caso tuviera las dos cosas a la vez.
+
+### Verificado en vivo
+
+`pnpm live evo`, con y sin cirugía refractiva marcada, fixture sintético:
+EVO responde de verdad al cambio (la refracción prevista cambia), y se
+descubrió que la lista de modelos tóricos de EVO es más corta en modo
+post-refractiva — un modelo que sí aparecía en modo normal puede no estar,
+y el adaptador cae correctamente al camino ya existente («modelo no
+encontrado, usa la constante A escrita a mano», D38). No es un fallo nuevo:
+es un comportamiento real de EVO que conviene tener anotado.
+
+### Lo que NO trae esta versión
+
+**Barrett True-K Toric** sigue pendiente. Existe como página aparte
+(`ascrs.org/en/tools/barrett-true-k-toric-calculator`), con el mismo patrón
+ya automatizado del Barrett Toric normal, pero su formulario real bloqueó
+el acceso directo durante la investigación y hace falta más trabajo antes
+de construir nada. El dueño del proyecto priorizó EVO primero.
+
+Ver SYSTEM_VISION.md D52. 15 tests nuevos (dominio). lint, typecheck, 667
+tests unitarios (1 fallo preexistente y no relacionado) y 32 e2e en verde.
+
+---
+
+## [1.2.17] — 25/08/2026
+
+La sugerencia dice de dónde sale de verdad: el fabricante, no «tu criterio».
+
+### La aclaración
+
+El dueño del proyecto explicó algo que cambia cómo se presenta la
+sugerencia de la versión anterior: «la calculadora hace cálculos genéricos,
+pero luego los fabricantes hacen recomendaciones». La regla de Envista/Lux
+no es un criterio personal suyo ni inventado por el programa — es la guía
+que publica el fabricante (Bausch & Lomb) para leer la tabla genérica de
+Barrett/SRK-T según su propia familia de lente. La regla del cilindro sí es
+un criterio clínico general de sobrecorrección, sin ligar a ningún
+fabricante.
+
+### El cambio
+
+- El motivo que se enseña en pantalla ya distingue las dos fuentes:
+  «Según el fabricante (Bausch & Lomb) para Envista/Lux: …» para la esfera,
+  «Criterio de sobrecorrección: …» para el cilindro tórico — en vez de la
+  etiqueta genérica «Según tu criterio» de antes.
+- El badge corto de la tabla pasa de «Según tu criterio» a «Sugerencia», y
+  el texto largo recuerda que no se envía a ningún sitio ni se marca como
+  confirmada.
+- Solo texto y comentarios; la lógica de selección (D51) no cambia.
+
+lint, typecheck, 659 tests unitarios (1 fallo preexistente y no
+relacionado) y 32 e2e en verde.
+
+---
+
+## [1.2.16] — 25/08/2026
+
+Sugerencia según el criterio del cirujano — separada de lo que dice la web.
+
+### El pedido, y el pushback
+
+El dueño del proyecto quiere que la aplicación marque, dentro de cada tabla
+de opciones, cuál elegiría él con tres reglas suyas: en Envista, el residual
+negativo más cercano a cero; en Lux, el positivo más cercano a cero; en una
+tabla tórica, el mayor cilindro cuyo eje residual no salta ~90° respecto al
+de la potencia anterior (si salta, la potencia anterior es la buena).
+
+Antes de tocar nada se le hizo pushback citando D14 («la primera versión no
+da una recomendación clínica propia») y D37, que ya rechazó marcar una
+opción del catálogo como «la buena» por la misma razón. Confirmó que lo
+quiere igualmente, como sugerencia visible y nunca vinculante — nada se
+envía a ningún sitio sin que una persona lo confirme, igual que siempre.
+
+### La implementación
+
+- `packages/domain/src/comparacion/sugerencia-cirujano.ts` (nuevo):
+  `familiaDeLente`, `sugerirEsferaPorFamilia`, `sugerirCilindroSinCambioDeEje`
+  y `sugerirOpcion` (decide sola cuál de las dos reglas toca, según si la
+  tabla trae cilindro).
+- La regla del cilindro no necesita ningún eje de referencia externo: compara
+  cada opción con la anterior, en la misma tabla, así que aguanta que una
+  calculadora transponga sus ejes (EVO lo hace) sin que haga falta saberlo.
+- Se mantiene deliberadamente separada de `OpcionLente.recomendada` (lo que
+  la propia web destaca) — `comparar.ts` documenta, de un fallo real
+  anterior, el peligro exacto de confundir las dos. En pantalla
+  (`PanelResultados.tsx`) sale con su propio color y su motivo escrito
+  («Según tu criterio: …»), nunca con el aspecto de una opción que la
+  calculadora señaló.
+- 20 tests nuevos, todos con tablas inventadas.
+
+Ver SYSTEM_VISION.md D51. lint, typecheck, 659 tests unitarios (1 fallo
+preexistente y no relacionado) y 32 e2e en verde.
+
+---
+
+## [1.2.15] — 25/08/2026
+
+«SimK (flat)» / «SimK (steep)»: otra forma real de llamar a K1 y K2.
+
+### El problema
+
+Tercer informe real de ANTERION que probó el dueño del proyecto: no
+imprime «K1»/«K2» en ningún sitio de la pantalla «Cataract spheric IOL
+calculation OU report», solo «SimK (flat)» y «SimK (steep)» — con las
+palabras en el orden contrario al patrón «Flat K»/«Steep K» que ya se
+reconocía desde otro informe distinto. El resultado: la queratometría no
+se leía en absoluto para este documento, aunque el resto de la biometría
+(AL, ACD, LT, CCT, WTW) sí.
+
+### La corrección
+
+- `packages/extraction/src/parsers/nucleo.ts`: dos patrones nuevos en las
+  reglas genéricas de K1 y K2, con y sin eje: `SimK\s*\(?flat\)?…` para K1,
+  `SimK\s*\(?steep\)?…` para K2. K1 es el meridiano plano y K2 el curvo —la
+  definición estándar de una queratometría, no algo que decida este
+  programa.
+- Cuidado explícito con «SimK mean» (la media, que no se guarda): el
+  patrón exige la palabra «flat» o «steep» justo después de «SimK», así
+  que «mean» no la confunde con ninguna de las dos K.
+- 1 fixture sintética nueva y 3 tests, con la misma forma del informe real
+  pero ningún dato suyo.
+
+Ver SYSTEM_VISION.md D50. lint, typecheck, 639 tests unitarios (1 fallo
+preexistente y no relacionado) y 32 e2e en verde.
+
+---
+
+## [1.2.14] — 25/08/2026
+
+Un título centrado en la cabecera desplazaba la frontera entre OD y OS.
+
+### El problema
+
+Segundo informe real probado el mismo día (IOLMaster, pantalla «Cálculo de
+IOL»): los rótulos «OD» y «OS» están en los bordes de la página, pero los
+datos de cada ojo empiezan más hacia el centro, no pegados a su propio
+rótulo, y hay un título centrado —«Cálculo de IOL»— justo en la fila de la
+cabecera, entre los dos. El algoritmo que decide dónde separar las dos
+columnas anclaba el hueco al rótulo de la derecha; con este documento, el
+título centrado ensanchaba la zona de OD hasta el centro de la página y el
+ojo izquierdo entero —incluida su única AL— desaparecía, clasificado como
+si fuera del derecho.
+
+### La corrección
+
+- `fronteraEntreColumnas` (`packages/extraction/src/parsers/segmentar.ts`)
+  ya no ancla el hueco al rótulo de la derecha: busca el hueco más ancho
+  entre los CENTROS de los bloques, restringido al tramo que va de un
+  rótulo al otro.
+- La fila de la cabecera se excluye de esa búsqueda, para que un título
+  centrado en ella no cuente.
+- Los límites de búsqueda son inclusivos a propósito: un test ya existente
+  tenía un dato en la misma coordenada exacta que su propio rótulo, y un
+  límite exclusivo lo dejaba fuera y rompía ese caso.
+- 1 test nuevo con posiciones inventadas que imitan la forma del informe
+  real, sin ningún dato real.
+
+Ver SYSTEM_VISION.md D49. lint, typecheck, 636 tests unitarios (1 fallo
+preexistente y no relacionado) y 32 e2e en verde.
+
+---
+
+## [1.2.13] — 25/08/2026
+
+Tercer formato de biometría: tabla a tres columnas con etiqueta compartida.
+
+### El pedido
+
+El dueño del proyecto usa habitualmente tres biómetros distintos. Mostró
+una foto de la pantalla de cálculo de LIO de ANTERION —un formato nuevo,
+con tabla a tres columnas (OD, OS y la diferencia entre los dos)— y
+confirmó que quiere poder subir documentos así con regularidad, ignorando
+la columna de diferencia.
+
+### Por qué era un caso nuevo, no una variación del que ya funcionaba
+
+El formato que ya se leía bien repite la etiqueta bajo cada ojo («K1» dos
+veces, una en cada columna). Este trae la etiqueta UNA sola vez, a la
+izquierda de las dos columnas de valores, y además añade una tercera
+columna que no interesa. Sin cambios, la etiqueta caía solo del lado de OD
+—por estar más a la izquierda— y OS se quedaba con el número suelto, sin la
+palabra que la regla de lectura necesita; y la columna de diferencia se
+colaba entera en el lado derecho.
+
+### La implementación
+
+- `segmentarPorPosicion` (`packages/extraction/src/parsers/segmentar.ts`):
+  dos comprobaciones nuevas sobre las posiciones de los bloques.
+  - Cualquier bloque más a la izquierda que la columna de cada ojo se trata
+    como etiqueta compartida y se copia a los dos lados.
+  - Cualquier bloque más a la derecha que las dos columnas conocidas, en la
+    fila de la cabecera, marca dónde empieza lo que no interesa; todo lo
+    que caiga más allá se descarta.
+  - Las dos se restringen a bloques CORTOS y SIN NINGÚN NÚMERO: la primera
+    versión no tenía esa restricción y rompió un test end-to-end existente
+    —confundía la primera línea de datos de una columna con una etiqueta y
+    hacía desaparecer un ojo entero—.
+- 1 test nuevo con posiciones sintéticas que imitan la forma del informe
+  real (etiqueta compartida + tercera columna), sin ningún dato del
+  informe real.
+
+Ver SYSTEM_VISION.md D48. lint, typecheck, 635 tests unitarios (1 fallo
+preexistente y no relacionado) y 32 e2e en verde. **No probado con una foto
+real** —eso pasa por OCR y no se ha ejecutado contra una imagen de verdad—,
+así que sigue pendiente de que el dueño del proyecto lo confirme subiendo
+esa biometría.
+
+---
+
+## [1.2.12] — 25/08/2026
+
+Tres huecos de lectura reales, encontrados con la primera biometría de IOLMaster.
+
+### El problema
+
+El dueño del proyecto subió un informe real de IOLMaster y avisó de que «no
+detectas los parámetros». El documento no se ha guardado en ningún sitio
+—ni el repositorio, ni memoria entre sesiones—, y las correcciones se
+verificaron con fixtures sintéticas nuevas, con la misma forma que el
+informe pero ningún dato real.
+
+### Las tres causas
+
+1. **`segmentar.ts#segmentarPorSecciones` descartaba el resumen entero.**
+   El informe repite cada ojo dos veces: un resumen compacto (con la única
+   AL del documento) y, más abajo, una «transcripción detallada» en otro
+   formato, más larga. La regla «si un ojo aparece dos veces, gana el trozo
+   más largo» —pensada para descartar una mención de paso— se quedaba con la
+   transcripción y tiraba el resumen, AL incluida, sin ningún aviso. Ahora se
+   JUNTAN todos los trozos del mismo ojo en vez de elegir uno.
+2. **El IOLMaster 700 no leía su tabla de lentes.** `perfiles.ts` tenía
+   `tablaDeLentes: 'NINGUNA'` con la razón «no se ha comprobado cómo lo
+   presenta». El informe real trae el modelo y la constante exactamente en
+   el mismo formato que ANTERION: pasa a `'CONSTANTES_POR_FORMULA'`, con el
+   informe real como la evidencia que este fichero exige antes de activar
+   algo así.
+3. **La refracción objetivo exigía un decimal.** El informe imprime «Target
+   refraction 0 D», sin punto decimal, y la regla lo exigía. Se hizo
+   opcional. De paso, la regla vivía SOLO en la tabla de ANTERION —no es una
+   etiqueta propia de ese aparato— y se movió a las reglas genéricas para
+   que cualquier dispositivo la reconozca.
+
+Ver SYSTEM_VISION.md D47. 4 tests nuevos, todos con fixtures sintéticas.
+lint, typecheck, 634 tests unitarios (1 fallo preexistente y no relacionado)
+y 32 e2e en verde.
+
+---
+
+## [1.2.11] — 25/08/2026
+
+La carpeta de informes lleva el nombre del paciente, cuando el informe lo trae.
+
+### El pedido
+
+El dueño del proyecto quiere identificar sus carpetas de informes por
+paciente en el Explorador, no solo por código de caso.
+
+### El pushback, y por qué se hizo igualmente
+
+El nombre del paciente lleva reglas endurecidas desde el 12/08/2026: no sale
+del ordenador, no entra en ningún PDF, no entra en el repositorio. Antes de
+tocar nada se le explicó al dueño del proyecto que una carpeta con el nombre
+es mucho más visible que hoy —se ve en el Explorador sin abrir nada, sale en
+búsquedas, viaja sola si esa carpeta se sincroniza con algo o se comparte—.
+Confirmó que lo quería igualmente («quiero que uses el nombre que viene en
+el pdf»), así que se implementa como una EXCEPCIÓN nombrada y documentada
+(D46), no como una relajación silenciosa: las otras dos reglas siguen
+intactas.
+
+### La implementación
+
+- `servicio-casos.ts#generarPdf`: si `caso.nombrePaciente` existe, la carpeta
+  pasa de `<código>_<fecha>` a `<código>_<nombre>_<fecha>`. Si no hay nombre
+  (caso a mano, o el informe no lo trae), sigue igual que antes.
+- Nuevo helper `nombreDeArchivoValido` (quita caracteres que Windows no
+  admite en nombres de archivo/carpeta) reutilizado también para el nombre
+  de los PDF por calculadora, que antes tenía su propia versión suelta del
+  mismo saneado.
+- `packages/extraction/src/parsers/paciente.ts`: se añadió la etiqueta
+  «Paciente:» a secas (sin «Nombre» delante) a `PATRONES_NOMBRE` — el
+  informe real que trajo el dueño del proyecto la usa así, y ninguno de los
+  patrones existentes («Nombre del paciente», «Patient», «Patient Name») la
+  reconocía.
+
+Ver SYSTEM_VISION.md D46. 1 test nuevo (`pipeline.test.ts`, la etiqueta
+«Paciente:»). lint, typecheck, 630 tests unitarios (1 fallo preexistente y
+no relacionado) y 32 e2e en verde. La construcción del nombre de carpeta en
+sí (`generarPdf`) no tiene test automático propio — igual que el resto de
+esa función, que habla con el sistema de archivos — así que queda pendiente
+de que el dueño del proyecto lo compruebe generando un informe real.
+
+---
+
+## [1.2.10] — 25/08/2026
+
+Elegir con qué calculadoras trabajar, antes de pulsar «Calcular».
+
+### El pedido
+
+El dueño del proyecto quiere poder decidir, en la pantalla de cálculo, si
+lanza las tres calculadoras o solo la que le interesa en ese momento — no
+solo reintentar una que falló, sino elegir desde el principio.
+
+### La implementación
+
+- `PanelCalculo.tsx`: una casilla junto a cada calculadora, con las tres
+  marcadas por defecto. Es estado de la pantalla, no del caso: no se guarda
+  en ningún sitio ni viaja al proceso principal — es una preferencia de este
+  lanzamiento concreto.
+- El botón principal usa la selección («Calcular en EVO y Barrett», «Volver
+  a calcular en Kane»…) y se deshabilita si no queda ninguna marcada.
+- No hizo falta tocar el dominio, `servicio-casos.ts` ni el orquestador:
+  `calcular(calculadoras?)` ya aceptaba una lista concreta —lo usa
+  «Reintentar» desde que existe—, así que esto es una capa nueva de interfaz
+  sobre plumbing que ya estaba.
+- «Reintentar» de una fila sigue igual: elige su propia calculadora sin mirar
+  las casillas.
+
+Ver SYSTEM_VISION.md D45. 1 test e2e nuevo. lint, typecheck, 629 tests
+unitarios (1 fallo preexistente y no relacionado) y 32 e2e en verde.
+
+---
+
+## [1.2.9] — 25/08/2026
+
+Refracción objetivo: se propone 0 por defecto, editable, y se marca como tal.
+
+### El pedido
+
+El dueño del proyecto quiere que «Refracción objetivo» empiece en 0
+(emetropía) en vez de en blanco, para no tener que escribirlo en cada caso,
+pero sin perder la posibilidad de cambiarlo cuando el objetivo sea otro.
+
+### Por qué no rompe «lo que falta no se inventa»
+
+Esa regla (D3) protege datos BIOMÉTRICOS — lo que mide el aparato. Refracción
+objetivo es el único campo `categoria: 'QUIRURGICO'` del modelo: una decisión
+del cirujano, no una medida. Proponer un punto de partida ahí es distinto de
+inventar una longitud axial que no se ha medido.
+
+### La implementación
+
+- `MetodoExtraccion`/`OrigenDato` nuevos: `POR_DEFECTO`. Ni MANUAL (no lo ha
+  escrito una persona) ni DEL_INFORME (no lo trae el documento): lo ha puesto
+  la aplicación. Texto en pantalla: «Valor por defecto (editable)».
+- `conRefraccionObjetivoPorDefecto(ojo, cuando)` (`medida.ts`, dominio): pone
+  REFRACCION_OBJETIVO a 0 solo si el ojo no tiene ya un valor — de donde sea.
+  Si el informe lo trae impreso o una persona ya lo aportó, no se toca.
+- Sale con `confirmadoPorUsuario: true`: no bloquea pasar a CONFIRMADO ni pide
+  revisar un cero que ha puesto la propia aplicación.
+- Se aplica una vez por ojo del caso, en `servicio-casos.ts`, al terminar de
+  leer los documentos de cada subida (justo antes de pasar a EN_REVISION).
+- Editarlo es exactamente igual que corregir cualquier otro dato:
+  `corregirMedida` conserva el 0 como valor original, así que el rastro queda
+  igual de auditable.
+- Interfaz (`PanelRevision.tsx`) y PDF (`plantilla.ts`) reconocen el nuevo
+  origen sin lógica especial en la pantalla — sale del mismo `origenDe` /
+  `textoDeOrigen` de siempre — y llevan su propio color (`.origen.por_defecto`
+  / `.marca-defecto`) para no confundirse con «Del informe» ni «Aportado».
+
+Ver SYSTEM_VISION.md D44. 7 tests nuevos en `origen.test.ts`. lint, typecheck,
+629 tests unitarios (1 fallo preexistente y no relacionado, ver
+`lessons-learned/log.md`) y 31 e2e en verde.
+
+---
+
+## [1.2.8] — 24/08/2026
+
+Kane: el modo (Toric/No-tórico) lo decide la lente elegida, antes de buscarla.
+
+### El problema
+
+Segundo fallo real el mismo día, ya con el nombre corregido (1.2.7): «enVista
+Aspire Toric» seguía sin encontrarse en Kane. Causa distinta: el desplegable
+«IOL Type» de Kane está **filtrado por modo** — sus opciones tóricas solo
+aparecen cuando ese ojo ya está en modo Toric. El programa decidía el modo
+mirando los DATOS del caso (`modoParaKane`), no la lente que iba a buscar, así
+que podía intentar buscar una opción tórica estando en modo No-tórico — y no
+la encontraba, aunque existiera.
+
+### La corrección
+
+- `EntradasCalculadora.lenteTorica` (nuevo, opcional): si la lente elegida es
+  tórica, según el catálogo. Se rellena en el orquestador
+  (`esToricaSegunCatalogo`) junto al nombre y la constante.
+- `kane.ts`: si se sabe que la lente es tórica, el ojo se pone en modo Toric
+  **antes** de buscar el modelo. Si no se sabe (la lente no está en el
+  catálogo), se prueba primero en el modo que darían los datos y, si ahí no
+  aparece, una vez en el otro modo antes de rendirse.
+- Catálogo real actualizado con las constantes propias de Kane para las 10
+  lentes (de su propia tabla interna), como red de seguridad adicional.
+
+Ver SYSTEM_VISION.md D43. 4 tests nuevos. lint, typecheck, tests unitarios y
+31 e2e en verde.
+
+---
+
+## [1.2.7] — 24/08/2026
+
+El catálogo guarda el nombre exacto que usa cada web, no solo el bonito.
+
+### El problema
+
+Fallo real, probando «Lux Life» de verdad: Kane decía «no tiene la lente»
+teniéndola. El catálogo guardaba «Lux Life», y Kane la llama «B+L LuxLife»
+en su desplegable — sin espacio, con el prefijo del fabricante. Comparando
+esos dos textos, nunca coinciden. EVO tenía el mismo problema de fondo,
+pero no se notaba: su constante de reserva del catálogo ya daba el número
+correcto sin necesitar reconocer nada.
+
+### La corrección
+
+- `LenteDeCatalogo.nombresEnWeb` (nuevo, opcional, por calculadora): el
+  nombre EXACTO que hay que buscar en el desplegable de esa web, cuando es
+  distinto del nombre del catálogo.
+- `modeloDelCatalogoPara` (domain) y `conDatosDelCatalogo` (orquestador,
+  antes `sustituirConstanteDelCatalogo`) sustituyen ese nombre antes de que
+  el adaptador busque el modelo — igual que ya se hacía con la constante.
+- El catálogo real se ha actualizado con los nombres de Kane (tomados de su
+  propio desplegable) y de EVO (comprobados en vivo) para las 10 lentes.
+  Para «enVista» y «enVista Toric» se ha dejado sin declarar el nombre de
+  EVO a propósito: su opción real da un número distinto del que se decidió
+  usar (D38), y declararlo metería el número que no se quiere.
+
+Ver SYSTEM_VISION.md D42. 8 tests nuevos (4 en `catalogo-lentes.test.ts`, 3
+en `orquestador.test.ts`). lint, typecheck, tests unitarios y 31 e2e en
+verde.
+
+---
+
+## [1.2.6] — 24/08/2026
+
+Copia de respaldo del catálogo de lentes, en el repositorio.
+
+### Añadido
+
+- `docs/catalogo-lentes-respaldo.json`: copia de las 10 lentes que el dueño
+  del proyecto ha ido añadiendo a su catálogo (enVista, enVista Aspire,
+  enVista ENVY, Lux Life, Lux Smart — cada una con su versión tórica). Es
+  solo un respaldo, a petición suya: **la aplicación no lo lee**. El
+  catálogo real y activo sigue viviendo en
+  `%APPDATA%\calculator-vilamar\catalogo-lentes.json`, fuera del
+  repositorio, como todo lo demás que no es código (D18). Si hace falta
+  restaurar el catálogo algún día, se copia el array `lentes` de aquí a ese
+  fichero.
+
+---
+
+## [1.2.5] — 24/08/2026
+
+La carpeta de informes se puede cambiar con `VILAMAR_CARPETA_INFORMES`.
+
+### Añadido
+
+- Nueva variable de entorno `VILAMAR_CARPETA_INFORMES` (ver `.env.example`):
+  si se pone, los informes —el comparativo y el de cada calculadora— se
+  guardan ahí en vez de en la carpeta de datos de la aplicación (oculta en
+  Windows). El resto de los datos —casos, documentos, sesión del
+  navegador— no se mueve: sigue siempre en local.
+- `cargarEnv` pasa a llamarse antes de `prepararCarpetas`, porque ahora una
+  variable de entorno puede decidir dónde se crea una carpeta, no solo qué
+  clave usa el lector de visión.
+
+Ver SYSTEM_VISION.md D41. lint, typecheck, 611 tests unitarios y 31 e2e en
+verde; comprobado a mano que la variable se lee y las carpetas van al sitio
+que toca (`carpetas.informes` a la ruta nueva, `carpetas.casos` sigue en
+local).
+
+---
+
+## [1.2.4] — 24/08/2026
+
+La pantalla de revisión ya no pide una constante A que ya se sabe.
+
+### El problema
+
+Tras D38 (EVO y Kane reconocen el modelo y rellenan su propia constante),
+la pantalla de revisión seguía diciendo «EVO Toric: falta Constante A» y
+«Kane: falta Constante A» con una lente ya elegida. `prepararEntradas` y el
+aviso de la pantalla solo miraban si había una medida `CONSTANTE_A` escrita
+en el ojo — no sabían nada del catálogo ni de que esas dos webs la rellenan
+solas.
+
+### La corrección
+
+- `tieneConstanteFueraDelOjo` (nuevo, en `preparar-entradas.ts`): para EVO y
+  Kane basta con haber elegido una lente; para Barrett hace falta que el
+  catálogo tenga su constante para esa lente en concreto.
+- `prepararEntradas`, `camposQueFaltan`, `sePuedeCalcular` y
+  `quienNoPuedeCalcular` aceptan ahora el catálogo (o un mapa ya resuelto) y
+  dejan de contar la constante A como «falta» cuando viene de fuera del ojo.
+- Red de seguridad en los adaptadores: si al final EVO o Kane no reconocen
+  el modelo en su propia web y no hay ninguna constante de ningún sitio, se
+  para con un aviso claro («no ha podido rellenar la constante A sola.
+  Escríbela a mano y reinténtalo») en vez de calcular con el campo vacío.
+- `sustituirConstanteDelCatalogo` deja de excluir a EVO: ahora las tres
+  calculadoras reciben la constante del catálogo como reserva, y es cada
+  adaptador quien decide si la usa de verdad o la ignora porque ya tiene la
+  suya (EVO y Kane) o la usa siempre (Barrett).
+
+Ver SYSTEM_VISION.md D40. lint, typecheck, 611 tests unitarios (7 nuevos en
+`preparar-entradas.test.ts`) y 31 e2e en verde.
+
+---
+
+## [1.2.3] — 24/08/2026
+
+Cada informe trae, además del comparativo, un PDF de cada calculadora.
+
+### Añadido
+
+- **`Generar PDF` crea ahora una carpeta**, no un único fichero:
+  `informe-comparativo.pdf` (el de siempre) y, junto a él, un PDF de una hoja
+  por cada calculadora que haya terminado con éxito o parcialmente —
+  `EVO Toric - OD.pdf`, `Barrett Toric - OD.pdf`, `Kane - OD.pdf`—, con la
+  captura de SU propia pantalla de resultados. Es la prueba de que la web dijo
+  eso, más allá de lo que resume el comparativo.
+- La captura se toma en el único momento posible: justo al leer el resultado,
+  con la página todavía abierta (`ContextoEjecucion.guardarCaptura`, mismo
+  patrón que `guardarDiagnostico` pero para un éxito). Se guarda en
+  `capturas/<código del caso>/` y se convierte en PDF de una hoja al generar
+  el informe.
+
+Ver SYSTEM_VISION.md D39. lint, typecheck, 604 tests unitarios y 31 e2e en
+verde.
+
+---
+
+## [1.2.2] — 24/08/2026
+
+Kane también elige el modelo en su propia lista, como EVO.
+
+### El problema
+
+Kane sí tiene una lista completa de modelos («B+L enVista Envy», «B+L
+LuxSmart»…) en su propio desplegable «IOL Type», con su propia constante A
+detrás — pero el adaptador nunca la usaba, a propósito: una lente tórica le
+cambia el modo del formulario («Toric»/«Non-toric») por su cuenta, y hacerlo
+en el momento equivocado podía borrar los datos ya escritos.
+
+### La corrección
+
+- `packages/integrations/src/adapters/kane.ts`: el modelo se elige LO PRIMERO
+  de todo, antes de decidir el modo o escribir ningún número. El modo que se
+  usa a partir de ahí es el que Kane haya dejado tras elegir el modelo —leído
+  con `modoActivo`, la misma señal de la clase `act` que ya usaba
+  `pulsarModo`—, y solo si el modelo no se encuentra se decide como antes,
+  con `modoParaKane`.
+- Si Kane reconoce el modelo, no se pisa su constante A —igual que EVO desde
+  la versión anterior—. Si no lo reconoce, se le manda la del catálogo o la
+  del ojo, como hasta ahora.
+- `comprobarLoEscrito` y `leerResultado` reciben el modo REAL usado, en vez de
+  volver a calcularlo: si no, comprobarían o leerían la sección equivocada
+  cuando el modelo hubiera cambiado el modo.
+- Barrett se queda como estaba: su lista es mucho más corta (comprobado en
+  vivo) y sigue usando siempre la constante del catálogo.
+
+**Sin validar contra la web real todavía** — ver PROJECT_STATUS.md y
+SYSTEM_VISION.md D38. lint, typecheck y toda la suite (604 unitarios + 31
+e2e) en verde, pero esta pieza concreta necesita un cálculo de verdad contra
+iolformula.com para confirmarse.
+
+---
+
+## [1.2.1] — 23/08/2026
+
+Barrett y Kane usan cada uno su propia constante A del catálogo; EVO usa la suya.
+
+### El problema
+
+Un único campo `CONSTANTE_A` por ojo se mandaba, igual, a las tres
+calculadoras. Comprobado en vivo contra EVO y Barrett: para la misma lente
+(Bausch & Lomb enVista ENVY), EVO publica 119.24, Barrett 119.15 (o 119.28 si
+no tiene el modelo) y Kane 119.33. Un solo número no puede ser los tres a la
+vez.
+
+### La corrección
+
+- **El desplegable de «Lente»** (en la pantalla de revisión) sale ahora del
+  catálogo propio, no de una lista fija en el código.
+- **El catálogo admite lentes sin rango de esfera**: una lente puede añadirse
+  solo para aparecer en ese desplegable y prestar su constante, sin que se
+  sepa todavía qué potencias cubre. Sin rango, sencillamente no participa en
+  el cruce «De tu catálogo» de Resultados — no se inventa un rango.
+- **Barrett y Kane leen, cada uno, su propia constante** del catálogo para la
+  lente elegida (`packages/integrations/src/orquestador.ts`,
+  `sustituirConstanteDelCatalogo`). Si el catálogo no tiene esa calculadora
+  para esa lente, se usa la constante compartida del ojo, como hasta ahora.
+- **EVO queda fuera a propósito.** Reconoce el modelo en su propio
+  desplegable y rellena su constante sola; ya no se pisa con la del caso
+  (antes sí, siempre). Solo si EVO no tiene esa lente se le manda la
+  constante disponible, igual que antes.
+
+Ver SYSTEM_VISION.md D38 y el log de lecciones aprendidas (23/08/2026).
+
+---
+
+## [1.2.0] — 23/08/2026
+
+Catálogo de lentes propio: qué tienes tú, no solo qué dicen las tres webs.
+
+### Añadido
+
+- **Ajustes → «Tu catálogo de lentes».** Cada lente guarda su modelo, si es
+  tórica, el rango de esfera (y de cilindro, en las tóricas) y **una
+  constante A por calculadora** — Kane, EVO y Barrett usan fórmulas
+  distintas, así que una lente puede tener tres constantes válidas y
+  distintas a la vez. Ver `packages/domain/src/modelo/catalogo-lentes.ts`.
+- **Pantalla de Resultados: fila «De tu catálogo».** Por cada calculadora,
+  cruza la potencia obtenida contra el catálogo y dice qué lentes la cubren.
+  Es un filtro por rango, no una elección: si varias lentes cubren la misma
+  potencia, se enseñan todas y en el mismo orden del catálogo — nunca se
+  destaca ninguna. Concreta D14 (compara, no recomienda) en el inventario
+  propio; ver SYSTEM_VISION.md D37.
+- El cilindro de una lente tórica se guarda **siempre en plano de la LIO**,
+  nunca en plano corneal — las fichas de fabricante suelen traer las dos
+  escalas y no son intercambiables. Ver el log de lecciones aprendidas
+  (23/08/2026).
+
+### Cómo se guarda
+
+Un único fichero, `catalogo-lentes.json`, en la carpeta de datos de la
+aplicación — igual que los casos, nunca en el repositorio. No es un dato
+clínico de paciente: es el inventario del cirujano.
+
 ## [1.1.2] — 13/08/2026
 
 «3 opciones» repetido cinco veces no decía nada. Ahora una fila las nombra.

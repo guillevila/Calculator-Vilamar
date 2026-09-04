@@ -273,6 +273,15 @@ const SEL = {
     OS: 'label.btn:has(input[name="toric_2"])',
   },
   radioTorico: { OD: 'input[name="toric_1"]', OS: 'input[name="toric_2"]' },
+  /**
+   * El desplegable «IOL Type», por ojo. Alternativa a escribir la constante A
+   * a mano: Kane la rellena sola al elegir el modelo.
+   *
+   * Visto en el código fuente de la página (23/08/2026): `id="type1"` para el
+   * derecho, junto al campo `#A-Constant1`. El izquierdo sigue el mismo patrón
+   * de sufijo `1`/`2` que el resto del formulario.
+   */
+  tipoLente: { OD: '#type1', OS: '#type2' },
 } as const
 
 /**
@@ -530,7 +539,11 @@ export class AdaptadorKane implements AdaptadorCalculadora {
   validarEntradas(entradas: EntradasCalculadora): readonly string[] {
     const problemas: string[] = []
     if (entradas.valores.AL === undefined) problemas.push('Falta la longitud axial.')
-    if (entradas.valores.CONSTANTE_A === undefined) problemas.push('Falta la constante A.')
+    // Sin constante escrita, hace falta al menos un modelo que Kane pueda
+    // reconocer en su lista «IOL Type» y rellenar solo (ver `rellenar`, D38).
+    if (entradas.valores.CONSTANTE_A === undefined && !entradas.modeloLente) {
+      problemas.push('Falta la constante A.')
+    }
     return problemas
   }
 
@@ -549,9 +562,9 @@ export class AdaptadorKane implements AdaptadorCalculadora {
         fase: 'RELLENANDO',
         mensaje: 'Rellenando los datos en Kane…',
       })
-      const rellenados = await this.rellenar(pagina, ctx.entradas)
+      const { puestos, modo, modeloEncontrado } = await this.rellenar(pagina, ctx.entradas)
 
-      if (rellenados === 0) {
+      if (puestos === 0) {
         throw new ErrorAdaptador(
           'ADAPTER_BROKEN',
           'No se han encontrado los campos de la calculadora de Kane. El conector necesita actualizarse: ejecuta «pnpm reconocer:kane» para que aprenda el formulario actual.',
@@ -560,10 +573,22 @@ export class AdaptadorKane implements AdaptadorCalculadora {
         )
       }
 
+      // Sin constante escrita y sin que Kane haya reconocido el modelo, su
+      // campo de constante se ha quedado con lo que hubiera antes. Mejor parar
+      // aquí, con un mensaje claro, que dejar que calcule con un número que
+      // nadie ha puesto.
+      if (!modeloEncontrado && ctx.entradas.valores.CONSTANTE_A === undefined) {
+        throw new ErrorAdaptador(
+          'MISSING_INPUTS',
+          `Kane no tiene «${ctx.entradas.modeloLente}» en su lista de lentes, así que no ha podido rellenar la constante A sola. Escríbela a mano y reinténtalo.`,
+          'RELLENANDO',
+        )
+      }
+
       // Se comprueba lo escrito ANTES de calcular. Sin esto, un campo que se
       // repinta deja el formulario a medias y el fallo aparece cuatro pasos más
       // adelante disfrazado de «no hay tabla de resultados».
-      const mal = await this.comprobarLoEscrito(pagina, ctx.entradas)
+      const mal = await this.comprobarLoEscrito(pagina, ctx.entradas, modo, modeloEncontrado)
       if (mal.length > 0) {
         throw new ErrorAdaptador(
           'ADAPTER_BROKEN',
@@ -586,7 +611,7 @@ export class AdaptadorKane implements AdaptadorCalculadora {
         fase: 'LEYENDO_RESULTADO',
         mensaje: 'Leyendo el resultado de Kane…',
       })
-      return await this.leerResultado(pagina, ctx, inicio)
+      return await this.leerResultado(pagina, ctx, inicio, modo, modeloEncontrado)
     } catch (error) {
       return await this.aFallo(pagina, ctx, error, inicio)
     } finally {
@@ -697,18 +722,11 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     return null
   }
 
-  /**
-   * Rellena el formulario y devuelve cuántos campos ha podido poner.
-   *
-   * El orden importa y no es casual:
-   *
-   *  1. **«Non-toric»** primero. Este producto no rellena la parte tórica de
-   *     Kane, y marcarlo deja el formulario en el estado que se va a usar.
-   *  2. **El modelo de lente ANTES que la constante A**, igual que en EVO:
-   *     elegirlo puede sobrescribirla. Así la del caso es la que queda.
-   *  3. **Los números al final.**
-   */
-  private async rellenar(pagina: Page, entradas: EntradasCalculadora): Promise<number> {
+  /** Lo que devuelve `rellenar`: cuántos campos puso, y en qué acabó de verdad. */
+  private async rellenar(
+    pagina: Page,
+    entradas: EntradasCalculadora,
+  ): Promise<{ puestos: number; modo: ModoDeKane; modeloEncontrado: boolean }> {
     let puestos = 0
 
     // ── Lo que no es de un ojo ────────────────────────────────────────────
@@ -722,29 +740,57 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     // ── El lado del ojo que toca ──────────────────────────────────────────
     const lado = entradas.ojo
 
-    // Lo que cambia la FORMA del formulario va antes de escribir nada: si se
-    // toca después, lo escrito se pierde al repintarse.
-    const modo = modoParaKane(entradas)
+    // ⚠️ El desplegable «IOL Type» está FILTRADO POR MODO: sus opciones
+    // tóricas —«B+L Aspire Toric», por ejemplo— solo aparecen cuando ese ojo
+    // YA está en modo Toric. Buscarlas en modo No-tórico no las encuentra,
+    // aunque existan — comprobado el 24/08/2026 con «enVista Aspire Toric»,
+    // que Kane decía no tener teniéndola.
+    //
+    // Por eso el modo se decide y se fija ANTES de buscar el modelo, no
+    // después: si el catálogo sabe que la lente elegida es tórica
+    // (`lenteTorica`), se pone ese modo directamente. Si no lo sabe —la
+    // lente no está en el catálogo—, se prueba primero en el modo que darían
+    // los datos (`modoParaKane`) y, si ahí no aparece, se prueba una vez en
+    // el otro modo antes de rendirse.
+    let modo: ModoDeKane =
+      entradas.lenteTorica !== undefined
+        ? entradas.lenteTorica
+          ? 'TORICO'
+          : 'NO_TORICO'
+        : modoParaKane(entradas)
     await this.asegurarModo(pagina, lado, modo)
 
-    // ⚠️ **NO se elige el modelo de lente en Kane**, y no es un olvido.
-    //
-    // Medido contra su web: elegir una lente TÓRICA —«Alcon SN6ATx», por ejemplo—
-    // hace que Kane cambie ese ojo a su **modo tórico**, y entonces los campos AL,
-    // K1, K2 y ACD que este adaptador rellena desaparecen de la pantalla. Con una
-    // lente no tórica —«Alcon SN60WF»— se queda como estaba.
-    //
-    // Es comportamiento sensato de Kane, no un fallo suyo: si la lente es tórica,
-    // quiere hacer el cálculo tórico. Y el tórico **sí se rellena** desde el
-    // 13/08/2026 (ver `CAMPOS_TORICOS`), pero conmutando su interruptor «Toric»
-    // nosotros, no dejando que lo conmute su lista de lentes: el modo lo decide
-    // `modoParaKane` a partir de los datos que hay, y tiene que ser predecible.
-    //
-    // Su propio formulario dice «A-Constant **or** IOL Type»: son alternativas. Se
-    // le envía la constante A, que es la de esa lente, y queda dicho en el
-    // resultado que el modelo no se le ha pasado.
+    let modeloEncontrado = entradas.modeloLente
+      ? await this.elegirModelo(pagina, lado, entradas.modeloLente)
+      : false
+
+    if (!modeloEncontrado && entradas.modeloLente && entradas.lenteTorica === undefined) {
+      const otroModo: ModoDeKane = modo === 'TORICO' ? 'NO_TORICO' : 'TORICO'
+      await this.asegurarModo(pagina, lado, otroModo)
+      modeloEncontrado = await this.elegirModelo(pagina, lado, entradas.modeloLente)
+      if (modeloEncontrado) {
+        modo = otroModo
+      } else {
+        // No estaba en ninguno de los dos: se vuelve al modo que darían los
+        // datos, que es el que se va a usar para el resto del formulario.
+        await this.asegurarModo(pagina, lado, modo)
+      }
+    }
+
+    // Si el modelo se encontró, se lee el modo que Kane haya dejado de
+    // verdad —puede que elegirlo lo haya cambiado también él, además del
+    // filtrado del desplegable— en vez de suponer el que se fijó antes.
+    if (modeloEncontrado) {
+      modo = await this.modoActivo(pagina, lado)
+      await this.asegurarModo(pagina, lado, modo)
+    }
 
     for (const [campo, loc] of Object.entries(camposDeKane(modo, lado))) {
+      // La constante A no se escribe si Kane ya la ha rellenado sola al elegir
+      // el modelo — es SU constante, y es mejor que cualquier número que
+      // pudiéramos darle nosotros (mismo criterio que EVO; ver evo.ts). Su
+      // propio formulario dice «A-Constant or IOL Type»: son alternativas.
+      if (campo === 'CONSTANTE_A' && modeloEncontrado) continue
       const valor = entradas.valores[campo as keyof typeof entradas.valores]
       if (valor === undefined) continue // ausente no se rellena, ni con un 0
       const destino = await this.localizar(pagina, loc)
@@ -758,7 +804,7 @@ export class AdaptadorKane implements AdaptadorCalculadora {
         // K2 pero no deja escribirlo, porque lo deriva perpendicular al de K1.
       }
     }
-    return puestos
+    return { puestos, modo, modeloEncontrado }
   }
 
   /**
@@ -775,10 +821,20 @@ export class AdaptadorKane implements AdaptadorCalculadora {
   private async comprobarLoEscrito(
     pagina: Page,
     entradas: EntradasCalculadora,
+    modo: ModoDeKane,
+    modeloEncontrado: boolean,
   ): Promise<readonly string[]> {
     const mal: string[] = []
-    const campos = camposDeKane(modoParaKane(entradas), entradas.ojo)
+    // El modo lo pasa quien llama — es el que `rellenar` usó de verdad, que
+    // puede no coincidir con `modoParaKane(entradas)` si el modelo elegido
+    // cambió el modo por su cuenta. Comprobar contra el modo equivocado
+    // buscaría campos que ni siquiera están en pantalla.
+    const campos = camposDeKane(modo, entradas.ojo)
     for (const [campo, loc] of Object.entries(campos)) {
+      // La constante A no se comprueba si la puso Kane solo: no se escribió
+      // nada nuestro en ese campo, así que compararlo con el valor del caso
+      // señalaría una discrepancia que no es tal.
+      if (campo === 'CONSTANTE_A' && modeloEncontrado) continue
       const esperado = entradas.valores[campo as keyof typeof entradas.valores]
       if (esperado === undefined || !loc.selector) continue
       const puesto = await pagina
@@ -804,6 +860,46 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     const radio = modo === 'TORICO' ? SEL.radioTorico[lado] : SEL.radioNoTorico[lado]
     const etiqueta = modo === 'TORICO' ? SEL.etiquetaTorico[lado] : SEL.etiquetaNoTorico[lado]
     return this.pulsarModo(pagina, lado, modo, radio, etiqueta)
+  }
+
+  /**
+   * En qué modo está el ojo AHORA MISMO, mirando el formulario — no lo que se
+   * pidió, sino lo que Kane enseña de verdad.
+   *
+   * Hace falta porque elegir un modelo TÓRICO en `SEL.tipoLente` cambia el modo
+   * por su cuenta (ver `elegirModelo`), y a partir de ahí `modoParaKane` —que
+   * decide por los DATOS del caso— puede quedarse corto. La señal es la misma
+   * que usa `pulsarModo`: la clase `act` de la etiqueta, no el `checked` del
+   * radio, que no es fiable aquí (ver el comentario de `pulsarModo`).
+   */
+  private async modoActivo(pagina: Page, lado: 'OD' | 'OS'): Promise<ModoDeKane> {
+    const enTorico = pagina.locator(`label.btn.act:has(${SEL.radioTorico[lado]})`)
+    return (await enTorico.count()) > 0 ? 'TORICO' : 'NO_TORICO'
+  }
+
+  /**
+   * Elige el modelo en «IOL Type» si Kane lo tiene en su lista. Devuelve si lo
+   * encontró — igual que en EVO y Barrett, el mismo patrón de emparejamiento
+   * exacto, sin aproximaciones (ver `lente.ts`).
+   *
+   * Se llama ANTES de decidir el modo y ANTES de rellenar ningún número: elegir
+   * la lente puede cambiar el modo por su cuenta (ver el comentario de más
+   * abajo, en `rellenar`), y lo que cambia la FORMA del formulario va siempre
+   * antes que lo que se escribe en él.
+   */
+  private async elegirModelo(pagina: Page, lado: 'OD' | 'OS', modelo: string): Promise<boolean> {
+    try {
+      const selector = SEL.tipoLente[lado]
+      const opciones = await pagina.locator(`${selector} option`).allTextContents()
+      const encontrado = opciones.find(
+        (o) => o.trim().toLowerCase() === modelo.trim().toLowerCase(),
+      )
+      if (!encontrado) return false
+      await pagina.selectOption(selector, { label: encontrado })
+      return true
+    } catch {
+      return false
+    }
   }
 
   private async pulsarModo(
@@ -935,9 +1031,10 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     pagina: Page,
     ctx: ContextoEjecucion,
     inicio: number,
+    modo: ModoDeKane,
+    modeloEncontrado: boolean,
   ): Promise<ResultadoCalculadora> {
     const indiceDelOjo = ctx.entradas.ojo === 'OD' ? 0 : 1
-    const modo = modoParaKane(ctx.entradas)
 
     // 1 — Esperar a la SEÑAL REAL: que «Processing…» se esconda. No un reloj.
     await pagina
@@ -1056,9 +1153,11 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     entradasSegunLaWeb['Modo'] = modo === 'TORICO' ? 'Tórico' : 'No tórico'
 
     const aviso =
-      ctx.entradas.modeloLente !== undefined
-        ? `A Kane no se le ha indicado el modelo «${ctx.entradas.modeloLente}»: elegir una lente de su lista cambia el modo del formulario por su cuenta, y el modo lo decide Calculator Vilamar según los datos que tiene. Se le ha enviado la constante A, que es la de esa lente.`
-        : undefined
+      ctx.entradas.modeloLente === undefined
+        ? undefined
+        : modeloEncontrado
+          ? `Se ha elegido «${ctx.entradas.modeloLente}» en la lista de Kane, que ha rellenado su propia constante A.`
+          : `Kane no tiene «${ctx.entradas.modeloLente}» en su lista de lentes, así que no se ha podido elegir. Se le ha enviado la constante A que tenías puesta.`
 
     // Lo que hay que decir del tórico, y decirlo bien: Kane da las opciones y NO
     // elige. Callarlo dejaría las casillas de cilindro vacías sin explicación, y
@@ -1067,6 +1166,14 @@ export class AdaptadorKane implements AdaptadorCalculadora {
       modo === 'TORICO'
         ? `Kane da ${toricasLeidas} opciones tóricas con el astigmatismo que quedaría con cada una, pero **no destaca ninguna**: la elección de la potencia tórica la deja a quien opera. Por eso las casillas de cilindro de su columna están vacías y no porque falte el dato.`
         : 'A Kane se le ha pedido el cálculo NO tórico, porque falta alguno de los datos que su modo tórico necesita (eje de K1, eje de K2, SIA y eje de la incisión). Da esfera y refracción prevista, no cilindro.'
+
+    // La prueba de que la web dijo esto: una captura de SU pantalla de
+    // resultados, convertida en PDF al generar el informe. Que falle no puede
+    // tumbar un cálculo que ya ha salido bien — por eso no lleva `throw`.
+    const capturaId = await pagina
+      .screenshot({ fullPage: true })
+      .then((datos) => ctx.guardarCaptura(this.calculadora, ctx.entradas.ojo, datos))
+      .catch(() => undefined)
 
     return {
       calculadora: this.calculadora,
@@ -1078,6 +1185,7 @@ export class AdaptadorKane implements AdaptadorCalculadora {
       duracionMs: Date.now() - inicio,
       opciones,
       ...(recomendada !== undefined ? { recomendada } : {}),
+      ...(capturaId !== undefined ? { capturaId } : {}),
       entradasSegunLaWeb,
       mensaje:
         [

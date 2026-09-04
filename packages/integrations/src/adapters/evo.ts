@@ -12,16 +12,24 @@
  *    `#txtK1`…). No hay iframes, ni login, ni comprobación anti-robot.
  *  - Exige un nombre de paciente. Se le manda el CÓDIGO LOCAL del caso.
  *    El identificador de paciente y el cirujano se quedan VACÍOS.
- *  - Elegir el modelo de lente puede sobrescribir la constante A. Por eso se
- *    elige el modelo PRIMERO y la constante DESPUÉS, y al terminar se lee lo
- *    que la web dice haber usado.
+ *  - Elegir el modelo de lente RELLENA SOLA la constante A — comprobado en
+ *    vivo, «B&L Envy» pone 119.24 sin que se le mande nada. Si EVO reconoce
+ *    el modelo, esa es SU constante y no se pisa con la del caso: es mejor
+ *    que cualquier número que pudiéramos darle nosotros. Solo se manda la
+ *    constante del caso cuando el modelo no está en su lista. Al terminar se
+ *    lee lo que la web dice haber usado, sea cual sea el camino.
  *  - Tras calcular, la web repite las entradas en pantalla (`#Labelpara1` y
  *    `#Labelpara2`). Se leen y se guardan: es lo que hace auditable el informe,
  *    porque se apunta lo que ella dice haber recibido, no lo que creemos
  *    haberle mandado.
  */
 
-import type { EntradasCalculadora, OpcionLente, ResultadoCalculadora } from '@vilamar/domain'
+import type {
+  CirugiaRefractivaPrevia,
+  EntradasCalculadora,
+  OpcionLente,
+  ResultadoCalculadora,
+} from '@vilamar/domain'
 import type { Page } from 'playwright'
 
 import type { AdaptadorCalculadora, ContextoEjecucion } from '../contrato.js'
@@ -44,17 +52,49 @@ const CAMPOS = {
   CONSTANTE_A: { selector: '#txtAConstant', decimales: 2 },
   SIA: { selector: '#TxtSIA', decimales: 2 },
   EJE_INCISION: { selector: '#TxtSIAaxis', decimales: 0 },
-  PK1: { selector: '#txtPK1', decimales: 2 },
-  PK1_EJE: { selector: '#TxtPK1axis', decimales: 0 },
-  PK2: { selector: '#txtPK2', decimales: 2 },
-  PK2_EJE: { selector: '#TxtPK2axis', decimales: 0 },
 } as const
+
+/**
+ * El desplegable «Post LASIK/PRK/RK» de EVO, y el valor de opción de cada una.
+ *
+ * Verificado abriendo la página real (04/09/2026): `#DropDownLASIK`, con
+ * cuatro opciones cuyo `value` es un índice — «0» No, «1» Myopic, «2»
+ * Hyperopic, «3» Radial Keratotomy — no el texto.
+ *
+ * EVO tiene, junto a este desplegable, campos para la queratometría y la
+ * refracción de ANTES de la cirugía refractiva (`#txtPK1`, `#txtPK2`,
+ * `#txtPreLASIK`, `#txtPostLASIK`…). Confirmado por el dueño del proyecto
+ * (04/09/2026): en la práctica casi nunca se tienen esos datos históricos, así
+ * que el modelo de este programa NO los pide y esos campos se dejan como
+ * están — EVO calcula con su método sin historial en cuanto sabe que hubo
+ * cirugía y de qué tipo.
+ *
+ * ⚠️ Antes de esto, el adaptador mandaba el PK1/PK2 del dominio —la curvatura
+ * corneal POSTERIOR, de un Pentacam— a `#txtPK1`/`#txtPK2`. Son conceptos
+ * distintos que solo comparten nombre: aquí «PK» es «Pre-LASIK K», no «córnea
+ * posterior». Se ha quitado esa entrada de `CAMPOS`: mandar ahí un dato de
+ * Pentacam habría hecho que EVO pensara que esa es la queratometría de antes
+ * de una cirugía refractiva que puede ni haber existido.
+ *
+ * Es un `Partial`, no un `Record` completo: `QUERATOCONO` no está, porque
+ * EVO no tiene esa opción —es propia de Barrett True-K Toric— y no hay value
+ * de su desplegable al que mandarla. Si algún ojo trae ese dato y se lanza
+ * EVO igualmente, no se toca el desplegable: se queda en su «No» de por
+ * defecto, que es lo más parecido a «no sé qué decirle a EVO sobre esto».
+ */
+const CIRUGIA_REFRACTIVA_EN_EVO: Readonly<Partial<Record<CirugiaRefractivaPrevia, string>>> = {
+  NINGUNA: '0',
+  MIOPICA: '1',
+  HIPERMETROPICA: '2',
+  RK: '3',
+}
 
 const SEL = {
   nombre: '#TextBoxName',
   ojoDerecho: '#RadioButtonRLEye_0',
   ojoIzquierdo: '#RadioButtonRLEye_1',
   modeloTorico: '#DropDownToric',
+  cirugiaRefractiva: '#DropDownLASIK',
   calcular: '#btnCalculate',
   // Resultado
   recomendadaEsfera: '#LabelRecIOL',
@@ -83,7 +123,12 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
     if (entradas.valores.K1 === undefined || entradas.valores.K2 === undefined) {
       problemas.push('Faltan las queratometrías.')
     }
-    if (entradas.valores.CONSTANTE_A === undefined) problemas.push('Falta la constante A.')
+    // Sin constante escrita, hace falta al menos un modelo que EVO pueda
+    // reconocer en su propia lista y rellenar solo (ver `rellenar`, D38). Sin
+    // ninguna de las dos cosas, no hay ninguna constante posible.
+    if (entradas.valores.CONSTANTE_A === undefined && !entradas.modeloLente) {
+      problemas.push('Falta la constante A.')
+    }
     return problemas
   }
 
@@ -112,7 +157,19 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
         fase: 'RELLENANDO',
         mensaje: 'Rellenando los datos en EVO…',
       })
-      await this.rellenar(pagina, entradas)
+      const { modeloEncontrado } = await this.rellenar(pagina, entradas)
+
+      // Sin constante escrita y sin que EVO haya reconocido el modelo, el
+      // campo de constante se ha quedado con lo que hubiera antes —vacío o de
+      // un cálculo previo—. Mejor parar aquí, con un mensaje claro, que dejar
+      // que EVO calcule con un número que nadie ha puesto.
+      if (!modeloEncontrado && entradas.valores.CONSTANTE_A === undefined) {
+        throw new ErrorAdaptador(
+          'MISSING_INPUTS',
+          `EVO no tiene «${entradas.modeloLente}» en su lista de lentes, así que no ha podido rellenar la constante A sola. Escríbela a mano y reinténtalo.`,
+          'RELLENANDO',
+        )
+      }
 
       progreso({ calculadora: this.calculadora, fase: 'CALCULANDO', mensaje: 'Calculando en EVO…' })
       await pagina.click(SEL.calcular)
@@ -142,28 +199,51 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
     }
   }
 
-  private async rellenar(pagina: Page, entradas: EntradasCalculadora): Promise<void> {
+  private async rellenar(
+    pagina: Page,
+    entradas: EntradasCalculadora,
+  ): Promise<{ modeloEncontrado: boolean }> {
     // EVO exige un nombre. Se le da el código local del caso, que es un
     // identificador de este programa y no un dato del paciente.
     await pagina.fill(SEL.nombre, entradas.codigoCaso)
 
     await pagina.check(entradas.ojo === 'OD' ? SEL.ojoDerecho : SEL.ojoIzquierdo)
 
-    // El modelo va ANTES que la constante A: elegirlo puede sobrescribirla.
+    // Si no se sabe si el ojo ha tenido cirugía refractiva, o si el dato que
+    // hay no tiene equivalente en EVO (QUERATOCONO), no se toca el
+    // desplegable: EVO ya empieza en «No» por su cuenta, y es lo mismo que
+    // significa «no se ha dicho nada» en este dato (ver `CirugiaRefractivaPrevia`).
+    const valorEnEvo = entradas.cirugiaRefractivaPrevia
+      ? CIRUGIA_REFRACTIVA_EN_EVO[entradas.cirugiaRefractivaPrevia]
+      : undefined
+    if (valorEnEvo !== undefined) {
+      await pagina.selectOption(SEL.cirugiaRefractiva, valorEnEvo)
+    }
+
+    // El modelo va ANTES que la constante A. Si EVO reconoce el modelo,
+    // RELLENA SOLA su propia constante para esa lente — comprobado en vivo:
+    // «B&L Envy» pone 119.24 sin que se le mande nada. Esa constante es la
+    // que EVO publica para su fórmula, y es mejor que cualquier número que
+    // pudiéramos mandarle nosotros, así que si el modelo se ha encontrado NO
+    // se pisa: se deja que sea EVO quien decida. Solo se manda la constante
+    // del caso cuando EVO no tiene esa lente en su lista, que es la única
+    // situación en la que no tiene ninguna propia que ofrecer.
+    let modeloEncontrado = false
     if (entradas.modeloLente) {
-      const elegido = await this.elegirModelo(pagina, entradas.modeloLente)
-      if (!elegido) {
-        // No es motivo para abortar: EVO calcula igual con la constante A.
-        // Queda dicho en el resultado.
-      }
+      modeloEncontrado = await this.elegirModelo(pagina, entradas.modeloLente)
+      // No encontrarlo no es motivo para abortar: EVO calcula igual con la
+      // constante A que se le mande a continuación. Queda dicho en el resultado.
     }
 
     for (const [campo, config] of Object.entries(CAMPOS)) {
+      if (campo === 'CONSTANTE_A' && modeloEncontrado) continue
       const valor = entradas.valores[campo as keyof typeof entradas.valores]
       // Un campo que no está NO se rellena. No se manda un 0 en su lugar.
       if (valor === undefined) continue
       await pagina.fill(config.selector, valor.toFixed(config.decimales))
     }
+
+    return { modeloEncontrado }
   }
 
   /** Elige el modelo si esta web lo tiene en su lista. Devuelve si lo encontró. */
@@ -245,6 +325,14 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
 
     const completo = esfera !== undefined && eje !== undefined
 
+    // La prueba de que la web dijo esto: una captura de SU pantalla de
+    // resultados, convertida en PDF al generar el informe. Que falle no puede
+    // tumbar un cálculo que ya ha salido bien — por eso no lleva `throw`.
+    const capturaId = await pagina
+      .screenshot({ fullPage: true })
+      .then((datos) => ctx.guardarCaptura(this.calculadora, ctx.entradas.ojo, datos))
+      .catch(() => undefined)
+
     return {
       calculadora: this.calculadora,
       ojo: ctx.entradas.ojo,
@@ -254,6 +342,7 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
       opciones: [recomendada, ...alternativas],
       recomendada,
       entradasSegunLaWeb,
+      ...(capturaId !== undefined ? { capturaId } : {}),
       mensaje: completo
         ? undefined
         : 'EVO ha calculado, pero no se han podido leer todos los campos del resultado.',

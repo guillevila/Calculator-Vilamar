@@ -16,9 +16,11 @@
 
 import type { CampoBiometrico, Unidad } from './campos.js'
 import { definicionDe, formatearConUnidad } from './campos.js'
+import type { CirugiaRefractivaDelOjo, CirugiaRefractivaPrevia } from './cirugia-refractiva.js'
+import { aportarCirugiaRefractiva } from './cirugia-refractiva.js'
 import type { Lateralidad } from './lateralidad.js'
 import type { Procedencia } from './procedencia.js'
-import { esDerivado, esManual, esMedido, procedenciaManual } from './procedencia.js'
+import { esDerivado, esManual, esMedido, procedenciaManual, procedenciaPorDefecto } from './procedencia.js'
 
 /**
  * Lo que decía el informe antes de que una persona lo cambiara.
@@ -82,6 +84,16 @@ export type MapaMedidas = Partial<Readonly<Record<CampoBiometrico, Medida>>>
 export interface OjoBiometrico {
   readonly lateralidad: Lateralidad
   readonly medidas: MapaMedidas
+  /**
+   * Si este ojo ha tenido cirugía refractiva antes, y de qué tipo.
+   *
+   * `undefined` es «no se ha dicho», no «ninguna»: hasta que una persona lo
+   * aporta, no se sabe. Ver `cirugia-refractiva.ts` para por qué es del ojo y
+   * no del caso, y por qué solo se guarda el tipo —sin datos de antes de la
+   * cirugía refractiva, que casi nunca se tienen (confirmado por el dueño del
+   * proyecto, 04/09/2026).
+   */
+  readonly cirugiaRefractivaPrevia?: CirugiaRefractivaDelOjo
 }
 
 export function ojoVacio(lateralidad: Lateralidad): OjoBiometrico {
@@ -150,6 +162,32 @@ export function corregirMedida(
   return conMedida(ojo, original ? { ...nueva, original } : nueva)
 }
 
+/**
+ * Pone la refracción objetivo en 0 (emetropía) si nadie la ha traído todavía.
+ *
+ * REFRACCION_OBJETIVO es una decisión del cirujano, no una medida del aparato
+ * (categoría QUIRURGICO en `campos.ts`), así que proponerle un punto de
+ * partida no rompe la regla de «lo que falta no se inventa» — esa regla
+ * protege datos biométricos, no decisiones que la aplicación puede sugerir y
+ * el cirujano cambiar. Se marca POR_DEFECTO, no MANUAL ni DEL_INFORME, para
+ * que quede claro que no lo ha escrito una persona ni lo traía el documento.
+ *
+ * Sale ya confirmada: no tiene sentido pedirle a alguien que revise un cero
+ * que ha puesto la propia aplicación, y así no bloquea pasar a CONFIRMADO. Si
+ * el cirujano la cambia, `corregirMedida` conserva este cero como original,
+ * igual que conservaría cualquier otro valor previo.
+ */
+export function conRefraccionObjetivoPorDefecto(
+  ojo: OjoBiometrico,
+  cuando: string,
+): OjoBiometrico {
+  if (tiene(ojo, 'REFRACCION_OBJETIVO')) return ojo
+  return conMedida(
+    ojo,
+    crearMedida('REFRACCION_OBJETIVO', ojo.lateralidad, 0, procedenciaPorDefecto(cuando), true),
+  )
+}
+
 /** ¿Está el dato? `false` significa que no consta. */
 export function tiene(ojo: OjoBiometrico, campo: CampoBiometrico): boolean {
   return ojo.medidas[campo] !== undefined
@@ -194,6 +232,21 @@ export function sinMedida(ojo: OjoBiometrico, campo: CampoBiometrico): OjoBiomet
   const medidas: Record<string, Medida> = { ...(ojo.medidas as Record<string, Medida>) }
   delete medidas[campo]
   return { ...ojo, medidas: medidas as MapaMedidas }
+}
+
+/**
+ * Escribe a mano si este ojo ha tenido cirugía refractiva antes, y de qué
+ * tipo. Conserva lo que hubiera antes, igual que `corregirMedida`.
+ */
+export function conCirugiaRefractiva(
+  ojo: OjoBiometrico,
+  valor: CirugiaRefractivaPrevia,
+  cuando: string,
+): OjoBiometrico {
+  return {
+    ...ojo,
+    cirugiaRefractivaPrevia: aportarCirugiaRefractiva(ojo.cirugiaRefractivaPrevia, valor, cuando),
+  }
 }
 
 /** Marca un dato como revisado por una persona. */

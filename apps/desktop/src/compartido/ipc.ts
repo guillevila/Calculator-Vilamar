@@ -10,11 +10,14 @@
 import type {
   Calculadora,
   Caso,
+  CirugiaRefractivaPrevia,
   Lateralidad,
   CampoBiometrico,
   Sexo,
   Aviso,
   ResultadoCalculadora,
+  LenteDeCatalogo,
+  LenteDeCatalogoEntrada,
 } from '@vilamar/domain'
 
 /**
@@ -100,6 +103,11 @@ export interface ApiVilamar {
   readonly elegirSexo: (sexo: Sexo) => Promise<Caso>
   /** Da por bueno un sexo deducido del nombre. Sin esto no sale hacia Kane. */
   readonly confirmarSexo: () => Promise<Caso>
+  /** Si este ojo ha tenido cirugía refractiva antes, y de qué tipo. Solo lo usa EVO. */
+  readonly elegirCirugiaRefractiva: (
+    ojo: Lateralidad,
+    valor: CirugiaRefractivaPrevia,
+  ) => Promise<Caso>
   readonly confirmarTodo: () => Promise<Caso>
   readonly validar: () => Promise<readonly Aviso[]>
   /**
@@ -148,6 +156,21 @@ export interface ApiVilamar {
   readonly generarPdf: () => Promise<{ readonly ruta: string }>
   readonly abrirCarpetaInformes: () => Promise<void>
 
+  /**
+   * El catálogo de lentes propio: lo que el usuario tiene, no lo que dice un
+   * informe ni lo que calcula una web.
+   *
+   * `guardarLenteEnCatalogo` añade si no llega `id`, y sustituye si llega. Las
+   * tres devuelven el catálogo COMPLETO ya actualizado, para que la pantalla no
+   * tenga que llevar la cuenta de los cambios por su lado.
+   */
+  readonly catalogoLentes: () => Promise<readonly LenteDeCatalogo[]>
+  readonly guardarLenteEnCatalogo: (
+    id: string | undefined,
+    lente: LenteDeCatalogoEntrada,
+  ) => Promise<readonly LenteDeCatalogo[]>
+  readonly borrarLenteDelCatalogo: (id: string) => Promise<readonly LenteDeCatalogo[]>
+
   /** Suscripciones. Devuelven una función para darse de baja. */
   readonly alProgresar: (escucha: (estado: EstadoCalculo) => void) => () => void
   readonly alCambiarCaso: (escucha: (caso: Caso) => void) => () => void
@@ -164,6 +187,7 @@ export const CANALES = {
   confirmarCampo: 'vilamar:confirmar-campo',
   elegirSexo: 'vilamar:elegir-sexo',
   confirmarSexo: 'vilamar:confirmar-sexo',
+  elegirCirugiaRefractiva: 'vilamar:elegir-cirugia-refractiva',
   confirmarTodo: 'vilamar:confirmar-todo',
   validar: 'vilamar:validar',
   elegirLente: 'vilamar:elegir-lente',
@@ -172,6 +196,9 @@ export const CANALES = {
   cancelarCalculo: 'vilamar:cancelar-calculo',
   generarPdf: 'vilamar:generar-pdf',
   abrirCarpetaInformes: 'vilamar:abrir-carpeta-informes',
+  catalogoLentes: 'vilamar:catalogo-lentes',
+  guardarLenteEnCatalogo: 'vilamar:catalogo-guardar-lente',
+  borrarLenteDelCatalogo: 'vilamar:catalogo-borrar-lente',
   progreso: 'vilamar:progreso',
   casoCambiado: 'vilamar:caso-cambiado',
 } as const

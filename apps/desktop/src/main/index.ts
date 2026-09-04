@@ -24,6 +24,7 @@ import { ProveedorDocumentos } from './extraccion/proveedor.js'
 import { crearLectorVision } from './extraccion/vision-claude.js'
 import { cargarEnv } from './ajustes.js'
 import { ServicioCasos } from './servicio-casos.js'
+import { ServicioCatalogo } from './servicio-catalogo.js'
 
 const carpetaActual = join(fileURLToPath(import.meta.url), '..')
 
@@ -214,11 +215,6 @@ function crearVentana(): void {
 function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   const version = versionDelProducto()
 
-  // Antes que nada: si hay un `.env`, se carga. Tiene que ir aquí arriba porque
-  // el lector de visión mira `ANTHROPIC_API_KEY` al construirse, y una clave
-  // cargada después no la vería nadie.
-  cargarEnv(carpetas.raiz)
-
   const proveedor = new ProveedorDocumentos({
     lectorPdf: crearLectorPdf(),
     motorOcr: crearMotorOcr({ carpetaDatos: join(carpetas.raiz, 'datos-ocr') }),
@@ -248,6 +244,10 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
     if (!servicio) throw new Error('El servicio todavía no está listo.')
     return servicio
   }
+
+  // Independiente del caso en curso: el catálogo existe aunque no haya ningún
+  // cálculo abierto, así que no pasa por `ServicioCasos` ni por `s()`.
+  const catalogo = new ServicioCatalogo(carpetas)
 
   ipcMain.handle(CANALES.version, () => version)
   ipcMain.handle(CANALES.casoNuevo, () => s().nuevo())
@@ -284,6 +284,9 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   ipcMain.handle(CANALES.confirmarCampo, (_e, ojo, campo) => s().confirmarCampo(ojo, campo))
   ipcMain.handle(CANALES.elegirSexo, (_e, sexo) => s().elegirSexo(sexo))
   ipcMain.handle(CANALES.confirmarSexo, () => s().confirmarSexo())
+  ipcMain.handle(CANALES.elegirCirugiaRefractiva, (_e, ojo, valor) =>
+    s().elegirCirugiaRefractiva(ojo, valor),
+  )
   ipcMain.handle(CANALES.confirmarTodo, () => s().confirmarTodo())
   ipcMain.handle(CANALES.validar, () => s().validar())
   ipcMain.handle(CANALES.elegirLente, (_e, fabricante, modelo) =>
@@ -294,11 +297,20 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   ipcMain.handle(CANALES.cancelarCalculo, () => s().cancelarCalculo())
   ipcMain.handle(CANALES.generarPdf, () => s().generarPdf())
   ipcMain.handle(CANALES.abrirCarpetaInformes, () => shell.openPath(carpetas.informes))
+
+  ipcMain.handle(CANALES.catalogoLentes, () => catalogo.listar())
+  ipcMain.handle(CANALES.guardarLenteEnCatalogo, (_e, id, lente) => catalogo.guardar(id, lente))
+  ipcMain.handle(CANALES.borrarLenteDelCatalogo, (_e, id) => catalogo.borrar(id))
 }
 
 instalarRedDeSeguridad()
 
 void app.whenReady().then(() => {
+  // Antes que nada: si hay un `.env`, se carga. Tiene que ir aquí, antes de
+  // preparar las carpetas, porque `VILAMAR_CARPETA_INFORMES` cambia dónde se
+  // crean — y el lector de visión mira `ANTHROPIC_API_KEY` más abajo, así que
+  // cargarlo tarde tampoco le serviría a él.
+  cargarEnv(app.getPath('userData'))
   const carpetas = prepararCarpetas(app.getPath('userData'))
   registrarCanales(carpetas)
   crearVentana()

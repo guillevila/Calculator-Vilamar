@@ -77,48 +77,55 @@ function buscarMarcas(texto: string): readonly Marca[] {
  * ajenos: exactamente el error que este módulo existe para evitar.
  *
  * Lo que sí funciona es buscar el HUECO de verdad: entre las dos columnas hay una
- * franja vertical sin nada. Se toma el mayor espacio libre entre los extremos de
- * los bloques y se parte por su mitad. Si no hubiera ningún hueco claro, se
- * vuelve al punto medio, que al menos es determinista.
+ * franja vertical sin nada, y se corta por su centro. **No vale ni el rótulo
+ * como semilla ni el hueco más ancho de toda la página** — los dos fallan con
+ * informes reales, cada uno con el suyo:
+ *
+ *  - Anclarse al rótulo de la derecha —«la columna empieza donde empieza su
+ *    rótulo»— falla cuando un informe pone los dos rótulos en los bordes de la
+ *    página pero los DATOS más hacia el centro (caso real, IOLMaster, con la
+ *    pantalla de cálculo de LIO): el hueco que separa «acaba OD» de «empieza
+ *    OS» queda lejos del rótulo, y anclarse a él tira TODO el ojo izquierdo al
+ *    lado del derecho.
+ *  - Coger sin más el hueco más ancho de la página falla al revés: dentro de
+ *    una sola columna, el espacio entre una etiqueta («K1») y su valor puede
+ *    ser mayor que el hueco real entre las dos columnas, y entonces la
+ *    frontera cae DENTRO de una columna en vez de entre las dos.
+ *
+ * Lo que sí aguanta los dos casos: buscar el hueco más ancho entre los centros
+ * de los bloques, pero SOLO en el tramo que va de un rótulo al otro. Fuera de
+ * ese tramo puede haber márgenes de página que no dicen nada de dónde separan
+ * los datos, y dentro de él el hueco más ancho SÍ es, casi siempre, el que
+ * separa las dos columnas — un informe no suele meter una etiqueta y su valor
+ * más lejos entre sí que las dos columnas completas.
  */
 function fronteraEntreColumnas(
   bloques: readonly BloqueTexto[],
   xRotuloA: number,
   xRotuloB: number,
 ): number {
-  const xDerecho = Math.max(xRotuloA, xRotuloB)
-  const medio = (Math.min(xRotuloA, xRotuloB) + xDerecho) / 2
+  const xIzquierda = Math.min(xRotuloA, xRotuloB)
+  const xDerecha = Math.max(xRotuloA, xRotuloB)
+  const medio = (xIzquierda + xDerecha) / 2
 
-  // Margen para una alineación imperfecta entre el rótulo y su columna.
-  const MARGEN = 0.03
-  const inicioDerecha = xDerecho - MARGEN
+  const centros = bloques
+    .map((b) => b.x + b.ancho / 2)
+    .filter((c) => c >= xIzquierda && c <= xDerecha)
+    .sort((a, b) => a - b)
 
-  // El rótulo de la derecha es la SEMILLA: en un informe a dos columnas, el
-  // contenido de la columna derecha empieza donde empieza su rótulo.
-  //
-  // Buscar simplemente «el hueco más grande» no vale, y aquí está el motivo: en
-  // la columna izquierda, el espacio entre la etiqueta «K1» y su valor puede ser
-  // MAYOR que el espacio entre las dos columnas. La frontera se colocaba ahí, y
-  // el resultado era un ojo derecho SIN NINGUNA K —la etiqueta a un lado, el
-  // número al otro— mientras el izquierdo salía perfecto. Un fallo así no da
-  // ningún error: da un informe a medias.
-  let finIzquierda = Number.NEGATIVE_INFINITY
-  let inicioBloquesDerecha = Number.POSITIVE_INFINITY
-  for (const b of bloques) {
-    if (b.x >= inicioDerecha) inicioBloquesDerecha = Math.min(inicioBloquesDerecha, b.x)
-    else finIzquierda = Math.max(finIzquierda, b.x + b.ancho)
+  let mejorHueco = -1
+  let frontera = medio
+  for (let i = 1; i < centros.length; i++) {
+    const actual = centros[i]!
+    const anterior = centros[i - 1]!
+    const hueco = actual - anterior
+    if (hueco > mejorHueco) {
+      mejorHueco = hueco
+      frontera = (anterior + actual) / 2
+    }
   }
 
-  // El hueco de verdad, entre donde acaba la columna izquierda y donde empieza
-  // la derecha.
-  if (Number.isFinite(finIzquierda) && Number.isFinite(inicioBloquesDerecha)) {
-    if (inicioBloquesDerecha > finIzquierda) return (finIzquierda + inicioBloquesDerecha) / 2
-    // Se solapan: se corta justo antes del rótulo derecho, que es lo más fiable
-    // que queda.
-    return inicioDerecha
-  }
-
-  return Number.isFinite(inicioBloquesDerecha) ? inicioDerecha : medio
+  return frontera
 }
 
 /**
@@ -155,13 +162,75 @@ export function segmentarPorPosicion(bloques: readonly BloqueTexto[]): Segmentac
   if (Math.abs(cabeceraOd.x - cabeceraOs.x) < 0.08) return null
 
   const odIzquierda = cabeceraOd.x < cabeceraOs.x
-  const frontera = fronteraEntreColumnas(bloques, cabeceraOd.x, cabeceraOs.x)
+
+  /**
+   * La fila de la cabecera no entra en el cálculo del hueco entre columnas.
+   *
+   * Caso real (25/08/2026): un informe de IOLMaster pone un título centrado
+   * —«Cálculo de IOL»— justo entre «OD» y «OS», en la misma fila. Ese título
+   * no es dato de ningún ojo, pero al calcular dónde acababa la columna
+   * izquierda contaba como si lo fuera, y su ancho empujaba la frontera muy
+   * hacia la derecha: el ojo izquierdo entero acababa clasificado como si
+   * fuera del derecho. Las filas de DATOS no tienen ese problema —nada se
+   * pone deliberadamente a caballo entre las dos columnas—, así que basta con
+   * ignorar la fila de la cabecera al buscar el hueco.
+   */
+  const sinFilaDeCabecera = bloques.filter((b) => Math.abs(b.y - cabeceraOd.y) >= 0.02)
+  const frontera = fronteraEntreColumnas(
+    sinFilaDeCabecera.length > 0 ? sinFilaDeCabecera : bloques,
+    cabeceraOd.x,
+    cabeceraOs.x,
+  )
+
+  /**
+   * Algunos informes no repiten la etiqueta bajo cada ojo: la ponen UNA vez,
+   * más a la izquierda que las dos columnas, y después vienen el valor de OD
+   * y el de OS uno junto al otro — «CCT (vertex)   472 µm   457 µm». Sin esto,
+   * la etiqueta caía solo del lado de OD (por estar más a la izquierda que la
+   * frontera) y el lado de OS se quedaba con el número suelto, sin la palabra
+   * que la regla de lectura necesita para reconocerlo.
+   *
+   * Se detecta por posición, no por texto: cualquier bloque más a la
+   * izquierda que la columna que le toque a cada ojo se trata como etiqueta
+   * compartida y se añade A LOS DOS lados.
+   */
+  const MARGEN_ETIQUETA = 0.02
+  const cabeceraIzquierda = odIzquierda ? cabeceraOd : cabeceraOs
+  const finEtiquetaCompartida = cabeceraIzquierda.x - MARGEN_ETIQUETA
+
+  /**
+   * Algunos informes añaden, a la derecha de las dos columnas, una tercera
+   * —la diferencia entre OD y OS, por ejemplo— que no interesa y que, sin
+   * esto, se colaba entera en el lado derecho por no tener frontera que la
+   * pare. Se busca cualquier otro rótulo de cabecera en la misma fila que
+   * quede más a la derecha que las columnas de OD y OS, y todo lo que caiga
+   * más allá de él se descarta.
+   */
+  const yCabecera = cabeceraOd.y
+  const xColumnaDerecha = Math.max(cabeceraOd.x, cabeceraOs.x)
+  let finalFrontera = Number.POSITIVE_INFINITY
+  for (const b of bloques) {
+    // No hace falta que sea un rótulo OD/OS, pero SÍ tiene que parecer una
+    // etiqueta: corta y sin ningún número. Sin el filtro de los números, la
+    // primera línea de datos de una de las columnas —«AL   24.07 mm», que
+    // cabe de sobra en unos pocos caracteres— podía confundirse con la
+    // cabecera de una tercera columna y hacer desaparecer un ojo entero.
+    const t = b.texto.trim()
+    if (t.length > 16 || /\d/.test(t)) continue
+    const centro = b.x + b.ancho / 2
+    if (Math.abs(b.y - yCabecera) > 0.01) continue
+    if (centro <= xColumnaDerecha + MARGEN_ETIQUETA) continue
+    finalFrontera = Math.min(finalFrontera, (xColumnaDerecha + centro) / 2)
+  }
 
   const texto = (lado: Lateralidad): string => {
     const enIzquierda = (lado === 'OD') === odIzquierda
     const suyos = bloques.filter((b) => {
       const centro = b.x + b.ancho / 2
-      return enIzquierda ? centro < frontera : centro >= frontera
+      if (centro >= finalFrontera) return false
+      const enSuColumna = enIzquierda ? centro < frontera : centro >= frontera
+      const esEtiquetaCompartida = centro < finEtiquetaCompartida
+      return enSuColumna || esEtiquetaCompartida
     })
     // Hay que RECONSTRUIR LAS LÍNEAS, no juntar los trozos con saltos.
     //
@@ -198,10 +267,24 @@ function segmentarPorSecciones(texto: string, marcas: readonly Marca[]): Segment
     if (!actual) continue
     const siguiente = cortes[i + 1]
     const trozo = texto.slice(actual.indice, siguiente ? siguiente.indice : texto.length)
-    // Si un ojo aparece dos veces, se queda el trozo más largo: el otro suele
-    // ser una mención de paso («comparación OD/OS»), no la tabla de medidas.
+    /**
+     * Si un ojo aparece varias veces, se JUNTAN todos sus trozos, en el orden
+     * en que aparecen — no se descarta ninguno.
+     *
+     * Antes se quedaba solo el trozo más largo, pensado para el caso de una
+     * mención de paso («comparación OD/OS») frente a la tabla de medidas real.
+     * Pero hay informes con el caso contrario: un resumen compacto (con la AL,
+     * que no se repite en ningún otro sitio) seguido de una «transcripción
+     * detallada» más larga, en otro formato, del mismo ojo. Ahí «el más largo»
+     * se quedaba con la transcripción y tiraba el resumen entero — la AL
+     * desaparecía sin que nada avisara.
+     *
+     * Juntarlos es seguro porque `aplicarReglas` ya se queda con la PRIMERA
+     * aparición de cada campo: el resumen manda si los dos traen el mismo
+     * dato (aparece primero), y lo que solo trae la transcripción no se pierde.
+     */
     const previo = porOjo[actual.lado]
-    if (!previo || trozo.length > previo.length) porOjo[actual.lado] = trozo
+    porOjo[actual.lado] = previo ? `${previo}\n${trozo}` : trozo
   }
 
   const lados = Object.keys(porOjo) as Lateralidad[]

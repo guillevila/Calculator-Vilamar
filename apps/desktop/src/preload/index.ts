@@ -33,6 +33,8 @@ const api: ApiVilamar = {
   confirmarCampo: (ojo, campo) => ipcRenderer.invoke(CANALES.confirmarCampo, ojo, campo),
   elegirSexo: (sexo) => ipcRenderer.invoke(CANALES.elegirSexo, sexo),
   confirmarSexo: () => ipcRenderer.invoke(CANALES.confirmarSexo),
+  elegirCirugiaRefractiva: (ojo, valor) =>
+    ipcRenderer.invoke(CANALES.elegirCirugiaRefractiva, ojo, valor),
   confirmarTodo: () => ipcRenderer.invoke(CANALES.confirmarTodo),
   validar: () => ipcRenderer.invoke(CANALES.validar),
   elegirLente: (fabricante, modelo) => ipcRenderer.invoke(CANALES.elegirLente, fabricante, modelo),
@@ -43,6 +45,11 @@ const api: ApiVilamar = {
 
   generarPdf: () => ipcRenderer.invoke(CANALES.generarPdf),
   abrirCarpetaInformes: () => ipcRenderer.invoke(CANALES.abrirCarpetaInformes),
+
+  catalogoLentes: () => ipcRenderer.invoke(CANALES.catalogoLentes),
+  guardarLenteEnCatalogo: (id, lente) =>
+    ipcRenderer.invoke(CANALES.guardarLenteEnCatalogo, id, lente),
+  borrarLenteDelCatalogo: (id) => ipcRenderer.invoke(CANALES.borrarLenteDelCatalogo, id),
 
   alProgresar: (escucha) => {
     const manejador = (_e: unknown, estado: Parameters<typeof escucha>[0]): void => escucha(estado)

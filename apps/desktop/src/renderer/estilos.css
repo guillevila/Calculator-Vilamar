@@ -365,6 +365,16 @@ table.revision tr.warning {
   width: 22px;
   text-align: center;
 }
+.marca-seleccion {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.marca-seleccion input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
 .calc.requiere-usuario {
   border-color: var(--ambar);
   background: var(--ambar-suave);
@@ -470,10 +480,22 @@ table.opciones tr.destacada td {
   font-weight: 700;
   background: var(--fondo-suave, #f5f7fa);
 }
+/*
+  «sugerida» es DISTINTA de «destacada» a propósito: destacada es lo que dice
+  la web, sugerida es el criterio que dio el dueño del proyecto. Un color
+  distinto (verde, no gris) evita que las dos se confundan de un vistazo.
+*/
+table.opciones tr.sugerida td {
+  font-weight: 700;
+  background: var(--verde-suave);
+}
 table.opciones td.marca {
   font-size: 12px;
   color: var(--gris);
   font-style: italic;
+}
+.sugerencia-criterio {
+  color: var(--verde);
 }
 table.opciones .na {
   color: var(--gris);
@@ -567,6 +589,13 @@ table.opciones .na {
   background: #fde8cf;
   color: #8a4b00;
   font-weight: 600;
+}
+/* POR_DEFECTO es un valor que ha puesto la aplicación, no el informe ni una
+   persona: se pinta parecido a NO_CONSTA (apagado, no es un dato del informe)
+   pero sin cursiva, porque SÍ hay un valor y SÍ cuenta como confirmado. */
+.origen.por_defecto {
+  background: #f2f2f2;
+  color: #55627a;
 }
 .origen.no_consta {
   background: transparent;

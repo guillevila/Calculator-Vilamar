@@ -5,7 +5,7 @@
  * dicen en qué coinciden y en qué no. No dicen qué implantar, y no lo dirán.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 
 import type {
@@ -13,14 +13,21 @@ import type {
   Caso,
   CeldaComparativa,
   DatoComparativo,
+  FamiliaDeLente,
   Lateralidad,
+  LenteDeCatalogo,
 } from '@vilamar/domain'
 import {
   CALCULADORAS,
   compararOjo,
+  describirLenteDeCatalogo,
+  familiaDeLente,
+  fichaDe,
+  lentesQueCubren,
   nombreLateralidad,
   ojosDelCaso,
   resultadoDe,
+  sugerirOpcion,
   textoEstado,
 } from '@vilamar/domain'
 
@@ -124,6 +131,50 @@ function CeldaTexto({
   )
 }
 
+/**
+ * Qué lentes del catálogo propio cubren la potencia de esta columna.
+ *
+ * Es un cruce contra inventario, no una elección: si varias cubren la misma
+ * potencia, se enseñan todas juntas y sin distinguir ninguna — la misma regla
+ * que ya rige el resto de esta tabla (`comparar.ts`, D14).
+ */
+function CeldaCatalogo({
+  celda,
+  catalogo,
+}: {
+  celda: CeldaComparativa
+  catalogo: readonly LenteDeCatalogo[]
+}): JSX.Element {
+  if (catalogo.length === 0) {
+    return (
+      <td className="na" title="Todavía no has añadido ninguna lente en Ajustes">
+        —
+      </td>
+    )
+  }
+  if (celda.esfera.estado !== 'VALOR') {
+    return (
+      <td className="na" title={`No hay una potencia de ${celda.nombre} con la que cruzar el catálogo`}>
+        —
+      </td>
+    )
+  }
+  const cilindro = celda.cilindro.estado === 'VALOR' ? celda.cilindro.valor : undefined
+  const coinciden = lentesQueCubren(catalogo, celda.esfera.valor, cilindro)
+  if (coinciden.length === 0) {
+    return (
+      <td className="na" title="Ninguna lente de tu catálogo cubre esta potencia">
+        Ninguna
+      </td>
+    )
+  }
+  return (
+    <td title="Lentes de tu catálogo que cubren esta potencia. No se elige ninguna por ti.">
+      {coinciden.map(describirLenteDeCatalogo).join(' · ')}
+    </td>
+  )
+}
+
 /** Las columnas del detalle. Solo se enseña la que alguna opción trae de verdad. */
 const COLUMNAS_DE_OPCION = [
   { clave: 'esfera', titulo: 'Potencia LIO', sufijo: ' D', decimales: 2 },
@@ -140,8 +191,22 @@ const COLUMNAS_DE_OPCION = [
  *
  * Se enseña cuando hay más de una. No añade ninguna columna que la web no haya
  * dado: si Kane solo devuelve potencia y refracción, la tabla tiene dos columnas.
+ *
+ * `sugerencia` es distinta de `recomendada`, y se pinta distinta a propósito
+ * (D14, y la cicatriz que documenta `comparar.ts`): `recomendada` es lo que
+ * DESTACA LA WEB; `sugerencia` es una guía externa al programa —la del
+ * fabricante para Envista/Lux, o el criterio clínico de sobrecorrección para
+ * el cilindro tórico (ver `sugerencia-cirujano.ts`)— aplicada a esta tabla,
+ * nunca un criterio inventado por Calculator Vilamar. Ninguna de las dos se
+ * envía a ningún sitio ni sustituye la decisión de quien opera.
  */
-function OpcionesDevueltas({ celda }: { celda: CeldaComparativa }): JSX.Element | null {
+function OpcionesDevueltas({
+  celda,
+  familia,
+}: {
+  celda: CeldaComparativa
+  familia: FamiliaDeLente | undefined
+}): JSX.Element | null {
   if (celda.opciones.length <= 1) return null
 
   const columnas = COLUMNAS_DE_OPCION.filter((col) =>
@@ -150,6 +215,7 @@ function OpcionesDevueltas({ celda }: { celda: CeldaComparativa }): JSX.Element 
   if (columnas.length === 0) return null
 
   const senalada = celda.seleccion.clase === 'DESTACADA'
+  const sugerencia = sugerirOpcion(celda.opciones, familia)
 
   return (
     <div className="opciones-devueltas">
@@ -161,37 +227,56 @@ function OpcionesDevueltas({ celda }: { celda: CeldaComparativa }): JSX.Element 
           ? `${celda.nombre} ha señalado una de ellas; va marcada en la tabla y es la que aparece arriba.`
           : `${celda.nombre} no ha señalado ninguna opción preferente. La elección no la hace Calculator Vilamar.`}
       </p>
+      {sugerencia && (
+        <p className="sub sugerencia-criterio">
+          <strong>Sugerencia:</strong> {sugerencia.motivo} Calculator Vilamar no la envía a
+          ningún sitio ni la marca como confirmada.
+        </p>
+      )}
       <table className="opciones">
         <thead>
           <tr>
             {columnas.map((col) => (
               <th key={col.clave}>{col.titulo}</th>
             ))}
-            {senalada && <th></th>}
+            {(senalada || sugerencia) && <th></th>}
           </tr>
         </thead>
         <tbody>
-          {celda.opciones.map((o, i) => (
-            <tr key={i} className={o.recomendada ? 'destacada' : ''}>
-              {columnas.map((col) => {
-                const v = o[col.clave]
-                return (
-                  <td key={col.clave}>
-                    {v === undefined ? (
-                      <span className="na">—</span>
-                    ) : typeof v === 'number' ? (
-                      `${v.toFixed(col.decimales)}${col.sufijo}`
-                    ) : (
-                      v
-                    )}
+          {celda.opciones.map((o, i) => {
+            const esLaSugerida = sugerencia?.opcion === o
+            return (
+              <tr
+                key={i}
+                className={`${o.recomendada ? 'destacada' : ''} ${esLaSugerida ? 'sugerida' : ''}`.trim()}
+              >
+                {columnas.map((col) => {
+                  const v = o[col.clave]
+                  return (
+                    <td key={col.clave}>
+                      {v === undefined ? (
+                        <span className="na">—</span>
+                      ) : typeof v === 'number' ? (
+                        `${v.toFixed(col.decimales)}${col.sufijo}`
+                      ) : (
+                        v
+                      )}
+                    </td>
+                  )
+                })}
+                {(senalada || sugerencia) && (
+                  <td className="marca">
+                    {[
+                      o.recomendada ? `Destacada por ${celda.nombre}` : '',
+                      esLaSugerida ? 'Sugerencia' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </td>
-                )
-              })}
-              {senalada && (
-                <td className="marca">{o.recomendada ? `Destacada por ${celda.nombre}` : ''}</td>
-              )}
-            </tr>
-          ))}
+                )}
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -210,17 +295,27 @@ export function PanelResultados({
   const [pdf, setPdf] = useState<string | null>(null)
   const [generando, setGenerando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [catalogo, setCatalogo] = useState<readonly LenteDeCatalogo[]>([])
+
+  useEffect(() => {
+    void api()
+      .catalogoLentes()
+      .then(setCatalogo)
+  }, [])
 
   const resultados: Partial<Record<Calculadora, ReturnType<typeof resultadoDe>>> = {}
   for (const c of CALCULADORAS) {
     const r = resultadoDe(caso, c, ojoActivo)
     if (r) resultados[c] = r
   }
-  const comparativa = compararOjo(ojoActivo, resultados as never, [
-    'KANE',
-    'EVO_TORIC',
-    'BARRETT_TORIC',
-  ])
+  // Barrett True-K Toric solo entra en la tabla si se ha lanzado de verdad
+  // (D53): es para ojos con cirugía refractiva previa o queratocono, y una
+  // columna vacía en el resto de casos sería ruido, no información.
+  const ordenColumnas: readonly Calculadora[] = resultados.BARRETT_TRUE_K_TORIC
+    ? ['KANE', 'EVO_TORIC', 'BARRETT_TORIC', 'BARRETT_TRUE_K_TORIC']
+    : ['KANE', 'EVO_TORIC', 'BARRETT_TORIC']
+  const comparativa = compararOjo(ojoActivo, resultados as never, ordenColumnas)
+  const familia = familiaDeLente(caso.lente?.modelo)
 
   async function generar(): Promise<void> {
     setGenerando(true)
@@ -333,6 +428,12 @@ export function PanelResultados({
               ))}
             </tr>
             <tr>
+              <th>De tu catálogo</th>
+              {comparativa.celdas.map((c) => (
+                <CeldaCatalogo key={c.calculadora} celda={c} catalogo={catalogo} />
+              ))}
+            </tr>
+            <tr>
               <th>Estado</th>
               {comparativa.celdas.map((c) => {
                 // Una calculadora sin resultado pero con actividad NO está «sin
@@ -365,7 +466,7 @@ export function PanelResultados({
         <div className="tarjeta">
           <h2>Opciones devueltas · {nombreLateralidad(ojoActivo)}</h2>
           {comparativa.celdas.map((c) => (
-            <OpcionesDevueltas key={c.calculadora} celda={c} />
+            <OpcionesDevueltas key={c.calculadora} celda={c} familia={familia} />
           ))}
         </div>
       )}
@@ -390,13 +491,17 @@ export function PanelResultados({
         <h2>Reintentar una sola</h2>
         <p className="sub">Si alguna falló, puedes lanzarla otra vez sin perder las demás.</p>
         <div className="fila">
-          {CALCULADORAS.map((c) => {
+          {CALCULADORAS.filter(
+            // Barrett True-K Toric no se ofrece aquí salvo que ya se haya
+            // lanzado antes (D53): es para cirugía refractiva previa o
+            // queratocono, y no es un «reintentar», es un lanzamiento nuevo.
+            (c) => c !== 'BARRETT_TRUE_K_TORIC' || resultadoDe(caso, c, ojoActivo) !== undefined,
+          ).map((c) => {
             const r = resultadoDe(caso, c, ojoActivo)
             const fallo = !r || (r.estado !== 'SUCCESS' && r.estado !== 'PARTIAL')
             return (
               <button key={c} onClick={() => onReintentar(c)} disabled={!fallo && r !== undefined}>
-                {fallo ? 'Reintentar' : 'Repetir'}{' '}
-                {c === 'EVO_TORIC' ? 'EVO' : c === 'BARRETT_TORIC' ? 'Barrett' : 'Kane'}
+                {fallo ? 'Reintentar' : 'Repetir'} {fichaDe(c).nombre}
               </button>
             )
           })}
@@ -407,13 +512,14 @@ export function PanelResultados({
       <div className="tarjeta">
         <h2>Informe</h2>
         <p className="sub">
-          Un PDF con los datos confirmados, de dónde salió cada uno, los tres resultados y las
-          diferencias entre ellos.
+          Una carpeta con el informe comparativo —los datos confirmados, de dónde salió cada uno,
+          los tres resultados y las diferencias entre ellos— y, junto a él, un PDF de una hoja por
+          cada calculadora: la captura de su propia pantalla de resultados.
         </p>
         {error && <div className="aviso error">{error}</div>}
         {pdf && (
           <div className="aviso exito">
-            <strong>Informe generado.</strong> Está en <code>{pdf}</code>
+            <strong>Informes generados.</strong> Carpeta: <code>{pdf}</code>
           </div>
         )}
         <div className="fila derecha">

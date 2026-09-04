@@ -19,8 +19,44 @@ import type { Calculadora, EntradasCalculadora, FaltanEntradas } from './calcula
 import { fichaDe } from './calculadoras.js'
 import type { Caso } from './caso.js'
 import { autorizadoACalcular, ojoDe } from './caso.js'
+import type { Catalogo } from './catalogo-lentes.js'
+import { constanteDelCatalogoPara } from './catalogo-lentes.js'
 import type { Lateralidad } from './lateralidad.js'
 import { obtener } from './medida.js'
+
+/**
+ * ¿Tiene esta calculadora, para la lente elegida, una constante A que no
+ * hace falta escribir a mano en el ojo?
+ *
+ * Dos caminos, y no son el mismo (D38):
+ *
+ *  - **EVO y Kane reconocen el modelo en su propia web y rellenan SU
+ *    constante solos.** Basta con haber elegido una lente — no hace falta que
+ *    el catálogo propio la tenga, porque la fuente de verdad es la web, no
+ *    nuestro catálogo. Si al final no la reconocen, esa casilla en concreto
+ *    fallará con «falta la constante A» al calcular, y se puede reintentar
+ *    con una escrita a mano: no es motivo para bloquear la confirmación de
+ *    todo el caso por adelantado.
+ *  - **Barrett no elige modelo de fiar**: su lista es mucho más corta y casi
+ *    nunca tiene la lente pedida (comprobado en vivo). Para Barrett hace
+ *    falta que el catálogo propio traiga su constante.
+ */
+export function tieneConstanteFueraDelOjo(
+  caso: Caso,
+  calculadora: Calculadora,
+  catalogo: Catalogo | undefined,
+): boolean {
+  const modelo = caso.lente?.modelo
+  if (modelo === undefined || modelo.trim() === '') return false
+  if (calculadora === 'EVO_TORIC' || calculadora === 'KANE') return true
+  return (
+    constanteDelCatalogoPara(
+      catalogo ?? [],
+      { fabricante: caso.lente?.fabricante, modelo },
+      calculadora,
+    ) !== undefined
+  )
+}
 
 export type ResultadoPreparacion =
   | { readonly ok: true; readonly entradas: EntradasCalculadora }
@@ -35,6 +71,13 @@ export type ResultadoPreparacion =
    * de campo que no existe.
    */
   | { readonly ok: false; readonly motivo: 'FALTA_EL_SEXO'; readonly confirmado: boolean }
+  /**
+   * Falta decir si este ojo ha tenido cirugía refractiva previa (o
+   * queratocono), y esta calculadora EXISTE solo para eso — Barrett True-K
+   * Toric. «Ninguna» tampoco vale: lanzarla sin decir de qué historial se
+   * trata no tiene sentido.
+   */
+  | { readonly ok: false; readonly motivo: 'FALTA_LA_CIRUGIA_REFRACTIVA' }
 
 /**
  * ¿Se puede lanzar esta calculadora para este ojo?
@@ -42,24 +85,35 @@ export type ResultadoPreparacion =
  * Equivale al `canRun(case)` del contrato de adaptadores, pero vive en el
  * dominio para que ningún adaptador pueda saltárselo.
  */
-export function sePuedeCalcular(caso: Caso, calculadora: Calculadora, ojo: Lateralidad): boolean {
-  return prepararEntradas(caso, calculadora, ojo).ok
+export function sePuedeCalcular(
+  caso: Caso,
+  calculadora: Calculadora,
+  ojo: Lateralidad,
+  catalogo?: Catalogo,
+): boolean {
+  return prepararEntradas(caso, calculadora, ojo, catalogo).ok
 }
 
 export function camposQueFaltan(
   caso: Caso,
   calculadora: Calculadora,
   ojo: Lateralidad,
+  catalogo?: Catalogo,
 ): readonly CampoBiometrico[] {
   const ficha = fichaDe(calculadora)
   const datos = ojoDe(caso, ojo)
-  return ficha.requeridos.filter((c) => obtener(datos, c) === undefined)
+  return ficha.requeridos.filter((c) => {
+    if (obtener(datos, c) !== undefined) return false
+    if (c === 'CONSTANTE_A' && tieneConstanteFueraDelOjo(caso, calculadora, catalogo)) return false
+    return true
+  })
 }
 
 export function prepararEntradas(
   caso: Caso,
   calculadora: Calculadora,
   ojo: Lateralidad,
+  catalogo?: Catalogo,
 ): ResultadoPreparacion {
   // 1 — Nada sale de un caso que no haya confirmado una persona.
   if (!autorizadoACalcular(caso)) {
@@ -80,8 +134,24 @@ export function prepararEntradas(
     }
   }
 
-  // 3 — Los campos obligatorios de ESTA calculadora.
-  const faltan = ficha.requeridos.filter((c) => obtener(datos, c) === undefined)
+  // 2b — La cirugía refractiva previa, si esta calculadora EXISTE solo para
+  // eso (Barrett True-K Toric). «Ninguna» tampoco vale aquí: `aportarCirugiaRefractiva`
+  // deja el dato confirmado en cuanto se escribe, así que no hace falta
+  // comprobar `confirmadoPorUsuario` aparte, a diferencia del sexo.
+  if (ficha.exigeCirugiaRefractiva === true) {
+    const dato = datos.cirugiaRefractivaPrevia
+    if (dato === undefined || dato.valor === 'NINGUNA') {
+      return { ok: false, motivo: 'FALTA_LA_CIRUGIA_REFRACTIVA' }
+    }
+  }
+
+  // 3 — Los campos obligatorios de ESTA calculadora. La constante A puede
+  // venir de fuera del ojo — ver `tieneConstanteFueraDelOjo`.
+  const faltan = ficha.requeridos.filter((c) => {
+    if (obtener(datos, c) !== undefined) return false
+    if (c === 'CONSTANTE_A' && tieneConstanteFueraDelOjo(caso, calculadora, catalogo)) return false
+    return true
+  })
 
   // 3 — Ningún dato sin revisar viaja, ni siquiera los opcionales.
   const candidatos = [...ficha.requeridos, ...ficha.opcionales]
@@ -117,6 +187,12 @@ export function prepararEntradas(
       // Solo viaja si esa calculadora lo pide. No se manda un dato de la persona
       // a una web que no lo necesita.
       sexo: ficha.exigeSexo === true ? caso.sexo?.valor : undefined,
+      // Si no se ha dicho nada, no bloquea ni se envía nada: el adaptador que
+      // la usa (EVO) trata «no se sabe» igual que «ninguna», que es lo que
+      // pasa en la inmensa mayoría de los ojos. `aportarCirugiaRefractiva`
+      // siempre deja el dato confirmado en cuanto una persona lo escribe, así
+      // que no hace falta una comprobación de «sin revisar» aparte.
+      cirugiaRefractivaPrevia: datos.cirugiaRefractivaPrevia?.valor,
     },
   }
 }
@@ -131,6 +207,9 @@ export function explicarBloqueo(resultado: ResultadoPreparacion): string | null 
   if (resultado.ok) return null
   if (resultado.motivo === 'FALTA_EL_SEXO') {
     return 'Falta el sexo del paciente, y esta calculadora lo pide en su formulario. Elígelo arriba y márcalo como comprobado.'
+  }
+  if (resultado.motivo === 'FALTA_LA_CIRUGIA_REFRACTIVA') {
+    return 'Barrett True-K Toric es para ojos con cirugía refractiva previa o queratocono. Indica cuál en «Cirugía refractiva previa» antes de lanzarla.'
   }
   if (resultado.motivo === 'SIN_CONFIRMAR_EL_CASO') {
     return 'Todavía no has confirmado los datos. Revísalos y confírmalos antes de calcular.'
