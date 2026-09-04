@@ -9,7 +9,27 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 05/09/2026 (2) · **Constante A oficial por
+**Última actualización:** 05/09/2026 (3) · **Fallo real corregido: elegir
+la lente ANTES de escribir ningún dato del ojo dejaba la constante A del
+catálogo (D69) sin aplicar.** El dueño probó el caso más natural —elegir
+primero «B&L Envy» en el cuestionario manual, con el ojo todavía vacío— y
+la constante nunca llegaba a rellenarse en la casilla, aunque el aviso ya
+avisaba correctamente de que «se aplicará cuando los haya». La causa: la
+constante conocida solo se escribe en los ojos que YA EXISTEN en el
+momento de elegir la lente (`elegirLente()` no puede enganchar un dato a
+un ojo que todavía no tiene ninguno), así que un ojo creado DESPUÉS se
+quedaba sin ella para siempre. Corregido en `ServicioCasos.editarMedida()`
+—el mismo sitio donde ya vivía la regla equivalente de D66 (la constante
+A se copia sola entre los dos ojos)—: en cuanto un ojo recibe su primer
+dato, si hay una lente elegida con constante del catálogo pendiente, se
+aplica en ese mismo movimiento. Un test nuevo en `flujo.spec.ts`
+reproduce el caso exacto del dueño (elegir la lente antes, luego escribir
+el primer dato) y lo verifica de punta a punta. `pnpm lint && pnpm
+typecheck && pnpm test && pnpm build && pnpm test:e2e` en verde (705
+tests unitarios, 38 de interfaz — uno nuevo). **No probado todavía por el
+dueño en pantalla.**
+
+Antes de esto — **Constante A oficial por
 lente, para Barrett (D69, amplía Y CORRIGE D33) — dos errores del primer
 intento, corregidos el mismo día.** El dueño probó la primera versión y
 avisó de dos cosas: la constante de LuxSmart estaba mal (118.5, no 118.4,

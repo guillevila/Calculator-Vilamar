@@ -822,6 +822,36 @@ test('la constante A escrita en un ojo se copia sola al otro, sin pisar la que y
 })
 
 /**
+ * Fallo real reportado por el dueño del proyecto (05/09/2026): eligió la
+ * lente ANTES de escribir ningún dato del ojo, y la constante A del
+ * catálogo (D69) se quedaba sin aplicar — `elegirLente()` solo puede
+ * escribir en los ojos que ya existen, y todavía no había ninguno.
+ */
+test('la constante A del catálogo (D69) se aplica sola en cuanto el ojo tiene su primer dato, aunque la lente se eligiera antes', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  // Se elige la lente ANTES de escribir ningún dato de biometría — todavía
+  // no hay ningún ojo al que engancharle la constante. Sale un aviso de
+  // que la constante llegará en cuanto haya datos, además del que confirma
+  // cuál se ha elegido.
+  await ventana.getByTestId('selector-lente').selectOption('B&L Envy')
+  await expect(ventana.getByTestId('aviso-lente')).toContainText([
+    /119\.28/,
+    /se aplicará cuando los haya/i,
+  ])
+
+  // En cuanto OD tiene su primer dato, se rellena sola.
+  await ventana.getByTestId('manual-campo-AL').fill('24.00')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await expect(ventana.getByTestId('manual-campo-CONSTANTE_A')).toHaveValue('119.28')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.medidas?.CONSTANTE_A?.valor).toBe(119.28)
+  expect(caso?.ojos?.OD?.[0]?.medidas?.CONSTANTE_A?.procedencia?.metodo).toBe('CATALOGO')
+})
+
+/**
  * Petición expresa del dueño del proyecto (02/09/2026): con datos completos
  * en los dos ojos, poder elegir calcular los dos a la vez o solo uno, en
  * vez de lanzar siempre las dos calculadoras aunque solo haga falta una.

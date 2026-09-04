@@ -35,9 +35,11 @@ import {
   conAparatoCaraPosterior,
   conAparatoRenombrado,
   conSituacionCorneal,
+  conMedida,
   conOjo,
   conResultado,
   corregirMedida,
+  crearMedida,
   aportarSexo,
   confirmarSexo as confirmarSexoDelDominio,
   criterioEsferaPara,
@@ -504,6 +506,31 @@ export class ServicioCasos {
           ),
           this.iso(),
         )
+      } else {
+        // 3. Ni siquiera el otro ojo la tiene: si ya se había elegido una
+        //    lente con constante conocida del catálogo (D69) ANTES de que
+        //    este dataset existiera, `elegirLente()` no pudo escribirla en
+        //    su momento —no había ojo al que engancharla—, así que se
+        //    aplica ahora, en el mismo movimiento que crea el dataset. Es
+        //    el caso real reportado por el dueño: elegir la lente antes de
+        //    escribir ningún dato del ojo.
+        const delCatalogo = conElOjo.lente?.constanteDelCatalogo
+        if (delCatalogo !== undefined) {
+          conElOjo = conOjo(
+            conElOjo,
+            conMedida(
+              ojoDe(conElOjo, lado, aparato),
+              crearMedida(
+                'CONSTANTE_A',
+                lado,
+                delCatalogo.valor,
+                { metodo: 'CATALOGO', registradoEn: this.iso() },
+                true,
+              ),
+            ),
+            this.iso(),
+          )
+        }
       }
     }
 

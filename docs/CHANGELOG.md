@@ -4,6 +4,38 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.24] — 05/09/2026
+
+fix(app): la constante A del catalogo (D69) se aplica sola en cuanto el
+ojo tiene su primer dato, aunque la lente se eligiera antes.
+
+### Qué se pidió
+
+El dueño probó D69 (corregida en la versión anterior) en el orden natural:
+eligió la lente en el cuestionario manual antes de escribir ningún dato
+del ojo. La casilla de constante A se quedaba vacía.
+
+### El cambio
+
+`elegirLente()` solo puede escribir `CONSTANTE_A` en los ojos que ya
+tienen algún dato -- no hay ojo al que enganchar la medida si no existe
+ninguno todavia. `ServicioCasos.editarMedida()` gana una tercera regla,
+junto a la ya existente de D66 (la constante se copia sola entre los dos
+ojos): en cuanto un ojo recibe su PRIMER dato, si hay una lente elegida
+con constante del catálogo pendiente de aplicar, se escribe en ese mismo
+movimiento.
+
+### Verificado
+
+Test nuevo en `flujo.spec.ts` que reproduce el caso exacto del dueño:
+elegir la lente con el ojo vacío, comprobar el aviso de "se aplicará
+cuando los haya", escribir el primer dato, y comprobar que la constante
+aparece sola con procedencia `CATALOGO`. `pnpm lint && pnpm typecheck &&
+pnpm test && pnpm build && pnpm test:e2e` en verde (705 tests unitarios,
+38 de interfaz).
+
+---
+
 ## [1.15.23] — 05/09/2026
 
 fix(dominio): corregir D69 -- el catalogo de lentes manda sobre la tabla
