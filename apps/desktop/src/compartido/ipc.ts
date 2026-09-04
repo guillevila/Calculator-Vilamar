@@ -211,6 +211,14 @@ export interface ApiVilamar {
      */
     nombreEnEvo?: string,
     nombreEnKane?: string,
+    /**
+     * Constante A general del catálogo propio de la app para esta lente —no
+     * del informe de este paciente— (D33, ampliada 04/09/2026). Solo se usa
+     * si la lente no está en la tabla de lentes del informe, y nunca pisa
+     * una constante escrita a mano. Sale marcada como no confirmada
+     * específicamente para la fórmula de Barrett.
+     */
+    constanteConocida?: number,
   ) => Promise<{
     readonly caso: Caso
     readonly avisos: readonly string[]
@@ -228,6 +236,7 @@ export interface ApiVilamar {
     readonly modelo: string
     readonly nombreEnEvo?: string
     readonly nombreEnKane?: string
+    readonly constanteConocida?: number
   }) => Promise<Caso>
 
   /**

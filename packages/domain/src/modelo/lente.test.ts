@@ -35,7 +35,7 @@ import {
 } from './medida.js'
 import { prepararEntradas } from './preparar-entradas.js'
 import type { Procedencia } from './procedencia.js'
-import { origenDe } from './procedencia.js'
+import { necesitaComprobacionHumana, origenDe } from './procedencia.js'
 import { elegirLente, elegirLenteSecundaria, intercambiarLentes } from './seleccion-lente.js'
 
 const CUANDO = '2026-08-12T10:00:00.000Z'
@@ -372,6 +372,75 @@ describe('una lente que no está en el informe', () => {
     const r = elegirLente(casoConLentes(), { modelo: 'Bausch&Lomb enVista MX70' }, LUEGO)
     expect(r.emparejamiento.estado).toBe('NO_ESTA')
     expect(constanteDe(r.caso)).toBeUndefined()
+  })
+})
+
+describe('constante conocida del catálogo propio (D33, ampliada 04/09/2026) — solo cuando el informe no la trae', () => {
+  it('se aplica cuando la lente no está en el informe', () => {
+    const r = elegirLente(
+      casoConLentes(),
+      { modelo: 'Alcon SN6ATx', constanteConocida: 119.1 },
+      LUEGO,
+    )
+    expect(r.emparejamiento.estado).toBe('NO_ESTA')
+    expect(constanteDe(r.caso)?.valor).toBe(119.1)
+  })
+
+  it('queda como DERIVADO y pide comprobación humana — es un valor general, no confirmado para Barrett', () => {
+    const r = elegirLente(
+      casoConLentes(),
+      { modelo: 'Alcon SN6ATx', constanteConocida: 119.1 },
+      LUEGO,
+    )
+    const m = constanteDe(r.caso)
+    expect(m?.procedencia.metodo).toBe('DERIVADO')
+    expect(m && necesitaComprobacionHumana(m.procedencia)).toBe(true)
+    expect(r.avisos.join(' ')).toMatch(/no confirmado específicamente para la fórmula de Barrett/i)
+  })
+
+  it('si el informe SÍ trae esta lente con su propia constante, esa manda, no la del catálogo', () => {
+    // 'LUX SMART' está en `LAS_CUATRO` con 118.5 — un valor de catálogo
+    // distinto no puede ganarle a un dato específico de este paciente.
+    const r = elegirLente(casoConLentes(), { modelo: 'LUX SMART', constanteConocida: 119.9 }, LUEGO)
+    expect(r.emparejamiento.estado).toBe('ENCONTRADA')
+    expect(constanteDe(r.caso)?.valor).toBe(118.5)
+  })
+
+  it('no pisa una constante escrita a mano', () => {
+    let caso = casoConLentes()
+    caso = conOjo(caso, corregirMedida(ojoDe(caso, 'OD'), 'CONSTANTE_A', 118.0, LUEGO), LUEGO)
+    const r = elegirLente(caso, { modelo: 'Alcon SN6ATx', constanteConocida: 119.1 }, LUEGO)
+    expect(constanteDe(r.caso)?.valor).toBe(118.0)
+    expect(r.avisos.join(' ')).toMatch(/la escribiste tú/i)
+  })
+
+  it('se quita sola al cambiar a una lente sin constante conocida — no se hereda de una lente a otra', () => {
+    const conCatalogo = elegirLente(
+      casoConLentes(),
+      { modelo: 'Alcon SN6ATx', constanteConocida: 119.1 },
+      LUEGO,
+    )
+    expect(constanteDe(conCatalogo.caso)?.valor).toBe(119.1)
+
+    const otra = elegirLente(conCatalogo.caso, { modelo: 'Alcon SA6ATx' }, LUEGO)
+    expect(constanteDe(otra.caso)).toBeUndefined()
+    expect(otra.avisos.join(' ')).toMatch(/no se hereda de una lente a otra/i)
+  })
+
+  it('la lente aparcada lleva su constante conocida, y se aplica al intercambiarla', () => {
+    const conPrincipal = elegirLente(
+      casoConLentes(),
+      { modelo: 'Bausch&Lomb Akreos AO MI60' },
+      LUEGO,
+    ).caso
+    const conSecundaria = elegirLenteSecundaria(
+      conPrincipal,
+      { modelo: 'Alcon SN6ATx', constanteConocida: 119.1 },
+      LUEGO,
+    )
+
+    const r = intercambiarLentes(conSecundaria, LUEGO)
+    expect(constanteDe(r.caso)?.valor).toBe(119.1)
   })
 })
 

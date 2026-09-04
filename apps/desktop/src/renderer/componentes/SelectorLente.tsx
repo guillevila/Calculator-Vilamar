@@ -38,20 +38,32 @@ interface Props {
  * sus formularios. Añadir uno aquí solo tiene sentido si aparece con ese
  * nombre exacto en alguna de ellas.
  *
- * **Estos NO traen constante.** La constante sale del informe o la escribes tú.
+ * **Estos NO traen constante**, salvo los marcados con `constanteConocida`
+ * — ver más abajo. La constante, si no, sale del informe o la escribes tú.
  *
  * `nombreEnEvo`/`nombreEnKane` existen porque el MISMO modelo físico se llama
  * distinto en cada desplegable (petición expresa del dueño, 27/08/2026):
  * «B&L LuxSmart» en EVO es «B+L LuxSmart Toric» en Kane. Sin ellos, cada
  * adaptador busca `modelo` tal cual — sigue así para los modelos de esta
- * lista que ya se llaman igual en las dos webs. Barrett no tiene desplegable
- * de lentes (D33): sigue con la constante del caso, sin cambios.
+ * lista que ya se llaman igual en las dos webs.
+ *
+ * `constanteConocida` es la excepción a D33 (ampliada 04/09/2026, petición
+ * expresa del dueño del proyecto): Barrett no tiene desplegable de lentes,
+ * así que —a diferencia de EVO y Kane, que resuelven su propia constante en
+ * su propia web— nunca tenía forma de recibir una sin escribirla a mano
+ * cada vez. Son valores **generales del fabricante que dio el propio
+ * dueño**, confirmados como tales pero **no verificados específicamente
+ * para la fórmula de Barrett** — por eso, al aplicarse, quedan marcados
+ * como derivados y piden comprobación humana antes de calcular (ver
+ * `seleccion-lente.ts`). Solo se usan si el informe no trae su propia tabla
+ * de lentes para ese modelo — si la trae, esa constante manda siempre.
  */
 const MODELOS: readonly {
   fabricante: string
   modelo: string
   nombreEnEvo?: string
   nombreEnKane?: string
+  constanteConocida?: number
 }[] = [
   { fabricante: 'Alcon', modelo: 'Alcon SN6ATx' },
   { fabricante: 'Alcon', modelo: 'Alcon SA6ATx' },
@@ -59,18 +71,20 @@ const MODELOS: readonly {
   { fabricante: 'Alcon', modelo: 'Alcon Panoptix' },
   { fabricante: 'Johnson & Johnson', modelo: 'Tecnis' },
   { fabricante: 'Bausch & Lomb', modelo: 'B&L MX60T' },
-  { fabricante: 'Bausch & Lomb', modelo: 'B&L MX60ET/PT' },
+  { fabricante: 'Bausch & Lomb', modelo: 'B&L MX60ET/PT', constanteConocida: 119.1 },
   {
     fabricante: 'Bausch & Lomb',
     modelo: 'B&L Aspire',
     nombreEnEvo: 'B&L Aspire',
     nombreEnKane: 'B+L enVista Aspire Toric',
+    constanteConocida: 119.1,
   },
   {
     fabricante: 'Bausch & Lomb',
     modelo: 'B&L Envy',
     nombreEnEvo: 'B&L Envy',
     nombreEnKane: 'B+L enVista Envy Toric',
+    constanteConocida: 119.28,
   },
   {
     fabricante: 'Bausch & Lomb',
@@ -83,12 +97,14 @@ const MODELOS: readonly {
     modelo: 'B&L LuxSmart',
     nombreEnEvo: 'B&L LuxSmart',
     nombreEnKane: 'B+L LuxSmart Toric',
+    constanteConocida: 118.4,
   },
   {
     fabricante: 'Bausch & Lomb',
     modelo: 'B&L LuxLife',
     nombreEnEvo: 'B&L LuxLife',
     nombreEnKane: 'B+L LuxLife Toric',
+    constanteConocida: 118.63,
   },
   { fabricante: 'Rayner', modelo: 'Rayner EMV' },
   { fabricante: 'ZEISS', modelo: 'Zeiss 709M/MP' },
@@ -119,8 +135,9 @@ export function SelectorLente({ caso, onCambio }: Props): JSX.Element {
     modelo: string,
     nombreEnEvo?: string,
     nombreEnKane?: string,
+    constanteConocida?: number,
   ): Promise<void> {
-    const r = await api().elegirLente(fabricante, modelo, nombreEnEvo, nombreEnKane)
+    const r = await api().elegirLente(fabricante, modelo, nombreEnEvo, nombreEnKane, constanteConocida)
     setAvisos(r?.avisos ?? [])
     await onCambio()
   }
@@ -132,7 +149,13 @@ export function SelectorLente({ caso, onCambio }: Props): JSX.Element {
     }
     setOtro(false)
     const encontrado = MODELOS.find((m) => m.modelo === modelo)
-    await elegir(encontrado?.fabricante ?? '', modelo, encontrado?.nombreEnEvo, encontrado?.nombreEnKane)
+    await elegir(
+      encontrado?.fabricante ?? '',
+      modelo,
+      encontrado?.nombreEnEvo,
+      encontrado?.nombreEnKane,
+      encontrado?.constanteConocida,
+    )
   }
 
   async function guardarLibre(): Promise<void> {
@@ -247,6 +270,12 @@ export function SelectorLente({ caso, onCambio }: Props): JSX.Element {
               . Constante A <strong>{caso.lente.constanteDeLaTabla.valor.toFixed(2)}</strong>, del
               informe.
             </>
+          ) : caso.lente.constanteDelCatalogo ? (
+            <>
+              . Constante A <strong>{caso.lente.constanteDelCatalogo.valor.toFixed(2)}</strong>, del
+              catálogo — un valor general, no confirmado específicamente para Barrett;
+              compruébala en «Biometría» antes de calcular.
+            </>
           ) : (
             '. Si una calculadora no tiene ese modelo, usará la constante A que hayas puesto y lo indicará.'
           )}
@@ -291,8 +320,9 @@ function SelectorLenteSecundaria({ caso, onCambio }: Props): JSX.Element {
     modelo: string,
     nombreEnEvo?: string,
     nombreEnKane?: string,
+    constanteConocida?: number,
   ): Promise<void> {
-    await api().elegirLenteSecundaria({ fabricante, modelo, nombreEnEvo, nombreEnKane })
+    await api().elegirLenteSecundaria({ fabricante, modelo, nombreEnEvo, nombreEnKane, constanteConocida })
     await onCambio()
   }
 
@@ -309,7 +339,13 @@ function SelectorLenteSecundaria({ caso, onCambio }: Props): JSX.Element {
     }
     setOtro(false)
     const encontrado = MODELOS.find((m) => m.modelo === modelo)
-    await elegir(encontrado?.fabricante ?? '', modelo, encontrado?.nombreEnEvo, encontrado?.nombreEnKane)
+    await elegir(
+      encontrado?.fabricante ?? '',
+      modelo,
+      encontrado?.nombreEnEvo,
+      encontrado?.nombreEnKane,
+      encontrado?.constanteConocida,
+    )
   }
 
   async function guardarLibre(): Promise<void> {

@@ -4,6 +4,55 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.22] — 05/09/2026
+
+feat(dominio): constante A conocida por lente, para Barrett (D69, amplía
+D33) · feat(app): pantalla de revisión con el mismo rediseño visual que el
+cuestionario manual (04/09/2026).
+
+### Qué se pidió
+
+El dueño pidió dos cosas: (1) que la pantalla de revisión (cuando los
+datos vienen de un documento cargado) se viera igual que el cuestionario
+manual, ya rediseñado; (2) que, igual que EVO y Kane resuelven su propia
+constante A al elegir una lente en su propio desplegable, Barrett —que no
+tiene ese desplegable— reciba una constante conocida directamente al
+elegir la lente en el cuestionario de la app, para las lentes que más usa.
+
+### El cambio
+
+**Rediseño de `PanelRevision.tsx`**: misma cabecera (insignia BIO, barra
+de progreso) y mismas tarjetas de sección numeradas con franja de color
+que `FormularioManual.tsx`. `CAMPOS_DESTACADOS` se movió a un fichero
+compartido (`camposNucleo.ts`) para que las dos pantallas no puedan
+divergir. Se mantiene todo lo propio de la revisión (Origen, Estado,
+evidencia) sin tocar.
+
+**Constante A conocida por lente**: `seleccion-lente.ts` gana
+`EleccionLente.constanteConocida` y una nueva regla —además de las cuatro
+de D33—: si la lente elegida no está en la tabla de lentes del informe,
+se aplica esta constante general del catálogo, con procedencia `DERIVADO`
+(pide comprobación humana: son valores generales del fabricante, no
+verificados específicamente para la fórmula de Barrett, confirmado
+expresamente por el dueño). Nunca pisa una constante escrita a mano, y se
+quita sola al cambiar a otra lente — mismo mecanismo que ya usaba
+`constanteDeLaTabla`, con su propio marcador `constanteDelCatalogo` en
+`LenteElegida`. Cinco modelos de Bausch & Lomb llevan ya su valor en
+`SelectorLente.tsx`: B&L Aspire (119.1), MX60ET/PT (119.1), Envy (119.28),
+LuxSmart (118.4), LuxLife (118.63). Decisión D69 en `SYSTEM_VISION.md`.
+
+### Verificado
+
+`pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+en verde (704 tests unitarios — 6 nuevos sobre la constante conocida,
+cubriendo las cuatro reglas; 37 de interfaz). Un test nuevo detectó un
+fallo real en la primera versión (el marcador de «cuál era la lente
+anterior» se leía del caso ya reescrito con la lente nueva, así que nunca
+se quitaba una constante de catálogo al cambiar de lente) — corregido
+antes de dar el cambio por bueno.
+
+---
+
 ## [1.15.21] — 03/09/2026
 
 feat(dominio): sexo por defecto (D68) · fix(app): «Reintentar» en

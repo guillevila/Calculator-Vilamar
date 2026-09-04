@@ -38,6 +38,18 @@ export interface EleccionLente {
    */
   readonly nombreEnEvo?: string
   readonly nombreEnKane?: string
+  /**
+   * Constante A general de esta lente, del catálogo propio de la app —no
+   * del informe de este paciente— (D33, ampliada 04/09/2026, petición
+   * expresa del dueño del proyecto: Barrett no tiene desplegable de
+   * lentes, así que nunca resuelve su propia constante como sí hacen EVO y
+   * Kane en su propia web).
+   *
+   * Se usa SOLO cuando la lente no está en la tabla de lentes del propio
+   * informe —si está, esa constante manda siempre: es específica de este
+   * paciente—. Y nunca pisa una constante que haya escrito una persona.
+   */
+  readonly constanteConocida?: number
 }
 
 export interface ResultadoSeleccion {
@@ -77,6 +89,9 @@ export function elegirLente(
     modelo: eleccion.modelo,
     ...(eleccion.nombreEnEvo ? { nombreEnEvo: eleccion.nombreEnEvo } : {}),
     ...(eleccion.nombreEnKane ? { nombreEnKane: eleccion.nombreEnKane } : {}),
+    ...(eleccion.constanteConocida !== undefined
+      ? { constanteConocida: eleccion.constanteConocida }
+      : {}),
   }
 
   if (emparejamiento.estado === 'AMBIGUA') {
@@ -91,14 +106,27 @@ export function elegirLente(
   }
 
   if (emparejamiento.estado === 'NO_ESTA') {
-    if (lentes.length > 0) {
+    if (lentes.length > 0 && eleccion.constanteConocida === undefined) {
       avisos.push(
         `«${eleccion.modelo}» no aparece en el informe, así que no se le ha puesto ninguna constante A. ` +
           'No se reutiliza la de otra lente: escríbela tú. ' +
           `El informe sí trae ${lentes.length === 1 ? 'esta' : 'estas'}: ${lentes.map(describirLente).join(' · ')}.`,
       )
     }
-    return { ...quitarSiEraDeLaTabla(caso, base, cuando, avisos), avisos, emparejamiento }
+    const sinTabla = quitarSiEraDeLaTabla(caso, base, cuando, avisos)
+    return {
+      ...aplicarConstanteDelCatalogo(
+        caso,
+        sinTabla.caso,
+        base,
+        eleccion.modelo,
+        eleccion.constanteConocida,
+        cuando,
+        avisos,
+      ),
+      avisos,
+      emparejamiento,
+    }
   }
 
   const lente = emparejamiento.lente
@@ -209,6 +237,121 @@ function quitarSiEraDeLaTabla(
 }
 
 /**
+ * Aplica la constante A del catálogo propio de la app, cuando la lente
+ * elegida no está en la tabla del informe (D33, ampliada 04/09/2026,
+ * petición expresa del dueño del proyecto: antes de esto, elegir una lente
+ * que el informe no trae dejaba la constante siempre vacía para Barrett,
+ * aunque la app conociera su valor general — a diferencia de EVO y Kane,
+ * que resuelven la suya propia en su propio desplegable).
+ *
+ * Mismas dos protecciones que la constante de la tabla del informe: nunca
+ * pisa lo que ha escrito una persona, y se quita sola al cambiar a otra
+ * lente —del catálogo o no—, para no arrastrarla de una a otra.
+ *
+ * Se escribe con procedencia `DERIVADO`: es un valor GENERAL de fabricante,
+ * confirmado por el dueño del proyecto pero **no específicamente para la
+ * fórmula de Barrett** —a diferencia de la constante de la tabla del
+ * informe, que si el informe la trae es la que corresponde a este
+ * paciente—. Por eso pide comprobación humana antes de calcular, igual que
+ * cualquier otro dato que el programa aporta sin que nadie lo haya
+ * revisado todavía.
+ */
+function aplicarConstanteDelCatalogo(
+  casoOriginal: Caso,
+  caso: Caso,
+  base: LenteElegida,
+  modelo: string,
+  constanteConocida: number | undefined,
+  cuando: string,
+  avisos: string[],
+): { readonly caso: Caso } {
+  // OJO: el marcador de «cuál era la lente anterior» se lee del caso ORIGINAL
+  // — `caso` (el segundo parámetro) puede llegar ya con `lente` reescrito a
+  // la lente nueva por `quitarSiEraDeLaTabla`, y leerlo de ahí siempre
+  // daría «no había ninguna anterior».
+  const anterior = casoOriginal.lente?.constanteDelCatalogo
+  let resultado = caso
+
+  if (anterior !== undefined) {
+    let quitada = false
+    for (const lado of ojosDelCaso(caso)) {
+      const ojo = ojoDe(resultado, lado)
+      const actual = obtener(ojo, 'CONSTANTE_A')
+      // Solo se quita si sigue siendo exactamente la que puso el catálogo. Si
+      // alguien la ha cambiado por su cuenta, ya no es «la de la lente anterior».
+      if (actual === undefined || esManual(actual.procedencia) || actual.valor !== anterior.valor) {
+        continue
+      }
+      resultado = conOjo(resultado, sinMedida(ojo, 'CONSTANTE_A'), cuando)
+      quitada = true
+    }
+    if (quitada && constanteConocida === undefined) {
+      avisos.push(
+        `Se ha quitado la constante A ${anterior.valor.toFixed(2)}, que era la del catálogo para ` +
+          `«${anterior.modelo}». Una constante no se hereda de una lente a otra.`,
+      )
+    }
+  }
+
+  if (constanteConocida === undefined) {
+    return { caso: { ...resultado, lente: base, actualizadoEn: cuando } }
+  }
+
+  const conflictos: Lateralidad[] = []
+  for (const lado of ojosDelCaso(resultado)) {
+    const ojo = ojoDe(resultado, lado)
+    const actual = obtener(ojo, 'CONSTANTE_A')
+
+    if (actual !== undefined && esManual(actual.procedencia)) {
+      conflictos.push(lado)
+      continue
+    }
+
+    resultado = conOjo(
+      resultado,
+      conMedida(ojo, crearMedida('CONSTANTE_A', lado, constanteConocida, {
+        metodo: 'DERIVADO',
+        registradoEn: cuando,
+        derivacion: {
+          deCampos: ['catálogo de lentes'],
+          explicacion:
+            `Constante A general del catálogo para «${modelo}» — no confirmada ` +
+            'específicamente para la fórmula de Barrett',
+        },
+      })),
+      cuando,
+    )
+  }
+
+  if (conflictos.length > 0) {
+    avisos.push(
+      `La constante A que hay la escribiste tú, así que no se ha cambiado. El catálogo da ` +
+        `${constanteConocida.toFixed(2)} para «${modelo}»: si quieres esa, bórrala y vuelve a elegir la lente.`,
+    )
+  } else {
+    avisos.push(
+      `Constante A ${constanteConocida.toFixed(2)} del catálogo para «${modelo}» — es un valor ` +
+        'general del fabricante, no confirmado específicamente para la fórmula de Barrett. Compruébala antes de calcular.',
+    )
+  }
+
+  if (ojosDelCaso(resultado).length === 0) {
+    avisos.push(
+      `Todavía no hay datos de ningún ojo, así que la constante A de «${modelo}» ` +
+        `(${constanteConocida.toFixed(2)}) se aplicará cuando los haya.`,
+    )
+  }
+
+  return {
+    caso: {
+      ...resultado,
+      lente: { ...base, constanteDelCatalogo: { modelo, valor: constanteConocida } },
+      actualizadoEn: cuando,
+    },
+  }
+}
+
+/**
  * La procedencia de una constante sacada de la tabla de lentes.
  *
  * Hereda el método de lectura de la propia lente —texto del PDF, OCR o visión—,
@@ -253,6 +396,9 @@ export function elegirLenteSecundaria(
     modelo: eleccion.modelo,
     ...(eleccion.nombreEnEvo ? { nombreEnEvo: eleccion.nombreEnEvo } : {}),
     ...(eleccion.nombreEnKane ? { nombreEnKane: eleccion.nombreEnKane } : {}),
+    ...(eleccion.constanteConocida !== undefined
+      ? { constanteConocida: eleccion.constanteConocida }
+      : {}),
   }
   return { ...caso, lenteSecundaria, actualizadoEn: cuando }
 }
@@ -290,6 +436,9 @@ export function intercambiarLentes(caso: Caso, cuando: string): ResultadoSelecci
       modelo,
       ...(lenteSecundaria.nombreEnEvo ? { nombreEnEvo: lenteSecundaria.nombreEnEvo } : {}),
       ...(lenteSecundaria.nombreEnKane ? { nombreEnKane: lenteSecundaria.nombreEnKane } : {}),
+      ...(lenteSecundaria.constanteConocida !== undefined
+        ? { constanteConocida: lenteSecundaria.constanteConocida }
+        : {}),
     },
     cuando,
   )

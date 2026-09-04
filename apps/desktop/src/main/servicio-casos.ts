@@ -841,13 +841,18 @@ export class ServicioCasos {
     modelo: string,
     nombreEnEvo?: string,
     nombreEnKane?: string,
+    constanteConocida?: number,
   ): {
     caso: Caso
     avisos: readonly string[]
     emparejamiento: 'ENCONTRADA' | 'AMBIGUA' | 'NO_ESTA'
   } {
     const caso = this.exigirCaso()
-    const r = elegirLenteDelDominio(caso, { fabricante, modelo, nombreEnEvo, nombreEnKane }, this.iso())
+    const r = elegirLenteDelDominio(
+      caso,
+      { fabricante, modelo, nombreEnEvo, nombreEnKane, constanteConocida },
+      this.iso(),
+    )
     return {
       caso: this.establecer(r.caso),
       avisos: r.avisos,
@@ -867,6 +872,7 @@ export class ServicioCasos {
     modelo: string
     nombreEnEvo?: string
     nombreEnKane?: string
+    constanteConocida?: number
   }): Caso {
     const caso = this.exigirCaso()
     return this.establecer(elegirLenteSecundariaDelDominio(caso, eleccion, this.iso()))

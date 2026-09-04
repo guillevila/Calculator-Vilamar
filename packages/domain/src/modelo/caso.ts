@@ -173,6 +173,27 @@ export interface LenteElegida {
    * exactamente la clase de deducción frágil que este modelo evita.
    */
   readonly constanteDeLaTabla?: { readonly modelo: string; readonly valor: number }
+  /**
+   * Constante A general de esta lente, del catálogo propio de la app —no
+   * del informe de este paciente— (D33, ampliada 04/09/2026). Solo se
+   * guarda para poder llevarla de la lente aparcada (`lenteSecundaria`) a
+   * la activa cuando se intercambian con `intercambiarLentes`; la que de
+   * verdad se ha escrito en `CONSTANTE_A` la marca `constanteDelCatalogo`.
+   */
+  readonly constanteConocida?: number
+  /**
+   * Si la `CONSTANTE_A` del caso salió del catálogo propio de la app (no
+   * del informe de este paciente), de qué modelo y con qué valor.
+   *
+   * Mismo motivo que `constanteDeLaTabla`, y la misma regla: permite
+   * quitarla sola al cambiar de lente, sin arrastrarla de una a otra. Una
+   * constante del catálogo es un valor GENERAL de fabricante, no
+   * confirmado para la fórmula concreta de Barrett — por eso se escribe
+   * con procedencia `DERIVADO` y pide comprobación humana antes de
+   * calcular, a diferencia de la de la tabla del informe (que si el
+   * informe la trae, es específica de este paciente).
+   */
+  readonly constanteDelCatalogo?: { readonly modelo: string; readonly valor: number }
 }
 
 export function claveResultado(

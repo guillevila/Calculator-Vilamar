@@ -9,7 +9,30 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 04/09/2026 · **`PanelRevision.tsx` (la pantalla
+**Última actualización:** 05/09/2026 · **Constante A conocida por lente,
+para Barrett (D69, amplía D33).** Petición expresa del dueño: igual que
+EVO y Kane resuelven su propia constante en su propio desplegable,
+Barrett —que no tiene desplegable de lentes propio— ahora puede recibir
+una constante A conocida directamente al elegir la lente en el
+cuestionario, en vez de exigir escribirla a mano siempre. Cinco modelos de
+Bausch & Lomb llevan ya su constante en el catálogo de la app (B&L
+Aspire 119.1, MX60ET/PT 119.1, Envy 119.28, LuxSmart 118.4, LuxLife
+118.63) — valores que dio el propio dueño, confirmados como **generales
+del fabricante, no verificados específicamente para la fórmula de
+Barrett**. Por eso se aplican con procedencia `DERIVADO` y piden
+comprobación humana antes de calcular — no se envían a Barrett sin que
+alguien las mire, igual que cualquier otro dato que aporta el programa
+sin revisar. Solo se usan si el informe del paciente no trae su propia
+tabla de lentes para ese modelo (si la trae, esa constante manda
+siempre) y nunca pisan una constante escrita a mano. Un test nuevo
+(6 casos) en `packages/domain/src/modelo/lente.test.ts` cubre las cuatro
+reglas: se aplica sin informe, no gana a la del informe, no pisa lo
+manual, y se quita sola al cambiar de lente. `pnpm lint && pnpm typecheck
+&& pnpm test && pnpm build && pnpm test:e2e` en verde (704 tests
+unitarios, 37 de interfaz). **No probado todavía por el dueño en
+pantalla.**
+
+Antes de esto — **`PanelRevision.tsx` (la pantalla
 de revisión, para cuando los datos vienen de un documento cargado) tiene ya
 el mismo rediseño visual que `FormularioManual.tsx`** — misma cabecera con
 insignia BIO y barra de progreso, mismas tarjetas de sección numeradas con

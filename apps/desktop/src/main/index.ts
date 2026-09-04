@@ -339,8 +339,10 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   ipcMain.handle(CANALES.editarSituacionCorneal, (_e, ojo, aparato, situacionCorneal) =>
     s().editarSituacionCorneal(ojo, aparato, situacionCorneal),
   )
-  ipcMain.handle(CANALES.elegirLente, (_e, fabricante, modelo, nombreEnEvo, nombreEnKane) =>
-    s().elegirLente(fabricante, modelo, nombreEnEvo, nombreEnKane),
+  ipcMain.handle(
+    CANALES.elegirLente,
+    (_e, fabricante, modelo, nombreEnEvo, nombreEnKane, constanteConocida) =>
+      s().elegirLente(fabricante, modelo, nombreEnEvo, nombreEnKane, constanteConocida),
   )
   ipcMain.handle(CANALES.elegirLenteSecundaria, (_e, eleccion) =>
     s().elegirLenteSecundaria(eleccion),
