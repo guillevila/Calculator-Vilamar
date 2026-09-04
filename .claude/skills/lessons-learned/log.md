@@ -1957,12 +1957,16 @@ otra vez.
 guarda (`diagnostico/kane-*/informe.json`) decía `net::ERR_TIMED_OUT` /
 `TimeoutError` al cargar `https://www.iolformula.com/` — **ni siquiera
 llegaba a abrir la página**, antes de tocar ningún selector. Confirmado en
-30 segundos con `curl`/`Test-NetConnection` fuera de la app (mismo
-timeout; Google y EVO respondían al instante) y, de forma definitiva, con
-el propio dueño abriendo esa URL en DOS navegadores normales de su
-ordenador (Edge y otro) — mismo `ERR_TIMED_OUT` en los dos. La web de Kane
-(o la red hacia ella) estaba inalcanzable para cualquiera, no solo para el
-adaptador.
+30 segundos con `curl` fuera de la app (mismo timeout; Google y EVO
+respondían al instante) y, de forma definitiva, con el propio dueño
+abriendo esa URL en DOS navegadores normales de su ordenador — mismo
+`ERR_TIMED_OUT` en los dos. Unos minutos después, la misma URL cargaba
+bien desde el móvil del dueño Y desde el mismo ordenador con el mismo
+`curl` que antes fallaba: era la web de Kane caída de verdad un rato
+—coincide con los tres fallos guardados en ~15 minutos—, no un bloqueo de
+ninguna red concreta. Se descartó la hipótesis intermedia («la red de la
+oficina la bloquea») en cuanto una nueva comprobación, en el mismo sitio
+donde antes fallaba, empezó a funcionar sin que nadie cambiara nada.
 
 **Lección:** Antes de investigar un fallo de Kane/EVO/Barrett como un bug
 del adaptador, **mirar primero el `errorTecnico` guardado en
