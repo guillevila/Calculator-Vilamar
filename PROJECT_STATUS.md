@@ -9,7 +9,35 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 06/09/2026 (5) · **Fallo real corregido: un
+**Última actualización:** 07/09/2026 · **Corregida una hoja en blanco que
+aparecía tras recortar las capturas del PDF.** El dueño probó el cambio
+anterior (D71) con un caso real completo y encontró una página casi vacía
+entre el resultado de Barrett y el de Kane: el límite de alto de la
+imagen (250mm) dejaba muy poco margen para la cabecera y el pie de la
+misma hoja, y una captura recortada (más alta en proporción que la
+página entera de antes) podía superarlo, empujando el pie a una segunda
+hoja. Bajado a 210mm. Verificado montando la captura real de Barrett del
+propio caso del dueño en la hoja de estilos exacta del informe e
+imprimiéndola a PDF: una sola página, cabecera+captura+pie los tres
+dentro. `pnpm lint && pnpm typecheck && pnpm test && pnpm build` en verde
+(709 tests unitarios).
+
+Antes de esto — **Las capturas del PDF se
+recortan a la zona del resultado, no a la página entera (D71, corrige
+D37).** El dueño enseñó tres capturas reales (EVO, Kane, Barrett) con
+mucho margen en blanco alrededor de una tabla pequeña, y pidió agrandar
+lo que importa. D37 exigía «sin recortar ni interpretar» — se le explicó
+la tensión antes de tocar nada y eligió recortar, informado de que es
+reversible. Se recorta la VENTANA de cada web (cabecera, menú, fondo de
+página), nunca la información: ni un dato de lo que la calculadora
+mostró queda fuera. Los tres selectores (`.shell` en EVO, `.kf_form` en
+Kane, el `<iframe>` de `calc.apacrs.org` en Barrett/Barrett True K) se
+comprobaron en vivo con `pnpm live`, no se adivinaron del pantallazo; las
+tres capturas resultantes se revisaron una a una tras el cambio. `pnpm
+lint && pnpm typecheck && pnpm test && pnpm build` en verde (709 tests
+unitarios).
+
+Antes de esto — **Fallo real corregido: un
 ojo se veía en blanco al cambiar de pestaña OD/OS tras renombrar el
 aparato de solo uno de los dos.** El dueño lo reportó con capturas de un
 caso real de 34 datos (Heidelberg ANTERION) tras usar el nuevo botón

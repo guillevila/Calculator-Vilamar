@@ -622,9 +622,19 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
     const entradasSegunLaWeb: Record<string, string> = {}
     if (neto) entradasSegunLaWeb['Astigmatismo neto'] = `${neto.magnitud} D @ ${neto.eje}°`
 
-    // La captura se toma de la página entera: el resultado vive en el iframe
-    // «Toric IOL», que ya está visible dentro de `pagina` en este punto.
-    const capturaId = await capturarResultado(pagina, ctx, this.calculadora)
+    // El resultado vive en el iframe «Toric IOL», que ya está visible dentro
+    // de `pagina` en este punto — pero `pagina` es la web entera de la
+    // ASCRS, con su cabecera, menú y pie propios, mucho más grandes que la
+    // calculadora en sí. Se recorta al PROPIO elemento `<iframe>` (comprobado
+    // en vivo, 06/09/2026): captura exactamente lo que ese recuadro enseña,
+    // ni un píxel más ni menos — es la web de la ASCRS la que queda fuera,
+    // nunca ningún dato de la calculadora (D37, corregido el mismo día).
+    const capturaId = await capturarResultado(
+      pagina,
+      ctx,
+      this.calculadora,
+      pagina.locator(`iframe[src*="${HOST_CALCULADORA}"]`).first(),
+    )
 
     return {
       calculadora: this.calculadora,

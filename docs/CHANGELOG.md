@@ -4,6 +4,108 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.30] — 07/09/2026
+
+fix(report): una hoja de captura recortada podía empujar su propio pie de
+página a una segunda hoja casi en blanco.
+
+### Qué se reportó
+
+El dueño probó el recorte de capturas (D71/1.15.29) con un caso real de
+punta a punta (CV-2026-0121, contra las tres webs de verdad) y encontró
+una hoja en blanco entre el resultado de Barrett y el de Kane.
+
+### La causa
+
+`.captura img { max-height: 250mm }` dejaba demasiado poco margen para la
+cabecera y el pie de página de la misma hoja (297mm totales, 273mm de
+zona útil tras los márgenes). Con la captura de página entera de antes
+casi nunca se notaba —al encogerse por anchura, salía más ancha que alta—,
+pero una captura recortada a la zona del resultado (D71) puede acercarse
+mucho más a ese límite, y entonces el pie de página («Captura sin
+editar...») se quedaba sin sitio en la misma hoja y salía en la siguiente,
+casi vacía.
+
+### El cambio
+
+`max-height` baja a 210mm — deja sitio de sobra para la cabecera, la
+banda del aparato (D48, cuando el ojo tiene más de uno) y el pie, incluso
+en el caso más cargado.
+
+### Verificado
+
+Reproducido con la captura real de Barrett del propio caso del dueño:
+montada en una hoja de prueba con la hoja de estilos exacta del informe,
+impresa a PDF con Playwright — antes del cambio (250mm) se hubiera
+quedado sin margen; con el cambio (210mm), el PDF resultante tiene
+exactamente una página, con la cabecera, la captura completa y el pie
+los tres dentro. `pnpm lint && pnpm typecheck && pnpm test && pnpm build`
+en verde (709 tests unitarios).
+
+---
+
+## [1.15.29] — 06/09/2026
+
+feat(report): las capturas del PDF se recortan a la zona del resultado, no
+a la página entera (D71, corrige D37).
+
+### Qué se pidió
+
+El dueño enseñó tres capturas reales (EVO, Kane, Barrett) donde la tabla
+de resultados ocupaba una fracción pequeña de la hoja, con mucho margen
+en blanco alrededor y demasiadas páginas en el PDF final. Pidió agrandar
+lo que de verdad importa —el cálculo y la lente elegida— para que cada
+captura llene mejor su página.
+
+### La tensión con D37, resuelta con el dueño informado
+
+D37 decía explícitamente «sin recortar ni interpretar»: la captura tenía
+que ser la página entera, para que nadie dudara de que el informe enseña
+TODO lo que la web devolvió. Antes de tocar nada se le explicó esta
+decisión cerrada y se le ofrecieron dos caminos: agrandar la captura
+completa (sin tocar D37) o recortarla a la zona del resultado (reabre
+D37). Eligió recortar, con la garantía de que es reversible.
+
+### El cambio
+
+`capturarResultado()` (`packages/integrations/src/captura.ts`) gana un
+cuarto parámetro opcional, un `Locator` de Playwright; sin él seguiría
+haciendo `fullPage: true` exactamente como hasta ahora. La distinción que
+mantiene el espíritu de D37: se recorta la VENTANA de la web (su
+cabecera, su menú, el fondo de la página), nunca la información — ni un
+dato, tabla o aviso que la calculadora mostrara de verdad queda fuera del
+encuadre.
+
+Cada adaptador pasa su propio elemento, **comprobado en vivo** con
+`pnpm live` contra las tres webs reales (nunca adivinado del pantallazo):
+
+- EVO (`evo.ts`): `.shell` — el recuadro blanco con cabecera, biometría,
+  resultado, diagrama y los botones «Print»/«Back» de la propia web.
+- Kane (`kane.ts`): `.kf_form` — dentro deja fuera solo la navegación
+  «KANE FORMULA / ABOUT / CONSTANTS / CONTACT».
+- Barrett y Barrett True K (`barrett.ts`, `barrett-true-k.ts`, mismo
+  dominio `calc.apacrs.org`, D67): el propio elemento `<iframe>` que
+  embebe la calculadora dentro de la web de la ASCRS — se deja fuera la
+  web entera de la ASCRS (cabecera, menú de cientos de enlaces, aviso de
+  cookies), nada de la calculadora.
+
+Si el recorte falla —un selector que la web cambió—, cae a la página
+entera en vez de quedarse sin ninguna captura: nunca se pierde el
+resultado por un selector roto.
+
+### Verificado
+
+Tres tests nuevos en `captura.test.ts` (fotografía el elemento cuando se
+pasa uno; sigue fotografiando la página entera sin él; cae a la página
+entera si el recorte falla). Además, **comprobado en vivo de punta a
+punta** contra las tres webs reales (`pnpm live evo/kane/barrett`, datos
+sintéticos): las tres capturas resultantes se revisaron una a una y
+enseñan exactamente el resultado completo, sin ningún dato recortado, sin
+la cabecera/menú de cada sitio. `pnpm lint && pnpm typecheck && pnpm
+test && pnpm build` en verde (709 tests unitarios).
+
+---
+
 ## [1.15.28] — 06/09/2026
 
 fix(app): un dato se veía en blanco al cambiar de ojo (OD/OS) tras

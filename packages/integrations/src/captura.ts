@@ -1,10 +1,10 @@
 /**
  * captura.ts — Fotografía la pantalla de resultado, sin decidir dónde se guarda.
  *
- * Los tres adaptadores llaman a esto en el mismo punto: justo antes de
- * devolver un resultado de éxito o parcial. Vive fuera de `adapters/` porque
- * no sabe nada de HTML de ninguna web: solo pide una foto de lo que haya en
- * pantalla ahora.
+ * Los adaptadores llaman a esto en el mismo punto: justo antes de devolver un
+ * resultado de éxito o parcial. Vive fuera de `adapters/` porque no sabe nada
+ * de HTML de ninguna web: solo pide una foto de lo que haya en pantalla ahora,
+ * o del elemento que el adaptador le pase.
  *
  * Si la captura falla —el navegador ya no responde, por ejemplo— no se lanza
  * ninguna excepción: un resultado ya leído no se puede perder por no haberle
@@ -23,10 +23,25 @@
  * región con una tabla llena de texto y líneas, así que el tamaño del
  * fichero es una señal barata y fiable de cuál salió con contenido de
  * verdad — sin tener que decodificar ni un solo píxel.
+ *
+ * ⚠️ **Recorte a la zona del resultado (06/09/2026, corrige D37).** D37 decía
+ * «sin recortar ni interpretar» para que nadie dudara de que el informe
+ * enseña TODO lo que la web devolvió, sin que el programa elija qué parte
+ * enseñar. Petición expresa del dueño del proyecto, tras ver sus PDF reales
+ * con mucho margen en blanco alrededor de una tabla pequeña: recortar la
+ * zona de alrededor de la página (la cabecera de la web, el menú, el fondo)
+ * sin tocar ni un píxel de lo que la calculadora respondió de verdad. Cada
+ * adaptador puede pasar un `elemento` —un `Locator` de Playwright, con un
+ * selector propio de esa web, que vive en su propio fichero de `adapters/`,
+ * nunca aquí— y esta función hace `elemento.screenshot()` en vez de
+ * `pagina.screenshot({ fullPage: true })`. Sin `elemento`, el comportamiento
+ * es exactamente el de antes: la página entera. La foto sigue siendo un
+ * píxel a píxel de lo que la web mostró, tal cual — el recorte decide DÓNDE
+ * apunta la cámara, nunca qué se ve dentro del encuadre.
  */
 
 import type { Calculadora } from '@vilamar/domain'
-import type { Page } from 'playwright'
+import type { Locator, Page } from 'playwright'
 
 import type { ContextoEjecucion } from './contrato.js'
 
@@ -38,6 +53,7 @@ export async function capturarResultado(
   pagina: Page,
   ctx: ContextoEjecucion,
   calculadora: Calculadora,
+  elemento?: Locator,
 ): Promise<string | undefined> {
   let mejor: Uint8Array | undefined
   for (let intento = 0; intento < INTENTOS_DE_CAPTURA; intento++) {
@@ -61,7 +77,14 @@ export async function capturarResultado(
       }
     }
     try {
-      const png = await pagina.screenshot({ fullPage: true })
+      // Con `elemento`, solo esa zona (recorte de la ventana, no de la
+      // información: ver el docstring de arriba). Si ese recorte falla —el
+      // elemento ya no está en la página, por ejemplo—, la página entera es
+      // mejor que quedarse sin ninguna foto: nunca se pierde el resultado
+      // por un selector que dejó de encajar.
+      const png = elemento
+        ? await elemento.screenshot().catch(() => pagina.screenshot({ fullPage: true }))
+        : await pagina.screenshot({ fullPage: true })
       if (mejor === undefined || png.length > mejor.length) mejor = png
     } catch {
       // Un intento que falla no se lleva por delante el que ya salió bien.

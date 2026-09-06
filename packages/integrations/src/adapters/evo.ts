@@ -391,7 +391,13 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
 
     // La captura se toma aquí, con el resultado ya en pantalla y comprobado el
     // ojo: es la evidencia sin interpretar de lo que ha devuelto la web.
-    const capturaId = await capturarResultado(pagina, ctx, this.calculadora)
+    //
+    // `.shell` (comprobado en vivo, 06/09/2026) es el recuadro blanco que
+    // envuelve todo lo que EVO enseña —cabecera, biometría, resultado,
+    // diagrama y sus propios botones «Print»/«Back»—, sin el margen vacío
+    // alrededor que deja la página a este tamaño de ventana. Ningún dato
+    // se recorta: solo el fondo de la página (D37, corregido el mismo día).
+    const capturaId = await capturarResultado(pagina, ctx, this.calculadora, pagina.locator('.shell').first())
 
     return {
       calculadora: this.calculadora,

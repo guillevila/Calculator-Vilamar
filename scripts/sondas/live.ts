@@ -157,6 +157,12 @@ const resultados = await ejecutarCaso({
     )
   },
   ahora: () => new Date().toISOString(),
+  guardarCaptura: async (d) => {
+    const id = `${d.calculadora}-${d.ojo}-${Date.now()}`
+    writeFileSync(join(SALIDA, `captura-${id}.png`), d.png)
+    console.log(`    captura guardada: local/live/captura-${id}.png`)
+    return id
+  },
   guardarDiagnostico: async (d) => {
     const id = `${d.calculadora}-${Date.now()}`
     writeFileSync(

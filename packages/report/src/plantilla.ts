@@ -1249,9 +1249,22 @@ const ESTILOS = `
 
   code { font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace; font-size: 8pt; }
 
-  /* Capturas de pantalla, tal cual — la imagen manda el tamaño, la hoja se adapta. */
+  /*
+   * Capturas de pantalla, tal cual — la imagen manda el tamaño, la hoja se adapta.
+   *
+   * max-height deja sitio de sobra para la cabecera, la banda del aparato
+   * (D48, cuando el ojo tiene más de uno) y el pie de página en la MISMA
+   * hoja de 297mm: 273mm de zona útil, menos ~50mm para todo lo demás en el
+   * caso más cargado. Sin este límite, una captura recortada a la zona del
+   * resultado (D71, 06/09/2026) puede acercarse mucho más a su tope que una
+   * captura de página entera —esta última casi siempre se queda corta de
+   * alto al encogerse por anchura—, y empujar el pie de página a una
+   * segunda hoja casi en blanco. Fallo real reportado por el dueño con un
+   * PDF suyo (06/09/2026, con una de las tres calculadoras): la hoja del
+   * texto «Captura sin editar...» salía sola, en la página siguiente.
+   */
   .captura { display: flex; justify-content: center; align-items: flex-start; margin-top: 10px; }
-  .captura img { max-width: 100%; max-height: 250mm; object-fit: contain; border: 1px solid var(--linea); border-radius: 4px; }
+  .captura img { max-width: 100%; max-height: 210mm; object-fit: contain; border: 1px solid var(--linea); border-radius: 4px; }
   .captura-ausente { color: var(--gris); font-style: italic; margin-top: 10px; }
   .lente-recomendada { margin-top: 16px; font-size: 11pt; text-align: center; }
   .lente-recomendada strong { font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace; }

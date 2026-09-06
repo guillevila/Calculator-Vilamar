@@ -1318,7 +1318,13 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     //
     // La captura se toma aquí, con el eco del AL ya comprobado contra el ojo
     // que se pidió: es la evidencia sin interpretar de lo que ha devuelto Kane.
-    const capturaId = await capturarResultado(pagina, ctx, this.calculadora)
+    //
+    // `.kf_form` (comprobado en vivo, 06/09/2026) es el formulario propio de
+    // Kane —doctor/paciente, los dos ojos con su resultado, y su botón
+    // «Print»—, sin la cabecera «KANE FORMULA / ABOUT / CONSTANTS / CONTACT»
+    // ni el margen vacío alrededor. Ningún dato se recorta: solo la
+    // navegación de la web (D37, corregido el mismo día).
+    const capturaId = await capturarResultado(pagina, ctx, this.calculadora, pagina.locator('.kf_form').first())
 
     return {
       calculadora: this.calculadora,

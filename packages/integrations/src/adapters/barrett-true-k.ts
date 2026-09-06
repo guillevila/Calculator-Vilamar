@@ -414,7 +414,15 @@ export class AdaptadorBarrettTrueKToric implements AdaptadorCalculadora {
       entradasSegunLaWeb['Córnea especial'] = HISTORY_EN_TRUE_K[ctx.entradas.situacionCorneal]
     }
 
-    const capturaId = await capturarResultado(pagina, ctx, this.calculadora)
+    // Mismo dominio y mismo iframe que Barrett Toric (D67): se recorta al
+    // propio `<iframe>`, dejando fuera la web de la ASCRS que lo envuelve,
+    // sin tocar ningún dato de la calculadora (D37, corregido 06/09/2026).
+    const capturaId = await capturarResultado(
+      pagina,
+      ctx,
+      this.calculadora,
+      pagina.locator(`iframe[src*="${HOST_CALCULADORA}"]`).first(),
+    )
 
     return {
       calculadora: this.calculadora,

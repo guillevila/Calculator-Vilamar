@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { EntradasCalculadora } from '@vilamar/domain'
-import type { Page } from 'playwright'
+import type { Locator, Page } from 'playwright'
 
 import { capturarResultado } from './captura.js'
 import type { ContextoEjecucion, DatosCaptura } from './contrato.js'
@@ -41,6 +41,10 @@ function paginaFalsa(comportamiento: () => Promise<Uint8Array>): Page {
     waitForTimeout: async () => undefined,
     evaluate: async () => undefined,
   } as unknown as Page
+}
+
+function elementoFalso(comportamiento: () => Promise<Uint8Array>): Locator {
+  return { screenshot: comportamiento } as unknown as Locator
 }
 
 describe('capturarResultado', () => {
@@ -128,5 +132,73 @@ describe('capturarResultado', () => {
     )
 
     expect(id).toBe('captura-1') // el `guardarCaptura` por defecto del contexto de prueba
+  })
+
+  /**
+   * D37 corregido (06/09/2026): recortar a la zona del resultado, no a la
+   * página entera — petición expresa del dueño, con capturas reales donde
+   * la tabla de resultados ocupaba una fracción pequeña de la hoja.
+   */
+  describe('con un elemento (D37 corregido, 06/09/2026: recorte a la zona del resultado)', () => {
+    it('fotografía el ELEMENTO, no la página entera, cuando se le pasa uno', async () => {
+      const pngPagina = new Uint8Array([9, 9])
+      const pngElemento = new Uint8Array([1, 2, 3])
+      const recibidos: DatosCaptura[] = []
+      const ctx = contexto({
+        guardarCaptura: async (d) => {
+          recibidos.push(d)
+          return 'captura-recorte'
+        },
+      })
+
+      const id = await capturarResultado(
+        paginaFalsa(async () => pngPagina),
+        ctx,
+        'EVO_TORIC',
+        elementoFalso(async () => pngElemento),
+      )
+
+      expect(id).toBe('captura-recorte')
+      expect(recibidos[0]?.png).toBe(pngElemento) // la del elemento, no la de la página
+    })
+
+    it('sin elemento, sigue fotografiando la página entera — nada cambia para quien no lo use', async () => {
+      const pngPagina = new Uint8Array([9, 9])
+      const recibidos: DatosCaptura[] = []
+      const ctx = contexto({
+        guardarCaptura: async (d) => {
+          recibidos.push(d)
+          return 'captura-pagina'
+        },
+      })
+
+      const id = await capturarResultado(paginaFalsa(async () => pngPagina), ctx, 'KANE')
+
+      expect(id).toBe('captura-pagina')
+      expect(recibidos[0]?.png).toBe(pngPagina)
+    })
+
+    it('si el recorte del elemento falla, cae a la página entera en vez de quedarse sin nada', async () => {
+      const pngPagina = new Uint8Array([7, 7, 7])
+      const recibidos: DatosCaptura[] = []
+      const ctx = contexto({
+        guardarCaptura: async (d) => {
+          recibidos.push(d)
+          return 'captura-repuesto'
+        },
+      })
+
+      const id = await capturarResultado(
+        paginaFalsa(async () => pngPagina),
+        ctx,
+        'BARRETT_TORIC',
+        elementoFalso(async () => {
+          throw new Error('el elemento ya no está en la página (la web cambió el selector)')
+        }),
+      )
+
+      expect(id).toBe('captura-repuesto')
+      expect(recibidos[0]?.png).toBe(pngPagina)
+    })
   })
 })
