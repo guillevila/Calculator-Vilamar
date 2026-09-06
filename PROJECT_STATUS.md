@@ -9,7 +9,21 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 06/09/2026 (3) · **Los PDF se guardan en una
+**Última actualización:** 06/09/2026 (4) · **Confirmado en vivo: el
+nombre del paciente y del doctor funcionan exactamente igual cargando un
+documento que escribiendo a mano.** El dueño preguntó explícitamente si
+esto se había comprobado — no se había hecho por la vía del documento,
+solo por la manual. Se debe a que las dos vías comparten literalmente la
+misma pantalla (`PanelRevision.tsx`, con `IdentificacionCaso`) desde que
+se reordenó el 06/09/2026, así que en teoría ya funcionaba igual — pero
+«en teoría» no es lo mismo que probado. Test nuevo en `flujo.spec.ts` que
+carga un documento (no a mano), escribe el nombre del paciente y del
+doctor ahí, y confirma que llegan hasta el propio PDF generado (misma
+carpeta por paciente que en la vía manual). `pnpm lint && pnpm typecheck
+&& pnpm test:e2e` en verde (41 tests de interfaz). Ningún cambio de
+código — la funcionalidad ya estaba bien; lo que faltaba era la prueba.
+
+Antes de esto — **Los PDF se guardan en una
 carpeta por paciente, no ya una única «Ojo derecho»/«Ojo izquierdo»
 compartida por todos.** Petición expresa del dueño: con todos los
 pacientes cayendo en la misma carpeta de cada ojo, con el tiempo se

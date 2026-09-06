@@ -881,6 +881,60 @@ ACD (epi)      3.10 mm</pre>
 })
 
 /**
+ * Pregunta expresa del dueño del proyecto (06/09/2026): ¿el nombre del
+ * paciente y del doctor funcionan igual entrando por «cargar un documento»
+ * que por «escribir a mano»? Las dos vías aterrizan en la MISMA
+ * `PanelRevision.tsx` (comparten `IdentificacionCaso`), así que deberían
+ * — pero eso no se había probado nunca entrando por un documento, solo a
+ * mano. Esta prueba lo fuerza por la vía del documento, de punta a punta
+ * hasta el propio PDF, para no quedarse en "por construcción debería".
+ */
+test('Identificación funciona igual cargando un documento que escribiendo a mano — de punta a punta hasta el PDF', async () => {
+  test.setTimeout(180_000)
+
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  await p.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <pre>OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+ACD (epi)      3.18 mm</pre></body>`)
+  const rutaPdf = join(carpetaDatos, 'informe-identificacion.pdf')
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.evaluate(
+    async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'informe-identificacion.pdf', ruta }]),
+    rutaPdf,
+  )
+  // Entrando por un documento, no por el cuestionario manual.
+  await ventana.getByTestId('paso-REVISION').click()
+
+  // Los mismos campos, con el mismo testid, que en la vía manual.
+  await expect(ventana.getByTestId('identificacion-paciente')).toBeVisible()
+  await expect(ventana.getByTestId('identificacion-cirujano')).toBeVisible()
+  await ventana.getByTestId('identificacion-paciente').fill('Paciente Del Documento')
+  await ventana.getByTestId('identificacion-paciente').press('Tab')
+  await ventana.getByTestId('identificacion-cirujano').fill('Doctor Del Documento')
+  await ventana.getByTestId('identificacion-cirujano').press('Tab')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.nombrePaciente).toBe('Paciente Del Documento')
+  expect(caso?.nombreCirujano).toBe('Doctor Del Documento')
+
+  // Y llega hasta el PDF de verdad, en la carpeta con su nombre — igual
+  // que por la vía manual (ver la prueba de la carpeta por paciente).
+  const resultado = await ventana.evaluate(() => window.vilamar?.generarPdf())
+  const ruta = resultado?.rutas[0]?.ruta ?? ''
+  expect(ruta).toContain(join('Paciente Del Documento', 'Ojo derecho (OD)'))
+  expect(statSync(ruta).size).toBeGreaterThan(0)
+})
+
+/**
  * Petición expresa del dueño del proyecto (02/09/2026): al meter la
  * constante A de un ojo, que aparezca sola en el otro — casi siempre es la
  * misma lente en los dos — sin tener que escribirla dos veces. Pero nunca
