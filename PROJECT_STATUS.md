@@ -9,7 +9,26 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 05/09/2026 (3) · **Fallo real corregido: elegir
+**Última actualización:** 06/09/2026 · **El lector con IA (`vision-claude.ts`)
+está activado y probado por primera vez contra un caso real del dueño** —
+una foto de WhatsApp de un ZEISS IOLMaster 700, aparato reconocido al
+100 %, los dos ojos leídos correctamente. El dueño ya tiene su propia
+clave de Anthropic configurada (`ANTHROPIC_API_KEY` en su `.env` local).
+Único ajuste tras la primera prueba: el lector explicaba, en las notas,
+CADA dato del documento que no está en la lista de campos que pide la
+app (SE, ΔK, tablas de cálculo de otra fórmula, desviaciones estándar,
+fecha de calibración...) — ruido sin ninguna acción que tomar, y el dueño
+pidió quitarlo. Corregido en las instrucciones y en la descripción del
+propio campo `notas` del esquema: ahora solo debe avisar de algo que SÍ
+haga falta comprobar (un valor borroso, una etiqueta de ojo ambigua, un
+dato marcado como dudoso por el propio informe) — nunca de un campo fuera
+de la lista, que es normal y no requiere aviso. `pnpm lint && pnpm
+typecheck && pnpm test && pnpm build` en verde (705 tests). **Ajuste de
+redacción de un prompt: no se puede verificar sin gastar una llamada real
+a la API — pendiente de que el dueño confirme si las notas de ruido
+desaparecen con el mismo documento.**
+
+Antes de esto — **Fallo real corregido: elegir
 la lente ANTES de escribir ningún dato del ojo dejaba la constante A del
 catálogo (D69) sin aplicar.** El dueño probó el caso más natural —elegir
 primero «B&L Envy» en el cuestionario manual, con el ojo todavía vacío— y

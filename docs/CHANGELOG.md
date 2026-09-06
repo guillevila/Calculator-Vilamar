@@ -4,6 +4,40 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.25] — 06/09/2026
+
+fix(app): el lector con IA ya no explica en las notas los datos del
+documento que no pide la app.
+
+### Qué se pidió
+
+El dueño activó el lector con IA por primera vez contra un caso real (una
+foto de WhatsApp de un ZEISS IOLMaster 700) -- el aparato y los datos se
+leyeron bien, pero salieron varias notas en ámbar explicando, una a una,
+qué campos del documento (SE, ΔK, tablas de cálculo de otra fórmula,
+desviaciones estándar, fecha de calibración...) no se habían transcrito
+por no estar en la lista de campos de la app. Pidió que eso no salga: no
+hay ninguna acción que tomar con esa información.
+
+### El cambio
+
+`vision-claude.ts`: nueva regla en las instrucciones del lector (regla 7)
+y la descripción del campo `notas` del esquema, ambas explícitas: las
+notas son solo para algo que SÍ haga falta comprobar (un valor borroso,
+una etiqueta de ojo ambigua, un dato marcado como dudoso por el propio
+informe) -- nunca una lista de los datos fuera del esquema, que es normal
+y no se explica.
+
+### Verificado
+
+`pnpm lint && pnpm typecheck && pnpm test && pnpm build` en verde (705
+tests). Es un ajuste de texto de instrucciones a un modelo de IA: no se
+puede verificar sin gastar una llamada real a la API -- pendiente de que
+el dueño confirme con el mismo documento que las notas de ruido
+desaparecen.
+
+---
+
 ## [1.15.24] — 05/09/2026
 
 fix(app): la constante A del catalogo (D69) se aplica sola en cuanto el
