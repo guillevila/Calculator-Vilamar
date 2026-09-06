@@ -127,6 +127,28 @@ function primeraLinea(texto: string): string {
   return texto.split(String.fromCharCode(10))[0] ?? texto
 }
 
+/**
+ * El nombre del paciente, convertido en un nombre de carpeta seguro para
+ * Windows (petición expresa del dueño, 06/09/2026: un informe por
+ * paciente, con sus dos ojos dentro, en vez de todos los pacientes
+ * compartiendo la misma carpeta «Ojo derecho»/«Ojo izquierdo»).
+ *
+ * Quita los caracteres que Windows no admite en un nombre de carpeta
+ * (`< > : " / \ | ? *`), los espacios y puntos sueltos al final —Windows
+ * tampoco los admite ahí—, y se queda con el código del caso si el nombre
+ * queda vacío después de limpiarlo. D61 exige el nombre del paciente para
+ * poder confirmar un caso, así que esto último no debería darse nunca en
+ * la práctica; es una red de seguridad, no el camino normal.
+ */
+function nombreDeCarpeta(nombrePaciente: string | undefined, codigoCaso: string): string {
+  const caracteresProhibidos = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
+  let limpio = nombrePaciente ?? ''
+  for (const c of caracteresProhibidos) limpio = limpio.split(c).join(' ')
+  limpio = limpio.replace(/\s+/g, ' ').trim()
+  while (limpio.endsWith('.') || limpio.endsWith(' ')) limpio = limpio.slice(0, -1)
+  return limpio === '' ? codigoCaso : limpio
+}
+
 export class ServicioCasos {
   private caso: Caso | null = null
   private cancelar = false
@@ -1127,12 +1149,19 @@ export class ServicioCasos {
         soloOjo: ojo,
       })
       const html = generarHtmlInforme(datos)
-      // Una subcarpeta por ojo (petición expresa del dueño, 01/09/2026): con
-      // los informes de los dos ojos mezclados en la misma carpeta —y la de
-      // más casos, con el tiempo— es fácil no ver el segundo entre los
-      // demás archivos. No es que el informe faltara: estaba, pero se
-      // perdía de vista.
-      const carpetaOjo = join(this.dep.carpetas.informes, nombreLateralidad(ojo))
+      // Una carpeta por paciente y, dentro, una por ojo (petición expresa
+      // del dueño, 06/09/2026, que amplía la de 01/09/2026 de abajo): antes
+      // todos los pacientes compartían la misma carpeta «Ojo derecho»/«Ojo
+      // izquierdo», así que con el tiempo se mezclaban los informes de
+      // gente distinta. Ahora cada paciente tiene la suya, con sus dos
+      // ojos dentro — varias visitas del mismo paciente caen en la misma
+      // carpeta, porque el nombre del archivo ya lleva el código del caso
+      // y la fecha, así que nunca se pisan entre sí.
+      const carpetaOjo = join(
+        this.dep.carpetas.informes,
+        nombreDeCarpeta(caso.nombrePaciente, caso.codigo),
+        nombreLateralidad(ojo),
+      )
       mkdirSync(carpetaOjo, { recursive: true })
       const destino = join(carpetaOjo, `${caso.codigo}_${ojo}_${marca}.pdf`)
 

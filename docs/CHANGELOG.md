@@ -4,6 +4,38 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.27] — 06/09/2026
+
+feat(app): los PDF se guardan en una carpeta por paciente, no en una
+carpeta de ojo compartida por todos.
+
+### Qué se pidió
+
+El dueño pidió que el PDF no vaya a una carpeta compartida "Ojo
+derecho"/"Ojo izquierdo" para todos los pacientes, sino a una carpeta
+propia por paciente (con su nombre), y dentro de ella, sus dos ojos.
+
+### El cambio
+
+`ServicioCasos.generarPdf()` construye ahora la ruta como
+`informes/<nombre del paciente>/<Ojo derecho (OD)|Ojo izquierdo
+(OS)>/<archivo>.pdf`. Nueva función `nombreDeCarpeta()` limpia el nombre
+del paciente de los caracteres que Windows no admite en una carpeta
+(`< > : " / \ | ? *`) y de puntos o espacios sueltos al final; si
+quedara vacío, usa el código del caso (red de seguridad -- D61 ya exige
+el nombre para poder confirmar un caso).
+
+### Verificado
+
+Test nuevo en `flujo.spec.ts`: genera un PDF con un nombre de paciente
+que lleva caracteres prohibidos ("María: Pérez / Test") y comprueba que
+la carpeta resultante es la limpia ("María Pérez Test"), con el ojo
+dentro, y que el archivo existe de verdad. `pnpm lint && pnpm typecheck
+&& pnpm test && pnpm build && pnpm test:e2e` en verde (705 tests
+unitarios, 40 de interfaz).
+
+---
+
 ## [1.15.26] — 06/09/2026
 
 feat(app): confirmar todo el ojo de golpe, con una casilla (D70) ·

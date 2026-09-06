@@ -9,7 +9,25 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 06/09/2026 (2) · **Confirmar todo de golpe
+**Última actualización:** 06/09/2026 (3) · **Los PDF se guardan en una
+carpeta por paciente, no ya una única «Ojo derecho»/«Ojo izquierdo»
+compartida por todos.** Petición expresa del dueño: con todos los
+pacientes cayendo en la misma carpeta de cada ojo, con el tiempo se
+mezclaban los informes de gente distinta. Ahora la ruta es
+`informes/<nombre del paciente>/Ojo derecho (OD)|Ojo izquierdo
+(OS)/<archivo>.pdf` — varias visitas del mismo paciente caen en la misma
+carpeta (el nombre del archivo ya lleva el código del caso y la fecha,
+así que nunca se pisan). El nombre se limpia de los caracteres que
+Windows no admite en una carpeta (`< > : " / \ | ? *`) y de puntos o
+espacios sueltos al final; si quedara vacío (no debería pasar nunca, D61
+exige el nombre para confirmar un caso) se usa el código del caso como
+red de seguridad. Test nuevo en `flujo.spec.ts` que genera un PDF con un
+nombre de paciente que lleva caracteres prohibidos y comprueba la
+carpeta resultante. `pnpm lint && pnpm typecheck && pnpm test && pnpm
+build && pnpm test:e2e` en verde (705 tests unitarios, 40 de interfaz).
+**No probado todavía por el dueño con un caso real en pantalla.**
+
+Antes de esto — **Confirmar todo de golpe
 (con una casilla, no un clic ciego) e Identificación/Lente al principio
 de la pantalla de revisión.** El dueño usó el lector con IA por primera
 vez sobre un caso real de 34 datos y pidió no tener que pulsar «Está

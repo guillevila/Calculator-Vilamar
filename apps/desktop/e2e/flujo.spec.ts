@@ -449,6 +449,44 @@ CCT             530 um</pre></body>`)
 })
 
 /**
+ * Petición expresa del dueño del proyecto (06/09/2026): una carpeta por
+ * paciente, con sus dos ojos dentro, en vez de que todos los pacientes
+ * compartan la misma carpeta «Ojo derecho»/«Ojo izquierdo» — con el tiempo
+ * se mezclaban los informes de gente distinta en el mismo sitio.
+ */
+test('el PDF se guarda en una carpeta con el nombre del paciente, y un nombre con caracteres de Windows prohibidos no rompe nada', async () => {
+  test.setTimeout(180_000)
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  // Un nombre con caracteres que Windows NO admite en una carpeta: ':' y '/'.
+  await ventana.getByTestId('identificacion-paciente').fill('María: Pérez / Test')
+  await ventana.getByTestId('identificacion-paciente').press('Tab')
+  await ventana.getByTestId('identificacion-cirujano').fill('Dra. Ruiz')
+  await ventana.getByTestId('identificacion-cirujano').press('Tab')
+  await ventana.getByTestId('manual-campo-AL').fill('24.00')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  // No hace falta ningún cálculo real para generar el PDF: el informe dice
+  // «no calculado» donde no haya resultado, y eso no es lo que se prueba aquí.
+  const resultado = await ventana.evaluate(() => window.vilamar?.generarPdf())
+  const ruta = resultado?.rutas[0]?.ruta ?? ''
+  expect(ruta, 'no ha generado ningún PDF').not.toBe('')
+
+  // La carpeta del paciente, limpia de los caracteres prohibidos ('María:
+  // Pérez / Test' → 'María Pérez Test'), con el ojo dentro. Comprobar el
+  // trozo exacto de ruta, no toda la cadena, porque la ruta absoluta trae
+  // sus propios ':' y '\' de sintaxis (la unidad de Windows, los separadores).
+  expect(ruta).toContain(join('María Pérez Test', 'Ojo derecho (OD)'))
+
+  // Y el archivo existe de verdad, no solo la ruta devuelta.
+  expect(statSync(ruta).size).toBeGreaterThan(0)
+
+  await ventana.screenshot({ path: 'test-results/11c-carpeta-por-paciente.png', fullPage: true })
+})
+
+/**
  * La tabla de lentes del informe, de punta a punta.
  *
  * Es el recorrido entero de la regla: un PDF de verdad con cuatro modelos y
