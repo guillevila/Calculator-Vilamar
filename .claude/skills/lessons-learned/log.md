@@ -2025,3 +2025,63 @@ asumirlo por analogía con una decisión anterior parecida.
 `elegirLente()`. Extensible a cualquier caso donde compitan dos fuentes
 para el mismo dato y el proyecto ya tenga una regla de prioridad para un
 caso parecido — la regla parecida no es una prueba de que aplique aquí.
+
+## 06/09/2026 — Un valor de pantalla compartido entre dos pestañas (OD/OS) se queda con el de la pestaña anterior si el efecto que lo resincroniza está apagado para proteger OTRO caso distinto
+
+**Error o aprendizaje:** El dueño reportó, con capturas, que tras usar el
+lector con IA sobre un caso real (34 datos, Heidelberg ANTERION) y pulsar
+el nuevo botón «Confirmar todo» (D70), TODOS los datos de biometría
+aparecían en blanco («No consta en el informe»), como si se hubieran
+borrado. Investigado a fondo con tres pruebas reales (una unitaria sobre
+`ServicioCasos.confirmarTodoElOjo` con diez campos, y dos de interfaz
+completa reproduciendo exactamente renombrar el aparato antes/después de
+confirmar), NINGUNA logró reproducirlo: la escritura de datos siempre
+sobrevivía intacta. La causa real apareció al preguntarle directamente al
+dueño si había renombrado el aparato (D47: el primer aparato de un ojo
+empieza siempre como «Principal», y él lo había puesto a mano como
+«Heidelberg ANTERION») y si tenía datos en los dos ojos — sí a las dos.
+
+`aparatoActivo` en `App.tsx` es **un solo valor de React, compartido por
+los dos ojos** (no hay uno por ojo). `conAparatoRenombrado` renombra el
+aparato de UN ojo en el dominio, correctamente — pero nada en la interfaz
+volvía a poner `aparatoActivo` en un valor válido para el OTRO ojo al
+cambiar de pestaña OD/OS. El único efecto que hacía esa resincronización
+estaba **apagado a propósito mientras `paso === 'REVISION'`** — apagado
+por una razón real y distinta (no deshacer «Añadir otro biómetro» mientras
+se escribe su nombre, en el ojo que YA se está mirando), pero ese apagado
+también tapaba el caso de cambiar de OJO, que no tiene nada que proteger.
+Resultado: al mirar el ojo que nunca se renombró, la pantalla buscaba un
+aparato que ese ojo no tenía —vacío, con el aviso normal de «sin dato»—,
+mientras el dato real seguía intacto y a salvo en el caso, sin que jamás
+se hubiera tocado. Ningún dato se perdió nunca; la pantalla miraba donde
+no era.
+
+**Causa raíz:** Una guarda (`if (paso === 'REVISION') return`) escrita
+para proteger UN escenario concreto (mismo ojo, aparato recién creado sin
+datos aún) se aplicó a un `useEffect` que también cubría un escenario
+distinto sin relación (cambiar de ojo activo) — apagando por completo un
+efecto en vez de acotar la guarda al caso que de verdad la necesitaba.
+Cuando una guarda existe por una razón muy específica, hay que preguntarse
+qué OTROS casos pasan por el mismo efecto antes de generalizar el apagado
+a todo un `paso` completo.
+
+**Lección:** Ante un reporte de «los datos han desaparecido», antes de
+sospechar del código que escribe datos (`confirmarTodas`, `conMedida`,
+`conOjo`...), comprobar primero si el problema es de **qué está mirando
+la pantalla**, no de qué hay guardado — sobre todo cuando hay más de un
+selector de contexto compartido (aquí: ojo Y aparato) y uno de los dos
+tiene un efecto de resincronización con una guarda condicional. Preguntar
+explícitamente qué botones/selectores tocó el usuario justo antes del
+fallo (aquí: «¿renombraste el aparato? ¿tenías datos en los dos ojos?»)
+resolvió en un mensaje lo que tres pruebas de reproducción, bien
+razonadas pero apuntando al sitio equivocado, no habían encontrado.
+
+**Contexto:** `apps/desktop/src/renderer/App.tsx` — el efecto de
+`aparatoActivo` guardado por `paso === 'REVISION'` (líneas ~104-111,
+D47) necesitó un SEGUNDO efecto, separado, que resincroniza
+`aparatoActivo` al cambiar `ojoActivo` de verdad (con una `ref` para
+distinguir "cambió el ojo" de "cambió el caso"), sin la guarda de
+`paso`. Prueba de regresión:
+`apps/desktop/e2e/flujo.spec.ts` → «renombrar el aparato de UN ojo no
+deja al OTRO mirando un dataset vacío al cambiar de pestaña» (confirmada
+fallando sin el fix, pasando con él).

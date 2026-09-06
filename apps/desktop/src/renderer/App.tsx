@@ -8,7 +8,7 @@
  * para dar el siguiente y nada más.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 
 import type { Calculadora, Caso, Lateralidad, Aviso } from '@vilamar/domain'
@@ -109,6 +109,36 @@ export function App(): JSX.Element {
       if (primero) setAparatoActivo(primero)
     }
   }, [aparatosDelOjo, aparatoActivo, paso])
+
+  /**
+   * Al cambiar de OJO (no de aparato), `aparatoActivo` SIEMPRE tiene que
+   * resincronizarse — pase lo que pase con `paso` — o la pantalla se queda
+   * mirando el aparato del ojo anterior.
+   *
+   * Fallo real reportado por el dueño (06/09/2026, caso CV-2026-0117): con
+   * los dos ojos cargados, renombró el aparato de OD de «Principal» a
+   * «Heidelberg ANTERION» y luego pasó a mirar OS. `aparatoActivo` se quedó
+   * en «Heidelberg ANTERION» —el nombre que OS nunca tuvo, porque
+   * `conAparatoRenombrado` solo toca el ojo que se le pide— y la pantalla
+   * de OS pasó a mirar un dataset que no existe: todo en blanco, con los
+   * datos de verdad intactos y a salvo en el caso, solo que la pantalla
+   * miraba donde no era.
+   *
+   * El efecto de arriba no sirve para esto porque se apaga a propósito
+   * durante REVISION (para no deshacer «Añadir otro biómetro» mientras se
+   * escribe su nombre, en el ojo que YA se está mirando) — pero cambiar de
+   * ojo es una situación distinta: aquí no hay nada a medio escribir que
+   * proteger, así que este efecto solo mira si `ojoActivo` ha cambiado de
+   * verdad (con la referencia), nunca si solo cambió `caso`.
+   */
+  const ojoActivoAnterior = useRef(ojoActivo)
+  useEffect(() => {
+    if (ojoActivoAnterior.current === ojoActivo) return
+    ojoActivoAnterior.current = ojoActivo
+    if (!caso) return
+    const primero = aparatosDe(caso, ojoActivo)[0]
+    if (primero) setAparatoActivo(primero)
+  }, [ojoActivo, caso])
 
   const refrescarAvisos = useCallback(async () => {
     setAvisos(await api().validar())

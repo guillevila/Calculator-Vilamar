@@ -449,6 +449,205 @@ CCT             530 um</pre></body>`)
 })
 
 /**
+ * Reproducción del fallo reportado por el dueño (06/09/2026, caso real
+ * CV-2026-0117): tras usar «Confirmar todo» con muchos datos, la pantalla
+ * quedó con todos los campos en blanco. La diferencia con la prueba anterior
+ * —que sí pasa— es que en el caso real el aparato del primer dataset de un
+ * ojo empieza siempre como `APARATO_PRINCIPAL` («Principal», D47) y el dueño
+ * lo había RENOMBRADO a mano al nombre real del biómetro («Heidelberg
+ * ANTERION») antes de confirmar. Esta prueba repite exactamente esa
+ * secuencia: cargar el documento (que crea el dataset como «Principal»),
+ * renombrarlo, y solo entonces confirmar todo — con más campos que la
+ * prueba anterior, para acercarse al caso real de 34 datos.
+ */
+test('confirmar todo de golpe DESPUÉS de renombrar el aparato de "Principal" al nombre real: no debe borrar nada', async () => {
+  test.setTimeout(180_000)
+
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  await p.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <pre>OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+AQD (endo)     2.65 mm
+LT             4.53 mm
+CCT             530 um
+WTW            11.80 mm</pre></body>`)
+  const rutaPdf = join(carpetaDatos, 'anterion-renombrar-luego-confirmar.pdf')
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByTestId('manual-continuar').click()
+  await expect(ventana.getByTestId('campo-ACD')).toBeVisible()
+
+  await ventana.evaluate(
+    async (ruta) =>
+      window.vilamar?.cargarDocumentos([{ nombre: 'anterion-renombrar-luego-confirmar.pdf', ruta }]),
+    rutaPdf,
+  )
+  // Sin ACD en el documento, sale DERIVADA de AQD+CCT — necesita comprobación
+  // humana (D28), que es justo lo que hace falta para que aparezca el botón.
+  await expect(ventana.getByTestId('comprobar-ACD')).toBeVisible()
+
+  const antesDeRenombrar = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(antesDeRenombrar?.ojos?.OD?.[0]?.aparato).toBe('Principal')
+  expect(antesDeRenombrar?.ojos?.OD?.[0]?.medidas?.AL?.valor).toBeCloseTo(24.07, 2)
+
+  // El gesto exacto del dueño: elegir el nombre real del biómetro en el
+  // desplegable de «Principal» — RENOMBRA el dataset que ya hay, no crea uno.
+  await ventana
+    .getByTestId('manual-aparato-principal-select')
+    .selectOption('Heidelberg ANTERION')
+
+  const trasRenombrar = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(trasRenombrar?.ojos?.OD?.[0]?.aparato).toBe('Heidelberg ANTERION')
+  expect(trasRenombrar?.ojos?.OD?.[0]?.medidas?.AL?.valor, 'el renombrado ya ha borrado datos').toBeCloseTo(
+    24.07,
+    2,
+  )
+  await expect(ventana.getByTestId('comprobar-ACD')).toBeVisible()
+
+  const boton = ventana.getByTestId('confirmar-todo-el-ojo')
+  await expect(boton).toBeDisabled()
+  await ventana.getByTestId('checkbox-comprobado-todo').check()
+  await expect(boton).toBeEnabled()
+  await boton.click()
+
+  const trasConfirmar = await ventana.evaluate(() => window.vilamar?.casoActual())
+  const ojoTrasConfirmar = trasConfirmar?.ojos?.OD?.[0]
+  expect(ojoTrasConfirmar?.aparato).toBe('Heidelberg ANTERION')
+  for (const [campo, esperado] of Object.entries({
+    AL: 24.07,
+    K1: 41.22,
+    K2: 42.52,
+    AQD: 2.65,
+    LT: 4.53,
+    CCT: 530,
+    WTW: 11.8,
+  })) {
+    const medida = ojoTrasConfirmar?.medidas?.[campo as keyof typeof ojoTrasConfirmar.medidas]
+    expect(medida?.valor, `el campo ${campo} ha desaparecido tras «Confirmar todo»`).toBeCloseTo(
+      esperado,
+      2,
+    )
+    expect(medida?.confirmadoPorUsuario, `el campo ${campo} no quedó confirmado`).toBe(true)
+  }
+  // La ACD derivada también sobrevive, con el valor que ya se había calculado.
+  expect(ojoTrasConfirmar?.medidas?.ACD?.valor, 'la ACD derivada ha desaparecido').toBeDefined()
+  expect(ojoTrasConfirmar?.medidas?.ACD?.confirmadoPorUsuario).toBe(true)
+
+  await ventana.screenshot({ path: 'test-results/11c-renombrar-luego-confirmar.png', fullPage: true })
+})
+
+/**
+ * Segundo intento de reproducir el fallo real (CV-2026-0117): renombrar el
+ * aparato SOBREVIVE dentro de la misma sesión (prueba anterior). Pero
+ * `App.tsx` no reinicia `aparatoActivo` al reabrir un caso guardado —ni al
+ * arrancar la aplicación con el último caso en curso, ni desde «Casos
+ * guardados»— y el efecto que lo resincroniza se apaga a propósito mientras
+ * `paso === 'REVISION'` (para no deshacer «Añadir otro biómetro» a medio
+ * escribir). Un caso reabierto aterriza DIRECTO en revisión, así que ese
+ * efecto nunca llega a correr: si el aparato activo por defecto
+ * («Principal») ya no coincide con el nombre real que tiene el dataset
+ * guardado (renombrado en la sesión anterior), la pantalla mira un dataset
+ * que no existe — vacío— y «Confirmar todo» crearía uno nuevo, vacío, junto
+ * al real, en vez de tocar el que tiene los datos.
+ */
+test('reabrir un caso guardado tras haber renombrado su aparato: la pantalla no debe mirar un dataset vacío', async () => {
+  test.setTimeout(180_000)
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByLabel('Nombre del doctor').fill('Dra. Reapertura E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Paciente Reapertura E2E')
+  await ventana.getByTestId('manual-campo-AL').fill('23.90')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  // Se renombra el único aparato de «Principal» a su nombre real, tal y como
+  // permite hacerlo D47 — el mismo gesto que la prueba anterior, pero ahora
+  // ANTES de cerrar el caso, no en la misma pantalla en la que se confirma.
+  await ventana.getByTestId('manual-aparato-principal-select').selectOption('Heidelberg ANTERION')
+  await expect(ventana.getByTestId('manual-aparato-principal-select')).toHaveValue('Heidelberg ANTERION')
+
+  const antesDeCerrar = await ventana.evaluate(() => window.vilamar?.casoActual())
+  const codigo = antesDeCerrar?.codigo
+  expect(antesDeCerrar?.ojos?.OD?.[0]?.aparato).toBe('Heidelberg ANTERION')
+
+  // Se cierra el caso (como reiniciar la aplicación) y se reabre desde
+  // «Casos guardados» — igual que la prueba ya existente de esa pantalla,
+  // pero esta vez el aparato del dataset NO es el que arranca por defecto.
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('tarjeta-casos-guardados').getByRole('button').click()
+  await expect(ventana.getByTestId('tabla-casos-guardados')).toBeVisible()
+  const fila = ventana.locator('tr', { hasText: codigo ?? '' })
+  await fila.getByRole('button', { name: 'Abrir' }).click()
+
+  // Si la pantalla mira el aparato correcto, el dato sigue viéndose.
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('23.9')
+
+  const reabierto = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(reabierto?.ojos?.OD).toHaveLength(1)
+  expect(reabierto?.ojos?.OD?.[0]?.aparato).toBe('Heidelberg ANTERION')
+})
+
+/**
+ * La reproducción real del fallo (06/09/2026, caso CV-2026-0117), confirmada
+ * por el propio dueño: tenía datos en los dos ojos, renombró el aparato de
+ * UN ojo («Principal» → «Heidelberg ANTERION») y al mirar el otro, la
+ * pantalla lo enseñó todo en blanco.
+ *
+ * La causa: `aparatoActivo` es UN solo valor en `App.tsx`, compartido por
+ * los dos ojos. `conAparatoRenombrado` solo renombra el ojo al que se le
+ * pide (correcto: los dos ojos no comparten aparato porque sí), pero nada
+ * volvía a poner `aparatoActivo` en un valor válido para el OTRO ojo al
+ * cambiar de pestaña OD/OS — y el efecto que sí lo hacía estaba apagado a
+ * propósito mientras se revisa (para no deshacer «Añadir otro biómetro» a
+ * medio escribir). El dato nunca se borró: seguía a salvo en el caso, pero
+ * la pantalla miraba un aparato que ese ojo nunca tuvo.
+ */
+test('renombrar el aparato de UN ojo no deja al OTRO mirando un dataset vacío al cambiar de pestaña', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByLabel('Nombre del doctor').fill('Dra. Dos Ojos E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Paciente Dos Ojos E2E')
+
+  // OD: dato + se renombra su único aparato al nombre real del biómetro.
+  await ventana.getByTestId('manual-campo-AL').fill('24.10')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-aparato-principal-select').selectOption('Heidelberg ANTERION')
+  await expect(ventana.getByTestId('manual-aparato-principal-select')).toHaveValue('Heidelberg ANTERION')
+
+  // OS: su propio dato, con el aparato «Principal» de siempre — nunca se
+  // renombra este, a propósito: el fallo real es justo esta asimetría.
+  await ventana.getByTestId('manual-ojo-OS').click()
+  await ventana.getByTestId('manual-campo-AL').fill('22.80')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  await ventana.getByTestId('manual-continuar').click()
+
+  // Aterriza en OD: su dato, con su aparato renombrado, se ve bien.
+  await expect(ventana.getByTestId('revision-ojo-OD')).toHaveClass(/activo/)
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('24.1')
+
+  // Al pasar a OS, su propio dato tiene que seguir viéndose — no el aviso
+  // de «No consta en el informe» de un aparato que OS nunca tuvo.
+  await ventana.getByTestId('revision-ojo-OS').click()
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('22.8')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.aparato).toBe('Heidelberg ANTERION')
+  expect(caso?.ojos?.OS?.[0]?.aparato).toBe('Principal')
+  expect(caso?.ojos?.OS?.[0]?.medidas?.AL?.valor).toBeCloseTo(22.8, 2)
+
+  await ventana.screenshot({ path: 'test-results/11e-dos-ojos-un-aparato-renombrado.png', fullPage: true })
+})
+
+/**
  * Petición expresa del dueño del proyecto (06/09/2026): una carpeta por
  * paciente, con sus dos ojos dentro, en vez de que todos los pacientes
  * compartan la misma carpeta «Ojo derecho»/«Ojo izquierdo» — con el tiempo

@@ -9,7 +9,27 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 06/09/2026 (4) · **Confirmado en vivo: el
+**Última actualización:** 06/09/2026 (5) · **Fallo real corregido: un
+ojo se veía en blanco al cambiar de pestaña OD/OS tras renombrar el
+aparato de solo uno de los dos.** El dueño lo reportó con capturas de un
+caso real de 34 datos (Heidelberg ANTERION) tras usar el nuevo botón
+"Confirmar todo" (D70): parecía que los datos se habían borrado. No fue
+así — nunca se perdió nada. `aparatoActivo` (con qué biómetro se mira
+cada ojo) es un solo valor compartido entre OD y OS en la interfaz;
+renombrar el aparato de un ojo (D47) es correcto y solo toca ese ojo,
+pero nada resincronizaba ese valor al cambiar de pestaña, así que el
+ojo que nunca se renombró se enseñaba mirando un aparato que no tenía
+— vacío, aunque su dato seguía intacto y guardado. Se investigó con
+tres pruebas reales antes de dar con la causa (dos no la reprodujeron,
+señal de que la sospecha inicial —la escritura de datos al confirmar—
+estaba equivocada); la pista definitiva la dio el propio dueño al
+confirmar que había renombrado el aparato y tenía datos en los dos
+ojos. Corregido en `App.tsx`, con una prueba de regresión que falla sin
+el arreglo y pasa con él. `pnpm lint && pnpm typecheck && pnpm test &&
+pnpm build && pnpm test:e2e` en verde (706 tests unitarios, 44 de
+interfaz).
+
+Antes de esto — **Confirmado en vivo: el
 nombre del paciente y del doctor funcionan exactamente igual cargando un
 documento que escribiendo a mano.** El dueño preguntó explícitamente si
 esto se había comprobado — no se había hecho por la vía del documento,

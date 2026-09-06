@@ -4,6 +4,54 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.28] — 06/09/2026
+
+fix(app): un dato se veía en blanco al cambiar de ojo (OD/OS) tras
+renombrar el aparato de solo uno de los dos.
+
+### Qué se reportó
+
+El dueño usó el lector con IA sobre un caso real de 34 datos
+(Heidelberg ANTERION), renombró el aparato de "Principal" a su nombre
+real, y al pulsar "Confirmar todo" (D70) y pasar a revisar el otro ojo,
+la pantalla enseñaba TODOS los datos de biometría en blanco -- parecía
+que se habían borrado.
+
+### Qué pasaba en realidad
+
+Ningún dato se borró nunca. `aparatoActivo` (con qué biómetro se está
+mirando cada ojo) es un solo valor compartido por los dos ojos en
+`App.tsx`. Renombrar el aparato de UN ojo (D47) es correcto y solo toca
+ese ojo -- pero nada resincronizaba `aparatoActivo` al cambiar de
+pestaña OD/OS, y el único efecto que lo hacía estaba apagado a
+propósito durante la revisión (para no deshacer "Añadir otro biómetro"
+mientras se escribe su nombre). Resultado: al mirar el ojo que nunca se
+renombró, la pantalla buscaba un aparato que ese ojo no tenía, y lo
+enseñaba vacío -- el dato seguía intacto, guardado, solo que la
+pantalla miraba donde no era.
+
+### El cambio
+
+`apps/desktop/src/renderer/App.tsx`: nuevo efecto, independiente del
+que ya existía, que resincroniza `aparatoActivo` cada vez que el OJO
+activo cambia de verdad (usando una referencia para distinguirlo de un
+simple cambio del caso) -- sin la guarda de "estamos en revisión", que
+solo tenía sentido para el otro escenario.
+
+### Verificado
+
+Reproducido primero con dos pruebas que NO lo reprodujeron (confirmar
+con muchos campos; renombrar y confirmar en el mismo ojo) -- señal de
+que el problema no estaba donde se sospechaba. La pista real la dio el
+propio dueño al confirmar que había renombrado el aparato y tenía datos
+en los dos ojos. Prueba nueva en `flujo.spec.ts` ("renombrar el aparato
+de UN ojo no deja al OTRO mirando un dataset vacío al cambiar de
+pestaña"), confirmada fallando SIN el arreglo y pasando CON él. `pnpm
+lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e` en
+verde (706 tests unitarios, 44 de interfaz).
+
+---
+
 ## [1.15.27] — 06/09/2026
 
 feat(app): los PDF se guardan en una carpeta por paciente, no en una
