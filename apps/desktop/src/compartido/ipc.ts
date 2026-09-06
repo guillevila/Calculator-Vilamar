@@ -137,6 +137,16 @@ export interface ApiVilamar {
     aparato?: string,
   ) => Promise<Caso>
 
+  /**
+   * Confirma de golpe todos los datos pendientes de UN dataset —el ojo y
+   * aparato que se está mirando, nunca el caso entero— (petición expresa
+   * del dueño del proyecto, 06/09/2026). La interfaz solo deja llamarlo
+   * tras marcar una casilla explícita de que se ha comparado cada dato con
+   * el informe: sigue habiendo un gesto consciente, solo dejó de ser uno
+   * por fila.
+   */
+  readonly confirmarTodoElOjo: (ojo: Lateralidad, aparato?: string) => Promise<Caso>
+
   /** El sexo del paciente. Lo pide Kane; EVO y Barrett no. */
   readonly elegirSexo: (sexo: Sexo) => Promise<Caso>
   /** Da por bueno un sexo deducido del nombre. Sin esto no sale hacia Kane. */
@@ -307,6 +317,7 @@ export const CANALES = {
   editarMedida: 'vilamar:editar-medida',
   establecerIdentificacion: 'vilamar:establecer-identificacion',
   confirmarCampo: 'vilamar:confirmar-campo',
+  confirmarTodoElOjo: 'vilamar:confirmar-todo-el-ojo',
   elegirSexo: 'vilamar:elegir-sexo',
   confirmarSexo: 'vilamar:confirmar-sexo',
   confirmarTodo: 'vilamar:confirmar-todo',

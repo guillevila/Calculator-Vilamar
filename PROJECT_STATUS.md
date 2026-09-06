@@ -9,7 +9,29 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 06/09/2026 · **El lector con IA (`vision-claude.ts`)
+**Última actualización:** 06/09/2026 (2) · **Confirmar todo de golpe
+(con una casilla, no un clic ciego) e Identificación/Lente al principio
+de la pantalla de revisión.** El dueño usó el lector con IA por primera
+vez sobre un caso real de 34 datos y pidió no tener que pulsar «Está
+bien» en cada uno. Antes de construirlo, Claude avisó de que esto ya se
+probó una vez (con el OCR, en una sesión anterior) y se deshizo a
+propósito — «un botón que confirma todo con un clic cumple la letra de
+la invariante pero se salta la intención», lección registrada el
+11/08/2026 —, y propuso un término medio: una casilla explícita **«He
+comparado cada dato con el informe original»** que hay que marcar antes
+de que se active un botón **«Confirmar todo»**. El dueño lo aceptó. El
+botón solo confirma el ojo/aparato que se está mirando en pantalla —
+nunca el caso entero a ciegas—, y la casilla se desmarca sola al cambiar
+de ojo o de aparato. De paso, Identificación (doctor/paciente) y Lente
+pasan a ir al principio de la pantalla de revisión, igual que ya iban en
+el cuestionario manual — pedido expreso para que las dos pantallas se
+ordenen igual. Un test nuevo en `flujo.spec.ts` comprueba que el botón
+empieza deshabilitado y solo confirma el ojo activo. `pnpm lint && pnpm
+typecheck && pnpm test && pnpm build && pnpm test:e2e` en verde (705
+tests unitarios, 39 de interfaz). **No probado todavía por el dueño en
+pantalla.**
+
+Antes de esto — **El lector con IA (`vision-claude.ts`)
 está activado y probado por primera vez contra un caso real del dueño** —
 una foto de WhatsApp de un ZEISS IOLMaster 700, aparato reconocido al
 100 %, los dos ojos leídos correctamente. El dueño ya tiene su propia

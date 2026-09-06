@@ -32,6 +32,7 @@ import {
   casoNuevo as crearCasoNuevo,
   confirmar,
   confirmarMedida,
+  confirmarTodas,
   conAparatoCaraPosterior,
   conAparatoRenombrado,
   conSituacionCorneal,
@@ -736,6 +737,29 @@ export class ServicioCasos {
     const caso = this.exigirCaso()
     return this.establecer(
       conOjo(caso, confirmarMedida(ojoDe(caso, lado, aparato), campo), this.iso()),
+    )
+  }
+
+  /**
+   * Confirma de golpe todos los datos pendientes de UN dataset —el ojo y
+   * aparato que se está mirando en pantalla ahora mismo, nunca el caso
+   * entero— (petición expresa del dueño del proyecto, 06/09/2026, tras
+   * usar el lector con IA sobre un caso real y encontrar 34 datos que
+   * comprobar de uno en uno).
+   *
+   * A propósito NO existe un «confirmar todo el caso» equivalente: una
+   * sesión anterior lo probó (con el OCR) y lo deshizo —«un clic que
+   * confirma todo cumple la letra de la invariante pero se salta la
+   * intención», lección registrada en `.claude/skills/lessons-learned/log.md`
+   * (11/08/2026, noche)—. Lo que cambia aquí no es esa regla: la interfaz
+   * exige una casilla explícita («he comparado cada dato con el informe»)
+   * antes de poder pulsar este botón, así que sigue habiendo un gesto
+   * consciente — solo dejó de ser uno por cada fila.
+   */
+  confirmarTodoElOjo(lado: Lateralidad, aparato: string = APARATO_PRINCIPAL): Caso {
+    const caso = this.exigirCaso()
+    return this.establecer(
+      conOjo(caso, confirmarTodas(ojoDe(caso, lado, aparato)), this.iso()),
     )
   }
 

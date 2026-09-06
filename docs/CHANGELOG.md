@@ -4,6 +4,42 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.26] — 06/09/2026
+
+feat(app): confirmar todo el ojo de golpe, con una casilla (D70) ·
+Identificación y Lente al principio de la pantalla de revisión.
+
+### Qué se pidió
+
+El dueño probó el lector con IA sobre un caso real de 34 datos y pidió no
+tener que pulsar "Está bien" en cada uno. También pidió que el nombre del
+doctor/paciente y la lente salgan al principio de la pantalla de
+revisión, como ya salen en el cuestionario manual.
+
+### El cambio
+
+`ServicioCasos.confirmarTodoElOjo(lado, aparato)` (nuevo, con su canal
+IPC) confirma de golpe todos los datos pendientes del dataset que se
+está mirando -- nunca el caso entero. En `PanelRevision.tsx`, un botón
+"Confirmar todo" solo se activa tras marcar una casilla "He comparado
+cada dato con el informe original"; la casilla se olvida al cambiar de
+ojo o de aparato. D28 (lo leído por una máquina no se da por bueno solo)
+sigue en pie -- ver D70 en SYSTEM_VISION.md y la lección del 11/08/2026
+que motivó no repetir un boton unico sin mas.
+
+`IdentificacionCaso` y `SelectorLente` se movieron al principio de
+`PanelRevision.tsx`, antes de la biometría -- mismo orden que ya tenía
+`FormularioManual.tsx`.
+
+### Verificado
+
+Test nuevo en `flujo.spec.ts`: el botón empieza deshabilitado, se activa
+solo tras marcar la casilla, y confirma únicamente el ojo activo. `pnpm
+lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e` en
+verde (705 tests unitarios, 39 de interfaz).
+
+---
+
 ## [1.15.25] — 06/09/2026
 
 fix(app): el lector con IA ya no explica en las notas los datos del

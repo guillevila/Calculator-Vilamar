@@ -392,6 +392,63 @@ CCT             530 um</pre></body>`)
 })
 
 /**
+ * Petición expresa del dueño del proyecto (06/09/2026): con muchos datos por
+ * comprobar (probó un caso real de 34), confirmarlos uno a uno era demasiada
+ * fricción. Pero D28 —lo leído por una máquina no se da por bueno solo— sigue
+ * en pie: por eso el botón que los confirma de golpe empieza deshabilitado,
+ * y solo se activa tras marcar una casilla explícita.
+ */
+test('confirmar todo de golpe (D28 + petición del dueño): exige la casilla, y solo toca el ojo activo', async () => {
+  test.setTimeout(180_000)
+
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  // Mismo documento que la prueba anterior: ACD sale DERIVADO, que necesita
+  // comprobación humana — es la forma más simple y fiable de tener un dato
+  // "por comprobar" en una prueba, sin depender de OCR.
+  await p.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <pre>OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+AQD (endo)     2.65 mm
+LT             4.53 mm
+CCT             530 um</pre></body>`)
+  const rutaPdf = join(carpetaDatos, 'anterion-confirmar-todo.pdf')
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByTestId('manual-continuar').click()
+  await expect(ventana.getByTestId('campo-ACD')).toBeVisible()
+
+  await ventana.evaluate(
+    async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'anterion-confirmar-todo.pdf', ruta }]),
+    rutaPdf,
+  )
+  await expect(ventana.getByTestId('comprobar-ACD')).toBeVisible()
+
+  // El botón de confirmar todo existe, pero no hace nada hasta marcar la
+  // casilla: sigue habiendo un gesto consciente, no un clic ciego.
+  const boton = ventana.getByTestId('confirmar-todo-el-ojo')
+  await expect(boton).toBeDisabled()
+  await ventana.getByTestId('checkbox-comprobado-todo').check()
+  await expect(boton).toBeEnabled()
+  await boton.click()
+
+  // La ACD (y cualquier otro dato pendiente de OD) queda confirmada, sin
+  // haber pulsado «Está bien» en cada fila.
+  await expect(ventana.getByTestId('comprobar-ACD')).toHaveCount(0)
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.medidas?.ACD?.confirmadoPorUsuario).toBe(true)
+
+  await ventana.screenshot({ path: 'test-results/11b-confirmar-todo.png', fullPage: true })
+})
+
+/**
  * La tabla de lentes del informe, de punta a punta.
  *
  * Es el recorrido entero de la regla: un PDF de verdad con cuatro modelos y

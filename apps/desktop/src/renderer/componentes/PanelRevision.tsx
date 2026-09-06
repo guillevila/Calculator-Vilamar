@@ -248,6 +248,40 @@ export function PanelRevision({
   const leidosPorMaquina = porComprobar.filter((m) => esLecturaAutomatica(m.procedencia))
   const calculados = porComprobar.filter((m) => !esLecturaAutomatica(m.procedencia))
 
+  /**
+   * Los mismos datos por comprobar, pero SOLO del dataset que se está
+   * mirando ahora mismo (ojoActivo/aparatoActivo) — es el subconjunto que
+   * el botón «Confirmar todo» de más abajo puede confirmar sin que nadie
+   * tenga que haber mirado el otro ojo o el otro aparato para hacerlo.
+   */
+  const porComprobarAqui = useMemo(
+    () =>
+      (Object.keys(ojo.medidas) as CampoBiometrico[])
+        .map((c) => ojo.medidas[c])
+        .filter((m): m is Medida => m !== undefined)
+        .filter((m) => necesitaComprobacionHumana(m.procedencia) && !m.confirmadoPorUsuario),
+    [ojo],
+  )
+
+  /**
+   * La casilla de «he comparado cada dato con el informe», que hay que
+   * marcar antes de poder confirmarlos todos de golpe (petición expresa
+   * del dueño del proyecto, 06/09/2026 — ver `confirmarTodoElOjo` en
+   * `servicio-casos.ts` para el porqué de este diseño). Vive por
+   * ojo/aparato y se olvida al cambiar de cualquiera de los dos: haberla
+   * marcado mirando OD no dice nada sobre haber mirado OS.
+   */
+  const [heComprobadoTodo, setHeComprobadoTodo] = useState(false)
+  useEffect(() => {
+    setHeComprobadoTodo(false)
+  }, [ojoActivo, aparatoActivo])
+
+  async function confirmarTodoElOjo(): Promise<void> {
+    await api().confirmarTodoElOjo(ojoActivo, aparatoActivo)
+    setHeComprobadoTodo(false)
+    await onCambio()
+  }
+
   // Misma cabecera y barra de progreso que `FormularioManual.tsx` (rediseño
   // 04/09/2026): las dos pantallas de entrada de datos tienen que verse
   // como la misma experiencia, venga el caso de un documento o de a mano.
@@ -274,6 +308,18 @@ export function PanelRevision({
           </div>
         </div>
       </div>
+
+      {/*
+        Identificación y Lente van AQUÍ, al principio, igual que en
+        `FormularioManual.tsx` (petición expresa del dueño del proyecto,
+        06/09/2026: las dos pantallas de entrada de datos —a mano o
+        revisando un documento— tienen que ordenarse igual, no solo verse
+        igual). Antes vivían al final de esta pantalla, después de toda la
+        biometría.
+      */}
+      <IdentificacionCaso caso={caso} onCambio={onCambio} />
+
+      <SelectorLente caso={caso} onCambio={onCambio} />
 
       {ojos.length > 1 && (
         <div className="fila" style={{ marginBottom: 14 }}>
@@ -385,6 +431,37 @@ export function PanelRevision({
             </>
           )}
           Compara cada uno con tu informe y pulsa «Está bien», o corrígelo escribiéndolo.
+          {/*
+            Confirmar todo de golpe (petición expresa del dueño, 06/09/2026):
+            solo los del ojo/aparato que se está mirando ahora mismo, y solo
+            tras marcar que se ha comparado cada uno — sigue siendo un gesto
+            consciente, ya no uno por fila. Ver `confirmarTodoElOjo` para el
+            porqué de este diseño (D28 sigue en pie: nada se confirma solo).
+          */}
+          {porComprobarAqui.length > 0 && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(0,0,0,0.12)' }}>
+              <label className="fila" style={{ alignItems: 'center', gap: 8, fontWeight: 400 }}>
+                <input
+                  type="checkbox"
+                  checked={heComprobadoTodo}
+                  onChange={(e) => setHeComprobadoTodo(e.target.checked)}
+                  data-testid="checkbox-comprobado-todo"
+                />
+                He comparado cada uno de los {porComprobarAqui.length}{' '}
+                {porComprobarAqui.length === 1 ? 'dato' : 'datos'} de {nombreLateralidad(ojoActivo)}{' '}
+                con el informe original.
+              </label>
+              <button
+                className="principal"
+                disabled={!heComprobadoTodo}
+                onClick={() => void confirmarTodoElOjo()}
+                data-testid="confirmar-todo-el-ojo"
+                style={{ marginTop: 8 }}
+              >
+                Confirmar todo — {nombreLateralidad(ojoActivo)}
+              </button>
+            </div>
+          )}
         </div>
       )}
       {advertencias.length > 0 && invalidos.length === 0 && porComprobar.length === 0 && (
@@ -423,10 +500,6 @@ export function PanelRevision({
       ))}
 
       <BloqueSexo caso={caso} onCambio={onCambio} />
-
-      <IdentificacionCaso caso={caso} onCambio={onCambio} />
-
-      <SelectorLente caso={caso} onCambio={onCambio} />
 
       <div className="tarjeta">
         <h2>Confirmar y calcular</h2>
