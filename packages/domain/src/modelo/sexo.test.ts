@@ -30,6 +30,7 @@ import {
   SEXO_EN_KANE,
   sexoDeducidoDelNombre,
   sexoDelInforme,
+  sexoPorDefecto,
   TEXTO_SEXO,
 } from './sexo.js'
 
@@ -210,6 +211,43 @@ describe('el sexo que escribe una persona', () => {
     expect(origenDe(corregido)).toBe('CORREGIDO')
     expect(corregido.original?.valor).toBe('MUJER')
     expect(corregido.original?.procedencia.metodo).toBe('DERIVADO')
+  })
+})
+
+describe('el valor de partida (D68): no lo ha dicho nadie, pero no bloquea', () => {
+  it('es Hombre, con procedencia DEFECTO y ya confirmado — para no exigir un clic más', () => {
+    const s = sexoPorDefecto(CUANDO)
+    expect(s.valor).toBe('HOMBRE')
+    expect(s.procedencia.metodo).toBe('DEFECTO')
+    expect(s.confirmadoPorUsuario).toBe(true)
+  })
+
+  it('su origen se dice tal cual: POR_DEFECTO, ni DEL_INFORME ni APORTADO', () => {
+    const s = sexoPorDefecto(CUANDO)
+    expect(origenDe(s)).toBe('POR_DEFECTO')
+  })
+
+  it('no exige comprobación humana — a diferencia de una deducción, que sí', () => {
+    const s = sexoPorDefecto(CUANDO)
+    expect(necesitaComprobacionHumana(s.procedencia)).toBe(false)
+  })
+
+  it('no basta para calcular en Kane igual que un valor real: prepararEntradas lo acepta', () => {
+    // Confirma que el valor de partida abre la puerta hacia Kane exactamente
+    // igual que uno escrito por una persona — es la mitad del punto: no debe
+    // hacer falta un clic de más para poder calcular.
+    const caso = con(casoSinSexo(), sexoPorDefecto(CUANDO))
+    const r = prepararEntradas(caso, 'KANE', 'OD')
+    expect(r.ok).toBe(true)
+  })
+
+  it('cuando una persona lo cambia, el valor de partida queda como "original" — no se pierde el rastro', () => {
+    const porDefecto = sexoPorDefecto(CUANDO)
+    const corregido = aportarSexo(porDefecto, 'MUJER', LUEGO)
+    expect(corregido.valor).toBe('MUJER')
+    expect(origenDe(corregido)).toBe('CORREGIDO')
+    expect(corregido.original?.valor).toBe('HOMBRE')
+    expect(corregido.original?.procedencia.metodo).toBe('DEFECTO')
   })
 })
 

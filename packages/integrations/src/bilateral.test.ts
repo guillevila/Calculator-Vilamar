@@ -24,6 +24,7 @@ import type {
   ResultadoCalculadora,
 } from '@vilamar/domain'
 import {
+  APARATO_PRINCIPAL,
   casoNuevo,
   confirmar,
   confirmarTodas,
@@ -31,6 +32,7 @@ import {
   conOjo,
   conResultado,
   crearMedida,
+  ojoDe,
   ojoVacio,
   sinMedida,
 } from '@vilamar/domain'
@@ -149,8 +151,11 @@ function adaptadorEspia(
 function todosOk(): Record<Calculadora, AdaptadorCalculadora> {
   return {
     EVO_TORIC: adaptadorOk('EVO_TORIC'),
+    EVO_TORIC_SIN_CARA_POSTERIOR: adaptadorOk('EVO_TORIC_SIN_CARA_POSTERIOR'),
     BARRETT_TORIC: adaptadorOk('BARRETT_TORIC'),
+    BARRETT_TORIC_CON_CARA_POSTERIOR: adaptadorOk('BARRETT_TORIC_CON_CARA_POSTERIOR'),
     KANE: adaptadorOk('KANE'),
+    BARRETT_TRUE_K_TORIC: adaptadorOk('BARRETT_TRUE_K_TORIC'),
   }
 }
 
@@ -169,6 +174,7 @@ async function ejecutar(
     alTerminarUna: () => undefined,
     ahora,
     guardarDiagnostico: async () => 'diag-1',
+    guardarCaptura: async () => 'captura-1',
     cancelado: () => false,
     adaptadores,
   })
@@ -320,7 +326,7 @@ describe('aislamiento entre ojos', () => {
   it('que a Barrett le falte el SIA no bloquea a EVO, ni a Kane, ni al otro ojo', async () => {
     let caso = casoDosOjos()
     for (const lado of ['OD', 'OS'] as const) {
-      caso = conOjo(caso, sinMedida(caso.ojos[lado]!, 'SIA'), CUANDO)
+      caso = conOjo(caso, sinMedida(ojoDe(caso, lado), 'SIA'), CUANDO)
     }
 
     const r = await ejecutar(caso, todosOk())
@@ -396,14 +402,18 @@ describe('reintentar', () => {
     ])
 
     const r = await ejecutar(caso, todosOk(), {
-      tareas: [{ calculadora: 'EVO_TORIC', ojo: 'OS' }],
+      tareas: [{ calculadora: 'EVO_TORIC', ojo: 'OS', aparato: APARATO_PRINCIPAL }],
     })
 
     expect(r).toHaveLength(1)
     expect(`${r[0]?.calculadora}:${r[0]?.ojo}`).toBe('EVO_TORIC:OS')
 
-    // Los que ya había siguen, y la clave es calculadora+ojo: no hay duplicados.
+    // Los que ya había siguen, y la clave es calculadora+ojo+aparato: no hay duplicados.
     const tras = con(caso, r)
-    expect(Object.keys(tras.resultados).sort()).toEqual(['EVO_TORIC:OD', 'EVO_TORIC:OS', 'KANE:OD'])
+    expect(Object.keys(tras.resultados).sort()).toEqual([
+      'EVO_TORIC:OD:Principal',
+      'EVO_TORIC:OS:Principal',
+      'KANE:OD:Principal',
+    ])
   })
 })

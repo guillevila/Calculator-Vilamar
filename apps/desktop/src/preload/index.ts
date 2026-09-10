@@ -21,6 +21,8 @@ const api: ApiVilamar = {
 
   casoNuevo: () => ipcRenderer.invoke(CANALES.casoNuevo),
   casoActual: () => ipcRenderer.invoke(CANALES.casoActual),
+  listarCasosGuardados: () => ipcRenderer.invoke(CANALES.listarCasosGuardados),
+  abrirCaso: (codigo) => ipcRenderer.invoke(CANALES.abrirCaso, codigo),
 
   cargarDocumentos: (rutas) => ipcRenderer.invoke(CANALES.cargarDocumentos, rutas),
   elegirYCargarDocumentos: () => ipcRenderer.invoke(CANALES.elegirYCargarDocumentos),
@@ -29,15 +31,40 @@ const api: ApiVilamar = {
   // navegador no expone su ruta en disco: hay que pedírsela a Electron.
   rutaDeArchivo: (fichero) => webUtils.getPathForFile(fichero),
 
-  editarMedida: (ojo, campo, valor) => ipcRenderer.invoke(CANALES.editarMedida, ojo, campo, valor),
-  confirmarCampo: (ojo, campo) => ipcRenderer.invoke(CANALES.confirmarCampo, ojo, campo),
+  editarMedida: (ojo, campo, valor, aparato) =>
+    ipcRenderer.invoke(CANALES.editarMedida, ojo, campo, valor, aparato),
+  establecerIdentificacion: (datos) =>
+    ipcRenderer.invoke(CANALES.establecerIdentificacion, datos),
+  confirmarCampo: (ojo, campo, aparato) =>
+    ipcRenderer.invoke(CANALES.confirmarCampo, ojo, campo, aparato),
+  confirmarTodoElOjo: (ojo, aparato) =>
+    ipcRenderer.invoke(CANALES.confirmarTodoElOjo, ojo, aparato),
   elegirSexo: (sexo) => ipcRenderer.invoke(CANALES.elegirSexo, sexo),
   confirmarSexo: () => ipcRenderer.invoke(CANALES.confirmarSexo),
   confirmarTodo: () => ipcRenderer.invoke(CANALES.confirmarTodo),
   validar: () => ipcRenderer.invoke(CANALES.validar),
-  elegirLente: (fabricante, modelo) => ipcRenderer.invoke(CANALES.elegirLente, fabricante, modelo),
+  discrepanciasDe: (ojo) => ipcRenderer.invoke(CANALES.discrepanciasDe, ojo),
+  reconocerDiscrepancia: (ojo) => ipcRenderer.invoke(CANALES.reconocerDiscrepancia, ojo),
+  renombrarAparato: (ojo, aparatoViejo, aparatoNuevo) =>
+    ipcRenderer.invoke(CANALES.renombrarAparato, ojo, aparatoViejo, aparatoNuevo),
+  editarAparatoCaraPosterior: (ojo, aparato, aparatoCaraPosterior) =>
+    ipcRenderer.invoke(CANALES.editarAparatoCaraPosterior, ojo, aparato, aparatoCaraPosterior),
+  editarSituacionCorneal: (ojo, aparato, situacionCorneal) =>
+    ipcRenderer.invoke(CANALES.editarSituacionCorneal, ojo, aparato, situacionCorneal),
+  elegirLente: (fabricante, modelo, nombreEnEvo, nombreEnKane, constanteConocida) =>
+    ipcRenderer.invoke(
+      CANALES.elegirLente,
+      fabricante,
+      modelo,
+      nombreEnEvo,
+      nombreEnKane,
+      constanteConocida,
+    ),
+  elegirLenteSecundaria: (eleccion) =>
+    ipcRenderer.invoke(CANALES.elegirLenteSecundaria, eleccion),
+  intercambiarLentes: () => ipcRenderer.invoke(CANALES.intercambiarLentes),
 
-  calcular: (calculadoras) => ipcRenderer.invoke(CANALES.calcular, calculadoras),
+  calcular: (calculadoras, filtro) => ipcRenderer.invoke(CANALES.calcular, calculadoras, filtro),
   reintentar: (calculadora, ojo) => ipcRenderer.invoke(CANALES.reintentar, calculadora, ojo),
   cancelarCalculo: () => ipcRenderer.invoke(CANALES.cancelarCalculo),
 

@@ -118,6 +118,18 @@ export interface Rasterizador {
    * que no le dice nada a nadie.
    */
   readonly prepararParaOcr: (imagen: Uint8Array) => Promise<Uint8Array>
+  /**
+   * Gira una imagen ya preparada (la que sale de `prepararParaOcr`) 90, 180 o
+   * 270 grados en sentido horario.
+   *
+   * Existe porque el OCR **no corrige el giro por su cuenta**: una foto de
+   * móvil hecha en vertical de un papel apaisado, o simplemente girada al
+   * subirla, sale con el texto de lado y el reconocimiento no saca casi nada
+   * (D59, 02/09/2026). `ProveedorDocumentos` es quien decide CUÁNDO probar un
+   * giro —mirando la fiabilidad del primer intento—; esta función solo sabe
+   * girar, no cuándo hace falta.
+   */
+  readonly rotar: (imagenPreparada: Uint8Array, grados: 90 | 180 | 270) => Promise<Uint8Array>
   readonly cerrar: () => Promise<void>
 }
 
@@ -378,6 +390,50 @@ export function crearRasterizador(): Rasterizador {
             'Prueba a abrirla y volver a guardarla como PNG o JPG, o escribe los datos a mano. ' +
             `Detalle técnico: ${error instanceof Error ? error.message : String(error)}`,
         )
+      } finally {
+        await cerrar()
+      }
+    },
+
+    async rotar(imagenPreparada: Uint8Array, grados: 90 | 180 | 270): Promise<Uint8Array> {
+      const { pagina: p, cerrar } = await abrirPagina()
+      try {
+        const medidas = await p.evaluate(
+          async ({ base64, grados }) => {
+            const img = new Image()
+            img.src = `data:image/png;base64,${base64}`
+            await img.decode()
+
+            // A 90° y 270° el ancho y el alto se intercambian: una foto en
+            // vertical girada queda apaisada.
+            const seIntercambian = grados === 90 || grados === 270
+            const lienzo = document.createElement('canvas')
+            lienzo.id = 'rotada'
+            lienzo.width = seIntercambian ? img.height : img.width
+            lienzo.height = seIntercambian ? img.width : img.height
+            const ctx = lienzo.getContext('2d')
+            if (!ctx) throw new Error('no se ha podido crear el lienzo')
+            ctx.fillStyle = '#ffffff'
+            ctx.fillRect(0, 0, lienzo.width, lienzo.height)
+            // Girar alrededor del centro del lienzo DESTINO, no del origen:
+            // así el resultado queda centrado tanto si se intercambian los
+            // lados como si no.
+            ctx.translate(lienzo.width / 2, lienzo.height / 2)
+            ctx.rotate((grados * Math.PI) / 180)
+            ctx.drawImage(img, -img.width / 2, -img.height / 2)
+            lienzo.style.display = 'block'
+            document.body.appendChild(lienzo)
+
+            return { ancho: lienzo.width, alto: lienzo.height }
+          },
+          { base64: Buffer.from(imagenPreparada).toString('base64'), grados },
+        )
+
+        await p.setViewportSize({
+          width: Math.min(medidas.ancho, 4000),
+          height: Math.min(medidas.alto, 4000),
+        })
+        return new Uint8Array(await p.locator('#rotada').screenshot({ type: 'png' }))
       } finally {
         await cerrar()
       }

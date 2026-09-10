@@ -62,6 +62,13 @@ export interface ContextoEjecucion {
    * Se inyecta porque el adaptador no debe decidir dónde se escribe en disco.
    */
   readonly guardarDiagnostico: (d: DatosDiagnostico) => Promise<string>
+  /**
+   * Guarda la captura de pantalla de un resultado de éxito, para que el
+   * informe la incluya tal cual. Se inyecta por el mismo motivo que
+   * `guardarDiagnostico`: el adaptador no debe decidir dónde se escribe en
+   * disco.
+   */
+  readonly guardarCaptura: (d: DatosCaptura) => Promise<string>
   /** Señal para cancelar desde la interfaz. */
   readonly cancelado: () => boolean
 }
@@ -74,6 +81,14 @@ export interface DatosDiagnostico {
   readonly errorTecnico: string
   /** PNG. Puede no haberla si el navegador ya no responde. */
   readonly captura?: Uint8Array
+}
+
+/** Lo que hace falta para guardar la captura de un resultado de éxito. */
+export interface DatosCaptura {
+  readonly calculadora: Calculadora
+  readonly ojo: Lateralidad
+  /** PNG de la página de resultado, tal cual la mostró la web. */
+  readonly png: Uint8Array
 }
 
 /**

@@ -327,7 +327,16 @@ cualquier consideración técnica:
 - **Un dato que falta no se rellena.** Ni con cero, ni con un valor «normal», ni
   con una inferencia. Se dice que falta.
 - **El producto compara, no recomienda.** Puede decir que dos calculadoras
-  coinciden; no puede decir qué lente implantar.
+  coinciden; no puede decir qué lente implantar. **Única excepción, estrecha
+  y siempre marcada como «no vinculante»**: una estimación propia con un
+  criterio clínico fijo y explícito («la primera esfera con refracción
+  prevista negativa; el cilindro tórico más alto que sigue compartiendo el
+  eje curvo»), enseñada bajo cada captura y en un cuadro final opcional —
+  nunca en el lugar de lo que la calculadora respondió de verdad, que sigue
+  siendo la captura de pantalla sin interpretar. Decisión D43 en
+  `SYSTEM_VISION.md`: pedida expresamente por el dueño del proyecto después
+  de un pushback explícito, aceptando la condición de que sea opcional y no
+  vinculante.
 
 ---
 

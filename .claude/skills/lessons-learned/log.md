@@ -26,6 +26,67 @@ O directamente: _"Anota esto como lección aprendida: [descripción]"_
 
 <!-- Las lecciones se añaden debajo de esta línea -->
 
+## 2026-08-27 — Electron arrancaba como Node puro dentro de VSCode
+
+**Error o aprendizaje:** Al lanzar `pnpm dev` desde la terminal de este
+entorno (VSCode), Electron arrancaba pero la ventana no llegaba a abrirse
+—o abría y se comportaba como un proceso Node normal, sin `app`,
+`BrowserWindow` ni el resto de la API—. El error visible era un fallo
+interno del cargador de módulos ESM de Node al importar `electron`.
+
+**Causa raíz:** VSCode es en sí mismo una aplicación Electron y propaga
+`ELECTRON_RUN_AS_NODE=1` al entorno de sus terminales integradas — una
+variable pensada para que procesos hijos de VSCode no abran ventanas
+Electron completas por accidente. Cualquier `electron.exe` lanzado
+heredando esa variable se ejecuta como Node puro, no como la aplicación.
+
+**Lección:** Antes de `pnpm dev` (o cualquier arranque de Electron) en una
+terminal de VSCode, comprobar y limpiar la variable:
+`Remove-Item Env:\ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue`. Sin
+esto, el síntoma es confuso (parece un fallo de carga de módulos, no un
+problema de entorno) y lleva a perder tiempo revisando el código en vez
+del entorno.
+
+**Contexto:** Siempre que se arranque la aplicación Electron desde una
+terminal integrada de VSCode (o cualquier IDE basado en Electron).
+
+---
+
+## 2026-08-27 — Barrett Toric: activar «Measured PCA» cruza dos pestañas y dos botones distintos, ambos llamados «Calculate»
+
+**Error o aprendizaje:** El adaptador de Barrett marcaba «Measured PCA»,
+rellenaba el panel de córnea posterior y pulsaba «Calculate» — pero el
+resultado salía siempre idéntico al de «Predicted PCA», como si los datos
+nunca se hubieran usado. Diagnosticado en vivo con el dueño del proyecto
+viendo el navegador real: la secuencia completa exige, en este orden,
+pulsar «Calculate» del panel «K Calculator» (un botón físicamente distinto
+del de la pestaña «Patient Data», aunque ambos se vean iguales y digan
+«Calculate»), entrar en la pestaña «Toric IOL», pulsar «Calculate» otra
+vez (ahí es un tercer botón, propio de esa pestaña) y entrar en «Toric
+IOL» una segunda vez — solo entonces el resultado refleja de verdad la
+córnea posterior medida.
+
+**Causa raíz:** La web reutiliza el mismo texto de botón («Calculate») en
+tres paneles distintos de un mismo iframe ASP.NET, cada uno con su propio
+id de control (`Button1`, `Button4`, y otro `Button1` distinto dentro de
+la pestaña Toric IOL). Mirar el HTML inicial, o incluso una captura de un
+solo paso, no lo revela: hace falta volcar los botones reales en cada
+pantalla intermedia y comparar el resultado numérico antes y después.
+
+**Lección:** Cuando una web de terceros (ASP.NET con pestañas/paneles
+antiguo) tiene un flujo de varios pasos que no está documentado, no basta
+con probar que un selector existe: hay que verificar que el **resultado
+numérico cambia de verdad** entre el antes y el después, con datos
+sintéticos de prueba, antes de dar por buena una secuencia de clics. Un
+selector que existe y un clic que «no falla» no prueban que el paso haya
+tenido efecto.
+
+**Contexto:** `packages/integrations/src/adapters/barrett.ts` — y en
+general, cualquier adaptador de una web ajena con flujos multi-paso poco
+documentados.
+
+---
+
 ## 2026-08-11 — La carpeta estaba vacía y la plantilla no llegó a copiarse
 
 **Error o aprendizaje:** La sesión empezó con la instrucción de leer, en orden,
@@ -833,3 +894,1398 @@ lo dice la web» no era ejecutable.
 **Lo que confirmó que la lección va en serio.** Se rompió la regla a propósito de
 tres formas —la primera, la del medio, la de refracción más cercana a cero— y las
 tres las caza un test. La guarda que nadie ha visto fallar no está demostrada.
+
+---
+
+## 25/08/2026 — Que el DOM ya tenga el dato no significa que la pantalla ya lo enseñe
+
+**Qué pasó.** Al añadir la captura de pantalla del resultado de cada calculadora
+(sesión del 24/08/2026), Kane era el único de los tres cuya captura salía mal: la
+cabecera con los datos de entrada se veía perfecta, pero la tabla de potencias y
+la tabla tórica salían con las filas vacías —bordes dibujados, sin números—. Y sin
+embargo el resultado numérico que el programa leía de esas mismas tablas **siempre
+fue correcto**: la extracción no fallaba, solo la foto.
+
+**Cómo se vio.** No se supuso: se abrieron los PNG de verdad, guardados en
+`%APPDATA%\calculator-vilamar\capturas`, con el visor de imágenes. Comparar una
+captura de la primera ejecución (tablas vacías) con otra veinte minutos después
+del mismo ojo (tablas completas, con las mismas filas que ya se estaban leyendo
+bien todo el rato) fue lo que distinguió «la extracción falla a veces» —que no era
+verdad— de «la foto llega demasiado pronto» —que sí lo era—.
+
+**La causa raíz.** El código esperaba una sola señal antes de leer y fotografiar:
+que el aviso «Processing…» de Kane se escondiera. Esa señal dice que Kane ha
+terminado de CALCULAR, no que el navegador ya haya PINTADO la tabla en pantalla.
+`pagina.evaluate()` lee el DOM, que ya tenía los números; `pagina.screenshot()`
+captura el fotograma compuesto, que puede ir un paso por detrás de una mutación de
+DOM muy reciente. Son dos preguntas distintas —«¿está el dato?» y «¿se ve el
+dato?»— y el código solo comprobaba la primera antes de dar por buenas las dos.
+
+**Lección:** Es la misma familia que «he pulsado el botón» ≠ «el aviso ya no está»
+(11/08/2026, sobre las cookies de Barrett), en una variante nueva: aquí ni siquiera
+hacía falta pulsar nada más, el fallo estaba en confundir **el dato existe** con
+**el dato está pintado**. Cuando algo se va a FOTOGRAFIAR (no solo leer), la espera
+tiene que apuntar a una condición visual comprobable —aquí, que la primera celda de
+la tabla tenga texto de verdad—, no a la señal que basta para leer el dato por
+detrás. Y la corrección para eso nunca es un `waitForTimeout` a ciegas: es esperar
+la condición real con `waitForFunction`, y dejar que el camino de error de siempre
+segura actuando igual si esa condición no llega nunca.
+
+**Contexto:** Cualquier captura de pantalla o comprobación visual sobre una web
+ajena. Y en general, cualquier sitio donde una señal de «ya ha terminado de
+calcular» se use también como señal de «ya se puede fotografiar/leer visualmente»:
+son preguntas distintas y pueden resolverse en instantes distintos.
+
+---
+
+## 25/08/2026 (tarde) — El primer informe real encontró un fallo que 254 tests sintéticos nunca vieron
+
+**Qué pasó.** El dueño del proyecto pasó un informe real de IOLMaster (Zeiss) — el
+primero que ve este programa desde que existe — y dijo que los datos no se leían
+bien, aunque el PDF era de texto nativo y perfectamente legible. Tenía razón: el
+ojo derecho perdía la longitud axial entera y los ejes de K1/K2; el izquierdo, por
+pura casualidad, salía bien.
+
+**Cómo se vio.** El informe real trae DOS secciones por ojo, no una: un resumen
+arriba (con la AL, sin eje) y una «Transcripción detallada» más abajo (con el eje,
+sin la AL) — el mismo dato repartido en dos sitios porque son dos vistas distintas
+de lo mismo, no una repetición. Nunca hizo falta pedirle el documento a nadie para
+verlo: se anonimizó a mano —nombre y fecha de nacimiento sustituidos, antes de que
+tocaran ningún fichero del proyecto— y se reprodujo en un test desechable contra
+`interpretarTexto`, la misma función que usa la aplicación.
+
+**La causa raíz.** `segmentarPorSecciones` (packages/extraction/src/parsers/
+segmentar.ts) ya sabía que un rótulo de ojo puede repetirse, y para ese caso se
+quedaba con el trozo de texto MÁS LARGO, pensando en una mención de paso («ver
+comparación OD/OS») frente a la tabla de medidas de verdad. La heurística no
+contempló la tercera posibilidad: dos secciones, las dos con datos reales, cada
+una con lo que la otra no trae. Quedarse con una sola pierde datos que solo
+estaban en la otra — y como el ojo derecho tenía su bloque «detallado» más largo
+que su resumen, y el izquierdo al revés, el fallo ni siquiera era simétrico entre
+los dos ojos, lo que lo hacía más difícil de sospechar mirando un solo lado.
+
+**Por qué no lo vio ningún test.** Los 254 tests de extracción de este proyecto
+parten de textos sintéticos escritos para probar UNA cosa cada vez: nunca se
+escribió uno con el mismo ojo apareciendo dos veces con campos complementarios,
+porque nadie sabía que un aparato real lo hace así. Es la misma lección que ya
+está en este log sobre «los casos de prueba salen de cómo se usa la herramienta
+de verdad, no de lo que a uno se le ocurre» — con un matiz nuevo: aquí ni hacía
+falta imaginar el uso, bastaba con mirar el primer documento real que llegó.
+
+**La corrección.** `segmentarPorSecciones` ya no elige un trozo y descarta el
+otro: los JUNTA, en el orden en que aparecen. Es seguro hacerlo porque
+`aplicarReglas` (nucleo.ts) ya se queda con la PRIMERA aparición de cada campo —
+así que si el resumen trae la AL, esa es la que se usa, y si la sección detallada
+trae un eje que el resumen no traía, también se aprovecha, sin tener que decidir
+cuál de las dos secciones es «la buena».
+
+**Lo que hago a partir de ahora.**
+
+1. **Un documento real vale más que cien sintéticos bien pensados** para encontrar
+   la clase de fallo que nadie anticipó — no porque los sintéticos sobren, sino
+   porque están escritos para confirmar lo que ya se sabe que hay que comprobar.
+2. **Cuando llegue un documento con datos personales, se anonimiza ANTES de
+   tocar cualquier fichero del proyecto**, nunca después. El nombre y la fecha de
+   nacimiento no entraron ni en un test desechable ni en ningún commit.
+3. Una heurística de «si se repite, me quedo con el mejor» necesita preguntarse
+   qué pasa cuando **las dos repeticiones son buenas pero distintas**. Aquí la
+   respuesta correcta no era elegir mejor, era dejar de elegir.
+
+**Lo que sigue abierto.** Esto valida el lector contra el formato de UN informe
+real de IOLMaster, de un aparato de los tres que el proyecto dice soportar
+(ANTERION y Pentacam siguen sin ningún documento real). O5 en `SYSTEM_VISION.md`
+sigue abierta: un documento no es una muestra, es el primero.
+
+**Contexto:** Todo parser de informes, y en general cualquier heurística
+«si algo se repite, me quedo con uno» — antes de escribirla, preguntarse si las
+repeticiones pueden ser complementarias en vez de redundantes.
+
+---
+
+## 2026-08-26 — Una petición del dueño chocaba con un test que existía justo para evitarla
+
+**Error o aprendizaje:** El dueño pidió una lente «recomendada» calculada con un
+criterio propio, aplicada siempre, y un cuadro final con la más cercana entre
+las tres calculadoras. Antes de escribir una línea de código, una relectura de
+`packages/domain/src/comparacion/comparar.ts` reveló que ese fichero tiene un
+test dedicado —`el producto compara, no recomienda`— y un docstring que dice,
+literalmente, que ninguna regla propia («ni la primera, ni la más cercana a
+cero») puede elegir una opción, porque eso convertiría el producto en quien
+decide la lente. Es decir: la petición no era una función nueva más, era abrir
+una puerta que el código ya había cerrado a propósito, con una lección
+registrada detrás.
+
+**Causa raíz:** Ninguna. Esto no fue un error — es la constitución del proyecto
+funcionando como debía: la regla «compara, pero no recomienda» está para que
+una petición razonable, y bienintencionada, no entre sin que alguien se dé
+cuenta de lo que está pidiendo de verdad.
+
+**Lección:** Cuando una petición del dueño parezca sencilla mirando solo el
+código de la interfaz o el informe, conviene mirar también el módulo de dominio
+que ya resolvió un problema parecido — puede llevar un docstring o un test que
+explique por qué esa solución obvia ya se descartó una vez. Aquí se pudo
+avisar ANTES de tocar nada, en vez de escribir la función y descubrir el
+choque al ejecutar los tests.
+
+**Cómo se resolvió:** Pushback explícito citando el fichero y el test
+concretos. El dueño, informado, decidió seguir adelante — pero con una
+condición explícita: que se marque siempre como opcional y no vinculante, no
+como una recomendación. La estimación se implementó en un módulo NUEVO y
+separado (`comparacion/recomendacion.ts`, no dentro de `comparar.ts`), con su
+propio docstring explicando la diferencia, y la excepción se documentó en tres
+sitios a la vez: `SYSTEM_VISION.md` (D43), `CLAUDE.md` y `.claude/CLAUDE.md`
+(la única excepción, estrecha, a esa regla).
+
+**Contexto:** Cualquier petición que toque una regla de la lista «Lo que este
+proyecto no hace, nunca» (`CLAUDE.md`) o un módulo con un docstring de tipo
+«esto NO hace X, y no es un olvido» — antes de implementar, leer ese docstring
+entero y decidir si la petición es una función nueva o una reapertura de una
+puerta cerrada. Las dos merecen tratamiento distinto.
+
+---
+
+## 2026-08-26 — Un algoritmo probado con datos sintéticos falló con el primer PDF real
+
+**Error o aprendizaje:** El criterio de «lente estimada» (D43) tenía 9 tests
+de dominio en verde, todos con datos escritos a mano para el test. El primer
+cálculo real de punta a punta con las tres calculadoras (mandado por el dueño
+en un PDF) encontró dos fallos que ningún test había visto:
+
+1. `estimarLenteRecomendada()` cogía «la primera opción del array» dando por
+   hecho que ya venía ordenada de menor a mayor potencia. **Cierto para EVO,
+   falso para Kane** —Kane pinta su tabla de mayor a menor—, así que la
+   estimación salía invertida solo en Kane, y ningún test lo detectó porque
+   todos los fixtures de prueba se escribieron ya en orden ascendente, sin
+   pensar en que una calculadora real pudiera devolverla al revés.
+2. El aviso «* PK1 > PK2» que EVO enseña en su propio formulario es
+   **engañoso**: lo correcto, comprobado aislando las cuatro combinaciones
+   posibles, es justo lo contrario (PK1 menor que PK2). Se había dado el
+   aviso de la web por bueno sin comprobarlo contra un resultado real.
+
+**Causa raíz:** Los tests sintéticos prueban que la LÓGICA hace lo que se le
+pidió con los datos que se le dan. No pueden probar una suposición sobre
+CÓMO llegan esos datos de verdad (el orden de una tabla ajena, el sentido de
+un aviso en una web ajena) si esa suposición nunca se escribió como
+pregunta. Es la misma familia de fallo que la segmentación del IOLMaster y la
+captura en blanco de Kane, antes en esta misma sesión: código que pasa todos
+los tests y aun así falla con el primer caso real, porque el fallo estaba en
+una suposición sobre el mundo exterior, no en la lógica interna.
+
+**Lección:** Cuando el código depende del ORDEN o del SENTIDO de algo que
+viene de fuera (una tabla ajena, un aviso de validación de una web ajena):
+1. No asumir que todas las fuentes se comportan igual — comprobar cada una.
+2. Un aviso visible en una web ajena («* PK1 > PK2») es un dato a verificar,
+   no una instrucción a seguir a ciegas: puede estar mal, puede referirse a
+   otra cosa, o puede que la propia web tenga un error de redacción.
+3. Ordenar explícitamente antes de depender del orden, en vez de asumir que
+   «el orden en que llega» ya es el que hace falta.
+
+**Cómo se encontró:** Aislando la variable real con cuatro combinaciones
+controladas (con lente / sin lente, PK1 mayor / menor que PK2) contra la web
+real, no adivinando a partir de la primera pista visible.
+
+**Contexto:** Cualquier función que recorra una lista buscando «la primera
+que cumple X» — preguntarse explícitamente en qué orden puede llegar esa
+lista según la fuente, y si ese orden está garantizado o solo es una
+casualidad del primer caso que se probó.
+
+---
+
+## 2026-08-27 — Una petición sobre privacidad necesitó dos avisos, no uno, porque el alcance real era mayor del que parecía
+
+**Error o aprendizaje:** El dueño pidió que el nombre real del paciente
+saliera en el informe. Se hizo pushback explicando que el PDF nunca lleva
+ese dato (D23) y que eso lo convierte en un documento de salud identificado
+— el dueño confirmó, informado, y se aceptó. Pero al concretar el alcance
+(¿dónde exactamente?) salió que la petición real era mucho más seria de lo
+que la primera pregunta había cubierto: no era solo sobre las páginas locales
+del PDF, sino sobre que el nombre **saliera del ordenador y viajara a tres
+servidores externos** en cada cálculo. Eso es un salto de gravedad distinto
+—de "un fichero en tu disco" a "un dato de salud identificado cruzando
+internet tres veces por caso"— y el primer pushback no lo había distinguido
+con la claridad suficiente.
+
+**Causa raíz:** La primera pregunta de aclaración («¿local o también a las
+calculadoras?») se hizo, pero se ofreció como si las dos opciones fueran
+igual de graves cuando no lo son ni de lejos. Una pregunta de aclaración con
+opciones de gravedad muy distinta necesita decirlo explícitamente en el
+propio texto de cada opción, no dar por hecho que la persona que responde ya
+ha calibrado la diferencia.
+
+**Lección:** Cuando una petición toca una regla de privacidad y tiene más de
+una interpretación posible, no basta con una ronda de pushback genérico.
+Hay que:
+1. Aclarar el alcance exacto ANTES de pedir la confirmación final, no
+   después.
+2. Si las opciones de alcance tienen gravedad muy distinta (un fichero local
+   vs. tres envíos a internet), decirlo así de explícito en cada opción, no
+   dejar que la persona lo infiera.
+3. Aceptar que la persona puede necesitar dos rondas de aviso, no una, y que
+   eso no es insistir de más — es proporcional a lo que se está a punto de
+   cambiar.
+
+**Cómo se resolvió:** Segunda pregunta específica, con la comparación
+explícita («esto es mucho más serio: viajaría a tres servidores»). El dueño
+confirmó las dos veces. Implementado como D44, con el rastro de las dos
+confirmaciones documentado en `SYSTEM_VISION.md`, no solo la última.
+
+**Contexto:** Cualquier petición que toque una regla de privacidad, datos de
+salud o algo que "sale del ordenador" — la primera pregunta de aclaración
+debe separar explícitamente "quedarse en local" de "salir a internet", nunca
+presentarlas como dos matices del mismo tamaño.
+
+---
+
+## 2026-08-27 (tarde) — «No existe ese campo» era «no lo busqué en el momento en que aparece»
+
+**Error o aprendizaje:** Al pedir lo mismo que D45 para Barrett (calcular con
+y sin córnea posterior), revisé el adaptador y el HTML inicial de
+`calc.apacrs.org` y concluí, con seguridad, que Barrett **no tiene** ningún
+campo de córnea posterior — lo escribí así en `SYSTEM_VISION.md`, en el
+changelog y se lo dije al dueño del proyecto. Era falso. El dueño lo
+corrigió con dos capturas reales: un interruptor «Measured PCA» que abre un
+panel entero con los campos exactos que hacían falta.
+
+**Causa raíz:** El interruptor **solo existe DESPUÉS de pulsar «Calculate»
+una vez** con el formulario normal — nunca en el formulario recién cargado.
+Miré el HTML inicial y, al no verlo, concluí que no existía en ningún
+estado, en vez de concluir que no existía **en ese estado**. Es la misma
+familia que «he pulsado el botón» ≠ «el aviso ya no está» y que «el DOM ya
+tiene el dato» ≠ «la pantalla ya lo pinta», ambas ya en este log: hasta
+ahora todas eran sobre confundir dos ESTADOS a lo largo del tiempo. Esta es
+la versión más cara — no confundí dos estados, di por inexistente algo que
+solo aparece en un estado que no llegué a provocar.
+
+Y activar el interruptor no bastaba: rellenar su panel y pulsar el
+`Calculate` de siempre (`Button1`) dejaba el resultado calculado en
+«Predicted PCA» de todos modos — un fallo silencioso, porque parecía haber
+funcionado. El panel tiene su propio botón (`Button4`, encontrado volcando
+sin filtrar TODOS los botones de la página, porque ni el nombre ni el
+aspecto lo delataban), y activar «Measured PCA» de verdad exige además
+volver a calcular en la pestaña «Toric IOL» — nueve pasos en total, entre
+dos pestañas.
+
+**Cómo se resolvió:** El dueño del proyecto probó la web real junto con
+Claude, en tiempo real, indicando paso a paso qué pulsar y en qué orden,
+mientras Claude comparaba capturas de pantalla entre cada paso para
+confirmar cuál cambiaba de verdad el resultado. Sin esa colaboración en
+vivo no se habría encontrado: ninguna revisión de código ni de HTML
+estático lo habría revelado, porque el estado que hacía falta inspeccionar
+no existe hasta la tercera acción de una secuencia de nueve.
+
+**Lección:**
+1. **«No encontré el campo» y «el campo no existe» son afirmaciones
+   distintas**, y solo la primera es la que de verdad se puede sostener tras
+   mirar el HTML inicial. Un formulario dinámico puede revelar campos
+   nuevos después de cualquier acción — un cálculo, un checkbox, un envío
+   — y "no está en el HTML de ahora" nunca prueba "no existe en ningún
+   estado".
+2. Antes de escribir "esta web no tiene X" en un documento que el dueño va
+   a leer como un hecho verificado, la pregunta correcta es "¿probé la web
+   en todos los estados razonables, o solo en el que cargó por defecto?".
+3. Cuando activar una opción no cambia el resultado, **sospechar del propio
+   mecanismo de activación antes que concluir que la opción no sirve** —
+   aquí, el botón equivocado dejaba todo con pinta de haber funcionado.
+4. Cuando el dueño del proyecto corrige una conclusión técnica con
+   evidencia (capturas, no solo su palabra), el error se reconoce sin
+   rodeos y se investiga desde cero — no se defiende la primera conclusión
+   ni se busca cómo tenía "algo de razón".
+
+**Contexto:** Cualquier vez que se concluya "esta web/formulario no tiene
+tal campo o funcionalidad" a partir de mirar un único estado (el HTML
+inicial, la primera captura) — sobre todo en `packages/integrations/src/adapters/`,
+donde ya hay precedente de formularios que cambian tras un envío (Kane
+esconde campos al elegir cierta lente; ahora Barrett revela un panel entero
+tras el primer «Calculate»).
+
+---
+
+## 2026-08-27 (noche) — Un resultado «igual en silencio» era el mismo fallo de siempre, con un giro nuevo: reintentar en la misma página lo empeoró
+
+**Error o aprendizaje:** Con la secuencia de nueve pasos de «Measured PCA»
+ya implementada y verificada esa misma tarde (resultados distintos entre
+«Predicted» y «Measured» con el mismo caso), el dueño probó la aplicación
+de verdad con sus propios datos y las dos hojas de Barrett le dieron **el
+mismo cilindro y el mismo eje**. Exactamente el síntoma que se daba por
+resuelto.
+
+Reproducido en vivo con su caso real (PK1 −6.2, PK2 −6.0): la primera vez
+salió bien, con resultados distintos. Repetido varias veces seguidas, salió
+mal la mayoría: el paso final —abrir «Toric IOL» por segunda vez, que es
+cuando la web de verdad conmuta a «Measured PCA»— a veces se lee **antes**
+de que el postback de esa web (lenta) haya terminado. Como los datos
+«Predicted PCA» siguen en pantalla sin ningún aviso mientras tanto, el
+programa los leía como si fueran el «Measured PCA» pedido — de ahí las dos
+hojas idénticas, sin ningún error que lo delatara.
+
+**Causa raíz:** Es la misma familia que «he pulsado el botón» ≠ «el aviso
+ya no está» (11/08/2026) y «el DOM ya tiene el dato» ≠ «la pantalla ya lo
+pinta» (25/08/2026), ambas ya en este log: se esperó con un
+`waitForTimeout` fijo tras el último clic, en vez de comprobar la condición
+real (que el texto «Measured PCA» hubiera aparecido de verdad). Van ya tres
+veces con la misma forma de fallo, en tres sitios distintos.
+
+**Lo nuevo, que no estaba en el log:** El primer arreglo que se probó fue
+reintentar SIN salir de la página — recalcular y reabrir la pestaña de
+resultados otra vez, con la esperanza de que la segunda vez sí le diera
+tiempo. **Salió peor**: en vez de quedarse en «Predicted PCA» con pinta de
+éxito, la tabla de resultados aparecía completamente vacía. Un segundo
+postback disparado demasiado seguido sobre un formulario ASP.NET WebForms
+(con su `__VIEWSTATE` de por medio) puede dejarlo en un estado más roto que
+el que intentaba arreglar, no solo «tardar un poco más». Se abandonó el
+reintento interno y se dejó que la persona pulse «Reintentar» desde fuera
+— lo que reabre la página entera desde cero, la única recuperación fiable
+que se comprobó que funciona en esta web.
+
+**Lección:**
+1. Verificar una vez que un cálculo da un resultado distinto **no basta**
+   si la condición que hace falta esperar es intermitente por naturaleza
+   (una web lenta). Hace falta repetir la comprobación varias veces
+   seguidas para descubrir que a veces falla — una sola ejecución con
+   éxito no demuestra que sea fiable, solo que es posible.
+2. Cuando una acción depende de un postback de un formulario ajeno, la
+   condición de espera tiene que ser el EFECTO observable de ese postback
+   (aquí, el texto «Measured PCA» apareciendo), nunca un tiempo fijo — por
+   generoso que parezca. Y si no aparece, **fallar con un aviso claro es
+   mejor que devolver el dato de antes** con pinta de ser el nuevo.
+3. **Reintentar dentro de la misma página no es gratis** en un formulario
+   con estado en el servidor (ASP.NET WebForms, `__VIEWSTATE` y similares):
+   puede dejarlo peor que antes de reintentar. La recuperación fiable de un
+   postback a medias es casi siempre volver a cargar la página desde cero,
+   no insistir sobre la misma sesión de formulario.
+4. Antes de dar una hoja de ruta por «resuelta y verificada» en la
+   documentación, distinguir explícitamente «funcionó en la comprobación
+   que hice» de «es fiable» — sobre todo con webs de terceros lentas o con
+   comportamiento variable. `PROJECT_STATUS.md` ahora dice explícitamente
+   que esta calculadora en concreto es la menos fiable de las tres para
+   esta variante, en vez de callarlo.
+
+**Contexto:** Cualquier automatización de un formulario ajeno que dependa
+de un postback — comprobar el efecto real, no un tiempo fijo, y desconfiar
+de cualquier "arreglo" que reintente sin recargar la página cuando el
+formulario tiene estado en el servidor.
+
+**⚠️ Corrección, la misma noche:** El punto 2 de la lección de arriba —«la
+condición de espera tiene que ser el efecto observable, el texto «Measured
+PCA» apareciendo»— **no se pudo llevar a la práctica, y se abandonó.** Se
+probaron CUATRO formas distintas de leer ese texto (literal, con regex
+tolerante a `&nbsp;`, volviendo a buscar el marco por si había quedado
+obsoleto, y comprobando el interruptor del formulario en vez del texto) y
+las cuatro rechazaban cálculos que ya estaban bien — confirmado capturando
+pantalla y el texto completo de la página en el momento exacto de cada
+fallo: la tabla de «Measured PCA» ya tenía los números correctos, pero
+ninguna de las cuatro comprobaciones lo detectaba. La explicación más
+probable es que esa etiqueta se pinta con una imagen o con contenido
+generado por CSS (`::before`/`::after`), invisible para `innerText`,
+`textContent` y cualquier propiedad de formulario alcanzable desde la
+pestaña de resultados.
+
+Se quitó la comprobación por completo. Lo único que quedó del intento fue
+subir el margen de espera fijo antes de leer la tabla (de 4 a 6 segundos
+para esta variante) — es decir, exactamente el `waitForTimeout` que la
+lección de arriba decía que no bastaba. Con esa única espera más larga, se
+repitió la prueba en vivo dos veces seguidas y las dos dieron resultados
+correctos y distintos.
+
+**La lección que de verdad queda, corregida:** «Esperar el efecto real, no
+un tiempo fijo» sigue siendo lo correcto EN GENERAL (y así se ha hecho para
+D45 en EVO, donde sí funciona: `waitForFunction` sobre el DOM). Pero
+**exige que la señal que se espera sea alcanzable por programa** — y aquí
+no se comprobó eso antes de construir la comprobación: se dio por hecho
+que un texto visible en pantalla iba a estar en `innerText`, y no lo
+estaba. Antes de escribir una espera activa sobre "que aparezca X", hay
+que verificar PRIMERO, con una lectura de la página en un momento en que X
+ya se ve, que X es efectivamente legible por Playwright — si no lo es,
+perseguirlo no es más seguro que un tiempo fijo: es peor, porque falla
+también en el caso en que todo ha ido bien.
+
+**Y una de proceso:** esto costó más de una decena de peticiones seguidas
+a la web real de Barrett en menos de dos horas, entre las pruebas del
+dueño y las propias, algunas con teorías que resultaron equivocadas.
+Ninguna comprobación posterior mostró señales de bloqueo, pero es el tipo
+de patrón (mismo perfil, mismas peticiones, en ráfaga) que puede activar
+protecciones anti-bot en una web ajena — cuantas menos rondas de prueba y
+error en directo hagan falta, mejor, y depurar primero con la evidencia ya
+capturada (una captura de pantalla, el texto completo de la página) antes
+de lanzar otra ronda contra la web real habría ahorrado varias de esas
+peticiones.
+
+## 27/08/2026 (noche, 2) — Un `pnpm test:e2e` que fallaba distinto cada vez no era el código: era mi propia terminal
+
+**Error o aprendizaje:** Al terminar D47 (varios biómetros por ojo),
+`pnpm test:e2e` fallaba en `flujo.spec.ts`, pero de forma **distinta en
+cada intento**: unas veces la ventana de Electron ni llegaba a abrirse
+(«Target page, context or browser has been closed»), otras se quedaba
+atascada 30 segundos haciendo una captura de pantalla, otras avanzaba bien
+hasta cierto punto y luego una acción (`fill`, `click`) esperaba 30
+segundos y fallaba sobre una pantalla que parecía la de INICIO en vez de la
+que el test esperaba. Cuatro ejecuciones seguidas, cuatro patrones de fallo
+distintos con el mismo código sin tocar entre medias — la primera señal de
+que el problema no estaba en la lógica de la aplicación, sino en algo
+inestable alrededor.
+
+Antes de tocar una sola línea de producción, se instrumentó el propio
+`beforeAll` del test (temporalmente, revertido después) con
+`ventana.on('load', …)`, `ventana.on('pageerror', …)` y
+`app.process().stderr.on('data', …)`, y por separado se añadió un
+`appendFileSync` temporal dentro de la red de seguridad de
+`instalarRedDeSeguridad()` (`process.on('uncaughtException', …)`) para
+descartar, con un fichero de verdad y no con una suposición, que hubiera
+una excepción real escapándose en el proceso principal. **El fichero nunca
+se creó**: no había ninguna excepción de JavaScript. Lo que sí apareció, de
+forma repetible, fue un mensaje `Debugger ending on ws://127.0.0.1:PUERTO/…`
+con un puerto nuevo cada vez, justo antes de cada fallo — la firma del
+inspector de Node.js (`--inspect`), no de Electron ni de Chrome DevTools
+Protocol.
+
+La causa: mi propio shell (tanto la herramienta Bash como la de PowerShell
+de esta sesión) tiene `ELECTRON_RUN_AS_NODE=1` puesto **globalmente**, algo
+que el propio `flujo.spec.ts` ya documenta como una trampa conocida del
+proyecto («si está puesta, Electron arranca como si fuera Node y no abre
+ninguna ventana, sin decir nada») y que el test filtra explícitamente antes
+de lanzar la app final (`if (k !== 'ELECTRON_RUN_AS_NODE') entorno[k] = v`).
+Pero ese filtro solo protege el proceso de la APP; no protege a los
+procesos internos que Playwright lanza por su cuenta para gestionar el
+propio `_electron.launch()`, que heredan el entorno de la terminal donde se
+ejecuta el comando, no el objeto `env` que se le pasa a la app. Con esa
+variable puesta, esa maquinaria interna se volvía intermitentemente
+inestable — de ahí que cada intento fallara distinto: no era una condición
+de carrera del código, era un entorno corrupto desde antes de arrancar.
+
+**Cómo se confirmó, no se supuso:** ejecutando la suite completa dos veces
+seguidas SIN tocar código entre medias — la primera con la única aserción
+realmente rota del test (una expectativa de D46 desactualizada: el SIA ya
+no sale vacío, sale con 0.25 D por defecto desde el cuestionario manual), la
+segunda tras corregir solo esa aserción. Con la aserción corregida, las 28
+pruebas de interfaz pasaron limpias y en una cuarta parte del tiempo (24 s
+en vez de casi 2 minutos) — la inestabilidad estaba correlacionada con que
+UN test fallara y disparara la maquinaria de recuperación de Playwright
+(trace, captura, informe de error), no con ningún estado que mi código
+dejara mal puesto.
+
+1. **Antes de sospechar del código, comprobar el entorno donde se ejecuta la
+   prueba.** Un fallo que cambia de forma en cada repetición, con el mismo
+   código, es la señal más fiable de que el problema está fuera del código.
+2. **No aceptar una teoría de "el proceso está crasheando" sin evidencia
+   directa.** La red de seguridad de excepciones ya existía
+   (`instalarRedDeSeguridad`); en vez de asumir que fallaba o inventar una
+   causa, se instrumentó temporalmente para producir una prueba escrita en
+   disco — y esa prueba (el fichero vacío) fue lo que descartó la teoría
+   más obvia.
+3. **Revertir toda instrumentación de depuración antes de dar el trabajo
+   por terminado.** Los `console.log` y el `appendFileSync` temporales se
+   quitaron en cuanto cumplieron su propósito; lo único que quedó del
+   diagnóstico fue la corrección real (la aserción de D46).
+4. **Un test que falla puede arrastrar a los siguientes sin que el código
+   tenga ninguna relación causal real** — aquí, más que un test rompiendo
+   estado compartido, era el propio corredor de pruebas volviéndose lento e
+   inestable al gestionar el fallo en un entorno ya comprometido. Antes de
+   diagnosticar una "cascada" de fallos como un bug de la aplicación, vale
+   la pena arreglar el fallo más simple y sospechoso primero y ver si el
+   resto desaparece solo.
+
+**Contexto:** Cualquier sesión donde `pnpm test:e2e` (o cualquier suite que
+lance un proceso GUI real vía automatización) falle de forma distinta en
+cada intento sin que el código haya cambiado — sospechar primero de
+variables de entorno heredadas del propio shell de la sesión
+(`ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS`, banderas de depuración) antes que
+de una condición de carrera en la aplicación.
+
+## 27/08/2026 (noche, 3) — Un formulario que «no se vacía» al cambiar de aparato: la clave de React no seguía al dato
+
+**Error o aprendizaje:** El dueño probó D47 (varios biómetros por ojo) en
+la aplicación real por primera vez: rellenó los datos de un aparato,
+añadió un segundo biómetro por el desplegable, y **el formulario siguió
+enseñando los valores del primer aparato** en vez de vaciarse para el
+nuevo. Al calcular, solo salió resultado de uno. Mandó un pantallazo.
+
+Los 633 tests unitarios y los 28 de interfaz habían pasado en verde poco
+antes de esto — ninguno ejercitaba el gesto exacto de «escribir en un
+aparato, añadir otro, mirar si el formulario se vació», porque los tests
+de `FormularioManual` que ya existían solo probaban un aparato por ojo.
+
+**La causa:** `CampoManual`/`FilaCampo` guardan su valor en edición
+(`borrador`) como estado LOCAL de React, y se pintaban con
+`key={campo}` en su lista — la clave no incluía `ojo` ni `aparato`. React
+reutiliza la misma instancia del componente mientras la clave no cambie de
+posición, así que al cambiar de aparato React NO desmontaba la casilla:
+seguía siendo el mismo componente, con el mismo `borrador` de antes,
+enseñando el texto del aparato anterior encima de un dataset que por debajo
+ya era otro (vacío). El dato de verdad SÍ estaba correctamente separado por
+aparato — el fallo era solo de PANTALLA —, pero como la pantalla mentía, el
+dueño no llegaba a escribir los datos del segundo aparato pensando que ya
+estaban ahí, y por eso el cálculo solo tenía resultado del primero.
+
+**La corrección:** `key={`${ojo}-${aparato}-${campo}`}` en las dos listas
+(`FormularioManual.tsx` y `PanelRevision.tsx`), para que React desmonte y
+vuelva a montar cada casilla —con su `borrador` a `null`— en cuanto cambia
+el ojo o el aparato activo. Verificado con un script que reproduce el
+gesto exacto del dueño contra la aplicación real (no solo con un test
+unitario): rellenar el aparato 1, añadir el aparato 2, comprobar que el
+formulario sale vacío, rellenarlo con datos distintos, volver al aparato 1
+y comprobar que sus datos originales siguen ahí — y leyendo
+`window.vilamar.casoActual()` para confirmar que el caso de verdad guarda
+los dos datasets, cada uno con lo suyo.
+
+1. **Una prueba automática de un flujo con varias variantes (aquí,
+   «varios aparatos») tiene que ejercitar el CAMBIO entre variantes, no
+   solo una variante a la vez.** Los tests existentes probaban bien UN
+   aparato; ninguno probaba el gesto de añadir un segundo y comprobar que
+   el primero no se colaba en la pantalla del segundo.
+2. **En React, cualquier estado local (`useState`) dentro de un componente
+   que se reutiliza para representar «cosas» distintas (aquí: el mismo
+   campo, pero de un dataset distinto) necesita una `key` que identifique
+   la COSA, no la POSICIÓN.** `key={campo}` identifica la posición en la
+   lista; `key={ojo}-${aparato}-${campo}` identifica el dato real que se
+   está mostrando.
+3. **El pantallazo del dueño fue el diagnóstico.** No hizo falta
+   reproducir a ciegas: la imagen mostraba el desplegable de «Añadir
+   biómetro» ya abierto con el formulario detrás, lo que permitió ver de
+   un vistazo que faltaba justo el paso de comprobar el vaciado.
+
+**Contexto:** Cualquier componente de React en este proyecto que muestre
+«el mismo campo, pero de una entidad distinta» según una pestaña o
+selector activo (ojo, aparato, y cualquier futura dimensión parecida)
+tiene que llevar esa dimensión en la `key` de cada casilla con estado
+local propio — si no, el cambio de pestaña puede dejar estado del anterior
+pegado en pantalla aunque el dato guardado ya sea correcto.
+
+## 27/08/2026 (noche, 4) — Un informe con dos aparatos superó un límite que ningún informe anterior había rozado
+
+**Error o aprendizaje:** Con el fallo de la casilla ya corregido, el dueño
+volvió a probar D47 hasta el final: los cálculos de los dos aparatos
+salieron bien, la pantalla de resultados los enseñó correctamente — y al
+pulsar «Generar PDF» salió un error nuevo: `ERR_INVALID_URL (-300) loading
+'data:text/html;charset=utf-8,...'`, con el mensaje cortado a media
+palabra. Mandó un pantallazo con el error completo.
+
+**La causa, no adivinada — medida.** `imprimirPdf()` (`main/index.ts`)
+llevaba desde D19 metiendo el HTML entero del informe, codificado con
+`encodeURIComponent`, directamente en una URL `data:` y cargándola con
+`loadURL`. Funcionaba mientras el HTML era pequeño. Un informe con dos
+aparatos junta el doble de tarjetas y, sobre todo, el doble de capturas de
+pantalla en base64 dentro del mismo HTML — y **Chromium rechaza cualquier
+URL de más de 2 097 152 caracteres** con exactamente ese error,
+`net::ERR_INVALID_URL`. Antes de tocar el código, se escribió un script
+que reprodujo el fallo exacto contra la aplicación real con un HTML
+sintético de 3.000.000 de caracteres — mismo error, mismo código — para
+confirmar la causa en vez de suponerla por la forma del mensaje.
+
+**La corrección:** el HTML se escribe ahora a un fichero temporal junto al
+PDF de destino y se carga con `loadFile()`, que no tiene ese límite —solo
+la ruta viaja por la URL—, y el fichero se borra al terminar (en el
+`finally`, tolerando que ya no exista). Verificado con el mismo script:
+el HTML de 3.000.000 de caracteres que antes fallaba ahora produce un PDF
+válido, y el `data:` viejo, probado a propósito contra el mismo HTML, sigue
+fallando exactamente igual — confirma que el diagnóstico era el correcto y
+no una casualidad.
+
+1. **Un límite que nadie había rozado antes no es un límite que no exista.**
+   D19 (25/08/2026, `printToPDF` con una URL `data:`) llevaba semanas en
+   producción sin que ningún informe lo tocara — hasta que D47 dobló de
+   golpe el tamaño típico de un informe por ojo. Un cambio que multiplica
+   el contenido de algo (aquí: varios aparatos en el mismo PDF) puede sacar
+   a la luz un límite técnico que llevaba ahí desde el principio, invisible
+   mientras nadie lo cruzaba.
+2. **Reproducir el fallo con un caso sintético ANTES de tocar el código
+   de producción**, en vez de arreglar a ciegas por la forma del mensaje
+   de error. Un HTML de relleno del tamaño adecuado bastó para confirmar
+   la causa exacta sin necesitar datos clínicos ni volver a pedirle al
+   dueño que repitiera la prueba completa de EVO/Barrett/Kane.
+3. **Verificar la corrección Y volver a probar que el fallo viejo sigue
+   fallando con el mismo caso.** No basta con que lo nuevo funcione: hay
+   que comprobar que de verdad se está corrigiendo lo que se cree, no una
+   causa distinta que coincide por casualidad.
+
+**Contexto:** Cualquier función de este proyecto que meta contenido
+generado (HTML, JSON, lo que sea) dentro de una URL en vez de un fichero
+—`data:`, pero también query strings largos u otros esquemas parecidos—
+tiene un límite de tamaño que Chromium/Node no avisan por adelantado.
+Antes de ampliar cualquier función que genere MÁS contenido del que
+generaba antes (más aparatos, más ojos, más capturas…), vale la pena
+preguntarse si algo aguas abajo asumía un tamaño pequeño.
+
+## 27/08/2026 (noche, 6) — Un `<select>` controlado por el dato guardado, no por lo que se está eligiendo
+
+**Error o aprendizaje:** Al construir el desplegable para renombrar el
+aparato principal (D49), la primera versión leía el valor mostrado
+directamente del aparato YA GUARDADO: `value={yaConocido ? aparatoActivo : 'Otro'}`.
+Al probarlo contra la aplicación real (antes de darlo por bueno, no
+después), elegir «Otro…» en el desplegable **no hacía absolutamente
+nada** — ni aparecía el campo de texto, ni el desplegable se quedaba en
+«Otro…»: volvía a saltar solo a lo que ya hubiera guardado.
+
+**La causa:** el `onChange` de «Otro…» no cambiaba ningún estado propio,
+solo comprobaba `if (e.target.value === 'Otro') return` y salía sin hacer
+nada. Como React vuelve a pintar el `<select>` en cada render usando
+`value={...aparatoActivo...}` —que seguía siendo el aparato de antes,
+porque nada lo había cambiado todavía—, el navegador «deshacía» la
+selección visual de «Otro…» y volvía a enseñar el valor guardado. Confundir
+«lo que el usuario está eligiendo ahora mismo» con «lo que ya está
+confirmado» es el mismo problema, en miniatura, que el fallo del `key`
+sin aparato de esta misma noche (noche, 3): un control de formulario que
+representa un ESTADO DE PANTALLA transitorio necesita su propio estado
+de React, no puede derivarse solo del dato ya guardado.
+
+**La corrección:** un estado `modoOtro` (booleano) separado de
+`aparatoActivo`. Elegir «Otro…» pone `modoOtro=true` sin tocar el dato
+guardado todavía; el `<select>` pasa a mostrar `value={modoOtro ? 'Otro' : aparatoActivo}`;
+el campo de texto solo se enseña con `modoOtro=true`, y solo AL ESCRIBIR
+Y CONFIRMAR (blur o Enter) se llama de verdad a renombrar el aparato.
+Verificado contra la aplicación real con cuatro pasos seguidos: elegir un
+aparato conocido, volver a «Otro…» (el campo tiene que salir vacío, no con
+el nombre anterior), escribir uno libre sin perder el dato ya tecleado, y
+volver a uno conocido — los cuatro correctos.
+
+1. **Cualquier `<select>`/campo controlado por props que representan «lo
+   ya confirmado» necesita estado propio para la elección TRANSITORIA**
+   —lo que el usuario está tocando ahora, antes de confirmarlo— si esa
+   elección puede no coincidir con el dato guardado (aquí: «Otro…» no es
+   un aparato real, es un modo de edición). Sin ese estado propio, React
+   fuerza el control de vuelta al valor de las props en el siguiente
+   render, y la interacción parece no hacer nada.
+2. **Probar la interacción completa antes de darla por hecha**, no solo el
+   camino feliz de «elegir un valor conocido». El primer intento del
+   dueño con dos pasos (elegir conocido, escribir AL) habría parecido
+   perfecto; hizo falta un tercer paso —volver a «Otro…»— para que el
+   fallo apareciera, y ese paso lo puse yo mismo en el guion de
+   verificación, no algo que hubiera que esperar a que el dueño lo
+   encontrara.
+
+**Contexto:** Cualquier `<select>` o campo de este proyecto con una opción
+tipo «Otro» / «elegir después» / «sin decidir» que conviva con valores
+reales ya guardados — antes de que el `value` del control lea directo de
+una prop que representa el dato confirmado, comprobar si ese control
+necesita su propio estado de React para la elección transitoria.
+
+## 27/08/2026 (noche, 7) — Di por «corregido» un fallo que no había verificado, y al comprobarlo de verdad seguía roto
+
+**Error o aprendizaje:** En la entrada (noche, 4) de este mismo log escribí
+que la tabla de resultados de Kane en blanco (captura, no cálculo) «se
+había corregido» esperando dos fotogramas de animación reales antes de
+tomar la foto. **Esa entrada fue escrita sin poder probarla contra la web
+real** —creía, equivocadamente, que este entorno no tenía acceso a
+internet— y lo dije así en su momento («sin verificar, pendiente de que el
+dueño lo confirme»). Más tarde esa misma noche, `pnpm reconocer:kane`
+demostró que SÍ hay acceso a internet. Al verificar de verdad contra Kane
+en vivo, con `guardarCaptura` conectado a un fichero para poder mirar el
+PNG resultante: **la tabla seguía en blanco**, exactamente igual que antes
+del «arreglo».
+
+Antes de tocar nada más, se probó si era cuestión de esperar más: 800 ms
+fijos, y luego 3000 ms fijos. **Los tres intentos —dos `requestAnimationFrame`,
+800 ms, 3000 ms— dieron el PNG idéntico, byte a byte** (mismo tamaño en
+bytes las tres veces). Eso es una prueba, no una sospecha: si esperar 3
+segundos en vez de dos fotogramas no cambia ni un byte del resultado, el
+problema no es de tiempo. Es estructural — algo en cómo Kane pinta esa
+tabla concreta no depende de cuánto se espere. La causa real (¿un iframe,
+un canvas, texto con el mismo color que el fondo, algo que solo se
+repinta con un resize?) queda sin investigar.
+
+1. **«Lo he razonado bien, así que debe de estar arreglado» no es lo
+   mismo que «lo he comprobado».** La entrada (noche, 4) tenía el
+   razonamiento correcto para el fallo de 12/08/2026 (que sí era de
+   tiempo), pero aplicado sin comprobar a un fallo que, esta vez, no lo
+   era. Documentar la incertidumbre («sin verificar contra la web real»)
+   ayudó — permitió corregir el registro en vez de dejar una mentira
+   silenciosa — pero no sustituye a la comprobación en cuanto fue posible.
+2. **Cuando dos arreglos de la misma familia (esperar más) fallan igual de
+   idéntico, no se prueba un tercero: se para y se busca la causa real.**
+   Insistir con 5, luego 10 segundos habría sido repetir el mismo error
+   con más paciencia. La prueba de que NO es de tiempo (bytes idénticos)
+   es información nueva que cambia qué hay que investigar, no una excusa
+   para seguir subiendo el número.
+3. **En cuanto se descubre que una capacidad que se creía ausente (aquí,
+   acceso a internet) sí existe, hay que volver atrás y comprobar todo lo
+   que se había dejado «sin verificar» por esa razón** — no solo lo último.
+   D50 (la lente) y D49 (que el PDF omite calculadoras no pedidas) SÍ se
+   confirmaron correctos con esta misma vuelta de comprobaciones; solo
+   D48 (la captura de Kane) seguía roto. Sin volver a comprobar los tres,
+   los dos que sí funcionaban habrían quedado con la misma etiqueta de
+   duda que el que no.
+
+**Contexto:** Antes de escribir «corregido» en cualquier documento de este
+proyecto (`PROJECT_STATUS.md`, `SYSTEM_VISION.md`, este log), comprobar
+que de verdad se ha verificado el resultado, no solo que el razonamiento
+suena correcto — y en cuanto cambie una condición del entorno (acceso a
+red, una credencial, un permiso) que antes bloqueaba una verificación,
+volver a intentar TODO lo que se había dejado pendiente por esa razón, no
+solo lo que se esté mirando en ese momento.
+
+---
+
+## 28/08/2026 — Un solo síntoma («Kane falla») eran en realidad dos fallos distintos, y la foto de diagnóstico lo demostró
+
+**Error o aprendizaje:** Retomando la lección anterior (noche, 7), la
+investigación seguía tratando «Kane falla al calcular con la lente B&L
+LuxSmart» como si fuera el mismo fallo que «la captura de Kane sale en
+blanco» — dos síntomas distintos (uno es `ADAPTER_BROKEN` sin llegar a
+hacer la foto; el otro es una foto en blanco de un resultado que sí
+existe) que se habían fundido en una sola investigación porque aparecieron
+la misma noche, en el mismo caso de prueba. Añadir una captura de
+diagnóstico (`guardarDiagnostico`) en el punto exacto del fallo —algo que
+no se había hecho antes porque se asumía que ya se sabía la causa— enseñó
+en la imagen la tabla de Kane perfectamente visible, con sus tres opciones
+tóricas, pero en un formato de columna distinto («B+L Cylinder Power», con
+solo el número) al único que el código sabía leer («T2 (1.00)»). Era un
+fallo de lectura del HTML, no de temporización ni de foto.
+
+**Causa raíz:** Kane cambia el formato de su tabla tórica según si se ha
+elegido el modelo genérico o una lente concreta del desplegable — algo que
+la captura original del 13/08/2026 (que dio forma a
+`leerFilaToricaDeKane`) no pudo ver porque se hizo sin ninguna lente
+seleccionada. La regex de lectura exigía sí o sí una designación con
+paréntesis; sin ella, cada fila se descartaba como ilegible, vaciando la
+tabla entera y disparando `ADAPTER_BROKEN` — un mensaje que, sin la foto
+delante, se leía como «esta lente no tiene ninguna opción tórica para este
+ojo» (una explicación clínica plausible) en vez de «el código no sabe leer
+esto» (la real).
+
+**Lección:** Cuando algo fallado repite el mismo mensaje contra la misma
+entrada, la foto de diagnóstico del momento exacto del fallo no es un lujo
+opcional: es la diferencia entre adivinar una causa razonable (aquí,
+tentador aceptar «esta lente no cubre este astigmatismo» sin comprobarlo)
+y ver la causa real. Y un síntoma que aparece junto a otro fallo conocido
+no tiene por qué ser el mismo fallo — merece su propia investigación desde
+cero, con su propia evidencia, antes de asumir que comparten arreglo.
+
+**Contexto:** Cualquier fallo de un adaptador (`packages/integrations/src/adapters/`)
+contra una calculadora externa cuyo mensaje sea genérico (`ADAPTER_BROKEN`,
+«no se ha podido leer»): pedir o mirar la captura de diagnóstico del
+momento exacto antes de teorizar sobre la causa, y no asumir que comparte
+causa con otro fallo solo por haber aparecido a la vez.
+
+---
+
+## 29/08/2026 — «Invertir un criterio» no es cambiar el signo de la comparación, es entender por qué el original funcionaba
+
+**Error o aprendizaje:** D52 pedía invertir el criterio de esfera de la
+estimación propia para la familia Lux: en vez de «la primera negativa», «la
+primera positiva». Implementé eso literalmente —cambiar `< 0` por `> 0` en
+el mismo `.find()` que recorre de menor a mayor potencia— y los tests que
+escribí pasaron, con datos inventados donde la refracción SUBÍA con la
+potencia (al revés de la realidad óptica). Con un caso real, el dueño
+generó un PDF de verdad con una B&L LuxSmart: EVO estimó 18 D (refracción
+0.77) en vez de 19 D (refracción 0.14, la que de verdad no cruza a miopía).
+
+**Causa raíz:** «la primera negativa subiendo potencia» y «la más cercana a
+cero del lado negativo» son la MISMA fila, porque la refracción prevista
+baja de forma continua al subir la potencia — en cuanto se cruza el cero,
+esa primera negativa YA es la más cercana. Pero «la primera positiva
+subiendo potencia» es la fila del extremo opuesto, la MÁS ALEJADA de cero;
+la más cercana a cero del lado positivo es la ÚLTIMA antes de cruzar a
+negativo. Invertir el signo de la comparación sin darme cuenta de que el
+criterio original dependía de esa coincidencia (que solo se da de un lado)
+propagó el error. Y los tests no lo cazaron porque los escribí con datos
+sintéticos que subían en vez de bajar —la forma más fácil de escribir un
+caso de prueba, no la que ocurre de verdad—, así que el mismo sesgo que
+metió el fallo también lo dejó pasar en la verificación.
+
+**Lección:** Cuando se pide «invertir» un criterio de selección, no basta
+con invertir el operador de comparación (`<` por `>`) si el criterio
+depende de un orden de recorrido o de una asunción sobre la dirección de
+los datos — hay que preguntarse qué invariante hacía funcionar el original
+y comprobar si esa invariante sigue siendo cierta del otro lado. Aquí la
+invariante real era «más cercana a cero», no «primera de la lista»; solo
+coincidían por casualidad de la geometría de un lado. Y al escribir datos
+de prueba para un criterio numérico con una relación física conocida (aquí,
+refracción vs. potencia), usar la dirección REAL de esa relación, no la que
+sea más cómoda de teclear — un test con datos irreales puede pasar en verde
+y no proteger de nada.
+
+**Contexto:** Cualquier criterio de selección en `packages/domain/src/comparacion/`
+que dependa de un orden (`.find()`, `.sort()` seguido de tomar el primero o
+el último): antes de invertirlo para un caso especial, identificar qué
+propiedad hace correcto el original —aquí, «más cercana a cero», no «primera
+encontrada»— y verificar que esa propiedad, no solo el signo, se traslada al
+caso invertido.
+
+---
+
+## 01/09/2026 — Un campo que sirve de CRITERIO interno no es el mismo que el campo que se ENSEÑA, aunque los dos se llamen «eje»
+
+**Error o aprendizaje:** `estimarLenteRecomendada()` (D43) calcula el
+meridiano corneal curvo (K1 o K2, el más curvo) para decidir qué fila de
+la escalera tórica de cada calculadora comparte orientación con la
+córnea. Ese cálculo es correcto y sigue siéndolo. El fallo estaba en el
+paso siguiente: ese mismo valor —fijo, el mismo para las cinco casillas
+de un ojo— se guardaba en el campo `eje` de `LenteEstimada`, y era
+`eje`, no `ejeResidual` (el eje que sí venía leído de cada web, fila a
+fila, y que sí variaba), lo que el informe enseñaba en las tres
+pantallas de la estimación propia. El resultado: un PDF real con «Eje 0°»
+repetido cinco veces, sin ninguna información real, mientras las
+capturas de pantalla de encima mostraban ejes distintos por calculadora.
+El dueño del proyecto lo detectó él mismo, comparando su propio informe.
+
+**Causa raíz:** Dos conceptos distintos compartían el mismo nombre de
+campo en dos sitios distintos del código, y ninguno de los dos estaba
+mal por separado — el criterio de selección (`ejeCurvo`, correcto) y el
+dato que se muestra (`ejeResidual`, correcto y ya capturado) — pero al
+construir el objeto de resultado, el criterio se copió al campo que
+resultó ser el que se enseña, en vez de dejar que el dato ya correcto
+(`ejeResidual`) hiciera ese trabajo. No hubo ningún test que lo cazara
+porque los tests existentes construían sus datos de prueba con `eje` y
+`ejeResidual` iguales (o solo `eje`), así que nunca importaba cuál de
+los dos se leyera — el fallo solo era visible con datos reales donde los
+dos números son distintos, que es precisamente el caso normal.
+
+**Lección:** Cuando un valor sirve como CRITERIO INTERNO para elegir
+entre varias opciones (aquí, «con qué eje comparar para decidir la
+fila»), y ADEMÁS existe un campo que describe EL RESULTADO de esa
+elección (aquí, «qué eje tendría esta opción en la práctica»), no basta
+con que el criterio esté bien calculado: hay que comprobar, campo por
+campo, cuál de los dos es el que de verdad llega a la pantalla. Y al
+escribir datos de prueba para un campo que tiene dos «primos» con
+significados distintos (`eje`/`ejeResidual`, `cilindro`/`cilindroResidual`,
+etc.), ponerles valores DISTINTOS a propósito — si son iguales, un test
+puede pasar en verde leyendo el campo equivocado sin que nadie se entere.
+
+**Contexto:** `packages/domain/src/comparacion/recomendacion.ts` y
+cualquier sitio de `packages/report/src/plantilla.ts` que construya un
+texto o una tabla a partir de `LenteEstimada`: repasar qué campo se está
+leyendo de verdad, no solo que el nombre «suene» correcto. Extensible a
+cualquier tipo con un campo de criterio interno y un campo de resultado
+que se parezcan.
+
+## 02/09/2026 (2) — Una mitigación probada añade una técnica nueva, no repite la que ya falló, y no se llama «arreglado» sin verlo en vivo
+
+**Error o aprendizaje:** El dueño compartió un PDF real (CV-2026-0091, OS)
+donde la captura de Kane —página 3 del informe— sale con las dos tablas
+de resultado completamente en blanco, mientras que la estimación propia
+de Calculator Vilamar debajo de esa misma captura sí trae números reales
+(20.13 D · Cil. 0.00 D · Eje 48°) y la tabla comparativa final también.
+Esto confirma que la LECTURA de datos funcionó bien —Kane sí devolvió
+las potencias, y el programa las leyó y las usó para calcular—, pero la
+FOTO tomada de esa misma pantalla, para que quede como evidencia sin
+interpretar, salió vacía. El propio código de `kane.ts` ya tenía, desde
+el 27/08/2026, un comentario extenso documentando que esto es una
+flakiness real de Chromium en captura de pantalla (no un problema del
+HTML de Kane), y una mitigación ya aplicada (esperar 400 ms, desplazar la
+tabla a la vista, forzar un reflow síncrono) — que reduce el problema
+pero, como demuestra este PDF real, no lo elimina del todo.
+
+**Causa raíz (probable, sin confirmar en vivo):** `page.screenshot()` de
+Playwright, sobre Chromium en modo headless, a veces devuelve un
+fotograma del compositor que no refleja el último cambio del DOM, aunque
+ese cambio ya se pueda LEER con `evaluate()` sin problema — layout y
+paint son pasos distintos, y forzar un reflow (`getBoundingClientRect()`)
+solo garantiza el primero. El propio comentario del 27/08 ya deja escrito
+que esperar más tiempo, con o sin `requestAnimationFrame` desde JS, no
+cambiaba nada: el PNG salía idéntico byte a byte. Esta vez se ha probado
+algo genuinamente distinto —un evento de ratón real, disparado por
+Playwright como entrada de verdad y no desde JavaScript dentro de la
+página— porque es la técnica habitual para forzar que un navegador
+headless programe un fotograma nuevo del compositor, y es un mecanismo
+que no aparece entre lo ya descartado en el comentario anterior.
+
+**Lección — la más importante de esta entrada:** Esto se documenta como
+una MITIGACIÓN AÑADIDA, no como un fallo «corregido». Ya hay un
+precedente en este mismo log (27/08/2026, noche, 7) de decir que algo
+estaba arreglado sin haberlo comprobado de verdad, y resultar que seguía
+roto. Aquí no ha sido posible reproducir el cálculo contra el Kane real
+dentro de esta sesión (implica pasar por su pantalla de condiciones, que
+pide una acción humana — D-loa de `kane-transicion.spec.ts`), así que el
+cambio se ha verificado con lint, typecheck y toda la batería de tests
+existente en verde, pero **no con una repetición en vivo del caso real
+que falló**. Al dueño se le tiene que decir esto exactamente así: «he
+añadido una mitigación más, con una técnica que no se había probado
+todavía, pero no puedo prometer que esté arreglado del todo hasta verlo
+fallar o no fallar con datos reales otra vez» — nunca «ya está
+arreglado» sobre un fallo de temporización de navegador que ya resistió
+un intento anterior.
+
+**Contexto:** `packages/integrations/src/adapters/kane.ts`, método
+`leerResultado()`, justo antes de `capturarResultado()`. Si el dueño
+reporta otra captura en blanco después de este cambio, el siguiente paso
+razonable es un reintento real de la foto entera (no solo más técnicas de
+espera antes de UNA foto), o investigar si `fullPage: true` interactúa
+mal con el `scrollIntoViewIfNeeded()` que ya se hace justo antes.
+
+## 02/09/2026 (3) — Un botón nuevo en un adaptador (Kane «Keratoconus», D67) se probó solo en el caso más simple, y la web tenía un aviso propio que ese caso no disparaba
+
+**Error o aprendizaje:** Al construir D67 (córnea especial), se investigó
+en vivo el interruptor «Keratoconus» de Kane antes de escribir el
+adaptador —bien hecho, siguiendo la disciplina de este proyecto— pero la
+investigación solo probó el caso más simple: activarlo con el ojo en modo
+«Non-toric» (el que trae Kane por defecto al cargar la página). El dueño
+probó D67 con un caso real de verdad, con datos completos que ponen a
+Kane en modo «Toric», y ahí Kane enseña un aviso PROPIO —un modal de
+Bootstrap con un botón «OK»— que el caso simple no llegó a disparar
+nunca: «The Keratoconus option has been selected... Please ensure this
+option is only selected if the patient has keratoconus». El adaptador no
+lo esperaba, y se quedaba colgado esperando un cambio de estado que
+nunca llegaba porque el modal tapaba el control.
+
+**Causa raíz:** La reconnaissance de un botón nuevo se hizo contra el
+ESTADO POR DEFECTO de la página (Non-toric, recién cargada), que es el
+más fácil de alcanzar pero no necesariamente el que va a usar un caso
+real — el propio adaptador, en `rellenar()`, deja el ojo en modo Toric
+ANTES de tocar Keratoconus siempre que el caso tenga los datos para
+tórico, que es el caso más habitual con un informe completo. Al
+investigar solo el camino corto no apareció el aviso, así que el código
+se escribió sin saber que existía.
+
+**Otro hallazgo, al intentar reproducirlo para arreglarlo:** el aviso
+sale de forma **inconsistente entre ejecuciones** contra la web real —ni
+depende de forma fiable de activar/desactivar, ni del modo tórico por sí
+solo, comprobado repitiendo la misma secuencia varias veces con
+resultados distintos—. En vez de perseguir la condición exacta (que
+puede no ser determinista de verdad, o depender de algo que este
+programa no controla — quizá el estado guardado en el perfil del
+navegador de sesiones previas), la corrección comprueba SI aparece,
+sin darlo por hecho, y actúa solo entonces. Es el mismo principio que ya
+regía `rechazarCookies()` en Barrett: no «se pulsa una vez y se sigue», es
+«se espera a la señal real y se actúa según lo que de verdad haya».
+
+**Lección:** Cuando se investiga un control nuevo de una web ajena antes
+de automatizarlo, no basta con probarlo desde el estado por defecto de la
+página — hay que probarlo en la MISMA SECUENCIA y con el MISMO ESTADO
+PREVIO que el adaptador va a dejar antes de llegar a él (aquí: modo
+tórico, no el modo por defecto). Un control puede comportarse distinto
+según qué haya pasado antes en la misma pantalla, y solo se descubre
+reproduciendo el camino real, no el más corto para llegar hasta él.
+
+**Contexto:** `packages/integrations/src/adapters/kane.ts`,
+`asegurarKeratoconus()`. Extensible a cualquier interruptor o campo nuevo
+de una web que dependa de un `rellenar()` con varios pasos: probar el
+campo aislado no basta si el adaptador real llega a él con la página en
+otro estado.
+
+## 03/09/2026 — Dos investigaciones seguidas «mitigaron» la foto en blanco de Kane sin comprobar el estilo real de la celda; la tercera lo miró y la causa era otra completamente distinta
+
+**Error o aprendizaje:** Las investigaciones del 27/08 y del 02/09
+(entradas de arriba) diagnosticaron la foto en blanco de Kane como
+«flakiness del compositor de Chromium» — el navegador a veces no ha
+pintado el último cambio del DOM cuando `screenshot()` lo pide — y
+probaron mitigaciones sucesivas del mismo tipo: esperar más, forzar un
+reflow, mover el ratón, hacer scroll. Todas verificadas en vivo, todas
+descartadas en vivo cuando el dueño volvió a mandar un PDF con la tabla en
+blanco. Ninguna funcionó porque ninguna atacaba la causa real: nunca se
+inspeccionó el ESTILO COMPUTADO de la celda en el momento exacto de la
+foto, solo se ensayaban técnicas para «forzar un repintado» a ciegas.
+
+**Causa raíz (la de verdad, encontrada esta vez):** las celdas de la
+tabla de resultado tienen `opacity: 0` DE VERDAD en el DOM en el momento
+de la foto —confirmado con `getComputedStyle(celda).opacity === "0"`, no
+supuesto—, casi seguro una animación de fade-in de Kane que no llega a
+completarse cuando la conduce un script en vez de una persona. La pista
+que lo destapó fue el propio dueño: probó la web de Kane a mano y le
+funcionó perfecto, lo que apuntaba a una diferencia entre interacción real
+y automatizada, no a timing del navegador. Ninguna de las mitigaciones
+anteriores podía haber funcionado nunca: esperar, hacer reflow o mover el
+ratón no cambian una opacidad que se ha quedado enganchada en 0.
+
+**Lección:** Cuando una foto o una lectura de pantalla sale mal de forma
+intermitente, antes de probar una «mitigación de timing» (esperar más,
+forzar reflow, mover el ratón, hacer scroll) hay que **inspeccionar el
+estado real del elemento en el momento del fallo** —`getComputedStyle()`,
+tamaño, visibilidad— para saber si el problema es de verdad de timing o
+si el contenido genuinamente no se ha terminado de mostrar. Una mitigación
+que «a veces parece ayudar» sin una causa confirmada es indistinguible de
+la flakiness que se está intentando arreglar, y dos rondas seguidas de
+mitigaciones sin diagnóstico confirmado es la señal de parar y mirar el
+estilo real antes de intentar una tercera. También: cuando el dueño diga
+«a mí me funciona a mano», es una pista de diagnóstico, no un comentario
+de pasada — señala automatización vs. interacción real como el eje del
+problema.
+
+**Contexto:** `packages/integrations/src/adapters/kane.ts`,
+`leerResultado()`. Extensible a cualquier lectura de pantalla automatizada
+(Playwright u otro) que falle de forma intermitente contra una web con
+animaciones o transiciones CSS.
+
+## 03/09/2026 (2) — Un botón que llamaba a la función «correcta» por el nombre («Reintentar») en realidad iba por un camino distinto y más flojo que el botón que sí funcionaba
+
+**Error o aprendizaje:** El botón «Reintentar X» de la pantalla de
+resultados (`PanelResultados.tsx`) no funcionaba para una calculadora que
+nunca se había lanzado, tras reabrir un caso desde «Casos guardados» —
+obligaba a volver a la pantalla de revisión, confirmar otra vez, y
+lanzarla desde la pantalla de cálculo, donde SÍ funcionaba. Antes de tocar
+código se sospechó de varias cosas plausibles (un guardia sobre
+`caso.estado`, el caso reabierto sin hidratar bien, una condición de
+carrera) — ninguna era la causa real.
+
+**Causa raíz:** El botón llamaba a `ServicioCasos.reintentar()`, una
+función CON ESE NOMBRE PARA ESO, que a falta de un aparato explícito
+asumía `APARATO_PRINCIPAL` («Principal»). El botón «Calcular» de la
+pantalla anterior, en cambio, llama a `ServicioCasos.calcular()`, que
+resuelve el aparato real de cada ojo a través de `planificarCaso()` en vez
+de asumir nada. Para un caso donde el usuario eligió un aparato con nombre
+propio en el desplegable (p. ej. «ZEISS IOLMaster 700», nada raro: es
+justo lo que ofrece el propio selector), `reintentar()` buscaba un
+conjunto de datos con aparato «Principal» que no existe, encontraba uno
+vacío, y la calculadora fallaba por «faltan todos los campos» — un fallo
+real, no simulado, pero que parecía «no hace nada» porque no hay ningún
+mensaje visible en pantalla que diga POR QUÉ falló una casilla que nunca
+se había intentado.
+
+**Cómo se confirmó, sin adivinar:** en vez de teorizar más, se cogió el
+caso real guardado del dueño (`CV-2026-0101.json`, aparato real «ZEISS
+IOLMaster 700») y se llamó `prepararEntradas()` dos veces, directamente:
+con `'Principal'` (el bug) devolvía `FALTAN_DATOS` con los nueve campos
+vacíos; con el aparato real, todo correcto. Cero suposiciones — el propio
+dato del dueño demostró la causa antes de escribir el arreglo.
+
+**Lección:** Cuando dos botones que deberían hacer «lo mismo» (aquí:
+lanzar una casilla de cálculo) se comportan distinto, no asumir que el que
+lleva el nombre más obvio («Reintentar») es el camino correcto o el más
+robusto — comparar los DOS caminos de código exactamente, función a
+función, hasta encontrar dónde divergen. Y cuando un valor tiene un caso
+por defecto razonable (`APARATO_PRINCIPAL`) para el uso más común, revisar
+si TODOS los sitios que lo asumen sin preguntarlo siguen siendo válidos
+según el producto crece — aquí lo era en `casoNuevo()` y en la primera
+carga de un documento, pero dejó de serlo en un tercer sitio nuevo
+(`reintentar()`) escrito antes de que D47 (varios aparatos por ojo)
+hiciera que el aparato real pudiera ser cualquier texto.
+
+**Contexto:** `apps/desktop/src/renderer/App.tsx` (wiring del botón),
+`apps/desktop/src/main/servicio-casos.ts` (`reintentar()` vs `calcular()`).
+Arreglado haciendo que el botón use `calcular()` en vez de `reintentar()`,
+en vez de enseñarle a `reintentar()` a resolver el aparato real —menos
+código nuevo, y reutiliza un camino que ya estaba probado.
+
+## 04/09/2026 — «Kane sigue fallando» no siempre es la app: la web puede estar caída, y se comprueba en 30 segundos antes de tocar código
+
+**Error o aprendizaje:** El dueño reportó otro fallo de Kane con un PDF real
+(«Kane no ha respondido como se esperaba»). Dado el historial de esta
+misma sesión —dos investigaciones previas del mismo mensaje genérico que
+sí eran bugs reales (repintado a medias, opacity:0)— el reflejo habría
+sido asumir un tercer bug en el adaptador y ponerse a investigar el DOM
+otra vez.
+
+**Causa raíz (esta vez):** no era código. El diagnóstico que la propia app
+guarda (`diagnostico/kane-*/informe.json`) decía `net::ERR_TIMED_OUT` /
+`TimeoutError` al cargar `https://www.iolformula.com/` — **ni siquiera
+llegaba a abrir la página**, antes de tocar ningún selector. Confirmado en
+30 segundos con `curl` fuera de la app (mismo timeout; Google y EVO
+respondían al instante) y, de forma definitiva, con el propio dueño
+abriendo esa URL en DOS navegadores normales de su ordenador — mismo
+`ERR_TIMED_OUT` en los dos. Unos minutos después, la misma URL cargaba
+bien desde el móvil del dueño Y desde el mismo ordenador con el mismo
+`curl` que antes fallaba: era la web de Kane caída de verdad un rato
+—coincide con los tres fallos guardados en ~15 minutos—, no un bloqueo de
+ninguna red concreta. Se descartó la hipótesis intermedia («la red de la
+oficina la bloquea») en cuanto una nueva comprobación, en el mismo sitio
+donde antes fallaba, empezó a funcionar sin que nadie cambiara nada.
+
+**Lección:** Antes de investigar un fallo de Kane/EVO/Barrett como un bug
+del adaptador, **mirar primero el `errorTecnico` guardado en
+`diagnostico/<adaptador>-<fecha>/informe.json`** — si dice
+`ERR_TIMED_OUT`/`TimeoutError` en el `page.goto()` inicial (antes de
+`CALCULANDO` haber llegado a ningún selector), es una señal de que la web
+externa podría no estar respondiendo, no de que el código esté mal. Se
+comprueba en segundos con `curl <url>` o pidiéndole al dueño que abra esa
+URL él mismo en su navegador normal — si tampoco carga ahí, es la web
+externa (o la red), y ningún cambio de código lo arregla. Solo si la
+página SÍ carga pero el adaptador falla dentro de ella, hace falta
+investigar el DOM.
+
+**Contexto:** Cualquier fallo de los tres adaptadores
+(`packages/integrations/src/adapters/`) con mensaje «no ha respondido
+como se esperaba». El `errorTecnico` de cada diagnóstico dice siempre en
+qué fase y contra qué URL falló — es el primer sitio que hay que mirar,
+antes de sospechar del código.
+
+## 05/09/2026 — Al construir «un dato de repuesto para cuando el informe no lo trae», asumí que el informe manda por defecto — el dueño sabía, por su oficio, que esa tabla concreta falla a menudo
+
+**Error o aprendizaje:** D69 (constante A oficial por lente, para Barrett)
+se implementó dos veces el mismo día. La primera versión hizo que la
+constante del catálogo propio de la app solo se usara si la lente NO
+estaba en la tabla de lentes del informe del paciente —si estaba, la
+tabla mandaba siempre—, siguiendo el mismo principio que ya regía D33
+(«un dato específico de este paciente pesa más que uno general»). El
+dueño del proyecto, que sabe de biometría por su oficio, corrigió esto de
+inmediato: la tabla de lentes que imprimen algunos aparatos **viene
+equivocada con frecuencia**, y los cinco valores que había dado eran los
+oficiales del fabricante —los mismos que usan los propios desplegables de
+EVO y Kane—, así que la prioridad tenía que ser la contraria.
+
+**Causa raíz:** Apliqué un principio general de diseño de este proyecto
+(«el dato específico de este caso manda sobre el genérico») sin
+preguntar si de verdad se cumplía para ESTA fuente concreta de datos. Es
+una buena regla por defecto —evita inventar con datos genéricos cuando
+hay uno real delante—, pero aquí fallaba la premisa: el dato «específico»
+(la tabla del informe) no era más fiable que el genérico, era menos. El
+dueño lo sabía porque lo ha visto pasar en consulta; yo no tenía forma de
+saberlo sin preguntarlo, y no lo pregunté — dí por hecho que «viene del
+informe de este paciente» implicaba «es más de fiar».
+
+**Lección:** Un principio de diseño ya establecido en el proyecto («lo
+específico de este caso gana a lo genérico») no se aplica en automático a
+una fuente de datos nueva sin comprobar que la premisa se cumple ahí
+también — sobre todo cuando el dueño conoce, por su oficio, la fiabilidad
+real de esa fuente concreta (aquí: que una tabla de lentes impresa por un
+aparato es autogenerada y a veces incorrecta, algo que un no-clínico no
+tendría forma de saber sin que se lo dijeran). Cuando una regla de
+prioridad afecta a un dato clínico, conviene preguntar explícitamente
+«¿esta fuente es la más fiable de las dos, en tu experiencia?» en vez de
+asumirlo por analogía con una decisión anterior parecida.
+
+**Contexto:** `packages/domain/src/modelo/seleccion-lente.ts`,
+`elegirLente()`. Extensible a cualquier caso donde compitan dos fuentes
+para el mismo dato y el proyecto ya tenga una regla de prioridad para un
+caso parecido — la regla parecida no es una prueba de que aplique aquí.
+
+## 06/09/2026 — Un valor de pantalla compartido entre dos pestañas (OD/OS) se queda con el de la pestaña anterior si el efecto que lo resincroniza está apagado para proteger OTRO caso distinto
+
+**Error o aprendizaje:** El dueño reportó, con capturas, que tras usar el
+lector con IA sobre un caso real (34 datos, Heidelberg ANTERION) y pulsar
+el nuevo botón «Confirmar todo» (D70), TODOS los datos de biometría
+aparecían en blanco («No consta en el informe»), como si se hubieran
+borrado. Investigado a fondo con tres pruebas reales (una unitaria sobre
+`ServicioCasos.confirmarTodoElOjo` con diez campos, y dos de interfaz
+completa reproduciendo exactamente renombrar el aparato antes/después de
+confirmar), NINGUNA logró reproducirlo: la escritura de datos siempre
+sobrevivía intacta. La causa real apareció al preguntarle directamente al
+dueño si había renombrado el aparato (D47: el primer aparato de un ojo
+empieza siempre como «Principal», y él lo había puesto a mano como
+«Heidelberg ANTERION») y si tenía datos en los dos ojos — sí a las dos.
+
+`aparatoActivo` en `App.tsx` es **un solo valor de React, compartido por
+los dos ojos** (no hay uno por ojo). `conAparatoRenombrado` renombra el
+aparato de UN ojo en el dominio, correctamente — pero nada en la interfaz
+volvía a poner `aparatoActivo` en un valor válido para el OTRO ojo al
+cambiar de pestaña OD/OS. El único efecto que hacía esa resincronización
+estaba **apagado a propósito mientras `paso === 'REVISION'`** — apagado
+por una razón real y distinta (no deshacer «Añadir otro biómetro» mientras
+se escribe su nombre, en el ojo que YA se está mirando), pero ese apagado
+también tapaba el caso de cambiar de OJO, que no tiene nada que proteger.
+Resultado: al mirar el ojo que nunca se renombró, la pantalla buscaba un
+aparato que ese ojo no tenía —vacío, con el aviso normal de «sin dato»—,
+mientras el dato real seguía intacto y a salvo en el caso, sin que jamás
+se hubiera tocado. Ningún dato se perdió nunca; la pantalla miraba donde
+no era.
+
+**Causa raíz:** Una guarda (`if (paso === 'REVISION') return`) escrita
+para proteger UN escenario concreto (mismo ojo, aparato recién creado sin
+datos aún) se aplicó a un `useEffect` que también cubría un escenario
+distinto sin relación (cambiar de ojo activo) — apagando por completo un
+efecto en vez de acotar la guarda al caso que de verdad la necesitaba.
+Cuando una guarda existe por una razón muy específica, hay que preguntarse
+qué OTROS casos pasan por el mismo efecto antes de generalizar el apagado
+a todo un `paso` completo.
+
+**Lección:** Ante un reporte de «los datos han desaparecido», antes de
+sospechar del código que escribe datos (`confirmarTodas`, `conMedida`,
+`conOjo`...), comprobar primero si el problema es de **qué está mirando
+la pantalla**, no de qué hay guardado — sobre todo cuando hay más de un
+selector de contexto compartido (aquí: ojo Y aparato) y uno de los dos
+tiene un efecto de resincronización con una guarda condicional. Preguntar
+explícitamente qué botones/selectores tocó el usuario justo antes del
+fallo (aquí: «¿renombraste el aparato? ¿tenías datos en los dos ojos?»)
+resolvió en un mensaje lo que tres pruebas de reproducción, bien
+razonadas pero apuntando al sitio equivocado, no habían encontrado.
+
+**Contexto:** `apps/desktop/src/renderer/App.tsx` — el efecto de
+`aparatoActivo` guardado por `paso === 'REVISION'` (líneas ~104-111,
+D47) necesitó un SEGUNDO efecto, separado, que resincroniza
+`aparatoActivo` al cambiar `ojoActivo` de verdad (con una `ref` para
+distinguir "cambió el ojo" de "cambió el caso"), sin la guarda de
+`paso`. Prueba de regresión:
+`apps/desktop/e2e/flujo.spec.ts` → «renombrar el aparato de UN ojo no
+deja al OTRO mirando un dataset vacío al cambiar de pestaña» (confirmada
+fallando sin el fix, pasando con él).
+
+---
+
+## 2026-09-09 18:50 — "Kane da un resultado distinto en la app que en la web directa"
+
+**Error o aprendizaje:** Varias sesiones investigando por qué Kane
+parecía "buscar un target muy negativo" (elegir una lente mucho más
+potente de lo esperado) solo cuando el caso se calculaba desde la app,
+nunca cuando el dueño metía los mismos datos a mano en iolformula.com.
+Se descartaron con pruebas en vivo tres hipótesis de código (que Kane
+necesite el LT sí o sí, un cruce con el sexo del paciente, una
+correlación con la curvatura corneal) sin encontrar nada malo en el
+adaptador. La causa real apareció al leer el caso guardado en disco
+(`%APPDATA%\calculator-vilamar\casos\CV-2026-0137.json`) y comparar,
+campo a campo, sus valores contra la captura de la web directa que
+mandó el dueño: el eje de incisión (SIA) era 45° en la app y 135° en lo
+que había escrito a mano en la web — un dato que se le quedó puesto de
+un caso anterior sin cambiarlo. Confirmado disparando `pnpm live kane`
+con cada eje por separado: con 45° reprodujo exacta la tabla "mala" del
+PDF de la app; con 135° reprodujo exacta (al decimal) la tabla de
+cilindro de la web directa. No había ningún fallo de transmisión de
+datos: eran dos entradas distintas, no la misma entrada por dos
+caminos.
+
+**Causa raíz:** Cuando alguien compara "a mano" el resultado de la app
+contra el de la web real para el mismo caso, se da por hecho que los
+datos de entrada son idénticos en los dos sitios — pero nadie lo había
+verificado dato a dato. Investigar bien un desacuerdo así requiere el
+valor exacto de cada campo en las dos entradas, no solo mirar la
+diferencia en el resultado final.
+
+**Lección:** Ante un reporte de "la app da un resultado distinto a la
+web real para el mismo caso", antes de sospechar del código: (1) leer
+el JSON real del caso guardado en `%APPDATA%\calculator-vilamar\casos\`
+para tener los valores exactos que usó la app (no reconstruirlos de un
+PDF o una captura); (2) pedir una captura de la web directa que se
+pueda comparar campo a campo con esos valores, no solo el resultado
+final; (3) comparar uno a uno, con atención especial al eje de
+incisión — Kane es muy sensible a ese dato para decidir en qué rango de
+potencia busca el resultado. Casi siempre la diferencia real está en
+que las dos entradas manuales no llevan exactamente los mismos números.
+
+**Contexto:** Investigación de discrepancias Kane app-vs-web-directa.
+Aplica a cualquier reporte futuro de "la calculadora externa se
+comporta distinto según quién mete los datos" — antes de tocar
+`packages/integrations/src/adapters/kane.ts` (o cualquier otro
+adaptador), verificar primero que las dos entradas comparadas son
+realmente idénticas dato a dato.
+
+**CORRECCIÓN (mismo día, 19:05):** conclusión anterior demasiado
+apresurada. El eje de incisión sí estaba mal escrito en la web (el
+dueño lo confirmó), pero un error de 90° en un SIA de solo 0.25D no
+explica por sí solo una diferencia de 4-5D en la potencia final — el
+dueño lo señaló y tenía razón. Con el eje YA CORREGIDO (45°, el
+verificado), Kane sigue dando 28.8-30.8D en su propia web real
+mientras EVO da 26.00D y Barrett 25.50D para el mismo ojo
+(CV-2026-0137 OD) — una discrepancia real de ~4-5D que NO tiene que
+ver con ningún desajuste app-vs-web, porque los dos números (el malo y
+el de Kane con eje correcto) vienen directamente de la web real de
+Kane.
+
+**RESOLUCIÓN FINAL (mismo día, 20:20):** la causa real es que **Kane
+(iolformula.com) cambió su propia fórmula/catálogo entre el
+27/08/2026 y la semana del 07-09/09/2026** — no un fallo nuestro. Se
+demostró con la prueba más limpia posible: se cogió el caso real
+CV-2026-0033 (27/08/2026), que entonces Kane calculó 22.5D, exactamente
+igual que EVO (22.5D), y se le mandó a la web REAL de Kane, HOY,
+carácter por carácter los mismos datos (`pnpm live kane`). Resultado:
+Kane da ahora 17.74-19.74D, unas 3-5D por debajo de lo que dio
+entonces, mientras la parte de cilindro/astigmatismo salió IDÉNTICA
+en las dos fechas (0.31D@85°, 0.17D@175°, 0.66D@175°, sin diferencia
+ni en una centésima) — solo cambió la potencia esférica, no el eje.
+Prueba independiente adicional: en agosto Kane reconocía el modelo de
+lente «B&L MX60ET/PT» en su catálogo y ponía su propia constante A; con
+el mismo nombre, hoy Kane dice que no tiene ese modelo en su lista —
+su catálogo de lentes también cambió. Un análisis de las 83
+comparaciones Kane-vs-EVO/Barrett guardadas desde el 24/08/2026 (script
+ad-hoc sobre `%APPDATA%\calculator-vilamar\casos\*.json`) confirma un
+cambio de régimen claro: gaps de 0-0.5D casi todo el tiempo hasta el
+06/09/2026, y gaps de 5-11D con mucha frecuencia desde el 08/09/2026 en
+adelante. Ni el eje de incisión ni el LT explican esto — lo prueba una
+web externa que cambió su propio cálculo, algo que este proyecto no
+controla (ver `docs/MANTENIMIENTO.md`, pensado justo para este tipo de
+caso).
+
+**Lección real (sustituye a la de las 18:50 sobre "comparar dato a
+dato"):** cuando una calculadora externa empieza a divergir de las
+otras dos de un día para otro, con casos que antes coincidían, la
+hipótesis a comprobar PRIMERO — antes que buscar un fallo en nuestro
+código o en cómo el dueño mete los datos — es que **la propia web
+externa haya cambiado su fórmula o su catálogo**. Se comprueba
+reproduciendo en vivo (`pnpm live <calculadora>`) los datos EXACTOS de
+un caso antiguo guardado que sí coincidía, y comparando el resultado de
+hoy contra el que quedó grabado entonces: si diverge con los mismos
+datos de entrada, el cambio está en la web ajena, no en el código ni en
+quien escribe. Guardar siempre casos de referencia con buena
+coincidencia, precisamente para poder hacer esta comprobación cuando
+haga falta.
+
+---
+
+## 2026-09-09 23:30 — CV-2026-0139: Kane con LT dispara ~10 D solo por la app, EN PAUSA hasta mañana
+
+**Error o aprendizaje:** Investigación del mismo día (caso CV-2026-0139):
+con LT=4mm, la app calcula Kane a ~30-32D mientras el dueño, metiendo a
+mano EXACTAMENTE los mismos datos en la web real de Kane (mismo AL, K1,
+K2, ACD, CCT, LT, constante A, modelo de lente, sexo, target, SIA y eje
+de incisión, comprobado dato a dato), obtiene ~22.5D. Sin LT, los dos
+coinciden razonablemente bien (app 22.99D / web 23.00D — 0.01D de
+diferencia, irrelevante). Se descartaron CUATRO hipótesis, cada una
+probada en vivo contra Kane real:
+1. Que la app no seleccione el modelo de lente en Kane — falso, ambos
+   lo seleccionan («IOL: B+L enVista Aspire Toric» aparece en las dos
+   capturas; error mío haberlo negado la primera vez, corregido por el
+   dueño).
+2. Que importe el ORDEN (seleccionar el modelo antes o después de
+   escribir los números) — probado invertyendo el orden en
+   `kane.ts` (bajo `VILAMAR_DEBUG_MODELO_AL_FINAL`, revertido): mismo
+   resultado disparado (32.64D) en los dos órdenes.
+3. Que Kane varíe según el momento del día — descartado con una prueba
+   en el MISMO minuto que una captura fresca del dueño: la app seguía
+   en 30.64D mientras la web daba 22.5D, a la vez.
+4. (De una investigación previa el mismo día) Que el eje de incisión
+   sea la causa — real para el caso CV-2026-0137, pero no aplica aquí:
+   en este caso el eje coincide en las dos pruebas.
+
+**Causa raíz:** Sin determinar todavía. Algo que Kane recibe de verdad
+es distinto entre la entrada automatizada y la manual, pero NO se ve en
+el resumen que Kane enseña en pantalla («AL: ... K1: ... LT: ...») —
+ese resumen es idéntico en los dos casos y aun así el resultado
+diverge ~10D. Sospecha sin probar: algún parámetro que Kane manda a su
+propio backend (vía AJAX/API) que no se refleja en el eco visible del
+formulario.
+
+**Lección:** Antes de escribir más código de producción a partir de
+"seguro que es X", agotar las hipótesis visibles NO basta cuando el eco
+en pantalla es idéntico y el resultado diverge — hace falta mirar el
+tráfico de red real (`page.on('request')`/`page.on('response')` de
+Playwright) para ver qué manda cada uno de verdad al servidor de Kane,
+no solo lo que enseña en pantalla. Es el paso pendiente, pedido
+explícitamente para MAÑANA («lo hacemos mañana») — no empezarlo sin que
+el dueño lo confirme primero, es una investigación más profunda y más
+larga que las anteriores.
+
+**Contexto:** Caso CV-2026-0139 (AL 23, K1 43@0°, K2 45@90°, ACD 3, CCT
+555, target 0, SIA 0.25@135°, constante 119.10, modelo «B+L enVista
+Aspire Toric», sexo Mujer — sintético/de prueba, no es de ningún
+paciente). Repetir con `pnpm live kane` usando estos valores exactos
+(con y sin `LT=4`) para retomar la investigación mañana sin tener que
+reconstruir el caso desde cero. Relacionado: [[kane-eje-incision-vs-web]]
+(la lección anterior sobre CV-2026-0137, causa distinta).
+
+---
+
+## 2026-09-10 12:40 — CV-2026-0139 RESUELTO: Kane pulsaba «Calculate» antes de que su reCAPTCHA terminara
+
+**Error o aprendizaje:** Retomada la investigación en pausa (ver la
+entrada de ayer, 23:30). Como el dueño ya tenía acceso directo a este
+ordenador, se le pidió abrir una ventana de Kane «espía» (script
+temporal `scripts/sondas/espiar-kane-manual.ts`, con un registro de
+tráfico de red puesto en `kane.ts` bajo `VILAMAR_DEBUG_RED`) y meter los
+mismos datos a mano mientras la app calculaba lo mismo en paralelo.
+Comparando los dos payloads reales byte a byte, el de la app no llevaba
+un campo (`id2`) que el de la persona sí llevaba: el token del reCAPTCHA
+invisible de Google, que Kane genera de forma asíncrona antes de
+calcular. Añadida una espera fija antes de pulsar «Calculate»
+(`pulsarCalcular()` en `kane.ts`); probada en vivo 15s → 10s → 7s, todas
+con resultado exacto a la web real; fijada en 8s (7 confirmado + margen
+pequeño). Verificado dos veces más tras hacerlo permanente, con el
+fixture normal de `pnpm live kane` (sin el caso del bug), para
+comprobar que no rompía el camino de siempre.
+
+**Causa raíz:** Un clic sintético de Playwright, justo después de
+rellenar el formulario, no le da tiempo al reCAPTCHA invisible de Kane a
+terminar su comprobación asíncrona antes de que se envíe la petición de
+cálculo — un clic real de una persona, por la mecánica normal de
+escribir y hacer clic, siempre le da tiempo de sobra. Sin el token, el
+servidor de Kane calcula por un camino distinto (probablemente menos
+validado), y con ciertos datos (LT alto, en el caso investigado) ese
+camino dispara la potencia varias dioptrías por encima de lo correcto —
+sin fallar ni avisar de nada raro.
+
+**Lección:** Cuando una web usa reCAPTCHA (visible o invisible) y un
+`.click()` de Playwright, inmediatamente después de rellenar un
+formulario, da un resultado distinto al de un clic humano con los MISMOS
+datos, sospechar primero de un token de verificación que no le ha dado
+tiempo a generarse — no de los datos en sí. La forma más directa de
+comprobarlo, cuando comparar capturas de pantalla no basta porque el eco
+en pantalla es idéntico: capturar el tráfico de red real
+(`page.on('request')`/`page.on('response')` de Playwright) de las dos
+entradas —automática y manual, esta última abriendo una ventana
+«espía» con el mismo perfil de navegador para que la persona escriba
+ahí— y comparar los payloads byte a byte. Es más lento que mirar
+pantallazos, pero encuentra diferencias que no se ven en pantalla.
+
+**Contexto:** `packages/integrations/src/adapters/kane.ts`,
+`pulsarCalcular()` (línea ~1061). Probablemente explica buena parte —no
+confirmado caso por caso— del patrón de «Kane se va muy lejos, sin
+destacar ninguna potencia» visto en varias sesiones anteriores
+(CV-2026-0125, 0126, 0128, 0129, 0137). Si algún día EVO o Barrett
+empiezan a comportarse distinto entre la app y una entrada manual con
+los mismos datos, comprobar primero si tienen su propio reCAPTCHA o
+verificación anti-robot antes de repetir esta misma investigación desde
+cero.

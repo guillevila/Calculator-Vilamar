@@ -9,6 +9,7 @@
  * más.
  */
 
+export * from './captura.js'
 export * from './contrato.js'
 export * from './normalizar.js'
 export * from './orquestador.js'

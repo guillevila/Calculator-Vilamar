@@ -38,6 +38,14 @@ pacientes/
 
 # ── Salidas de la aplicación ──────────────────────────────────────────────
 informes-generados/
+informes_generados/
+
+# Un script encontrado en el árbol de trabajo (02/09/2026) genera un informe
+# con datos reales de un paciente escritos directamente en el código —
+# NUNCA debe entrar en el repositorio. Se deja en el ordenador, fuera del
+# guardado, y con su propia entrada aquí por si el nombre de la carpeta de
+# arriba volviera a cambiar.
+scripts/generar-informe-paciente.ts
 salida-pdf/
 capturas/
 screenshots/
@@ -78,6 +86,11 @@ out/
 .vite/
 *.tsbuildinfo
 
+# El Chromium de Playwright que se mete en el paquete instalable (~700 MB)
+# — lo descarga `scripts/preparar-navegador-empaquetado.mjs`, nunca entra
+# en el repositorio.
+apps/desktop/resources/
+
 # ── Resultados de pruebas ─────────────────────────────────────────────────
 test-results/
 playwright-report/
@@ -103,6 +116,10 @@ datos-locales/
 *.log
 logs/
 .claude/audit/
+
+# ── Notas personales sueltas en la raíz ────────────────────────────────────
+# Documentos de trabajo del dueño del proyecto, no del producto.
+Calculadora vilamar proceso cipoia para otro PC.docx
 
 # ── Editores y sistema ────────────────────────────────────────────────────
 .vscode/

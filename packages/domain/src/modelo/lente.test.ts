@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest'
 
 import { CALCULADORAS, FICHAS } from './calculadoras.js'
 import type { Caso } from './caso.js'
-import { casoNuevo, confirmar, conOjo } from './caso.js'
+import { casoNuevo, confirmar, conOjo, ojoDe, ojosDelCaso } from './caso.js'
 import type { LenteDetectada } from './lente.js'
 import {
   claveLente,
@@ -35,8 +35,8 @@ import {
 } from './medida.js'
 import { prepararEntradas } from './preparar-entradas.js'
 import type { Procedencia } from './procedencia.js'
-import { origenDe } from './procedencia.js'
-import { elegirLente } from './seleccion-lente.js'
+import { necesitaComprobacionHumana, origenDe } from './procedencia.js'
+import { elegirLente, elegirLenteSecundaria, intercambiarLentes } from './seleccion-lente.js'
 
 const CUANDO = '2026-08-12T10:00:00.000Z'
 const LUEGO = '2026-08-12T10:05:00.000Z'
@@ -101,7 +101,7 @@ function casoConLentes(lentes: readonly LenteDetectada[] = LAS_CUATRO): Caso {
 }
 
 function constanteDe(caso: Caso, lado: 'OD' | 'OS' = 'OD') {
-  return caso.ojos[lado]?.medidas.CONSTANTE_A
+  return ojoDe(caso, lado).medidas.CONSTANTE_A
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -225,7 +225,7 @@ describe('elegir una lente trae su constante, y solo la suya', () => {
     // Es estructuralmente imposible —una clave por campo y ojo— y aquí queda
     // fijado: elegir una lente escribe UNA constante, no cuatro.
     const r = elegirLente(casoConLentes(), { modelo: 'LUX SMART' }, LUEGO)
-    const constantes = camposPresentes(r.caso.ojos.OD!).filter((c) => c === 'CONSTANTE_A')
+    const constantes = camposPresentes(ojoDe(r.caso, 'OD')).filter((c) => c === 'CONSTANTE_A')
     expect(constantes).toHaveLength(1)
     expect(constanteDe(r.caso)?.valor).toBe(118.5)
   })
@@ -259,6 +259,91 @@ describe('cambiar de lente', () => {
   })
 })
 
+describe('lente secundaria — comparar sin volver a escribir los datos (D55, 01/09/2026)', () => {
+  it('elegirLenteSecundaria la aparca sin tocar la constante activa', () => {
+    const conPrincipal = elegirLente(
+      casoConLentes(),
+      { modelo: 'Bausch&Lomb Akreos AO MI60' },
+      LUEGO,
+    ).caso
+    const conLasDos = elegirLenteSecundaria(
+      conPrincipal,
+      { modelo: 'Bausch&Lomb enVista MX60' },
+      LUEGO,
+    )
+    expect(conLasDos.lente?.modelo).toBe('Bausch&Lomb Akreos AO MI60')
+    expect(constanteDe(conLasDos)?.valor).toBe(119.1)
+    expect(conLasDos.lenteSecundaria?.modelo).toBe('Bausch&Lomb enVista MX60')
+  })
+
+  it('elegirLenteSecundaria(caso, undefined, …) la quita', () => {
+    const conLasDos = elegirLenteSecundaria(
+      casoConLentes(),
+      { modelo: 'LUX SMART' },
+      LUEGO,
+    )
+    expect(conLasDos.lenteSecundaria).toBeDefined()
+    const sinSecundaria = elegirLenteSecundaria(conLasDos, undefined, LUEGO)
+    expect(sinSecundaria.lenteSecundaria).toBeUndefined()
+  })
+
+  it('intercambiarLentes activa la secundaria, con SU propia constante, y aparca la que era principal', () => {
+    const conLasDos = elegirLenteSecundaria(
+      elegirLente(casoConLentes(), { modelo: 'Bausch&Lomb Akreos AO MI60' }, LUEGO).caso,
+      { modelo: 'Bausch&Lomb enVista MX60' },
+      LUEGO,
+    )
+    const { caso: intercambiado } = intercambiarLentes(conLasDos, LUEGO)
+    expect(intercambiado.lente?.modelo).toBe('Bausch&Lomb enVista MX60')
+    expect(constanteDe(intercambiado)?.valor).toBe(119.2)
+    expect(intercambiado.lenteSecundaria?.modelo).toBe('Bausch&Lomb Akreos AO MI60')
+  })
+
+  it('ida y vuelta dos veces deja cada lente con su propia constante, sin arrastrar la otra', () => {
+    let caso = elegirLenteSecundaria(
+      elegirLente(casoConLentes(), { modelo: 'Bausch&Lomb Akreos AO MI60' }, LUEGO).caso,
+      { modelo: 'Bausch&Lomb enVista MX60' },
+      LUEGO,
+    )
+    caso = intercambiarLentes(caso, LUEGO).caso
+    expect(constanteDe(caso)?.valor).toBe(119.2) // enVista MX60, activa
+
+    caso = intercambiarLentes(caso, LUEGO).caso
+    expect(caso.lente?.modelo).toBe('Bausch&Lomb Akreos AO MI60')
+    expect(constanteDe(caso)?.valor).toBe(119.1) // Akreos, otra vez activa — no la de enVista
+  })
+
+  it('al intercambiar se borran los resultados ya calculados — son de la lente anterior', () => {
+    const conLasDos = elegirLenteSecundaria(
+      elegirLente(casoConLentes(), { modelo: 'Bausch&Lomb Akreos AO MI60' }, LUEGO).caso,
+      { modelo: 'Bausch&Lomb enVista MX60' },
+      LUEGO,
+    )
+    const conResultadosYaCalculados: Caso = {
+      ...conLasDos,
+      estado: 'COMPLETADO',
+      resultados: {
+        'EVO_TORIC:OD:Principal': {
+          calculadora: 'EVO_TORIC',
+          ojo: 'OD',
+          estado: 'SUCCESS',
+          obtenidoEn: LUEGO,
+          opciones: [],
+        },
+      },
+    }
+    const { caso: intercambiado } = intercambiarLentes(conResultadosYaCalculados, LUEGO)
+    expect(Object.keys(intercambiado.resultados)).toHaveLength(0)
+    expect(intercambiado.estado).toBe('CONFIRMADO')
+  })
+
+  it('sin lente secundaria aparcada, intercambiarLentes no hace nada', () => {
+    const caso = elegirLente(casoConLentes(), { modelo: 'LUX SMART' }, LUEGO).caso
+    const { caso: intercambiado } = intercambiarLentes(caso, LUEGO)
+    expect(intercambiado).toEqual(caso)
+  })
+})
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  9-10 · Lo que NO se hereda ni se adivina
 // ═══════════════════════════════════════════════════════════════════════════
@@ -287,6 +372,94 @@ describe('una lente que no está en el informe', () => {
     const r = elegirLente(casoConLentes(), { modelo: 'Bausch&Lomb enVista MX70' }, LUEGO)
     expect(r.emparejamiento.estado).toBe('NO_ESTA')
     expect(constanteDe(r.caso)).toBeUndefined()
+  })
+})
+
+describe('constante conocida del catálogo propio (D69, corregida 05/09/2026) — tiene prioridad sobre la tabla del informe', () => {
+  it('se aplica cuando la lente no está en el informe', () => {
+    const r = elegirLente(
+      casoConLentes(),
+      { modelo: 'Alcon SN6ATx', constanteConocida: 119.1 },
+      LUEGO,
+    )
+    expect(r.emparejamiento.estado).toBe('NO_ESTA')
+    expect(constanteDe(r.caso)?.valor).toBe(119.1)
+  })
+
+  it('queda como CATALOGO, ya confirmada — no pide comprobación humana ni bloquea nada', () => {
+    const r = elegirLente(
+      casoConLentes(),
+      { modelo: 'Alcon SN6ATx', constanteConocida: 119.1 },
+      LUEGO,
+    )
+    const m = constanteDe(r.caso)
+    expect(m?.procedencia.metodo).toBe('CATALOGO')
+    expect(m?.confirmadoPorUsuario).toBe(true)
+    expect(m && necesitaComprobacionHumana(m.procedencia)).toBe(false)
+    expect(r.avisos.join(' ')).toMatch(/la oficial del fabricante/i)
+  })
+
+  it('gana a la constante de la tabla del informe, no al revés — la tabla del informe viene equivocada con frecuencia', () => {
+    // 'LUX SMART' está en `LAS_CUATRO` con 118.5 — pero si hay una
+    // constante conocida del catálogo, esa manda (D69, corregido
+    // 05/09/2026: al revés de como se implementó primero).
+    const r = elegirLente(casoConLentes(), { modelo: 'LUX SMART', constanteConocida: 119.9 }, LUEGO)
+    expect(constanteDe(r.caso)?.valor).toBe(119.9)
+  })
+
+  it('no pisa una constante escrita a mano', () => {
+    let caso = casoConLentes()
+    caso = conOjo(caso, corregirMedida(ojoDe(caso, 'OD'), 'CONSTANTE_A', 118.0, LUEGO), LUEGO)
+    const r = elegirLente(caso, { modelo: 'Alcon SN6ATx', constanteConocida: 119.1 }, LUEGO)
+    expect(constanteDe(r.caso)?.valor).toBe(118.0)
+    expect(r.avisos.join(' ')).toMatch(/la escribiste tú/i)
+  })
+
+  it('se quita sola al cambiar a una lente sin constante conocida — no se hereda de una lente a otra', () => {
+    const conCatalogo = elegirLente(
+      casoConLentes(),
+      { modelo: 'Alcon SN6ATx', constanteConocida: 119.1 },
+      LUEGO,
+    )
+    expect(constanteDe(conCatalogo.caso)?.valor).toBe(119.1)
+
+    const otra = elegirLente(conCatalogo.caso, { modelo: 'Alcon SA6ATx' }, LUEGO)
+    expect(constanteDe(otra.caso)).toBeUndefined()
+    expect(otra.avisos.join(' ')).toMatch(/no se hereda de una lente a otra/i)
+  })
+
+  it('cambiar de una lente con constante conocida a una del informe usa la del informe, sin arrastrar la anterior', () => {
+    const conCatalogo = elegirLente(
+      casoConLentes(),
+      { modelo: 'Alcon SN6ATx', constanteConocida: 119.1 },
+      LUEGO,
+    )
+    expect(constanteDe(conCatalogo.caso)?.valor).toBe(119.1)
+
+    const otra = elegirLente(
+      conCatalogo.caso,
+      { modelo: 'Bausch&Lomb Akreos AO MI60' },
+      LUEGO,
+    )
+    expect(constanteDe(otra.caso)?.valor).toBe(119.1) // la de Akreos en LAS_CUATRO también es 119.1…
+    expect(constanteDe(otra.caso)?.procedencia.metodo).not.toBe('CATALOGO') // …pero esta viene del informe, no del catálogo
+    expect(origenDe(constanteDe(otra.caso))).toBe('DEL_INFORME')
+  })
+
+  it('la lente aparcada lleva su constante conocida, y se aplica al intercambiarla', () => {
+    const conPrincipal = elegirLente(
+      casoConLentes(),
+      { modelo: 'Bausch&Lomb Akreos AO MI60' },
+      LUEGO,
+    ).caso
+    const conSecundaria = elegirLenteSecundaria(
+      conPrincipal,
+      { modelo: 'Alcon SN6ATx', constanteConocida: 119.1 },
+      LUEGO,
+    )
+
+    const r = intercambiarLentes(conSecundaria, LUEGO)
+    expect(constanteDe(r.caso)?.valor).toBe(119.1)
   })
 })
 
@@ -326,7 +499,7 @@ describe('dos lentes ambiguas no se emparejan solas', () => {
 describe('corregir a mano la constante', () => {
   it('conserva la del informe como valor original', () => {
     const r = elegirLente(casoConLentes(), { modelo: 'Bausch&Lomb Akreos AO MI60' }, LUEGO)
-    const corregido = corregirMedida(r.caso.ojos.OD!, 'CONSTANTE_A', 119.0, LUEGO)
+    const corregido = corregirMedida(ojoDe(r.caso, 'OD'), 'CONSTANTE_A', 119.0, LUEGO)
     const m = obtener(corregido, 'CONSTANTE_A')
 
     expect(m?.valor).toBe(119.0)
@@ -338,10 +511,11 @@ describe('corregir a mano la constante', () => {
 
   it('elegir otra lente NO pisa lo que ha escrito una persona', () => {
     const r = elegirLente(casoConLentes(), { modelo: 'Bausch&Lomb Akreos AO MI60' }, LUEGO)
-    const conMano = {
-      ...r.caso,
-      ojos: { OD: corregirMedida(r.caso.ojos.OD!, 'CONSTANTE_A', 119.0, LUEGO) },
-    }
+    const conMano = conOjo(
+      r.caso,
+      corregirMedida(ojoDe(r.caso, 'OD'), 'CONSTANTE_A', 119.0, LUEGO),
+      LUEGO,
+    )
 
     const cambiada = elegirLente(conMano, { modelo: 'Bausch&Lomb enVista MX60' }, LUEGO)
     expect(constanteDe(cambiada.caso)?.valor).toBe(119.0)
@@ -352,7 +526,7 @@ describe('corregir a mano la constante', () => {
   it('una constante escrita a mano sin lente en el informe se respeta', () => {
     // Viene de otro sitio, no de la tabla: elegir una lente ausente no la borra.
     let caso = casoConLentes()
-    caso = { ...caso, ojos: { OD: corregirMedida(caso.ojos.OD!, 'CONSTANTE_A', 118.0, LUEGO) } }
+    caso = conOjo(caso, corregirMedida(ojoDe(caso, 'OD'), 'CONSTANTE_A', 118.0, LUEGO), LUEGO)
     const r = elegirLente(caso, { modelo: 'Alcon SN6ATx' }, LUEGO)
     expect(constanteDe(r.caso)?.valor).toBe(118.0)
   })
@@ -365,7 +539,7 @@ describe('corregir a mano la constante', () => {
 describe('la constante elegida llega a las calculadoras', () => {
   function preparado(modelo: string) {
     const r = elegirLente(casoConLentes(), { modelo }, LUEGO)
-    const ojo = confirmarTodas(r.caso.ojos.OD!)
+    const ojo = confirmarTodas(ojoDe(r.caso, 'OD'))
     return confirmar(conOjo(r.caso, ojo, LUEGO), LUEGO)
   }
 
@@ -400,7 +574,7 @@ describe('la constante elegida llega a las calculadoras', () => {
   })
 
   it('sin lente elegida, quien exige constante A no puede calcular', () => {
-    const ojo = confirmarTodas(casoConLentes().ojos.OD!)
+    const ojo = confirmarTodas(ojoDe(casoConLentes(), 'OD'))
     const caso = confirmar(conOjo(casoConLentes(), ojo, LUEGO), LUEGO)
     for (const c of CALCULADORAS) {
       const r = prepararEntradas(caso, c, 'OD')
@@ -419,6 +593,62 @@ describe('la constante elegida llega a las calculadoras', () => {
     } else {
       throw new Error('las dos preparaciones deberían haber salido bien')
     }
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  El mismo modelo se llama distinto en cada desplegable (petición expresa
+//  del dueño, 27/08/2026: B&L LuxSmart en EVO es B+L LuxSmart Toric en Kane)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('una lente puede llamarse distinto en el desplegable de cada calculadora', () => {
+  function preparado(modelo: string) {
+    const r = elegirLente(casoConLentes(), { modelo }, LUEGO)
+    const ojo = confirmarTodas(ojoDe(r.caso, 'OD'))
+    return confirmar(conOjo(r.caso, ojo, LUEGO), LUEGO)
+  }
+
+  function preparadoConNombresPropios() {
+    // El modelo tiene que estar en el informe para que la constante A se
+    // rellene sola (aquí no importa cuál — «B&L LuxSmart» ni «B+L LuxSmart
+    // Toric» no están en la lista sintética del informe, así que se usa
+    // «Bausch&Lomb Akreos AO MI60», que sí lo está, y se le añaden los
+    // nombres propios de EVO y Kane por encima).
+    const r = elegirLente(
+      casoConLentes(),
+      {
+        modelo: 'Bausch&Lomb Akreos AO MI60',
+        nombreEnEvo: 'B&L LuxSmart',
+        nombreEnKane: 'B+L LuxSmart Toric',
+      },
+      LUEGO,
+    )
+    const ojo = confirmarTodas(ojoDe(r.caso, 'OD'))
+    return confirmar(conOjo(r.caso, ojo, LUEGO), LUEGO)
+  }
+
+  it('EVO recibe su propio nombre, no el general', () => {
+    const r = prepararEntradas(preparadoConNombresPropios(), 'EVO_TORIC', 'OD')
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.entradas.modeloLente).toBe('B&L LuxSmart')
+  })
+
+  it('Kane recibe SU nombre, distinto del de EVO', () => {
+    const r = prepararEntradas(preparadoConNombresPropios(), 'KANE', 'OD')
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.entradas.modeloLente).toBe('B+L LuxSmart Toric')
+  })
+
+  it('Barrett recibe el nombre general: no tiene un nombre propio que valga la pena', () => {
+    const r = prepararEntradas(preparadoConNombresPropios(), 'BARRETT_TORIC', 'OD')
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.entradas.modeloLente).toBe('Bausch&Lomb Akreos AO MI60')
+  })
+
+  it('sin nombre propio para una calculadora, se usa el general — igual que siempre', () => {
+    const r = prepararEntradas(preparado('LUX SMART'), 'KANE', 'OD')
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.entradas.modeloLente).toBe('LUX SMART')
   })
 })
 
@@ -445,9 +675,8 @@ describe('la lente es del caso, no de un ojo', () => {
   it('las lentes del informe no se guardan por ojo', () => {
     const caso = casoConLentes()
     expect(caso.lentesDelInforme).toHaveLength(4)
-    for (const lado of ['OD', 'OS'] as const) {
-      const ojo = caso.ojos[lado]
-      if (!ojo) continue
+    for (const lado of ojosDelCaso(caso)) {
+      const ojo = ojoDe(caso, lado)
       expect(Object.keys(ojo.medidas)).not.toContain('lentes')
     }
   })

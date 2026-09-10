@@ -27,7 +27,8 @@ export const TARIFAS: Readonly<Record<string, Tarifa>> = {
   // El más barato. No entra en el nivel de alta resolución: recorta las
   // imágenes a 1568 px, que en un informe con cifras pequeñas puede notarse.
   'claude-haiku-4-5': { entrada: 1, salida: 5, minimoCache: 4096, ladoMaximoImagen: 1568 },
-  // Precio de lanzamiento hasta el 31/08/2026; después, 3 y 15.
+  // Iba a subir a 3 y 15 el 01/09/2026 (nota de lanzamiento); no ha subido,
+  // este precio se quedó fijo. Comprobado el 04/09/2026.
   'claude-sonnet-5': { entrada: 2, salida: 10, minimoCache: 1024, ladoMaximoImagen: 2576 },
   'claude-opus-5': { entrada: 5, salida: 25, minimoCache: 512, ladoMaximoImagen: 2576 },
   'claude-opus-4-8': { entrada: 5, salida: 25, minimoCache: 1024, ladoMaximoImagen: 2576 },

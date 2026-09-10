@@ -24,7 +24,10 @@ import {
   ojoVacio,
 } from '@vilamar/domain'
 
-import { generarHtmlInforme } from './plantilla.js'
+// Todo este fichero prueba la tabla comparativa y el bloque de alternativas,
+// que son contenido del informe DETALLADO (`generarHtmlInformeDetallado`) —
+// el simplificado que genera la aplicación por defecto no los tiene.
+import { generarHtmlInformeDetallado } from './plantilla.js'
 import { recopilarInforme } from './recopilar.js'
 
 const CUANDO = '2026-08-13T10:00:00.000Z'
@@ -65,7 +68,7 @@ function informeCon(opciones: readonly ResultadoCalculadora['opciones'][number][
     },
     CUANDO,
   )
-  return generarHtmlInforme(recopilarInforme(caso, { version: '0.1.0', generadoEn: CUANDO }))
+  return generarHtmlInformeDetallado(recopilarInforme(caso, { version: '0.1.0', generadoEn: CUANDO }))
 }
 
 /**

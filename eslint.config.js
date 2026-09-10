@@ -33,6 +33,9 @@ export default tseslint.config(
       '**/playwright-report/**',
       'local/**',
       'pnpm-lock.yaml',
+      // El Chromium que se mete en el paquete instalable (D51,
+      // 28/08/2026) — descargado, nunca código propio.
+      'apps/desktop/resources/**',
     ],
   },
 

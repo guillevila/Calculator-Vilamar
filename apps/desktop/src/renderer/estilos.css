@@ -21,6 +21,19 @@
   --verde: #1e6b45;
   --verde-suave: #eaf5ef;
   --radio: 6px;
+  /* Rediseño del cuestionario manual (02/09/2026, sobre una maqueta que
+     trajo el dueño del proyecto): una franja de color por sección —
+     identificación, biometría, lente, córnea posterior— para que se
+     distingan de un vistazo, además del número y el título. Colores
+     nuevos, sin relación con --grupo-* de arriba (que se quedan por si
+     algún sitio los sigue usando) ni con los de las calculadoras del
+     informe. */
+  --seccion-identificacion: #2563a8;
+  --seccion-biometria: #1e8a5f;
+  --seccion-lente: #6b3fa0;
+  --seccion-lente-suave: #f2ecf9;
+  --seccion-posterior: #b8860b;
+  --seccion-posterior-suave: #fbf3e0;
 }
 
 * {
@@ -145,6 +158,11 @@ main.contenido {
 .pasos .paso {
   padding: 3px 10px;
   border-radius: 12px;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
 }
 .pasos .paso.activo {
   background: var(--azul-suave);
@@ -153,6 +171,13 @@ main.contenido {
 }
 .pasos .paso.hecho {
   color: var(--verde);
+}
+.pasos .paso:not(:disabled):hover {
+  background: var(--linea);
+}
+.pasos .paso:disabled {
+  cursor: default;
+  opacity: 1;
 }
 
 /* ── Zona de arrastre ───────────────────────────────────────────────────── */
@@ -186,6 +211,17 @@ main.contenido {
   color: var(--gris);
 }
 
+/* Las dos opciones de la pantalla de inicio, con el mismo peso visual. */
+.opciones-inicio {
+  display: flex;
+  gap: 18px;
+  align-items: stretch;
+}
+.opciones-inicio > .soltar {
+  flex: 1;
+  padding: 40px 24px;
+}
+
 /* ── Tarjetas ───────────────────────────────────────────────────────────── */
 
 .tarjeta {
@@ -204,6 +240,12 @@ main.contenido {
   margin: 0 0 14px;
   color: var(--gris);
   font-size: 13px;
+}
+/* La tarjeta que hay que rellenar primero (nombre del paciente y del
+   doctor, en el cuestionario manual) — un acento para que no pase
+   desapercibida entre el resto de tarjetas, todas iguales por diseño. */
+.tarjeta-destacada {
+  border-left: 4px solid var(--azul);
 }
 
 /* ── Tabla de revisión ──────────────────────────────────────────────────── */
@@ -500,6 +542,23 @@ table.opciones .na {
   content: '● ';
   color: var(--rojo);
 }
+/*
+ * La diferencia importante entre calculadoras (09/09/2026): no basta con el
+ * mismo punto de color que una discrepancia fina de 0.5 D — esto es lo que no
+ * se puede dejar pasar por alto. No dice cuál de las calculadoras está
+ * equivocada, solo que el rango es mucho mayor de lo habitual.
+ */
+.observacion.ALARMA {
+  background: var(--rojo-suave);
+  border: 1px solid var(--rojo);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-weight: 600;
+  color: var(--rojo);
+}
+.observacion.ALARMA::before {
+  content: '⚠ ';
+}
 
 /* ── Varios ─────────────────────────────────────────────────────────────── */
 
@@ -537,10 +596,40 @@ table.opciones .na {
   background: var(--azul);
   color: #fff;
 }
+/* Versión más grande, para cuando el selector de ojo es lo primero que hay
+   que mirar (el cuestionario manual) y no un detalle secundario. */
+.selector-ojo.grande button {
+  padding: 10px 26px;
+  font-size: 15px;
+  font-weight: 600;
+}
 .cargando {
   color: var(--gris);
   padding: 40px;
   text-align: center;
+}
+
+/* El cuestionario simplificado (FormularioManual): etiqueta + casilla, sin
+   columnas de origen/estado — todo lo que se escribe aquí ya es manual. */
+.rejilla-manual {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px 16px;
+}
+.campo-manual {
+  border: 1px solid var(--linea);
+  border-radius: 8px;
+  padding: 8px 10px 9px;
+  background: #fff;
+}
+.campo-manual label {
+  display: block;
+  font-size: 12.5px;
+  color: var(--gris);
+  margin-bottom: 4px;
+}
+.campo-manual input {
+  width: 100%;
 }
 
 /* ── Origen del dato ────────────────────────────────────────────────────────
@@ -573,6 +662,22 @@ table.opciones .na {
   color: #6f6f6f;
   font-style: italic;
 }
+/* Un valor de partida (D68, ej. el sexo por defecto): ni del informe ni
+   escrito por nadie, así que no se le da el color «tranquilizador» del verde
+   de aportado — pero tampoco el ámbar de aviso, porque no bloquea nada. */
+.origen.por_defecto {
+  background: var(--gris-claro);
+  color: #6f6f6f;
+  font-style: italic;
+}
+/* Un valor del catálogo propio de la app (D69, ej. la constante A oficial
+   de una lente): sí es de fiar —por eso lleva el verde de «aportado», no
+   el gris apagado de un valor de partida—, pero no es del informe de este
+   paciente, así que necesita su propio color para no confundirse con él. */
+.origen.del_catalogo {
+  background: #eaf5ea;
+  color: #1f5c2e;
+}
 .origen-original {
   margin-top: 3px;
   font-size: 0.78rem;
@@ -581,6 +686,10 @@ table.opciones .na {
 }
 .estado-campo.vacio {
   color: #b9b9b9;
+}
+.estado-campo.defecto {
+  color: #6f6f6f;
+  font-style: italic;
 }
 
 /* ── Cuánta falta hace cada campo ───────────────────────────────────────────
@@ -654,4 +763,155 @@ table.opciones .na {
 }
 .lentes-informe button.lente.elegida .lente-constante {
   color: var(--azul);
+}
+
+/* ── Cabecera del cuestionario manual (rediseño 02/09/2026) ─────────────────
+   Sobre una maqueta del dueño del proyecto: insignia BIO, título, y una
+   barra de progreso con los datos «núcleo» del ojo que se está editando —
+   los mismos seis que llevan fondo rojo más abajo, más la constante. */
+.cabecera-bio {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 22px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  background: linear-gradient(120deg, #0f2f4d, #1a5c6b);
+  color: #fff;
+}
+.cabecera-bio .distintivo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.cabecera-bio .insignia {
+  background: #1f9c7f;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+.cabecera-bio h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #fff;
+}
+.cabecera-bio p {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.78);
+}
+.cabecera-bio .progreso {
+  width: 160px;
+  flex-shrink: 0;
+  text-align: right;
+}
+.cabecera-bio .progreso span {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+}
+.cabecera-bio .progreso-barra {
+  height: 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+  margin-top: 5px;
+}
+.cabecera-bio .progreso-relleno {
+  height: 100%;
+  background: #4fd1a5;
+  transition: width 0.2s ease;
+}
+
+/* ── Tarjetas de sección, con franja de color y numeración ──────────────── */
+.tarjeta-seccion {
+  background: #fff;
+  border: 1px solid var(--linea);
+  border-top: 4px solid var(--color-seccion, var(--azul));
+  border-radius: 10px;
+  padding: 16px 20px 18px;
+  margin-bottom: 18px;
+}
+.tarjeta-seccion.identificacion {
+  --color-seccion: var(--seccion-identificacion);
+}
+.tarjeta-seccion.biometria {
+  --color-seccion: var(--seccion-biometria);
+}
+.tarjeta-seccion.lente {
+  --color-seccion: var(--seccion-lente);
+}
+.tarjeta-seccion.posterior {
+  --color-seccion: var(--seccion-posterior);
+}
+.seccion-cabecera {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  margin-bottom: 14px;
+}
+.seccion-numero {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--color-seccion, var(--azul)) 14%, white);
+  color: var(--color-seccion, var(--azul));
+  font-weight: 700;
+  font-size: 12.5px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.seccion-titulo {
+  flex: 1;
+}
+.seccion-titulo h3 {
+  margin: 0;
+  font-size: 14.5px;
+  color: var(--texto);
+}
+.seccion-titulo p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--gris);
+}
+.seccion-etiqueta {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.seccion-etiqueta.obligatorios {
+  background: var(--rojo-suave);
+  color: var(--rojo);
+}
+.seccion-etiqueta.opcional {
+  background: var(--ambar-suave);
+  color: var(--ambar);
+}
+
+/* ── Campos obligatorios destacados (rediseño 02/09/2026) ────────────────
+   Los mismos seis que EVO, Barrett y Kane piden siempre para poder
+   calcular algo — AL, K1 y su eje, K2 y su eje, ACD — llevan fondo rojo
+   suave, borde rojo y un asterisco en la etiqueta. El resto de campos
+   (algunos obligatorios SOLO para una calculadora en concreto, como SIA o
+   la constante) se quedan neutros: esta marca es la del núcleo mínimo, no
+   sustituye a los avisos de «obligatorio para Barrett» que ya da la
+   pantalla de revisión. */
+.campo-manual.obligatorio {
+  background: var(--rojo-suave);
+  border-color: #e3a8a8;
+  border-radius: 8px;
+}
+.campo-manual.obligatorio label::after {
+  content: ' *';
+  color: var(--rojo);
+  font-weight: 700;
 }

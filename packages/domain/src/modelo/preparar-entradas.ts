@@ -20,7 +20,7 @@ import { fichaDe } from './calculadoras.js'
 import type { Caso } from './caso.js'
 import { autorizadoACalcular, ojoDe } from './caso.js'
 import type { Lateralidad } from './lateralidad.js'
-import { obtener } from './medida.js'
+import { APARATO_PRINCIPAL, obtener } from './medida.js'
 
 export type ResultadoPreparacion =
   | { readonly ok: true; readonly entradas: EntradasCalculadora }
@@ -35,6 +35,18 @@ export type ResultadoPreparacion =
    * de campo que no existe.
    */
   | { readonly ok: false; readonly motivo: 'FALTA_EL_SEXO'; readonly confirmado: boolean }
+  /**
+   * Barrett Toric (o su variante de córnea posterior) pedido en un ojo con
+   * córnea especial (D67): daría un resultado erróneo. Hay que usar Barrett
+   * True K Toric en su lugar.
+   */
+  | { readonly ok: false; readonly motivo: 'CORNEA_ESPECIAL_USA_TRUE_K' }
+  /**
+   * Barrett True K Toric pedido en un ojo SIN córnea especial marcada. No es
+   * una casilla más a elegir libremente: solo tiene sentido cuando el ojo
+   * tiene una situación corneal puesta.
+   */
+  | { readonly ok: false; readonly motivo: 'TRUE_K_SIN_CORNEA_ESPECIAL' }
 
 /**
  * ¿Se puede lanzar esta calculadora para este ojo?
@@ -42,24 +54,96 @@ export type ResultadoPreparacion =
  * Equivale al `canRun(case)` del contrato de adaptadores, pero vive en el
  * dominio para que ningún adaptador pueda saltárselo.
  */
-export function sePuedeCalcular(caso: Caso, calculadora: Calculadora, ojo: Lateralidad): boolean {
-  return prepararEntradas(caso, calculadora, ojo).ok
+export function sePuedeCalcular(
+  caso: Caso,
+  calculadora: Calculadora,
+  ojo: Lateralidad,
+  aparato: string = APARATO_PRINCIPAL,
+): boolean {
+  return prepararEntradas(caso, calculadora, ojo, aparato).ok
+}
+
+/**
+ * Cómo se llama la lente elegida en el desplegable de ESTA calculadora
+ * (petición expresa del dueño, 27/08/2026): un mismo modelo físico puede
+ * tener nombres distintos en cada web —«B&L LuxSmart» en EVO, «B+L
+ * LuxSmart Toric» en Kane— y elegir el equivocado no da un error: elige en
+ * silencio OTRA lente con su propia constante. Sin nombre específico para
+ * esta calculadora, se usa el general, igual que siempre.
+ */
+function nombreDeLentePara(caso: Caso, calculadora: Calculadora): string | undefined {
+  if (calculadora === 'EVO_TORIC' || calculadora === 'EVO_TORIC_SIN_CARA_POSTERIOR') {
+    return caso.lente?.nombreEnEvo ?? caso.lente?.modelo
+  }
+  if (calculadora === 'KANE') return caso.lente?.nombreEnKane ?? caso.lente?.modelo
+  return caso.lente?.modelo
+}
+
+/**
+ * Cómo se llama el mismo aparato en el desplegable «Biometer»/«Device» de
+ * EVO y de Barrett cuando ese aparato midió también la córnea posterior
+ * (petición expresa del dueño, 01/09/2026, con capturas de pantalla de
+ * los dos desplegables): las dos webs piden explícitamente qué
+ * instrumento dio esa medida —cada una aplica una corrección propia según
+ * el aparato— y por defecto se quedan en el primero de su lista
+ * («IOLMaster 700»/«IOLMaster 700 TK»), aunque el aparato real fuera
+ * otro. Mismo patrón que `nombreDeLentePara` para las lentes (D50): cada
+ * web tiene su propio texto exacto, comprobado en vivo el 01/09/2026
+ * contra las dos.
+ *
+ * Solo se listan los aparatos que este programa ya reconoce
+ * (`NOMBRE_DISPOSITIVO`, en `documento.ts`), más «Sirius» —visto en uso
+ * real, y que sí está en la lista de EVO—. Un aparato sin mapeo (incluido
+ * «Otro», texto libre) no se manda: la web se queda en su propio valor
+ * por defecto, igual que hasta ahora — no se adivina a cuál se refería.
+ */
+const DISPOSITIVO_EN_EVO: Partial<Record<string, string>> = {
+  'Heidelberg ANTERION': 'Anterion',
+  'ZEISS IOLMaster 700': 'IOLMaster 700',
+  'OCULUS Pentacam': 'Pentacam',
+  Sirius: 'Sirius',
+}
+
+/**
+ * Barrett, a diferencia de EVO, no tiene «Anterion» en su lista —
+ * comprobado en vivo el 01/09/2026: no hay equivalente, así que un caso
+ * con ANTERION no manda nada aquí y Barrett se queda en su propio
+ * defecto.
+ */
+const DISPOSITIVO_EN_BARRETT: Partial<Record<string, string>> = {
+  'ZEISS IOLMaster 700': 'IOLMaster 700 TK',
+  'OCULUS Pentacam': 'Pentacam',
+}
+
+function dispositivoCaraPosteriorPara(calculadora: Calculadora, aparato: string): string | undefined {
+  if (calculadora === 'EVO_TORIC') return DISPOSITIVO_EN_EVO[aparato]
+  if (calculadora === 'BARRETT_TORIC_CON_CARA_POSTERIOR') return DISPOSITIVO_EN_BARRETT[aparato]
+  return undefined
 }
 
 export function camposQueFaltan(
   caso: Caso,
   calculadora: Calculadora,
   ojo: Lateralidad,
+  aparato: string = APARATO_PRINCIPAL,
 ): readonly CampoBiometrico[] {
   const ficha = fichaDe(calculadora)
-  const datos = ojoDe(caso, ojo)
+  const datos = ojoDe(caso, ojo, aparato)
   return ficha.requeridos.filter((c) => obtener(datos, c) === undefined)
 }
 
+/**
+ * @param aparato De qué biómetro coger los datos (D47, 27/08/2026). Sin
+ *   especificarlo, `APARATO_PRINCIPAL` — el único que existe en un caso que no
+ *   usa varios. La comprobación de «cada campo revisado» (paso 3, más abajo)
+ *   mira solo ESTE dataset, así que un aparato ya confirmado puede calcular
+ *   aunque otro del mismo ojo siga a medias — es la independencia de D47.
+ */
 export function prepararEntradas(
   caso: Caso,
   calculadora: Calculadora,
   ojo: Lateralidad,
+  aparato: string = APARATO_PRINCIPAL,
 ): ResultadoPreparacion {
   // 1 — Nada sale de un caso que no haya confirmado una persona.
   if (!autorizadoACalcular(caso)) {
@@ -67,7 +151,20 @@ export function prepararEntradas(
   }
 
   const ficha = fichaDe(calculadora)
-  const datos = ojoDe(caso, ojo)
+  const datos = ojoDe(caso, ojo, aparato)
+
+  // 1 bis — Barrett normal y Barrett True K Toric se excluyen mutuamente
+  // según si el ojo tiene una córnea especial (D67, 02/09/2026): usar la
+  // que no toca daría un resultado clínicamente erróneo, con pinta de
+  // válido. No es un dato que falte, es la calculadora equivocada para
+  // este ojo.
+  const esBarrettNormal = calculadora === 'BARRETT_TORIC' || calculadora === 'BARRETT_TORIC_CON_CARA_POSTERIOR'
+  if (esBarrettNormal && datos.situacionCorneal !== undefined) {
+    return { ok: false, motivo: 'CORNEA_ESPECIAL_USA_TRUE_K' }
+  }
+  if (calculadora === 'BARRETT_TRUE_K_TORIC' && datos.situacionCorneal === undefined) {
+    return { ok: false, motivo: 'TRUE_K_SIN_CORNEA_ESPECIAL' }
+  }
 
   // 2 — El sexo, si esta calculadora lo pide. Y tiene que estar REVISADO: un
   // sexo deducido del nombre que nadie ha mirado no sale hacia ninguna web.
@@ -112,11 +209,25 @@ export function prepararEntradas(
       ojo,
       codigoCaso: caso.codigo,
       valores,
-      modeloLente: caso.lente?.modelo,
+      modeloLente: nombreDeLentePara(caso, calculadora),
       fabricanteLente: caso.lente?.fabricante,
       // Solo viaja si esa calculadora lo pide. No se manda un dato de la persona
       // a una web que no lo necesita.
       sexo: ficha.exigeSexo === true ? caso.sexo?.valor : undefined,
+      // El cirujano viaja si el caso lo tiene (D41), y desde D44 el paciente
+      // también — decisión expresa del dueño, hecha dos veces tras dos
+      // avisos explícitos sobre lo que implica.
+      nombreCirujano: caso.nombreCirujano,
+      nombrePaciente: caso.nombrePaciente,
+      // El aparato de córnea posterior, si se ha elegido uno distinto del
+      // general (02/09/2026, corrige D58) — si no, el general de siempre.
+      dispositivoCaraPosterior: dispositivoCaraPosteriorPara(
+        calculadora,
+        datos.aparatoCaraPosterior ?? datos.aparato,
+      ),
+      // La córnea especial de este ojo, si tiene una (D67) — EVO y Kane la
+      // usan para elegir un modo especial en su mismo formulario.
+      situacionCorneal: datos.situacionCorneal,
     },
   }
 }
@@ -134,6 +245,12 @@ export function explicarBloqueo(resultado: ResultadoPreparacion): string | null 
   }
   if (resultado.motivo === 'SIN_CONFIRMAR_EL_CASO') {
     return 'Todavía no has confirmado los datos. Revísalos y confírmalos antes de calcular.'
+  }
+  if (resultado.motivo === 'CORNEA_ESPECIAL_USA_TRUE_K') {
+    return 'Este ojo tiene marcada una córnea especial (LASIK/PRK/RK previo o queratocono): Barrett Toric daría un resultado erróneo aquí. Usa Barrett True K Toric en su lugar.'
+  }
+  if (resultado.motivo === 'TRUE_K_SIN_CORNEA_ESPECIAL') {
+    return 'Barrett True K Toric es solo para un ojo con córnea especial (LASIK/PRK/RK previo o queratocono). Este ojo no la tiene marcada: usa Barrett Toric.'
   }
   const { calculadora, faltan, sinConfirmar } = resultado.detalle
   const nombre = fichaDe(calculadora).nombre
@@ -176,4 +293,6 @@ const REGISTRO: Partial<Record<CampoBiometrico, string>> = {
   EJE_INCISION: 'el eje de la incisión',
   CONSTANTE_A: 'la constante A',
   FACTOR_LENTE: 'el factor de lente',
+  REFRACCION_PRE_LASIK: 'la refracción antes del LASIK/PRK/RK',
+  REFRACCION_POST_LASIK: 'la refracción después del LASIK/PRK/RK',
 }
