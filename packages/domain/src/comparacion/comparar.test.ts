@@ -81,6 +81,81 @@ describe('comparativa de un ojo', () => {
     expect(rango?.tipo).toBe('DISCREPANCIA')
   })
 
+  it('marca como alarma un rango de 2 dioptrías o más, sin decir cuál está mal', () => {
+    // Caso real (09/09/2026): Kane cambió su propia fórmula y empezó a dar
+    // potencias varias dioptrías distintas de EVO y Barrett, sin que ninguna
+    // de las tres fallara. Con menos de 2 D sigue siendo una DISCREPANCIA
+    // normal (ver el test de arriba); a partir de 2 D pasa a ALARMA.
+    const c = compararOjo('OD', {
+      KANE: resultado('KANE', 28.5),
+      EVO_TORIC: resultado('EVO_TORIC', 26),
+      BARRETT_TORIC: resultado('BARRETT_TORIC', 25.5),
+    })
+    const rango = c.observaciones.find((o) => o.texto.includes('rango'))
+    expect(rango?.tipo).toBe('ALARMA')
+    expect(rango?.texto).toMatch(/3\.00 D/)
+    // Descriptivo, no prescriptivo: nombra los valores, no dice cuál corregir.
+    expect(rango?.texto).not.toMatch(/Kane está mal|corrige|revisa/i)
+  })
+
+  it('un rango justo por debajo de 2 D sigue siendo discrepancia, no alarma', () => {
+    const c = compararOjo('OD', {
+      KANE: resultado('KANE', 23.4),
+      EVO_TORIC: resultado('EVO_TORIC', 21.5),
+    })
+    const rango = c.observaciones.find((o) => o.texto.includes('rango'))
+    expect(rango?.tipo).toBe('DISCREPANCIA')
+  })
+
+  it('marca alarma aunque Kane no destaque ninguna potencia, si su rango entero se aleja', () => {
+    // Este es el caso real que de verdad ocurrió (09/09/2026): Kane devuelve
+    // varias potencias sin destacar ninguna —table-active no aparece porque
+    // ninguna cruza cerca de cero— así que NO entra en `conDatos` y el
+    // chequeo de rango de arriba no lo ve. Aun así, ninguna de sus 30.8-28.8 D
+    // se acerca a los 25.50 D que Barrett SÍ ha destacado: eso tiene que
+    // seguir marcándose.
+    const kaneSinDestacar: ResultadoCalculadora = {
+      calculadora: 'KANE',
+      ojo: 'OD',
+      estado: 'PARTIAL',
+      obtenidoEn: CUANDO,
+      opciones: [
+        { esfera: 30.8, refraccionPrevista: 0.8, recomendada: false },
+        { esfera: 30.3, refraccionPrevista: 1.15, recomendada: false },
+        { esfera: 29.8, refraccionPrevista: 1.5, recomendada: false },
+        { esfera: 29.3, refraccionPrevista: 1.84, recomendada: false },
+        { esfera: 28.8, refraccionPrevista: 2.17, recomendada: false },
+      ],
+    }
+    const c = compararOjo('OD', {
+      KANE: kaneSinDestacar,
+      BARRETT_TORIC: resultado('BARRETT_TORIC', 25.5),
+    })
+    const alarma = c.observaciones.find((o) => o.tipo === 'ALARMA')
+    expect(alarma).toBeDefined()
+    expect(alarma?.texto).toMatch(/Kane no ha destacado ninguna potencia/)
+    expect(alarma?.texto).toMatch(/3\.30 D/)
+  })
+
+  it('no marca alarma cuando el rango de una calculadora sin destacar SÍ incluye a la otra', () => {
+    const kaneSinDestacar: ResultadoCalculadora = {
+      calculadora: 'KANE',
+      ojo: 'OD',
+      estado: 'PARTIAL',
+      obtenidoEn: CUANDO,
+      opciones: [
+        { esfera: 22, refraccionPrevista: 0.5, recomendada: false },
+        { esfera: 21.5, refraccionPrevista: 0.2, recomendada: false },
+        { esfera: 21, refraccionPrevista: -0.1, recomendada: false },
+      ],
+    }
+    const c = compararOjo('OD', {
+      KANE: kaneSinDestacar,
+      BARRETT_TORIC: resultado('BARRETT_TORIC', 21.5),
+    })
+    expect(c.observaciones.some((o) => o.tipo === 'ALARMA')).toBe(false)
+  })
+
   it('compara los ejes y dice cuánto difieren', () => {
     const c = compararOjo('OD', {
       EVO_TORIC: resultado('EVO_TORIC', 21, { eje: 81 }),

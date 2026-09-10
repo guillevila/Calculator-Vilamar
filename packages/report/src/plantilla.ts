@@ -365,6 +365,7 @@ function tablaComparativa(c: Comparativa): string {
 
 function observaciones(c: Comparativa): string {
   const grupos: { titulo: string; tipos: Comparativa['observaciones'][number]['tipo'][] }[] = [
+    { titulo: '⚠ Diferencia importante entre calculadoras', tipos: ['ALARMA'] },
     { titulo: 'Concordancias', tipos: ['CONCORDANCIA'] },
     { titulo: 'Discrepancias', tipos: ['DISCREPANCIA'] },
     { titulo: 'Avisos y lo que no se pudo ejecutar', tipos: ['AVISO', 'FALLO'] },
@@ -1028,6 +1029,9 @@ const ESTILOS = `
     --verde-fondo: #E7F3EC;
     --ambar-fondo: #FDF9EF;
     --ambar-linea: #E7D9B4;
+    --rojo: #96271C;
+    --rojo-fondo: #FBEEEC;
+    --rojo-linea: #E8B6AE;
   }
 
   /*
@@ -1204,6 +1208,20 @@ const ESTILOS = `
   .grupo-obs > .titulo {
     font-size: 8pt; font-weight: 700; letter-spacing: 0.04em; margin-bottom: 3px;
   }
+
+  /*
+   * La diferencia importante entre calculadoras (09/09/2026) — vistosa a
+   * propósito, igual que el aviso "no vinculante": esto es justo lo que no se
+   * puede dejar pasar como una fila más de una lista. No dice cuál de las
+   * calculadoras está equivocada, solo que el rango es mucho mayor de lo
+   * habitual y que merece mirarse con más atención.
+   */
+  .obs-alarma {
+    background: var(--rojo-fondo); border: 1px solid var(--rojo-linea); border-radius: 6px;
+    padding: 8px 12px; margin-top: 10px;
+  }
+  .obs-alarma h3 { color: var(--rojo); }
+  .obs-alarma li { font-weight: 600; color: var(--rojo); }
   .fuente { font-size: 8pt; color: var(--gris); margin: 0 0 6px; }
   section.diagrama { margin-top: 14px; }
   .diagrama-caja { display: flex; gap: 22px; align-items: center; }
@@ -1608,6 +1626,40 @@ function tablaComparativaDetallada(
  * a ninguna calculadora ni dice qué implantar; es una lectura rápida de algo
  * que ya está, con más detalle, en las hojas de encima.
  */
+/**
+ * La hoja de diferencia importante entre calculadoras (09/09/2026), tal cual
+ * lo calcula `compararOjo` en el dominio — aquí no se repite ninguna cuenta,
+ * solo se enseña lo que ya viene calculado en `comparativa`.
+ *
+ * Nace de un caso real: Kane cambió su propia fórmula y empezó a dar
+ * potencias varias dioptrías distintas de EVO y Barrett, sin que ninguna de
+ * las tres avisara ni fallara. Como el informe que de verdad se genera
+ * (`generarHtmlInforme`) no pasaba por `tablaComparativa()` —esa vive solo en
+ * el informe detallado, sin usar por defecto— esta alarma no llegaba a las
+ * páginas que el dueño del proyecto imprime de verdad.
+ *
+ * Es su PROPIA hoja, independiente de `hojaResumenFinal` (D43), a propósito:
+ * `hojaResumenFinal` solo aparece cuando al menos dos calculadoras tienen una
+ * estimación propia (D43) que enseñar, y el caso que dio origen a esto es
+ * justo uno en el que Kane NO llega a tener estimación D43 —ninguna de sus
+ * opciones tiene refracción prevista negativa— así que `hojaResumenFinal` ni
+ * se generaba. La alarma no puede depender de esa condición.
+ */
+function hojaAlarma(ojo: Lateralidad, comparativa: Comparativa | undefined): Hoja | undefined {
+  const alarmas = comparativa?.observaciones.filter((o) => o.tipo === 'ALARMA') ?? []
+  if (alarmas.length === 0) return undefined
+  return {
+    titulo: `Diferencia importante entre calculadoras · ${nombreLateralidad(ojo)}`,
+    apunte: 'Descriptivo, no dice cuál está equivocada',
+    refExtra: ` · ${ojo}`,
+    cuerpo: `<div class="obs-alarma">
+      <h3>⚠ Diferencia importante entre calculadoras</h3>
+      <ul>${alarmas.map((a) => `<li>${esc(a.texto)}</li>`).join('')}</ul>
+    </div>`,
+    pie: `Un rango así de grande entre calculadoras que normalmente coinciden es poco habitual. Esto describe lo que ha devuelto cada una; no dice cuál está equivocada ni qué lente implantar.`,
+  }
+}
+
 function hojaResumenFinal(caso: Caso, ojo: Lateralidad, resultados: readonly ResultadoInforme[]): Hoja {
   const deEsteOjo = resultados.filter((r) => r.ojo === ojo)
   // Con un solo aparato (el caso de antes de D47) el nombre no cambia. Con
@@ -1749,9 +1801,18 @@ export function generarHtmlInforme(datos: DatosInforme): string {
     .map((ojo) => tablaComparativaDetallada(caso, ojo, datos.resultados))
     .filter((h): h is Hoja => h !== undefined)
 
+  // La diferencia importante entre calculadoras (09/09/2026): independiente
+  // de `ojosConVariasEstimaciones` a propósito — el caso real que la motivó
+  // es justo uno en el que Kane no llega a tener estimación D43, así que esa
+  // condición no sirve de guardia aquí.
+  const hojasAlarma = ojosDelInforme
+    .map((ojo) => hojaAlarma(ojo, datos.comparativas.find((c) => c.ojo === ojo)))
+    .filter((h): h is Hoja => h !== undefined)
+
   const hojas = [
     ...hojasBiometria,
     ...hojasPorCasilla,
+    ...hojasAlarma,
     ...ojosConVariasEstimaciones.map((ojo) => hojaResumenFinal(caso, ojo, datos.resultados)),
     ...hojasDetalle,
   ]

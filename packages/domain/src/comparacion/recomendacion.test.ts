@@ -131,6 +131,48 @@ describe('estimarLenteRecomendada', () => {
     })
   })
 
+  it('cilindro: cuando hay fila sin corrección, su eje manda sobre el eje corneal en bruto', () => {
+    // Caso real (CV-2026-0141, 10/09/2026): córnea de solo 0.30 D
+    // (K1 44.76@2° K2 45.06@92°, eje corneal en bruto = 92°) con un SIA de
+    // 0.25 D — casi tan grande como el propio astigmatismo corneal. El eje
+    // corneal en bruto (92°) no compartía eje con NINGUNA opción tórica real
+    // (127°) — el umbral de «mismo eje» (45°) hacía que SÍ contara como
+    // compartido, así que el criterio elegía 1.25 D, que la calculadora no
+    // había destacado. El eje de la fila sin corrección (37°) es el
+    // astigmatismo neto real —córnea + SIA ya combinados por Kane— y ninguna
+    // opción tórica lo comparte: la estimación debe quedarse en Non-toric
+    // (cilindro 0), igual que Barrett decidió por su cuenta para este mismo
+    // ojo.
+    const ejeCurvoEnBruto = 92
+    const opciones = [
+      opcion({ esfera: 23, refraccionPrevista: -0.06 }),
+      opcion({ cilindro: 0, ejeResidual: 37, designacion: 'Non-toric' }),
+      opcion({ cilindro: 0.9, ejeResidual: 127, designacion: '0.90' }),
+      opcion({ cilindro: 1.25, ejeResidual: 127, designacion: '1.25' }),
+    ]
+    expect(estimarLenteRecomendada(opciones, ejeCurvoEnBruto)).toEqual({
+      esfera: 23,
+      cilindro: 0,
+      eje: 37,
+      refraccionPrevista: -0.06,
+      ejeResidual: 37,
+    })
+  })
+
+  it('cilindro: sin fila sin corrección, se sigue usando el eje corneal en bruto (EVO, Barrett)', () => {
+    const opciones = [
+      opcion({ esfera: 21.5, refraccionPrevista: -0.06 }),
+      opcion({ cilindro: 1.0, ejeResidual: 82, designacion: 'T3' }),
+    ]
+    expect(estimarLenteRecomendada(opciones, 82)).toEqual({
+      esfera: 21.5,
+      cilindro: 1.0,
+      eje: 82,
+      refraccionPrevista: -0.06,
+      ejeResidual: 82,
+    })
+  })
+
   it('el cilindro residual de la opción elegida viaja con la estimación, cuando la calculadora lo da', () => {
     const opciones = [
       opcion({ esfera: 21.5, refraccionPrevista: -0.06 }),

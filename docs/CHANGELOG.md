@@ -4,6 +4,225 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.35] — 10/09/2026
+
+fix(integraciones): Kane calculaba con el LT alto disparado ~10 D, porque
+se pulsaba «Calculate» antes de que su reCAPTCHA invisible terminara.
+
+### Qué se reportó
+
+El dueño probó, en el mismo minuto, el mismo caso (CV-2026-0139, con LT de
+4 mm) a mano en la web real de Kane y a través de la app: la web daba
+22.5 D, la app ~30 D. Sin LT, los dos coincidían. Investigación larga:
+cuatro hipótesis descartadas una a una en vivo (el eje de incisión, si se
+selecciona el modelo de lente, en qué orden se selecciona, si Kane varía
+según la hora del día) — ver la lección del 09/09/2026 en el log.
+
+### La causa real
+
+Comparando byte a byte la petición real que Kane manda a su servidor
+(`POST /api/`) al calcular a mano frente a la que manda esta app, la de
+la app no llevaba un campo (`id2`) que sí llevaba la manual: el token del
+reCAPTCHA invisible de Google que Kane genera de forma asíncrona antes de
+calcular. Un clic real de una persona siempre le da tiempo de sobra; el
+clic de Playwright, inmediatamente después de rellenar el formulario, no.
+
+### El cambio
+
+`packages/integrations/src/adapters/kane.ts`, `pulsarCalcular()`: espera
+fija de 8 segundos antes de pulsar «Calculate». Encontrado el mínimo que
+funciona probando 15s → 10s → 7s en vivo, todos con resultado exacto;
+8s deja un margen pequeño de seguridad sobre los 7s confirmados. Verificado
+varias veces, con LT y sin él, comparando en el mismo minuto contra la web
+real: coincide exacto con lo que da a mano. Puede explicar buena parte del
+patrón de «Kane se va muy lejos, sin destacar ninguna potencia» visto en
+sesiones anteriores (CV-2026-0125, 0126, 0128, 0129, 0137) — no confirmado
+caso por caso, pero es la misma firma.
+
+---
+
+## [1.15.34] — 10/09/2026
+
+fix(dominio): la estimación propia (D43) elegía un cilindro que ninguna
+calculadora había destacado, cuando el SIA pesa tanto como el astigmatismo
+corneal (D74).
+
+### Qué se reportó
+
+Con el caso real CV-2026-0141 (córnea de solo 0.30 D, SIA de 0.25 D), la
+estimación propia de Kane y EVO elegía 1.25 D / 0.90 D de cilindro,
+mientras que ninguna de las dos webs había destacado esa opción y Barrett,
+con su propio algoritmo, eligió Non Toric (cilindro 0) para el mismo ojo.
+
+### La causa
+
+`estimarLenteRecomendada()` comparaba el eje residual de cada opción
+tórica contra el eje corneal en bruto (K1/K2), sin tener en cuenta el SIA.
+Cuando el SIA pesa tanto como el astigmatismo corneal, el eje NETO real
+(córnea + incisión ya combinados) puede quedar lejos del eje de K1/K2
+solos — y aquí caía, por una coincidencia de umbral, dentro del margen de
+«mismo eje» de una opción tórica que en realidad no lo compartía.
+
+### El cambio
+
+Cuando la calculadora da una fila SIN corrección tórica (cilindro 0), se
+usa el `ejeResidual` de ESA fila como eje de referencia, en vez del eje
+corneal en bruto — es el astigmatismo neto que la propia calculadora ya
+combinó, sin que este programa tenga que repetir esa cuenta. Sin esa fila
+(EVO y Barrett a veces solo dan una fila tórica), sigue igual que antes.
+Verificado con los datos reales del caso: las tres calculadoras coinciden
+ahora en cilindro 0. Dos tests nuevos en `recomendacion.test.ts`.
+
+---
+
+## [1.15.33] — 09/09/2026
+
+feat(dominio,informe): alarma cuando una calculadora se aleja mucho de las
+otras dos, dentro del mismo caso.
+
+### Qué se pidió
+
+Tras confirmar que Kane (iolformula.com) cambió su propia fórmula entre el
+27/08/2026 y la semana del 07/09/2026 —probado reproduciendo en vivo un caso
+real de hace dos semanas, que entonces coincidía con EVO y hoy da 3-5 D
+menos con los mismos datos exactos— el dueño pidió una alarma visible
+cuando esto vuelva a pasar: «pon esa alarma».
+
+### El cambio
+
+`packages/domain/src/comparacion/comparar.ts`: nuevo tipo de observación
+`'ALARMA'`, más grave que `'DISCREPANCIA'`, cuando el rango entre esferas
+destacadas es ≥ 2 D (`UMBRAL_DIFERENCIA_IMPORTANTE`, ajustable). Segundo
+chequeo, necesario porque el primero no bastaba: si una calculadora (Kane,
+en el caso real) no destaca ninguna potencia —porque ninguna de sus
+opciones cruza cerca de cero—, no entraba en la comparación de rangos. Se
+añadió un chequeo aparte que compara el RANGO ENTERO de sus opciones
+contra el valor destacado de otra calculadora, sin elegir ninguna opción
+de la primera (sigue sin decir «la respuesta de Kane es X»).
+
+`packages/report/src/plantilla.ts`: nueva hoja «Diferencia importante
+entre calculadoras», en el informe que de verdad se genera
+(`generarHtmlInforme`) — independiente de si hay estimación propia (D43)
+para ese ojo, porque el caso real que motivó esto es justo uno en el que
+Kane no llega a tener estimación D43. Estilo en rojo, imposible de
+confundir con una discrepancia fina de 0.5 D.
+
+`apps/desktop/src/renderer/estilos.css`: mismo aviso, destacado, en el
+panel de resultados de la app (antes de generar el PDF).
+
+Descriptivo, no prescriptivo, a propósito: nombra los valores de cada
+calculadora, nunca dice cuál está equivocada ni qué lente implantar — el
+mismo límite que ya tenía `comparar.ts` para `DISCREPANCIA`.
+
+Verificado con 4 tests nuevos en `comparar.test.ts` (22 en total, todos en
+verde) y una prueba de extremo a extremo con el caso real reproducido —
+`generarHtmlInforme()` con los datos exactos de CV-2026-0137 confirma que
+la hoja aparece en el informe que de verdad se imprime.
+
+---
+
+## [1.15.32] — 08/09/2026
+
+feat(app): en el cuestionario manual, el aparato de un ojo sin datos
+propios sugiere el del otro ojo (D73).
+
+### Qué se pidió
+
+«Si elegimos en OD un aparato... pon que al editar ojo izdo por defecto
+salga el mismo aparato, para no perder tiempo cliceando». Junto con esto,
+el dueño reportó un problema con los resultados de Kane en dos casos
+reales (ver más abajo).
+
+### Investigado antes de tocar nada
+
+El sexo del paciente (`caso.sexo`) ya es un solo campo por caso, no por
+ojo — comprobado, ya se compartía sin hacer nada. El aparato sí es
+intencionadamente independiente por ojo (D47), y en el cuestionario
+manual cada ojo tenía su propio estado (`aparatoPorOjo`) que siempre caía
+en «Principal» si no se había tocado — ese era el hueco real.
+
+### El cambio
+
+Nueva función `aparatoSugerido(caso, lado)` en `FormularioManual.tsx`: si
+el ojo activo no tiene ningún dataset propio todavía, y el OTRO ojo tiene
+exactamente un aparato (sin ambigüedad), se sugiere ese nombre en vez de
+«Principal». Es solo el punto de partida — no fusiona nada, y se puede
+cambiar sin tocar el otro ojo. En la pantalla de revisión (documento
+cargado) no aplica: ahí no existe la situación —no se puede pasar a un
+ojo que todavía no tiene ningún dato, porque ni aparece como pestaña.
+
+### Sobre Kane, investigado el mismo día
+
+Dos casos reales reportados: (1) Kane no dio ningún resultado en un ojo
+— reproducido con los mismos números (nunca el nombre del paciente)
+contra la web real, y esta vez sí funcionó: apunta a un fallo puntual de
+la propia web, no del programa. (2) Kane dio una potencia bastante más
+baja que EVO y Barrett en un ojo corto (AL < 22mm) con córneas curvas —
+reproducido también: Kane recibe exactamente los mismos datos y calcula
+lo mismo por su cuenta. No es un fallo de transmisión: es que las
+fórmulas pueden discrepar de verdad en ojos atípicos, que es la razón de
+ser de este programa (comparar, nunca elegir por su cuenta). Ningún
+cambio de código por esto — se le explicó al dueño con los números.
+
+### Verificado
+
+Prueba nueva en `flujo.spec.ts`: renombrar el aparato de OD, cambiar a
+OS sin tocar nada, comprobar que el desplegable ya sugiere el mismo
+nombre. Una prueba existente («renombrar el aparato de UN ojo...») se
+actualizó para elegir un aparato DISTINTO a propósito en OS, y seguir
+probando que los dos ojos no se mezclan aunque ahora compartan la
+sugerencia de partida. `pnpm lint && pnpm typecheck && pnpm test &&
+pnpm build && pnpm test:e2e` en verde (709 tests unitarios, 46 de
+interfaz).
+
+---
+
+## [1.15.31] — 08/09/2026
+
+feat(app): «Añadir otro biómetro» en revisión también deja cargar un
+documento, no solo escribirlo a mano (D72, amplía D65).
+
+### Qué se pidió
+
+El dueño reportó que, tras cargar el primer documento (que escanea bien
+y salta directo a la revisión), no había forma de cargar un SEGUNDO
+documento de un aparato distinto — esa opción solo existía en el
+cuestionario manual.
+
+### Lo que ya funcionaba, y lo que faltaba
+
+`ServicioCasos.cargarDocumentos()` reutiliza el caso en curso
+(`this.caso ?? this.nuevo()`) en vez de crear uno nuevo siempre, y D47 ya
+etiqueta el dataset nuevo con el aparato que el propio documento dice
+ser cuando el ojo ya tenía datos. La fusión de un segundo documento ya
+funcionaba de punta a punta por dentro — el hueco era solo de interfaz:
+`PanelRevision.tsx` no tenía ningún botón de carga, solo la pantalla de
+inicio.
+
+### El cambio
+
+`SelectorAparato.tsx` (compartido entre el cuestionario manual y la
+revisión, D65) gana un botón «Cargar un documento» dentro de «Añadir
+otro biómetro», junto al de escribirlo a mano. Abre el mismo diálogo
+nativo de elegir archivo que la pantalla de inicio; al volver, si el
+documento trajo datos para el ojo que se está mirando, deja ese aparato
+nuevo como el activo — igual que hace «Añadir» al escribirlo a mano.
+
+### Verificado
+
+El diálogo nativo de Electron no se puede pulsar desde una prueba
+automática, así que se sustituyó `dialog.showOpenDialog` en el propio
+proceso principal (`app.evaluate` de Playwright, no un atajo del código
+de producción) para que devolviera la ruta de un segundo PDF sintético
+— todo lo demás (botón real, IPC real, fusión real, pantalla real) es
+el camino exacto que sigue el dueño. Prueba nueva en `flujo.spec.ts`:
+carga a mano, añade un segundo aparato por documento, comprueba que los
+dos datasets conservan su propio dato. `pnpm lint && pnpm typecheck &&
+pnpm test && pnpm build && pnpm test:e2e` en verde (709 tests
+unitarios, 45 de interfaz).
+
+---
+
 ## [1.15.30] — 07/09/2026
 
 fix(report): una hoja de captura recortada podía empujar su propio pie de

@@ -5,6 +5,11 @@
  *   «Kane y EVO coinciden en +21.0 D.»
  *   «2 de 3 calculadoras eligen +21.0 D.»
  *   «El rango entre las esferas destacadas es 0.50 D.»
+ *   «El rango entre las esferas destacadas es 5.80 D — mucho mayor de lo
+ *    habitual entre estas calculadoras.»
+ *   «Kane no ha destacado ninguna potencia, y ninguna de las que ha devuelto
+ *    (entre +28.80 D y +30.80 D) se acerca a los +25.50 D de Barrett —
+ *    quedan a 3.30 D.»
  *   «Barrett no pudo ejecutarse porque falta el WTW.»
  *
  * Lo que este módulo NO puede decir, ni ahora ni nunca:
@@ -134,7 +139,24 @@ export interface CeldaComparativa {
   readonly motivo?: string
 }
 
-export type TipoObservacion = 'CONCORDANCIA' | 'DISCREPANCIA' | 'AVISO' | 'FALLO'
+export type TipoObservacion = 'CONCORDANCIA' | 'DISCREPANCIA' | 'ALARMA' | 'AVISO' | 'FALLO'
+
+/**
+ * A partir de qué rango entre las esferas destacadas, la diferencia deja de
+ * ser una `DISCREPANCIA` normal y pasa a ser una `ALARMA`.
+ *
+ * Es un punto de partida razonable, no una cifra clínica validada — se deja
+ * aquí, igual que `UMBRAL_DISCREPANCIA` en `discrepanciaAparatos.ts`, para
+ * poder ajustarlo sin buscar por el código si el dueño del proyecto lo quiere
+ * distinto.
+ *
+ * Nace de un caso real (09/09/2026): Kane cambió su propia fórmula en algún
+ * momento y empezó a dar potencias 5-11 D distintas de EVO y Barrett, sin que
+ * ninguna de las tres fallara ni avisara — la única señal era el número. Un
+ * rango así de grande entre calculadoras que normalmente coinciden merece
+ * destacarse más que una discrepancia fina de 0.5-1 D.
+ */
+export const UMBRAL_DIFERENCIA_IMPORTANTE = 2
 
 export interface Observacion {
   readonly tipo: TipoObservacion
@@ -451,7 +473,15 @@ export function compararOjo(
 
     const valores = esferas.map((e) => e.valor)
     const rango = Math.max(...valores) - Math.min(...valores)
-    if (rango > 0) {
+    if (rango >= UMBRAL_DIFERENCIA_IMPORTANTE) {
+      const detalle = esferas.map((e) => `${e.calculadora} ${formatearD(e.valor)}`).join(', ')
+      observaciones.push({
+        tipo: 'ALARMA',
+        texto:
+          `El rango entre las esferas destacadas es ${rango.toFixed(2)} D (${detalle}) — ` +
+          'mucho mayor de lo habitual entre estas calculadoras.',
+      })
+    } else if (rango > 0) {
       observaciones.push({
         tipo: rango >= 0.5 ? 'DISCREPANCIA' : 'CONCORDANCIA',
         texto: `El rango entre las esferas destacadas es ${rango.toFixed(2)} D.`,
@@ -462,6 +492,39 @@ export function compararOjo(
       tipo: 'AVISO',
       texto: `Solo una calculadora ha dado una esfera comparable (${conDatos[0]?.nombre}). No hay nada con lo que compararla.`,
     })
+  }
+
+  // ── Una calculadora sin destacar ninguna, cuyo rango entero se aleja ───────
+  //
+  // Caso real (09/09/2026): para ciertos ojos, Kane devuelve varias potencias
+  // sin destacar ninguna —por eso no entra en `conDatos`, arriba, y el rango
+  // de más arriba no la ve—. Pero si NINGUNA de sus opciones se acerca
+  // siquiera a la potencia que otra calculadora sí ha destacado, eso ya es
+  // una señal, sin necesidad de saber cuál de las opciones de Kane habría
+  // elegido el cirujano: no se compara «la elección de Kane» —no existe—,
+  // se compara el rango completo de lo que ha devuelto.
+  for (const sinDestacar of celdas) {
+    if (sinDestacar.seleccion.clase !== 'VARIAS') continue
+    const potencias = sinDestacar.opciones
+      .map((o) => o.esfera)
+      .filter((v): v is number => v !== undefined)
+    if (potencias.length === 0) continue
+    const minimo = Math.min(...potencias)
+    const maximo = Math.max(...potencias)
+
+    for (const otra of conDatos) {
+      const valor = soloValor(otra.esfera) as number
+      const distancia = valor < minimo ? minimo - valor : valor > maximo ? valor - maximo : 0
+      if (distancia >= UMBRAL_DIFERENCIA_IMPORTANTE) {
+        observaciones.push({
+          tipo: 'ALARMA',
+          texto:
+            `${sinDestacar.nombre} no ha destacado ninguna potencia, y ninguna de las que ha ` +
+            `devuelto (entre ${formatearD(minimo)} y ${formatearD(maximo)}) se acerca a los ` +
+            `${formatearD(valor)} de ${otra.nombre} — quedan a ${distancia.toFixed(2)} D.`,
+        })
+      }
+    }
   }
 
   // ── Cilindro ──────────────────────────────────────────────────────────────

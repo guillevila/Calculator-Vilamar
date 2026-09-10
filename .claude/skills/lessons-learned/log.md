@@ -2085,3 +2085,207 @@ distinguir "cambió el ojo" de "cambió el caso"), sin la guarda de
 `apps/desktop/e2e/flujo.spec.ts` → «renombrar el aparato de UN ojo no
 deja al OTRO mirando un dataset vacío al cambiar de pestaña» (confirmada
 fallando sin el fix, pasando con él).
+
+---
+
+## 2026-09-09 18:50 — "Kane da un resultado distinto en la app que en la web directa"
+
+**Error o aprendizaje:** Varias sesiones investigando por qué Kane
+parecía "buscar un target muy negativo" (elegir una lente mucho más
+potente de lo esperado) solo cuando el caso se calculaba desde la app,
+nunca cuando el dueño metía los mismos datos a mano en iolformula.com.
+Se descartaron con pruebas en vivo tres hipótesis de código (que Kane
+necesite el LT sí o sí, un cruce con el sexo del paciente, una
+correlación con la curvatura corneal) sin encontrar nada malo en el
+adaptador. La causa real apareció al leer el caso guardado en disco
+(`%APPDATA%\calculator-vilamar\casos\CV-2026-0137.json`) y comparar,
+campo a campo, sus valores contra la captura de la web directa que
+mandó el dueño: el eje de incisión (SIA) era 45° en la app y 135° en lo
+que había escrito a mano en la web — un dato que se le quedó puesto de
+un caso anterior sin cambiarlo. Confirmado disparando `pnpm live kane`
+con cada eje por separado: con 45° reprodujo exacta la tabla "mala" del
+PDF de la app; con 135° reprodujo exacta (al decimal) la tabla de
+cilindro de la web directa. No había ningún fallo de transmisión de
+datos: eran dos entradas distintas, no la misma entrada por dos
+caminos.
+
+**Causa raíz:** Cuando alguien compara "a mano" el resultado de la app
+contra el de la web real para el mismo caso, se da por hecho que los
+datos de entrada son idénticos en los dos sitios — pero nadie lo había
+verificado dato a dato. Investigar bien un desacuerdo así requiere el
+valor exacto de cada campo en las dos entradas, no solo mirar la
+diferencia en el resultado final.
+
+**Lección:** Ante un reporte de "la app da un resultado distinto a la
+web real para el mismo caso", antes de sospechar del código: (1) leer
+el JSON real del caso guardado en `%APPDATA%\calculator-vilamar\casos\`
+para tener los valores exactos que usó la app (no reconstruirlos de un
+PDF o una captura); (2) pedir una captura de la web directa que se
+pueda comparar campo a campo con esos valores, no solo el resultado
+final; (3) comparar uno a uno, con atención especial al eje de
+incisión — Kane es muy sensible a ese dato para decidir en qué rango de
+potencia busca el resultado. Casi siempre la diferencia real está en
+que las dos entradas manuales no llevan exactamente los mismos números.
+
+**Contexto:** Investigación de discrepancias Kane app-vs-web-directa.
+Aplica a cualquier reporte futuro de "la calculadora externa se
+comporta distinto según quién mete los datos" — antes de tocar
+`packages/integrations/src/adapters/kane.ts` (o cualquier otro
+adaptador), verificar primero que las dos entradas comparadas son
+realmente idénticas dato a dato.
+
+**CORRECCIÓN (mismo día, 19:05):** conclusión anterior demasiado
+apresurada. El eje de incisión sí estaba mal escrito en la web (el
+dueño lo confirmó), pero un error de 90° en un SIA de solo 0.25D no
+explica por sí solo una diferencia de 4-5D en la potencia final — el
+dueño lo señaló y tenía razón. Con el eje YA CORREGIDO (45°, el
+verificado), Kane sigue dando 28.8-30.8D en su propia web real
+mientras EVO da 26.00D y Barrett 25.50D para el mismo ojo
+(CV-2026-0137 OD) — una discrepancia real de ~4-5D que NO tiene que
+ver con ningún desajuste app-vs-web, porque los dos números (el malo y
+el de Kane con eje correcto) vienen directamente de la web real de
+Kane.
+
+**RESOLUCIÓN FINAL (mismo día, 20:20):** la causa real es que **Kane
+(iolformula.com) cambió su propia fórmula/catálogo entre el
+27/08/2026 y la semana del 07-09/09/2026** — no un fallo nuestro. Se
+demostró con la prueba más limpia posible: se cogió el caso real
+CV-2026-0033 (27/08/2026), que entonces Kane calculó 22.5D, exactamente
+igual que EVO (22.5D), y se le mandó a la web REAL de Kane, HOY,
+carácter por carácter los mismos datos (`pnpm live kane`). Resultado:
+Kane da ahora 17.74-19.74D, unas 3-5D por debajo de lo que dio
+entonces, mientras la parte de cilindro/astigmatismo salió IDÉNTICA
+en las dos fechas (0.31D@85°, 0.17D@175°, 0.66D@175°, sin diferencia
+ni en una centésima) — solo cambió la potencia esférica, no el eje.
+Prueba independiente adicional: en agosto Kane reconocía el modelo de
+lente «B&L MX60ET/PT» en su catálogo y ponía su propia constante A; con
+el mismo nombre, hoy Kane dice que no tiene ese modelo en su lista —
+su catálogo de lentes también cambió. Un análisis de las 83
+comparaciones Kane-vs-EVO/Barrett guardadas desde el 24/08/2026 (script
+ad-hoc sobre `%APPDATA%\calculator-vilamar\casos\*.json`) confirma un
+cambio de régimen claro: gaps de 0-0.5D casi todo el tiempo hasta el
+06/09/2026, y gaps de 5-11D con mucha frecuencia desde el 08/09/2026 en
+adelante. Ni el eje de incisión ni el LT explican esto — lo prueba una
+web externa que cambió su propio cálculo, algo que este proyecto no
+controla (ver `docs/MANTENIMIENTO.md`, pensado justo para este tipo de
+caso).
+
+**Lección real (sustituye a la de las 18:50 sobre "comparar dato a
+dato"):** cuando una calculadora externa empieza a divergir de las
+otras dos de un día para otro, con casos que antes coincidían, la
+hipótesis a comprobar PRIMERO — antes que buscar un fallo en nuestro
+código o en cómo el dueño mete los datos — es que **la propia web
+externa haya cambiado su fórmula o su catálogo**. Se comprueba
+reproduciendo en vivo (`pnpm live <calculadora>`) los datos EXACTOS de
+un caso antiguo guardado que sí coincidía, y comparando el resultado de
+hoy contra el que quedó grabado entonces: si diverge con los mismos
+datos de entrada, el cambio está en la web ajena, no en el código ni en
+quien escribe. Guardar siempre casos de referencia con buena
+coincidencia, precisamente para poder hacer esta comprobación cuando
+haga falta.
+
+---
+
+## 2026-09-09 23:30 — CV-2026-0139: Kane con LT dispara ~10 D solo por la app, EN PAUSA hasta mañana
+
+**Error o aprendizaje:** Investigación del mismo día (caso CV-2026-0139):
+con LT=4mm, la app calcula Kane a ~30-32D mientras el dueño, metiendo a
+mano EXACTAMENTE los mismos datos en la web real de Kane (mismo AL, K1,
+K2, ACD, CCT, LT, constante A, modelo de lente, sexo, target, SIA y eje
+de incisión, comprobado dato a dato), obtiene ~22.5D. Sin LT, los dos
+coinciden razonablemente bien (app 22.99D / web 23.00D — 0.01D de
+diferencia, irrelevante). Se descartaron CUATRO hipótesis, cada una
+probada en vivo contra Kane real:
+1. Que la app no seleccione el modelo de lente en Kane — falso, ambos
+   lo seleccionan («IOL: B+L enVista Aspire Toric» aparece en las dos
+   capturas; error mío haberlo negado la primera vez, corregido por el
+   dueño).
+2. Que importe el ORDEN (seleccionar el modelo antes o después de
+   escribir los números) — probado invertyendo el orden en
+   `kane.ts` (bajo `VILAMAR_DEBUG_MODELO_AL_FINAL`, revertido): mismo
+   resultado disparado (32.64D) en los dos órdenes.
+3. Que Kane varíe según el momento del día — descartado con una prueba
+   en el MISMO minuto que una captura fresca del dueño: la app seguía
+   en 30.64D mientras la web daba 22.5D, a la vez.
+4. (De una investigación previa el mismo día) Que el eje de incisión
+   sea la causa — real para el caso CV-2026-0137, pero no aplica aquí:
+   en este caso el eje coincide en las dos pruebas.
+
+**Causa raíz:** Sin determinar todavía. Algo que Kane recibe de verdad
+es distinto entre la entrada automatizada y la manual, pero NO se ve en
+el resumen que Kane enseña en pantalla («AL: ... K1: ... LT: ...») —
+ese resumen es idéntico en los dos casos y aun así el resultado
+diverge ~10D. Sospecha sin probar: algún parámetro que Kane manda a su
+propio backend (vía AJAX/API) que no se refleja en el eco visible del
+formulario.
+
+**Lección:** Antes de escribir más código de producción a partir de
+"seguro que es X", agotar las hipótesis visibles NO basta cuando el eco
+en pantalla es idéntico y el resultado diverge — hace falta mirar el
+tráfico de red real (`page.on('request')`/`page.on('response')` de
+Playwright) para ver qué manda cada uno de verdad al servidor de Kane,
+no solo lo que enseña en pantalla. Es el paso pendiente, pedido
+explícitamente para MAÑANA («lo hacemos mañana») — no empezarlo sin que
+el dueño lo confirme primero, es una investigación más profunda y más
+larga que las anteriores.
+
+**Contexto:** Caso CV-2026-0139 (AL 23, K1 43@0°, K2 45@90°, ACD 3, CCT
+555, target 0, SIA 0.25@135°, constante 119.10, modelo «B+L enVista
+Aspire Toric», sexo Mujer — sintético/de prueba, no es de ningún
+paciente). Repetir con `pnpm live kane` usando estos valores exactos
+(con y sin `LT=4`) para retomar la investigación mañana sin tener que
+reconstruir el caso desde cero. Relacionado: [[kane-eje-incision-vs-web]]
+(la lección anterior sobre CV-2026-0137, causa distinta).
+
+---
+
+## 2026-09-10 12:40 — CV-2026-0139 RESUELTO: Kane pulsaba «Calculate» antes de que su reCAPTCHA terminara
+
+**Error o aprendizaje:** Retomada la investigación en pausa (ver la
+entrada de ayer, 23:30). Como el dueño ya tenía acceso directo a este
+ordenador, se le pidió abrir una ventana de Kane «espía» (script
+temporal `scripts/sondas/espiar-kane-manual.ts`, con un registro de
+tráfico de red puesto en `kane.ts` bajo `VILAMAR_DEBUG_RED`) y meter los
+mismos datos a mano mientras la app calculaba lo mismo en paralelo.
+Comparando los dos payloads reales byte a byte, el de la app no llevaba
+un campo (`id2`) que el de la persona sí llevaba: el token del reCAPTCHA
+invisible de Google, que Kane genera de forma asíncrona antes de
+calcular. Añadida una espera fija antes de pulsar «Calculate»
+(`pulsarCalcular()` en `kane.ts`); probada en vivo 15s → 10s → 7s, todas
+con resultado exacto a la web real; fijada en 8s (7 confirmado + margen
+pequeño). Verificado dos veces más tras hacerlo permanente, con el
+fixture normal de `pnpm live kane` (sin el caso del bug), para
+comprobar que no rompía el camino de siempre.
+
+**Causa raíz:** Un clic sintético de Playwright, justo después de
+rellenar el formulario, no le da tiempo al reCAPTCHA invisible de Kane a
+terminar su comprobación asíncrona antes de que se envíe la petición de
+cálculo — un clic real de una persona, por la mecánica normal de
+escribir y hacer clic, siempre le da tiempo de sobra. Sin el token, el
+servidor de Kane calcula por un camino distinto (probablemente menos
+validado), y con ciertos datos (LT alto, en el caso investigado) ese
+camino dispara la potencia varias dioptrías por encima de lo correcto —
+sin fallar ni avisar de nada raro.
+
+**Lección:** Cuando una web usa reCAPTCHA (visible o invisible) y un
+`.click()` de Playwright, inmediatamente después de rellenar un
+formulario, da un resultado distinto al de un clic humano con los MISMOS
+datos, sospechar primero de un token de verificación que no le ha dado
+tiempo a generarse — no de los datos en sí. La forma más directa de
+comprobarlo, cuando comparar capturas de pantalla no basta porque el eco
+en pantalla es idéntico: capturar el tráfico de red real
+(`page.on('request')`/`page.on('response')` de Playwright) de las dos
+entradas —automática y manual, esta última abriendo una ventana
+«espía» con el mismo perfil de navegador para que la persona escriba
+ahí— y comparar los payloads byte a byte. Es más lento que mirar
+pantallazos, pero encuentra diferencias que no se ven en pantalla.
+
+**Contexto:** `packages/integrations/src/adapters/kane.ts`,
+`pulsarCalcular()` (línea ~1061). Probablemente explica buena parte —no
+confirmado caso por caso— del patrón de «Kane se va muy lejos, sin
+destacar ninguna potencia» visto en varias sesiones anteriores
+(CV-2026-0125, 0126, 0128, 0129, 0137). Si algún día EVO o Barrett
+empiezan a comportarse distinto entre la app y una entrada manual con
+los mismos datos, comprobar primero si tienen su propio reCAPTCHA o
+verificación anti-robot antes de repetir esta misma investigación desde
+cero.

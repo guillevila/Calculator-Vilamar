@@ -42,10 +42,22 @@
  *    busca la de menor `Math.abs(refraccionPrevista)` entre las que cumplen
  *    el signo, válido para los dos criterios sin caso especial.
  *  - **Cilindro**: de menor a mayor cilindro, entre las opciones tóricas cuyo
- *    eje residual coincide con el eje curvo de la córnea (K más curva), la
- *    ÚLTIMA antes de que ese eje cambie de orientación — el mayor cilindro
- *    que no llega a invertir el astigmatismo residual. Este criterio NO
- *    cambia con la familia de lente.
+ *    eje residual coincide con el eje de referencia, la ÚLTIMA antes de que
+ *    ese eje cambie de orientación — el mayor cilindro que no llega a
+ *    invertir el astigmatismo residual. Este criterio NO cambia con la
+ *    familia de lente.
+ *
+ *    ⚠️ **El eje de referencia no es siempre el de K1/K2 en bruto.** Cuando el
+ *    SIA (astigmatismo inducido por la incisión) pesa tanto como el propio
+ *    astigmatismo corneal, el eje neto real —córnea y SIA ya combinados—
+ *    puede quedar lejos del eje de la córnea sola. Se usa el eje que la
+ *    propia calculadora da en su fila SIN corrección (cilindro 0), que ya
+ *    trae los dos combinados; solo se cae al eje corneal (K1/K2) cuando esa
+ *    fila no existe. Fallo real corregido el 10/09/2026: con una córnea de
+ *    0.30 D y un SIA de 0.25 D, el eje corneal en bruto no coincidía con
+ *    ninguna opción tórica real, y el criterio elegía 1.25 D de cilindro por
+ *    una coincidencia de umbral, cuando la propia calculadora —mirando su
+ *    astigmatismo neto real— no habría corregido nada (Non-toric).
  *
  * **Las dos partes se ordenan explícitamente antes de recorrerlas — nunca se
  * confía en el orden en que llega `opciones`.** Esto no es cosmético: EVO
@@ -200,8 +212,29 @@ export function estimarLenteRecomendada(
         o.cilindro !== undefined && o.ejeResidual !== undefined,
     )
     .sort((a, b) => a.cilindro - b.cilindro)
+
+  // El eje de referencia contra el que se mide «invierte o no invierte» NO es
+  // siempre el eje corneal en bruto (K1/K2): cuando el SIA pesa tanto como el
+  // propio astigmatismo corneal —caso real, 10/09/2026, córnea de solo 0.30 D
+  // con un SIA de 0.25 D— el eje NETO (córnea + incisión ya combinados) puede
+  // quedar lejos del eje de K1/K2 solos. No hace falta que este programa
+  // vuelva a combinar los dos vectores: la propia calculadora ya lo hace en
+  // su fila SIN corrección (cilindro 0, «Non-toric»), cuyo `ejeResidual` ES
+  // el astigmatismo neto de verdad. Se usa esa fila como referencia cuando
+  // existe; si la calculadora no da una fila de cilindro 0 (EVO y Barrett solo
+  // dan una fila tórica cada una, a veces sin ella), se cae al eje corneal de
+  // siempre.
+  //
+  // Antes de este cambio, con ese caso real, el eje corneal en bruto (K2, la
+  // más curva) no coincidía con NINGUNA opción tórica real, y sí con una de
+  // las dos —la de mayor cilindro— por una coincidencia de umbral: el criterio
+  // elegía 1.25 D de cilindro cuando la propia calculadora, mirando su
+  // astigmatismo neto real, no habría corregido nada (Non-toric, cilindro 0).
+  const filaSinCorreccion = toricas.find((o) => o.cilindro === 0)
+  const ejeDeReferencia = filaSinCorreccion?.ejeResidual ?? ejeCurvo
+
   const conElMismoEje = toricas.filter(
-    (o) => separacionDeEjes(o.ejeResidual, ejeCurvo) < UMBRAL_MISMO_EJE,
+    (o) => separacionDeEjes(o.ejeResidual, ejeDeReferencia) < UMBRAL_MISMO_EJE,
   )
   const ultima = conElMismoEje[conElMismoEje.length - 1]
   if (!ultima) return { esfera: elegidaEsfera.esfera, ...conRefraccion }
@@ -209,7 +242,7 @@ export function estimarLenteRecomendada(
   return {
     esfera: elegidaEsfera.esfera,
     cilindro: ultima.cilindro,
-    eje: ejeCurvo,
+    eje: ejeDeReferencia,
     ...conRefraccion,
     ...(ultima.cilindroResidual !== undefined
       ? { cilindroResidual: ultima.cilindroResidual }

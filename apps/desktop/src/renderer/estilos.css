@@ -542,6 +542,23 @@ table.opciones .na {
   content: '● ';
   color: var(--rojo);
 }
+/*
+ * La diferencia importante entre calculadoras (09/09/2026): no basta con el
+ * mismo punto de color que una discrepancia fina de 0.5 D — esto es lo que no
+ * se puede dejar pasar por alto. No dice cuál de las calculadoras está
+ * equivocada, solo que el rango es mucho mayor de lo habitual.
+ */
+.observacion.ALARMA {
+  background: var(--rojo-suave);
+  border: 1px solid var(--rojo);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-weight: 600;
+  color: var(--rojo);
+}
+.observacion.ALARMA::before {
+  content: '⚠ ';
+}
 
 /* ── Varios ─────────────────────────────────────────────────────────────── */
 

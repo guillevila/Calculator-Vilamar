@@ -1039,6 +1039,23 @@ export class AdaptadorKane implements AdaptadorCalculadora {
    * tipo botón.
    */
   private async pulsarCalcular(pagina: Page): Promise<void> {
+    // Kane pasa por un reCAPTCHA invisible de Google antes de calcular: su
+    // petición real a `/api/` lleva un token (`id2`) que ese script genera de
+    // forma asíncrona. Un clic real de una persona siempre le da tiempo de
+    // sobra; un clic de Playwright, inmediatamente después de rellenar el
+    // formulario, no — y la petición sale SIN el token.
+    //
+    // Encontrado el 10/09/2026 (CV-2026-0139) comparando, byte a byte, el
+    // payload real que manda esta sonda contra el que manda una persona
+    // metiendo los mismos datos a mano: el de la persona lleva `id2`, el de
+    // la sonda no. Sin él, Kane calcula con un LT alto (4 mm) disparando la
+    // potencia ~10 D por encima de lo correcto — el mismo patrón de «target
+    // muy negativo» investigado en sesiones anteriores. Con esta espera, el
+    // resultado coincide exacto con el de la web hecha a mano (confirmado
+    // varias veces, con LT y sin él). 8 segundos: 7 ya funcionaba en todas
+    // las pruebas, con un margen pequeño de seguridad.
+    await pagina.waitForTimeout(8_000)
+
     const candidatos = [
       pagina.locator(SEL.calcular),
       pagina.getByRole('button', { name: /^\s*calculate\s*$/i }),
