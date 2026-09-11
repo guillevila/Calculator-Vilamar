@@ -14,8 +14,13 @@
  *
  *  - No sale del ordenador: a las calculadoras se les manda el código local
  *    del caso (D23), nunca esto.
- *  - No sale en el PDF, y hay un test que lo comprueba.
+ *  - No sale DENTRO de ningún PDF, y hay un test que lo comprueba.
  *  - No entra en el repositorio: los fixtures son sintéticos.
+ *
+ * La única excepción, decisión expresa del dueño del proyecto (25/08/2026,
+ * D46): el NOMBRE DE LA CARPETA de informes sí lo lleva, para poder
+ * localizarlos en el Explorador por paciente. Es una carpeta local, no un PDF
+ * ni un envío a ningún sitio — ver `servicio-casos.ts#generarPdf`.
  *
  * Se lee del documento COMPLETO y no de los trozos por ojo, por lo mismo que la
  * tabla de lentes: una persona no tiene un nombre por ojo.
@@ -63,6 +68,9 @@ const PATRONES_NOMBRE: readonly RegExp[] = [
   /\bPatient\s*Name\s*[:=]\s*([^\n\r|]{2,60})/i,
   /\bNombre\s*(?:del\s*)?paciente\s*[:=]\s*([^\n\r|]{2,60})/i,
   /\bPatient\s*[:=]\s*([^\n\r|]{2,60})/i,
+  // «Paciente:» a secas, sin «Nombre» delante — así lo trae, por ejemplo, el
+  // informe que usó el dueño del proyecto para pedir esto (25/08/2026).
+  /\bPaciente\s*[:=]\s*([^\n\r|]{2,60})/i,
   /\bName\s*[:=]\s*([^\n\r|]{2,60})/i,
 ]
 

@@ -421,6 +421,9 @@ export function compararOjo(
   ojo: Lateralidad,
   resultados: Partial<Record<Calculadora, ResultadoCalculadora>>,
   ordenColumnas: readonly Calculadora[] = ['KANE', 'EVO_TORIC', 'BARRETT_TORIC'],
+  // Barrett True-K Toric NO entra en este valor por defecto (D53): es una
+  // calculadora especial para cirugía refractiva previa o queratocono, y
+  // quien construya la tabla decide si mostrarla, según si tiene resultado.
 ): Comparativa {
   const celdas = ordenColumnas.map((c) => aCelda(c, resultados[c]))
   const observaciones: Observacion[] = []

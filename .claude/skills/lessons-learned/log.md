@@ -833,3 +833,76 @@ lo dice la web» no era ejecutable.
 **Lo que confirmó que la lección va en serio.** Se rompió la regla a propósito de
 tres formas —la primera, la del medio, la de refracción más cercana a cero— y las
 tres las caza un test. La guarda que nadie ha visto fallar no está demostrada.
+
+---
+
+## 23/08/2026 — El cilindro de una lente tórica tiene dos escalas, y no son intercambiables
+
+**Qué pasó.** Al añadir la primera lente tórica al catálogo propio (D37), la ficha
+del fabricante (Bausch + Lomb enVista ENVY TORIC) traía **dos columnas de potencia
+cilíndrica**, con números distintos para la misma lente: «plano de la LIO» (+0,90 a
++5,75 D) y «plano corneal» (+0,64 a +4,03 D). Eran claramente escalas distintas —
+0,90 en una fila, 0,64 en la fila de al lado— y meter la equivocada habría hecho que
+`lentesQueCubren` dijera «cubre» sobre un cilindro que en realidad no cubre.
+
+**Decisión del dueño del proyecto:** el catálogo usa **siempre el plano de la LIO**,
+nunca el plano corneal. Es la escala que usan los fabricantes para nombrar sus
+modelos (T2, T3, T4…) y la que aparece primero en la mayoría de fichas.
+
+**Lección:**
+
+1. **Cuando una ficha de lente dé el cilindro en más de una escala, parar y
+   preguntar cuál usar — no asumir la primera que aparece.** Los números se parecen
+   lo suficiente como para no notar el error a simple vista.
+2. **La regla ya está decidida y no hay que volver a preguntarla**: plano de la LIO,
+   siempre, para toda lente tórica que se añada al catálogo (D37 en
+   `SYSTEM_VISION.md`).
+3. Si algún día hace falta comparar contra un dato en plano corneal —por ejemplo si
+   una calculadora empezara a devolver el cilindro en esa escala—, eso es una
+   conversión explícita que hay que escribir y probar, no una elección libre al
+   rellenar el catálogo.
+
+**Contexto:** Añadir o editar cualquier lente tórica al catálogo propio.
+
+---
+
+## 23/08/2026 (2) — La constante de una lente sale de cada calculadora, no de la ficha del fabricante
+
+**Qué pasó.** Al añadir «enVista ENVY» al catálogo con las tres constantes que dio
+el dueño del proyecto, se comprobó en vivo contra EVO y Barrett (navegador real,
+sin ventana en EVO, con ventana en Barrett) qué pasa si se elige esa lente en SU
+PROPIO desplegable:
+
+- **EVO Toric** tiene «B&L Envy» en su lista. Al elegirla, **rellena sola 119,24**
+  — coincide exactamente con el dato que dio el dueño del proyecto. Confirmado
+  desde la fuente, no desde la ficha impresa.
+- **Barrett Toric NO tiene ninguna lente llamada «Envy»**. Tiene seis de Bausch &
+  Lomb (MX60, MX60T, MX60ET, MX60ET(USA), BL1UT, LI60AO), con constantes que
+  rellena solo (119,15 / 119,15 / 119,15 / 119,15 / 119,20 / 118,57) y **ninguna
+  es 119,28**. No hay forma de saber, sin preguntar, si «Envy» es comercialmente
+  una de esas seis con otro nombre o si Barrett todavía no la tiene listada.
+- **Kane no tiene ningún desplegable de lentes**, a propósito (`kane.ts`: elegir
+  un modelo le cambia el modo del formulario por su cuenta). No hay «la
+  constante que Kane proporciona» que se pueda comprobar así.
+
+**Decisión del dueño del proyecto:** cuando una lente no aparezca en el
+desplegable de una calculadora, se le pregunta a él — son pocas, y no se adivina
+cuál de las opciones parecidas es la misma lente con otro nombre comercial.
+
+**Lección:**
+
+1. **Al añadir una lente al catálogo, comprobar en vivo contra EVO y Barrett antes
+   de dar por buena una constante de una ficha impresa.** El adaptador ya sabe
+   rellenar sola la constante al elegir el modelo (`elegirModelo` en `evo.ts` y
+   `barrett.ts`); basta con seleccionar la opción y leer el campo, igual que hace
+   el adaptador de verdad.
+2. **Si el nombre no está en la lista de una calculadora, no es un fallo: es una
+   pregunta.** Se le pide al dueño del proyecto la constante de esa calculadora
+   en concreto, en vez de dejar un hueco o adivinar cuál opción parecida es.
+3. **Kane queda fuera de esta comprobación por diseño**, no por una limitación
+   de esta sesión: su constante siempre viene de fuera (el dueño del proyecto o
+   una ficha de fabricante), porque el adaptador nunca elige lente.
+
+**Contexto:** Añadir cualquier lente nueva al catálogo propio, y en general
+cualquier dato que una calculadora externa pueda confirmar por sí misma en vez
+de tomarse de una fuente en papel.

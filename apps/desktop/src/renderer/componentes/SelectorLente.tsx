@@ -16,12 +16,25 @@
  * Por eso los modelos del informe se enseñan **con su constante al lado y sin
  * ninguno preseleccionado**. Marcar el primero por comodidad sería elegir por el
  * cirujano la lente que se va a implantar.
+ *
+ * ── De dónde sale la lista del desplegable ──────────────────────────────────
+ *
+ * Antes era una lista fija en el código, con la intersección de lo que EVO y
+ * Barrett ofrecen en sus propios desplegables. Ahora sale de **tu catálogo**
+ * (Ajustes → Tu catálogo de lentes): un solo sitio para mantener tus lentes,
+ * en vez de dos listas que se pueden desincronizar.
+ *
+ * No hace falta que el nombre coincida con el desplegable real de EVO o
+ * Barrett para que esto funcione: si coincide, `elegirModelo` de ese
+ * adaptador lo selecciona en la web; si no, la web sencillamente no elige
+ * ningún modelo y sigue calculando con la constante A que tengas puesta — no
+ * es un motivo para abortar (ver `packages/integrations/src/adapters/evo.ts`).
  */
 
 import type { JSX } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import type { Caso } from '@vilamar/domain'
+import type { Caso, LenteDeCatalogo } from '@vilamar/domain'
 import { claveLente } from '@vilamar/domain'
 
 import { api } from '../api.js'
@@ -31,28 +44,8 @@ interface Props {
   readonly onCambio: () => Promise<void>
 }
 
-/**
- * Modelos que EVO y Barrett tienen en común en sus desplegables.
- *
- * No es un catálogo clínico: es la intersección de lo que ofrecen esas dos
- * webs, comprobada al leer sus formularios. Añadir uno aquí solo tiene sentido
- * si aparece con ese nombre exacto en alguna de ellas.
- *
- * **Estos NO traen constante.** La constante sale del informe o la escribes tú.
- */
-const MODELOS: readonly { fabricante: string; modelo: string }[] = [
-  { fabricante: 'Alcon', modelo: 'Alcon SN6ATx' },
-  { fabricante: 'Alcon', modelo: 'Alcon SA6ATx' },
-  { fabricante: 'Alcon', modelo: 'Alcon Vivity' },
-  { fabricante: 'Alcon', modelo: 'Alcon Panoptix' },
-  { fabricante: 'Johnson & Johnson', modelo: 'Tecnis' },
-  { fabricante: 'Bausch & Lomb', modelo: 'B&L MX60T' },
-  { fabricante: 'Bausch & Lomb', modelo: 'B&L MX60ET/PT' },
-  { fabricante: 'Rayner', modelo: 'Rayner EMV' },
-  { fabricante: 'ZEISS', modelo: 'Zeiss 709M/MP' },
-]
-
 export function SelectorLente({ caso, onCambio }: Props): JSX.Element {
+  const [catalogo, setCatalogo] = useState<readonly LenteDeCatalogo[]>([])
   const [otro, setOtro] = useState(false)
   const [modeloLibre, setModeloLibre] = useState(caso.lente?.modelo ?? '')
   const [fabricanteLibre, setFabricanteLibre] = useState(caso.lente?.fabricante ?? '')
@@ -65,11 +58,17 @@ export function SelectorLente({ caso, onCambio }: Props): JSX.Element {
    */
   const [avisos, setAvisos] = useState<readonly string[]>([])
 
+  useEffect(() => {
+    void api()
+      .catalogoLentes()
+      .then(setCatalogo)
+  }, [])
+
   const delInforme = caso.lentesDelInforme ?? []
   const actual = caso.lente?.modelo ?? ''
   const claveActual =
     actual === '' ? '' : claveLente({ fabricante: caso.lente?.fabricante, modelo: actual })
-  const enLista = MODELOS.some((m) => m.modelo === actual)
+  const enLista = catalogo.some((l) => l.modelo === actual)
   const enElInforme = delInforme.some((l) => claveLente(l) === claveActual)
 
   async function elegir(fabricante: string, modelo: string): Promise<void> {
@@ -84,7 +83,7 @@ export function SelectorLente({ caso, onCambio }: Props): JSX.Element {
       return
     }
     setOtro(false)
-    const encontrado = MODELOS.find((m) => m.modelo === modelo)
+    const encontrado = catalogo.find((l) => l.modelo === modelo)
     await elegir(encontrado?.fabricante ?? '', modelo)
   }
 
@@ -151,9 +150,9 @@ export function SelectorLente({ caso, onCambio }: Props): JSX.Element {
           onChange={(e) => void elegirDelDesplegable(e.target.value)}
         >
           <option value="">(sin elegir)</option>
-          {MODELOS.map((m) => (
-            <option key={m.modelo} value={m.modelo}>
-              {m.modelo}
+          {catalogo.map((l) => (
+            <option key={l.id} value={l.modelo}>
+              {l.modelo}
             </option>
           ))}
           <option value="__otro__">Otro (escribirlo)</option>
@@ -214,6 +213,3 @@ export function SelectorLente({ caso, onCambio }: Props): JSX.Element {
     </div>
   )
 }
-
-/** Se exporta para que los tests puedan comprobar que la lista no se toca sola. */
-export const MODELOS_DE_LAS_CALCULADORAS = MODELOS

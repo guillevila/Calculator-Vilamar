@@ -11,12 +11,18 @@
  */
 
 import type { CampoBiometrico } from './campos.js'
+import type { CirugiaRefractivaPrevia } from './cirugia-refractiva.js'
 import type { Lateralidad } from './lateralidad.js'
 import type { Sexo } from './sexo.js'
 
-export type Calculadora = 'KANE' | 'EVO_TORIC' | 'BARRETT_TORIC'
+export type Calculadora = 'KANE' | 'EVO_TORIC' | 'BARRETT_TORIC' | 'BARRETT_TRUE_K_TORIC'
 
-export const CALCULADORAS: readonly Calculadora[] = ['EVO_TORIC', 'BARRETT_TORIC', 'KANE'] as const
+export const CALCULADORAS: readonly Calculadora[] = [
+  'EVO_TORIC',
+  'BARRETT_TORIC',
+  'KANE',
+  'BARRETT_TRUE_K_TORIC',
+] as const
 
 export interface FichaCalculadora {
   readonly clave: Calculadora
@@ -35,6 +41,14 @@ export interface FichaCalculadora {
    * un dato que no es del ojo dentro del mapa del ojo.
    */
   readonly exigeSexo?: boolean
+  /**
+   * Si esta calculadora existe SOLO para ojos con cirugía refractiva previa
+   * (o queratocono), y por tanto exige que se haya aportado —«ninguna» no
+   * vale—. Es el caso de Barrett True-K Toric: es una página distinta de
+   * Barrett Toric, pensada para esto, y no tiene sentido lanzarla sin decir
+   * de qué historial se trata.
+   */
+  readonly exigeCirugiaRefractiva?: boolean
   /** Qué hace falta de una persona antes de poder automatizar. Vacío si nada. */
   readonly intervencionHumana: readonly string[]
   /** Notas que la interfaz enseña al usuario. */
@@ -85,6 +99,36 @@ export const FICHAS: Readonly<Record<Calculadora, FichaCalculadora>> = {
     notas: [
       'La calculadora vive dentro de la web de la ASCRS y no admite navegador sin ventana: se abre siempre un navegador visible.',
       'La ASCRS enseña un aviso de cookies que tapa la página. Calculator Vilamar elige «Rechazar», que es la opción que menos datos comparte.',
+    ],
+  },
+  BARRETT_TRUE_K_TORIC: {
+    clave: 'BARRETT_TRUE_K_TORIC',
+    nombre: 'Barrett True-K Toric',
+    url: 'https://www.ascrs.org/en/tools/barrett-true-k-toric-calculator',
+    // Mismos campos de biometría que Barrett Toric — comprobado abriendo su
+    // formulario real (04/09/2026): usa los mismos identificadores de campo,
+    // es la misma plantilla con un desplegable de historial añadido.
+    requeridos: [
+      'AL',
+      'K1',
+      'K1_EJE',
+      'K2',
+      'K2_EJE',
+      'ACD',
+      'REFRACCION_OBJETIVO',
+      'SIA',
+      'EJE_INCISION',
+    ],
+    opcionales: ['LT', 'WTW', 'CONSTANTE_A', 'FACTOR_LENTE'],
+    exigeSexo: false,
+    // Es una calculadora PARA ojos con cirugía refractiva previa o
+    // queratocono — no tiene sentido lanzarla sin decir cuál de las dos.
+    exigeCirugiaRefractiva: true,
+    intervencionHumana: [],
+    notas: [
+      'Es una página distinta de Barrett Toric, para ojos con cirugía refractiva previa o queratocono. Elige esta calculadora solo en esos casos.',
+      'Mismo mecanismo que Barrett Toric: vive en un iframe de otro dominio, exige navegador visible y hay que rechazar un aviso de cookies.',
+      'Barrett True-K Toric admite datos de antes de la cirugía refractiva (queratometría, refracción) si se conocen. Calculator Vilamar no los pide: en la práctica casi nunca se tienen.',
     ],
   },
   KANE: {
@@ -172,8 +216,24 @@ export interface EntradasCalculadora {
   /** Modelo de lente elegido, tal y como lo llama esa web. */
   readonly modeloLente?: string
   readonly fabricanteLente?: string
+  /**
+   * Si la lente elegida es tórica, según el catálogo propio. `undefined` si
+   * no está en el catálogo — entonces no hay nada que decir sobre ella.
+   *
+   * Kane lo necesita para decidir el modo del formulario ANTES de buscar el
+   * modelo en su desplegable: sus opciones tóricas («B+L Aspire Toric») solo
+   * aparecen ahí cuando el ojo ya está en modo Toric — buscarlas en modo
+   * No-tórico no las encuentra aunque existan. Ver `kane.ts`.
+   */
+  readonly lenteTorica?: boolean
   /** El sexo, solo para la calculadora que lo pide. */
   readonly sexo?: Sexo
+  /**
+   * Si el ojo ha tenido cirugía refractiva antes, y de qué tipo. Solo EVO lo
+   * pide (su desplegable «Post LASIK/PRK/RK»). `undefined` es «no se sabe»,
+   * y se trata igual que «ninguna»: EVO calcula con su fórmula estándar.
+   */
+  readonly cirugiaRefractivaPrevia?: CirugiaRefractivaPrevia
 }
 
 export interface FaltanEntradas {
@@ -243,6 +303,12 @@ export interface ResultadoCalculadora {
   readonly faltan?: readonly CampoBiometrico[]
   /** Referencia al diagnóstico técnico guardado en local, si lo hubo. */
   readonly diagnosticoId?: string
+  /**
+   * Referencia a la captura de la pantalla de resultados de esta web, si se
+   * pudo guardar. Es la prueba de que la web dijo esto: se convierte en un PDF
+   * de una hoja al generar el informe (ver `packages/report`).
+   */
+  readonly capturaId?: string
 }
 
 export function resultadoVacio(
@@ -352,15 +418,42 @@ export function quienNoPuedeCalcular(
    * evitar, reintroducido por otra puerta.
    */
   haySexoConfirmado = true,
+  /**
+   * Qué calculadoras tienen, en el catálogo propio, la constante A de la
+   * lente elegida — o van a rellenarla ellas solas al reconocer el modelo
+   * (EVO y Kane, ver D38). Sin esto, este aviso volvería a mentir: diría
+   * «falta la constante A» de una lente cuya constante ya se sabe, solo que
+   * no está escrita a mano en el ojo.
+   */
+  tieneConstanteDeOtroSitio: Readonly<Partial<Record<Calculadora, boolean>>> = {},
+  /**
+   * ¿Este ojo tiene aportada una cirugía refractiva previa (o queratocono)
+   * que no sea «ninguna»?
+   *
+   * Sin esto, Barrett True-K Toric —que EXISTE solo para esos ojos— saldría
+   * en este aviso en CUALQUIER caso, aunque nadie fuera a lanzarla nunca: es
+   * opcional (D53), no está en el orden por defecto, y avisar de que «no
+   * puede calcular» algo que nadie ha pedido sería ruido, no ayuda. Solo se
+   * comprueba de verdad cuando el ojo ya dice que la necesita.
+   */
+  hayCirugiaRefractivaAportada = false,
 ): readonly {
   readonly calculadora: Calculadora
   readonly faltan: readonly CampoBiometrico[]
   /** Le falta el sexo del paciente, que no es un campo del ojo. */
   readonly faltaElSexo: boolean
 }[] {
-  return CALCULADORAS.map((calculadora) => ({
-    calculadora,
-    faltan: FICHAS[calculadora].requeridos.filter((c) => medidas[c] === undefined),
-    faltaElSexo: FICHAS[calculadora].exigeSexo === true && !haySexoConfirmado,
-  })).filter((x) => x.faltan.length > 0 || x.faltaElSexo)
+  return CALCULADORAS.filter(
+    (c) => FICHAS[c].exigeCirugiaRefractiva !== true || hayCirugiaRefractivaAportada,
+  )
+    .map((calculadora) => ({
+      calculadora,
+      faltan: FICHAS[calculadora].requeridos.filter((c) => {
+        if (medidas[c] !== undefined) return false
+        if (c === 'CONSTANTE_A' && tieneConstanteDeOtroSitio[calculadora] === true) return false
+        return true
+      }),
+      faltaElSexo: FICHAS[calculadora].exigeSexo === true && !haySexoConfirmado,
+    }))
+    .filter((x) => x.faltan.length > 0 || x.faltaElSexo)
 }

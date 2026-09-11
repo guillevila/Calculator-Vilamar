@@ -29,11 +29,13 @@ describe('los cuatro niveles', () => {
     expect(textoDeExigencia(e)).toBe('Obligatorio')
   })
 
-  it('el SIA solo es obligatorio para Barrett, y se dice cuál', () => {
+  it('el SIA solo es obligatorio para las dos calculadoras de Barrett, y se dice cuáles', () => {
     // Es el caso que hace falsa la etiqueta «obligatorio» a secas.
+    // Barrett True-K Toric es la misma familia de fórmula que Barrett Toric
+    // y pide lo mismo — comprobado abriendo su formulario real (D53).
     const e = exigenciaDe('SIA')
     expect(e.nivel).toBe('SEGUN_CALCULADORA')
-    expect(e.requeridoPor).toEqual(['BARRETT_TORIC'])
+    expect(e.requeridoPor).toEqual(['BARRETT_TORIC', 'BARRETT_TRUE_K_TORIC'])
     expect(e.opcionalPara).toContain('EVO_TORIC')
     // El texto NOMBRA la calculadora: es lo que lo hace accionable.
     expect(textoDeExigencia(e)).toContain('Barrett')
@@ -107,12 +109,22 @@ describe('la clasificación cubre todos los campos y no se contradice', () => {
 })
 
 describe('avisar ANTES de confirmar de quién no va a poder calcular', () => {
-  it('sin nada, ninguna puede, y se dice qué falta a cada una', () => {
+  it('sin nada, ninguna de las tres habituales puede, y se dice qué falta a cada una', () => {
+    // Barrett True-K Toric NO sale aquí sin que se aporte cirugía refractiva
+    // previa (D53): es opcional, nadie la ha pedido, y avisar de que «no
+    // puede calcular» algo que no se va a lanzar sería ruido.
     const r = quienNoPuedeCalcular({})
-    expect(r).toHaveLength(CALCULADORAS.length)
+    expect(r).toHaveLength(CALCULADORAS.length - 1)
+    expect(r.map((x) => x.calculadora)).not.toContain('BARRETT_TRUE_K_TORIC')
     for (const x of r) {
       expect(x.faltan).toEqual(FICHAS[x.calculadora].requeridos)
     }
+  })
+
+  it('con cirugía refractiva aportada, Barrett True-K Toric SÍ entra en el aviso', () => {
+    const r = quienNoPuedeCalcular({}, true, {}, true)
+    expect(r.map((x) => x.calculadora)).toContain('BARRETT_TRUE_K_TORIC')
+    expect(r).toHaveLength(CALCULADORAS.length)
   })
 
   it('con todo lo que pide cada una, la lista está vacía', () => {

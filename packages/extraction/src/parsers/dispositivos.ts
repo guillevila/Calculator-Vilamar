@@ -44,22 +44,6 @@ const ANTERION: readonly ReglaLectura[] = [
     patrones: [/\bCCT\b[^0-9-]{0,14}(\d+)/i, /Corneal\s*Thickness[^0-9-]{0,14}(\d+)/i],
   },
   {
-    campo: 'REFRACCION_OBJETIVO',
-    nombre: 'ANTERION refracción objetivo',
-    // El signo es obligatorio en el patrón: una refracción objetivo puede ser
-    // negativa (-0.50 D es de lo más común) y comerse el menos convertiría una
-    // miopía buscada en una hipermetropía. Por eso `-?` va DENTRO del grupo.
-    //
-    // Y admite el 0.00: es un valor legítimo —emetropía— y el informe lo imprime.
-    // Que un campo esté conceptualmente en «decisiones del cirujano» no impide
-    // que el informe lo traiga; si lo trae, el origen del dato es el informe.
-    patrones: [
-      /Target\s*Refraction[^0-9+-]{0,14}([+-]?\d+[.,]\d{1,2})/i,
-      /Refracci[oó]n\s*objetivo[^0-9+-]{0,14}([+-]?\d+[.,]\d{1,2})/i,
-      /\bTarget\b[^0-9+-]{0,10}([+-]?\d+[.,]\d{1,2})\s*D\b/i,
-    ],
-  },
-  {
     campo: 'INDICE_QUERATOMETRICO',
     nombre: 'ANTERION índice queratométrico (nk)',
     // Ronda 1.3375 y su valor cambia lo que significan las K del informe, así

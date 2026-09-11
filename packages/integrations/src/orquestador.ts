@@ -39,10 +39,20 @@
  *  - El usuario tiene que poder VER qué está pasando.
  */
 
-import type { Calculadora, Caso, Lateralidad, ResultadoCalculadora } from '@vilamar/domain'
+import type {
+  Calculadora,
+  Caso,
+  Catalogo,
+  EntradasCalculadora,
+  Lateralidad,
+  ResultadoCalculadora,
+} from '@vilamar/domain'
 import {
+  constanteDelCatalogoPara,
+  esToricaSegunCatalogo,
   explicarBloqueo,
   fichaDe,
+  modeloDelCatalogoPara,
   ojosDelCaso,
   prepararEntradas,
   resultadoDe,
@@ -53,15 +63,20 @@ import type { Browser, BrowserContext } from 'playwright'
 
 import type { AdaptadorCalculadora, DatosDiagnostico, EventoProgreso } from './contrato.js'
 import { AdaptadorBarrettToric } from './adapters/barrett.js'
+import { AdaptadorBarrettTrueKToric } from './adapters/barrett-true-k-toric.js'
 import { AdaptadorEvoToric } from './adapters/evo.js'
 import { AdaptadorKane } from './adapters/kane.js'
 
 /**
- * Orden de ejecución.
+ * Orden de ejecución POR DEFECTO — las tres calculadoras habituales.
  *
  * EVO no pide nada a nadie. Barrett puede pedir una comprobación. Kane pide
  * aceptar sus condiciones. De menos a más intervención, para que el usuario ya
  * tenga resultados en pantalla cuando le toque hacer algo.
+ *
+ * Barrett True-K Toric NO está aquí a propósito: es para ojos con cirugía
+ * refractiva previa o queratocono, que son la minoría de los casos. Se lanza
+ * solo cuando el usuario la elige explícitamente (D53), nunca por defecto.
  */
 export const ORDEN_POR_DEFECTO: readonly Calculadora[] = ['EVO_TORIC', 'BARRETT_TORIC', 'KANE']
 
@@ -73,6 +88,7 @@ export function crearAdaptadores(): Readonly<Record<Calculadora, AdaptadorCalcul
     EVO_TORIC: new AdaptadorEvoToric(),
     BARRETT_TORIC: new AdaptadorBarrettToric(),
     KANE: new AdaptadorKane(),
+    BARRETT_TRUE_K_TORIC: new AdaptadorBarrettTrueKToric(),
   }
 }
 
@@ -147,6 +163,8 @@ export interface OpcionesCaso {
   readonly tareas?: readonly TareaCalculo[]
   readonly calculadoras?: readonly Calculadora[]
   readonly ojos?: readonly Lateralidad[]
+  /** El catálogo de lentes propio. Ver `OpcionesUnaCasilla.catalogo`. */
+  readonly catalogo?: Catalogo
   readonly navegador: Browser
   /**
    * Contexto reutilizable. Si se pasa, las sesiones y las cookies se conservan
@@ -158,6 +176,12 @@ export interface OpcionesCaso {
   readonly alTerminarUna: (resultado: ResultadoCalculadora) => void
   readonly ahora: () => string
   readonly guardarDiagnostico: (d: DatosDiagnostico) => Promise<string>
+  /** Ver `ContextoEjecucion.guardarCaptura`. */
+  readonly guardarCaptura: (
+    calculadora: Calculadora,
+    ojo: Lateralidad,
+    datos: Uint8Array,
+  ) => Promise<string>
   readonly cancelado: () => boolean
   /**
    * Los adaptadores a usar. Se puede sustituir para probar el aislamiento de
@@ -210,7 +234,9 @@ export async function ejecutarCaso(
         progreso: (e) => opciones.progreso({ ...e, ojo: tarea.ojo }),
         ahora: opciones.ahora,
         guardarDiagnostico: opciones.guardarDiagnostico,
+        guardarCaptura: opciones.guardarCaptura,
         cancelado: opciones.cancelado,
+        catalogo: opciones.catalogo,
       })
 
       resultados.push(resultado)
@@ -230,7 +256,19 @@ export interface OpcionesUnaCasilla {
   readonly progreso: (evento: EventoProgreso) => void
   readonly ahora: () => string
   readonly guardarDiagnostico: (d: DatosDiagnostico) => Promise<string>
+  /** Ver `ContextoEjecucion.guardarCaptura`. */
+  readonly guardarCaptura: (
+    calculadora: Calculadora,
+    ojo: Lateralidad,
+    datos: Uint8Array,
+  ) => Promise<string>
   readonly cancelado: () => boolean
+  /**
+   * El catálogo de lentes propio, para que Barrett y Kane usen cada uno su
+   * propia constante para la lente elegida. Opcional porque el cálculo tiene
+   * que poder seguir funcionando sin catálogo, exactamente como antes.
+   */
+  readonly catalogo?: Catalogo
 }
 
 /**
@@ -252,6 +290,38 @@ export interface OpcionesUnaCasilla {
  * Presentar un selector roto como si faltara un dato clínico mandaría al usuario
  * a buscar en su informe un número que ya tiene.
  */
+
+/**
+ * Ajusta las entradas con lo que sepa el catálogo de la lente elegida, para
+ * ESTA calculadora en concreto: su constante A, si la trae; el nombre EXACTO
+ * que hay que buscar en el desplegable de esa web, si es distinto del nombre
+ * bonito del catálogo (ver `NombresEnWeb`); y si es tórica, que Kane necesita
+ * saber ANTES de buscar el modelo (ver kane.ts). Sin catálogo, o sin la lente
+ * en él, devuelve `entradas` tal cual.
+ */
+function conDatosDelCatalogo(
+  entradas: EntradasCalculadora,
+  caso: Caso,
+  calculadora: Calculadora,
+  catalogo: Catalogo | undefined,
+): EntradasCalculadora {
+  const modelo = caso.lente?.modelo
+  if (!catalogo || !modelo) return entradas
+  const eleccion = { fabricante: caso.lente?.fabricante, modelo }
+  const constante = constanteDelCatalogoPara(catalogo, eleccion, calculadora)
+  const nombreEnWeb = modeloDelCatalogoPara(catalogo, eleccion, calculadora)
+  const torica = esToricaSegunCatalogo(catalogo, eleccion)
+
+  return {
+    ...entradas,
+    ...(nombreEnWeb !== undefined ? { modeloLente: nombreEnWeb } : {}),
+    ...(torica !== undefined ? { lenteTorica: torica } : {}),
+    ...(constante !== undefined
+      ? { valores: { ...entradas.valores, CONSTANTE_A: constante } }
+      : {}),
+  }
+}
+
 export async function ejecutarUnaCalculadoraParaUnOjo(
   adaptador: AdaptadorCalculadora,
   contexto: BrowserContext,
@@ -260,7 +330,7 @@ export async function ejecutarUnaCalculadoraParaUnOjo(
   const { caso, ojo, ahora } = opciones
 
   // 1 — El dominio decide si esto puede salir. El adaptador no puede saltárselo.
-  const preparacion = prepararEntradas(caso, adaptador.calculadora, ojo)
+  const preparacion = prepararEntradas(caso, adaptador.calculadora, ojo, opciones.catalogo)
   if (!preparacion.ok) {
     const motivo = explicarBloqueo(preparacion) ?? 'Faltan datos.'
     return {
@@ -272,8 +342,24 @@ export async function ejecutarUnaCalculadoraParaUnOjo(
     }
   }
 
+  // 1b — Si la lente elegida está en el catálogo propio: su constante A para
+  // ESTA calculadora (si la trae) y el nombre EXACTO que hay que buscar en su
+  // desplegable (si es distinto del nombre bonito del catálogo — casi
+  // siempre lo es: Kane dice «B+L LuxLife», no «Lux Life»).
+  //
+  // La constante es un FALLBACK para EVO y Kane: si reconocen el modelo en su
+  // propia web, rellenan la suya y no se pisa (ver evo.ts y kane.ts). El
+  // nombre, en cambio, hace falta siempre que quiera intentarse el
+  // reconocimiento — sin el nombre correcto no hay nada que reconocer.
+  const entradas = conDatosDelCatalogo(
+    preparacion.entradas,
+    caso,
+    adaptador.calculadora,
+    opciones.catalogo,
+  )
+
   // 2 — Comprobaciones propias de esa web.
-  const problemas = adaptador.validarEntradas(preparacion.entradas)
+  const problemas = adaptador.validarEntradas(entradas)
   if (problemas.length > 0) {
     return resultadoVacio(
       adaptador.calculadora,
@@ -288,10 +374,11 @@ export async function ejecutarUnaCalculadoraParaUnOjo(
   try {
     const resultado = await adaptador.ejecutar({
       contexto,
-      entradas: preparacion.entradas,
+      entradas,
       progreso: opciones.progreso,
       ahora,
       guardarDiagnostico: opciones.guardarDiagnostico,
+      guardarCaptura: opciones.guardarCaptura,
       cancelado: opciones.cancelado,
     })
 

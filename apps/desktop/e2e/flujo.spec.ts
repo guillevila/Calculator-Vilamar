@@ -186,6 +186,31 @@ test('el flujo completo llega hasta la pantalla de cálculo', async () => {
   await ventana.screenshot({ path: 'test-results/04-calculo.png', fullPage: true })
 })
 
+test('se puede elegir con qué calculadoras trabajar antes de calcular', async () => {
+  // Las tres empiezan marcadas: «calcula en todas» es lo habitual.
+  await expect(ventana.getByTestId('seleccion-EVO_TORIC')).toBeChecked()
+  await expect(ventana.getByTestId('seleccion-BARRETT_TORIC')).toBeChecked()
+  await expect(ventana.getByTestId('seleccion-KANE')).toBeChecked()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeEnabled()
+
+  // Desmarcar una cambia lo que se va a lanzar, sin desmarcar las otras.
+  await ventana.getByTestId('seleccion-KANE').uncheck()
+  await expect(ventana.getByTestId('seleccion-EVO_TORIC')).toBeChecked()
+  await expect(ventana.getByTestId('seleccion-BARRETT_TORIC')).toBeChecked()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeEnabled()
+
+  // Sin ninguna marcada, no se puede lanzar el cálculo.
+  await ventana.getByTestId('seleccion-EVO_TORIC').uncheck()
+  await ventana.getByTestId('seleccion-BARRETT_TORIC').uncheck()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeDisabled()
+
+  // Se deja todo marcado de nuevo para no afectar al resto de pruebas.
+  await ventana.getByTestId('seleccion-EVO_TORIC').check()
+  await ventana.getByTestId('seleccion-BARRETT_TORIC').check()
+  await ventana.getByTestId('seleccion-KANE').check()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeEnabled()
+})
+
 test('la interfaz no enseña jerga técnica al usuario', async () => {
   const texto = (await ventana.locator('body').innerText()).toLowerCase()
   for (const jerga of ['locator(', 'timeouterror', 'undefined', 'null pointer', 'stack trace']) {
@@ -378,6 +403,21 @@ SRK/T: 119.2</pre></body>`)
   await nav.close()
 
   await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+
+  // El desplegable de «Lente» sale del catálogo propio (ver SelectorLente.tsx),
+  // y solo lo carga una vez al montarse: se añade ANTES de llegar a la pantalla
+  // de revisión, no después.
+  await ventana.evaluate(
+    async () =>
+      window.vilamar?.guardarLenteEnCatalogo(undefined, {
+        modelo: 'Alcon Vivity',
+        fabricante: 'Alcon',
+        constantesA: { EVO_TORIC: 119.3 },
+        torica: false,
+        rangoEsfera: { min: 6, max: 30 },
+      }),
+  )
+
   await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
   const resultado = await ventana.evaluate(
     async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'anterion-lentes.pdf', ruta }]),

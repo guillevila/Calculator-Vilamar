@@ -62,6 +62,20 @@ export interface ContextoEjecucion {
    * Se inyecta porque el adaptador no debe decidir dónde se escribe en disco.
    */
   readonly guardarDiagnostico: (d: DatosDiagnostico) => Promise<string>
+  /**
+   * Guarda una captura de la pantalla de resultados, cuando el cálculo sale
+   * bien. Devuelve un identificador para `ResultadoCalculadora.capturaId`.
+   *
+   * Es el mismo patrón que `guardarDiagnostico` y por la misma razón: el
+   * adaptador no decide dónde se escribe en disco. La diferencia es que esto
+   * es la prueba de un ÉXITO, no de un fallo — sirve para el PDF de cada
+   * calculadora, no para reparar un conector roto.
+   */
+  readonly guardarCaptura: (
+    calculadora: Calculadora,
+    ojo: Lateralidad,
+    datos: Uint8Array,
+  ) => Promise<string>
   /** Señal para cancelar desde la interfaz. */
   readonly cancelado: () => boolean
 }

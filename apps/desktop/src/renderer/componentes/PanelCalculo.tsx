@@ -6,7 +6,7 @@
  * fila se pone en ámbar, porque el navegador está abierto esperándole.
  */
 
-import type { JSX } from 'react'
+import { useState, type JSX } from 'react'
 
 import type { Calculadora, Caso, Lateralidad } from '@vilamar/domain'
 import { CALCULADORAS, fichaDe, resultadoDe, textoEstado } from '@vilamar/domain'
@@ -23,7 +23,15 @@ interface Props {
   readonly onVerResultados: () => void
 }
 
-const ORDEN: readonly Calculadora[] = ['EVO_TORIC', 'BARRETT_TORIC', 'KANE']
+const ORDEN: readonly Calculadora[] = ['EVO_TORIC', 'BARRETT_TORIC', 'KANE', 'BARRETT_TRUE_K_TORIC']
+
+/**
+ * Las tres habituales, marcadas por defecto. Barrett True-K Toric NO —es
+ * para ojos con cirugía refractiva previa o queratocono, la minoría de los
+ * casos (D53)—: se marca a mano, caso a caso, igual que las demás se
+ * podrían desmarcar.
+ */
+const MARCADAS_POR_DEFECTO: readonly Calculadora[] = ['EVO_TORIC', 'BARRETT_TORIC', 'KANE']
 
 export function PanelCalculo({
   caso,
@@ -36,6 +44,27 @@ export function PanelCalculo({
 }: Props): JSX.Element {
   const hayAlguno = CALCULADORAS.some((c) => resultadoDe(caso, c, ojo) !== undefined)
   const requiereUsuario = estados.filter((e) => e.requiereUsuario)
+
+  /**
+   * Con cuáles calcular. Empieza con las tres marcadas — «calcula en todas» es
+   * lo habitual — y se puede desmarcar la que no interese ANTES de pulsar
+   * «Calcular». No afecta a «Reintentar» de una fila, que ya elige su propia
+   * calculadora sin mirar esto.
+   */
+  const [seleccion, setSeleccion] = useState<ReadonlySet<Calculadora>>(
+    new Set(MARCADAS_POR_DEFECTO),
+  )
+
+  function alternar(clave: Calculadora): void {
+    setSeleccion((previa) => {
+      const siguiente = new Set(previa)
+      if (siguiente.has(clave)) siguiente.delete(clave)
+      else siguiente.add(clave)
+      return siguiente
+    })
+  }
+
+  const elegidas = ORDEN.filter((c) => seleccion.has(c))
 
   return (
     <>
@@ -89,6 +118,16 @@ export function PanelCalculo({
 
             return (
               <div className={`calc ${clase}`} key={clave} data-testid={`calc-${clave}`}>
+                <label className="marca-seleccion">
+                  <input
+                    type="checkbox"
+                    checked={seleccion.has(clave)}
+                    disabled={ocupado}
+                    onChange={() => alternar(clave)}
+                    aria-label={`Calcular en ${ficha.nombre}`}
+                    data-testid={`seleccion-${clave}`}
+                  />
+                </label>
                 <span className="marca">{marca}</span>
                 <span className="nombre">{ficha.nombre}</span>
                 <span className="detalle">
@@ -114,8 +153,13 @@ export function PanelCalculo({
         <div className="fila derecha">
           {ocupado && <button onClick={onCancelar}>Cancelar</button>}
           {!ocupado && (
-            <button className="principal" onClick={() => onCalcular()} data-testid="lanzar-calculo">
-              {hayAlguno ? 'Volver a calcular todas' : 'Calcular en las tres'}
+            <button
+              className="principal"
+              onClick={() => onCalcular(elegidas)}
+              disabled={elegidas.length === 0}
+              data-testid="lanzar-calculo"
+            >
+              {textoBoton(hayAlguno, elegidas)}
             </button>
           )}
           {/*
@@ -133,11 +177,24 @@ export function PanelCalculo({
         </div>
 
         <p className="pie-nota">
-          Si una calculadora falla, las demás siguen. Los resultados que ya tengas no se pierden y
-          puedes reintentar solo la que falló. No hace falta esperar a que terminen todas para
-          verlos.
+          Marca o desmarca una calculadora antes de pulsar «Calcular» para elegir con cuáles
+          quieres trabajar. Si una calculadora falla, las demás siguen. Los resultados que ya
+          tengas no se pierden y puedes reintentar solo la que falló. No hace falta esperar a que
+          terminen todas para verlos.
         </p>
       </div>
     </>
   )
+}
+
+function textoBoton(hayAlguno: boolean, elegidas: readonly Calculadora[]): string {
+  if (elegidas.length === 0) return 'Elige al menos una calculadora'
+  const nombres = elegidas.map((c) => fichaDe(c).nombre)
+  const lista =
+    elegidas.length === ORDEN.length
+      ? 'todas'
+      : elegidas.length === 1
+        ? nombres[0]
+        : `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}`
+  return hayAlguno ? `Volver a calcular en ${lista}` : `Calcular en ${lista}`
 }

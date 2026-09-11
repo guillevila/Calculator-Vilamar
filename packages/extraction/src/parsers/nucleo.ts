@@ -185,8 +185,15 @@ export const REGLAS_GENERICAS: readonly ReglaLectura[] = [
     patrones: [
       /\bK1\b[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis|eje)\s*(\d{1,3})/i,
       /Flat\s*K[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
+      // «SimK (flat)», al revés que «Flat K»: caso real de ANTERION
+      // (25/08/2026) — su pantalla de cálculo llama así a la K1. K1 es,
+      // clínicamente, el meridiano PLANO (flat): menos curvado, menos
+      // dioptrías. K2 es el curvo (steep). No es una equivalencia inventada
+      // aquí: es la definición estándar de las dos K de una queratometría.
+      /SimK\s*\(?\s*flat\s*\)?[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
       /\bK1\b[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
       /Flat\s*K[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
+      /SimK\s*\(?\s*flat\s*\)?[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
     ],
   },
   {
@@ -196,8 +203,12 @@ export const REGLAS_GENERICAS: readonly ReglaLectura[] = [
     patrones: [
       /\bK2\b[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis|eje)\s*(\d{1,3})/i,
       /Steep\s*K[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
+      // «SimK (steep)»: la K curva, en el mismo informe real que trae «SimK
+      // (flat)» arriba. Ver la nota de K1.
+      /SimK\s*\(?\s*steep\s*\)?[^0-9-]{0,14}(\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
       /\bK2\b[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
       /Steep\s*K[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
+      /SimK\s*\(?\s*steep\s*\)?[^0-9-]{0,14}(\d+[.,]\d{1,2})/i,
     ],
   },
   {
@@ -281,6 +292,27 @@ export const REGLAS_GENERICAS: readonly ReglaLectura[] = [
     patrones: [
       /\b(?:PK2|Post(?:erior)?\.?\s*K2)\b[^0-9-]{0,14}(-?\d+[.,]\d{1,2})\s*D?\s*(?:@|ax\.?|axis)\s*(\d{1,3})/i,
       /\b(?:PK2|Post(?:erior)?\.?\s*K2)\b[^0-9-]{0,14}(-?\d+[.,]\d{1,2})/i,
+    ],
+  },
+  {
+    campo: 'REFRACCION_OBJETIVO',
+    nombre: 'Refracción objetivo',
+    // El signo es obligatorio en el patrón: una refracción objetivo puede ser
+    // negativa (-0.50 D es de lo más común) y comerse el menos convertiría una
+    // miopía buscada en una hipermetropía. Por eso `[+-]?` va DENTRO del grupo.
+    //
+    // La parte decimal es OPCIONAL a propósito: un informe real (IOLMaster,
+    // 25/08/2026) la imprime como «0 D», sin decimales — exigirlos dejaba ese
+    // valor sin leer y, con la refracción objetivo por defecto (D44), un cero
+    // puesto por la aplicación se confundía con un cero que SÍ traía el informe.
+    //
+    // Y admite el 0: es un valor legítimo —emetropía— y el informe lo imprime.
+    // Que un campo esté conceptualmente en «decisiones del cirujano» no impide
+    // que el informe lo traiga; si lo trae, el origen del dato es el informe.
+    patrones: [
+      /Target\s*Refraction[^0-9+-]{0,14}([+-]?\d+(?:[.,]\d{1,2})?)/i,
+      /Refracci[oó]n\s*objetivo[^0-9+-]{0,14}([+-]?\d+(?:[.,]\d{1,2})?)/i,
+      /\bTarget\b[^0-9+-]{0,10}([+-]?\d+(?:[.,]\d{1,2})?)\s*D\b/i,
     ],
   },
 ]

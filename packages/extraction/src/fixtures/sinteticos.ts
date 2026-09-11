@@ -244,6 +244,104 @@ CCT       548 um
 `
 
 /**
+ * IOLMaster 700 con un resumen compacto y, más abajo, una «transcripción
+ * detallada» que repite OD y OS en otro formato, más largo pero SIN la AL.
+ *
+ * Es el caso real que hizo saltar el fallo del 25/08/2026: la segmentación por
+ * secciones se quedaba con el trozo más largo de cada ojo, y aquí el trozo más
+ * largo es la transcripción — que no repite la AL. El resumen entero, con la
+ * única AL del documento, se descartaba sin ningún aviso.
+ */
+export const IOLMASTER_RESUMEN_Y_TRANSCRIPCION = `
+CARL ZEISS IOLMASTER
+Advanced Technology V. 7.7
+Target refraction 0 D
+
+OD
+AL 23.50 mm
+K1 42.10 D @ 10
+K2 43.80 D @ 100
+ACD 3.05 mm
+
+OS
+AL 23.60 mm
+K1 42.30 D @ 15
+K2 43.90 D @ 105
+ACD 3.08 mm
+WTW 11.60 mm
+
+LENTES Y CONSTANTES
+Ejemplo IOL Modelo Sintetico
+SRK/T: 118.90
+
+Transcripcion detallada
+OD
+K1: 42.10 D / 8.00 mm x 10°
+K2: 43.80 D / 7.70 mm x 100°
+Cil.: -1.70 D x 10°
+ACD opt.: 3.05 mm
+Refraccion: 0 D 0 D x 0°
+Estado: Faquico
+OS
+K1: 42.30 D / 7.95 mm x 15°
+K2: 43.90 D / 7.68 mm x 105°
+Cil.: -1.60 D x 15°
+ACD opt.: 3.08 mm
+WTW: 11.60 mm
+Refraccion: 0 D 0 D x 0°
+Estado: Faquico
+`
+
+/**
+ * ANTERION, pantalla «Cataract spheric IOL calculation OU report», con la
+ * queratometría como «SimK (flat)» / «SimK (steep)» en vez de «K1»/«K2».
+ *
+ * Caso real (25/08/2026): esta pantalla no imprime K1/K2 en ningún sitio, ni
+ * en el resumen de la primera página ni en la transcripción detallada — solo
+ * «SimK (flat)» y «SimK (steep)», al revés que el patrón «Flat K»/«Steep K»
+ * que ya se reconocía. K1 es el meridiano plano (flat) y K2 el curvo (steep):
+ * es la definición estándar de una queratometría, no una equivalencia que
+ * invente este programa.
+ */
+export const ANTERION_CON_SIMK_FLAT_STEEP = `
+HEIDELBERG ENGINEERING
+Cataract spheric IOL calculation OU report (as on screen)
+
+OD
+AL 23.97 mm
+AQD 2.40 mm
+LT 5.79 mm
+CCT 481 um
+WTW 12.47 mm
+Target refraction 0.00 D
+nk 1.3375
+
+OS
+AL 23.96 mm
+AQD 2.51 mm
+LT 5.63 mm
+CCT 480 um
+WTW 12.42 mm
+Target refraction 0.00 D
+nk 1.3375
+
+Transcripción detallada
+
+Anterior axial curvature (simulated)
+nk = 1.3375; 3 mm ring
+
+OD
+SimK mean 44.22 D
+SimK (steep) 44.37 D @ 19
+SimK (flat) 44.07 D @ 109
+
+OS
+SimK mean 44.30 D
+SimK (steep) 44.73 D @ 163
+SimK (flat) 43.88 D @ 73
+`
+
+/**
  * Pentacam. NO da longitud axial: es un topógrafo, no un biómetro.
  * Sirve para comprobar que un campo que el aparato no mide sale como
  * «no encontrado» y no como un número inventado.

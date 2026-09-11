@@ -99,7 +99,11 @@ function etiquetaOrigen(medida: Medida): string {
           // ponía el informe de lo que calculó el programa.
           origen === 'DERIVADO_DEL_INFORME'
           ? 'marca-derivado'
-          : 'marca-extraido'
+          : // Tampoco un valor por defecto se pinta como leído: no lo traía el
+            // informe, lo propuso la aplicación.
+            origen === 'POR_DEFECTO'
+            ? 'marca-defecto'
+            : 'marca-extraido'
   return `<span class="marca ${clase}">${esc(TEXTO_ORIGEN[origen as Exclude<typeof origen, 'NO_CONSTA'>])}</span>`
 }
 
@@ -642,6 +646,7 @@ const COLOR_CALCULADORA: Readonly<Record<Calculadora, string>> = {
   EVO_TORIC: '#0B5F68',
   BARRETT_TORIC: '#1B4C86',
   KANE: '#5B3B8A',
+  BARRETT_TRUE_K_TORIC: '#8A4B00',
 }
 
 /**
@@ -1144,6 +1149,7 @@ const ESTILOS = `
   .marca-derivado { background: #EFE8F8; color: #5B3B8A; }
   .marca-manual { background: var(--verde-fondo); color: var(--verde); }
   .marca-corregido { background: #FAF3E2; color: var(--ambar); }
+  .marca-defecto { background: #F2F2F2; color: #55627A; }
   tr.ausente td { color: var(--gris-claro); }
   .valor { font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace; font-weight: 600; }
   .procedencia, .evidencia, .original { font-size: 7.5pt; color: var(--gris); }

@@ -9,13 +9,14 @@
  * llama a `prepararEntradas` como todo el mundo.
  */
 
-import { readFileSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type {
   Calculadora,
   CampoBiometrico,
   Caso,
+  CirugiaRefractivaPrevia,
   Lateralidad,
   Aviso,
   ResultadoCalculadora,
@@ -25,7 +26,9 @@ import {
   casoNuevo as crearCasoNuevo,
   confirmar,
   confirmarMedida,
+  conCirugiaRefractiva,
   conOjo,
+  conRefraccionObjetivoPorDefecto,
   conResultado,
   corregirMedida,
   aportarSexo,
@@ -33,6 +36,7 @@ import {
   deducirSexoDelNombre,
   describirLente,
   elegirLente as elegirLenteDelDominio,
+  fichaDe,
   sexoDeducidoDelNombre,
   sexoDelInforme,
   formatoDeNombre,
@@ -59,7 +63,15 @@ import type { Browser } from 'playwright'
 
 import type { ArchivoEntrante, EstadoCalculo, ResumenExtraccion } from '../compartido/ipc.js'
 import type { Carpetas } from './almacen.js'
-import { guardarCaso, guardarDocumento, nuevoId, siguienteCodigo } from './almacen.js'
+import {
+  guardarCaptura,
+  guardarCaso,
+  guardarDocumento,
+  leerCaptura,
+  leerCatalogo,
+  nuevoId,
+  siguienteCodigo,
+} from './almacen.js'
 import type { Diagnosticador } from './diagnostico.js'
 
 export interface DependenciasServicio {
@@ -343,6 +355,14 @@ export class ServicioCasos {
       })
     }
 
+    // La refracción objetivo es una decisión del cirujano, no una medida del
+    // aparato: se propone 0 (emetropía) cuando ningún documento la ha traído,
+    // y queda marcada como valor por defecto para que se distinga de lo que
+    // sí ha escrito una persona.
+    for (const lado of ojosDelCaso(caso)) {
+      caso = conOjo(caso, conRefraccionObjetivoPorDefecto(ojoDe(caso, lado), this.iso()), this.iso())
+    }
+
     caso = { ...caso, estado: 'EN_REVISION', actualizadoEn: this.iso() }
     return { caso: this.establecer(caso), resumenes }
   }
@@ -376,6 +396,17 @@ export class ServicioCasos {
     const actualizado =
       valor === null ? sinMedida(ojo, campo) : corregirMedida(ojo, campo, valor, this.iso())
     return this.establecer(conOjo(caso, actualizado, this.iso()))
+  }
+
+  /**
+   * Dice si este ojo ha tenido cirugía refractiva antes, y de qué tipo. Solo
+   * EVO lo usa (su desplegable «Post LASIK/PRK/RK»). Conserva lo que hubiera
+   * antes, como cualquier dato.
+   */
+  elegirCirugiaRefractiva(lado: Lateralidad, valor: CirugiaRefractivaPrevia): Caso {
+    const caso = this.exigirCaso()
+    const ojo = ojoDe(caso, lado)
+    return this.establecer(conOjo(caso, conCirugiaRefractiva(ojo, valor, this.iso()), this.iso()))
   }
 
   /**
@@ -643,6 +674,11 @@ export class ServicioCasos {
         caso,
         tareas,
         navegador,
+        // Barrett y Kane usan, cada uno, su propia constante para la lente
+        // elegida si está en el catálogo (ver orquestador.ts). Se lee del
+        // disco en cada cálculo porque el usuario puede haberlo editado en
+        // Ajustes entre un caso y el siguiente.
+        catalogo: leerCatalogo(this.dep.carpetas),
         progreso: (evento: EventoProgreso) =>
           this.dep.emitirProgreso({
             calculadora: evento.calculadora,
@@ -658,6 +694,8 @@ export class ServicioCasos {
         },
         ahora: () => this.iso(),
         guardarDiagnostico: this.dep.diagnosticador.guardar,
+        guardarCaptura: async (calculadora, ojo, datos) =>
+          guardarCaptura(this.dep.carpetas, caso.codigo, calculadora, ojo, datos),
         cancelado: () => this.cancelar,
       })
 
@@ -678,20 +716,80 @@ export class ServicioCasos {
 
   // ── Informe ──────────────────────────────────────────────────────────────
 
+  /**
+   * Genera el informe comparativo y, junto a él en la misma carpeta, un PDF de
+   * una hoja por cada calculadora que haya terminado bien: la captura de SU
+   * propia pantalla de resultados, tal cual la enseñó.
+   *
+   * Es la prueba de que la web dijo eso, más allá de lo que el informe
+   * comparativo resume. Petición del dueño del proyecto (24/08/2026).
+   */
   async generarPdf(): Promise<{ ruta: string }> {
     const caso = this.exigirCaso()
+    // Barrett True-K Toric solo entra en la tabla del informe si se ha
+    // lanzado de verdad (D53): es para cirugía refractiva previa o
+    // queratocono, y una columna vacía en el resto de casos sería ruido.
+    const conTrueK = Object.values(caso.resultados).some(
+      (r) => r.calculadora === 'BARRETT_TRUE_K_TORIC',
+    )
     const datos = recopilarInforme(caso, {
       version: this.dep.version,
       generadoEn: this.iso(),
+      ordenColumnas: conTrueK
+        ? ['KANE', 'EVO_TORIC', 'BARRETT_TORIC', 'BARRETT_TRUE_K_TORIC']
+        : undefined,
     })
     const html = generarHtmlInforme(datos)
 
     const marca = this.iso().replace(/[:.]/g, '-').slice(0, 19)
-    const destino = join(this.dep.carpetas.informes, `${caso.codigo}_${marca}.pdf`)
+    // Si el informe traía el nombre del paciente, va en el nombre de la
+    // carpeta — decisión expresa del dueño del proyecto (25/08/2026, D46):
+    // quiere localizar sus informes por paciente en el Explorador, no solo
+    // por código de caso. No cambia las otras dos reglas de `caso.ts`: el
+    // nombre sigue sin salir hacia ninguna calculadora y sigue sin aparecer
+    // DENTRO de ningún PDF.
+    const nombrePaciente = caso.nombrePaciente ? nombreDeArchivoValido(caso.nombrePaciente) : ''
+    const carpetaCaso = join(
+      this.dep.carpetas.informes,
+      nombrePaciente ? `${caso.codigo}_${nombrePaciente}_${marca}` : `${caso.codigo}_${marca}`,
+    )
+    mkdirSync(carpetaCaso, { recursive: true })
 
+    const destino = join(carpetaCaso, 'informe-comparativo.pdf')
     // Se guarda también el HTML: si el PDF falla, el informe no se pierde.
     writeFileSync(destino.replace(/\.pdf$/, '.html'), html, 'utf8')
     await this.dep.imprimirPdf(html, destino)
-    return { ruta: destino }
+
+    // Una captura solo existe si esa calculadora terminó con SUCCESS o
+    // PARTIAL —ver evo.ts, barrett.ts y kane.ts—, así que basta con mirar si
+    // hay `capturaId`: no hace falta repetir aquí qué estados cuentan.
+    for (const resultado of Object.values(caso.resultados)) {
+      if (!resultado.capturaId) continue
+      const png = leerCaptura(this.dep.carpetas, caso.codigo, resultado.capturaId)
+      if (!png) continue
+      const nombreArchivo = nombreDeArchivoValido(
+        `${fichaDe(resultado.calculadora).nombre} - ${resultado.ojo}.pdf`,
+      )
+      const htmlCaptura = `<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0"><img src="data:image/png;base64,${Buffer.from(png).toString('base64')}" style="width:100%;display:block"></body></html>`
+      await this.dep
+        .imprimirPdf(htmlCaptura, join(carpetaCaso, nombreArchivo))
+        .catch(() => undefined) // que falle un PDF suelto no tumba el informe entero
+    }
+
+    return { ruta: carpetaCaso }
   }
+}
+
+/**
+ * Deja un texto listo para ser nombre de archivo o de carpeta en Windows.
+ *
+ * Quita los caracteres que Windows no admite, colapsa espacios y recorta —un
+ * nombre de paciente largo no debe producir una ruta inservible.
+ */
+function nombreDeArchivoValido(texto: string): string {
+  return texto
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80)
 }
