@@ -629,6 +629,22 @@ Ninguno de los tres impide usar lo demás.
   resultado real. (2) No se ha probado todavía con un caso real de un
   paciente operado de refractiva — solo con el fixture sintético del
   proyecto.
+- **D54 (11/09/2026): fallo real en Kane — el modo tórico a veces devolvía
+  «ninguna opción tórica legible» aunque Kane SÍ había calculado bien.**
+  Reportado por el dueño del proyecto («Kane no está funcionando»). La causa,
+  confirmada con el propio diagnóstico guardado (su captura de pantalla
+  mostraba la tabla tórica ya completa en el mismo fallo): Kane esconde su
+  aviso «Processing…» un instante antes de terminar de pintar la tabla
+  tórica, y el adaptador leía justo en ese hueco vacío. Corregido esperando,
+  solo en modo tórico, a una señal real de contenido (hasta 8s) antes de
+  leer. **Verificado con `pnpm live kane` contra la web real varias veces
+  seguidas, todas SUCCESS**, además de lint, typecheck y los 672 tests
+  unitarios (1 fallo preexistente y no relacionado, en un hook de git, ya
+  documentado desde D53/1.2.19). No se ha podido forzar la carrera a
+  voluntad para repetirla bajo el arreglo —es una condición de carrera
+  intermitente, no reproducible a demanda—, así que la confianza viene de
+  entender la causa exacta (confirmada con la propia captura) y de que la
+  solución usa una señal real del DOM, no un tiempo fijo inventado.
 
 ---
 

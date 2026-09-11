@@ -1050,6 +1050,37 @@ export class AdaptadorKane implements AdaptadorCalculadora {
         )
       })
 
+    // 1.5 — En modo TÓRICO, esperar además a que SU tabla tenga contenido de
+    // verdad.
+    //
+    // Fallo real, visto el 11/09/2026: el diagnóstico de un caso guardaba
+    // «Kane no ha devuelto ninguna opción tórica legible», pero la CAPTURA de
+    // pantalla de ese mismo fallo mostraba la tabla tórica ya completa con sus
+    // tres filas. O sea: Kane esconde «Processing…» un instante antes de
+    // terminar de rellenar la tabla tórica —parece que la esférica y la
+    // tórica no las pinta a la vez—, y el paso 1 de arriba no basta para esta
+    // tabla en concreto.
+    //
+    // La espera es corta y no es un reloj disfrazado: se sale en cuanto
+    // aparece una fila con paréntesis —la forma de una fila tórica de verdad,
+    // «T3 (1.50)»—, y si no llega a tiempo se sigue igual: el aviso de más
+    // abajo (paso 3) es quien decide si hay que avisar de que la web ha
+    // cambiado.
+    if (modo === 'TORICO') {
+      await pagina
+        .waitForFunction(
+          ({ indice, selectorFilas }) => {
+            const bloques = document.querySelectorAll('.res_toric')
+            const bloque = bloques[indice]
+            const filas = bloque?.querySelectorAll(selectorFilas) ?? []
+            return [...filas].some((f) => /\(/.test(f.textContent ?? ''))
+          },
+          { indice: indiceDelOjo, selectorFilas: 'table.res_tab42 tbody tr' },
+          { timeout: 8_000 },
+        )
+        .catch(() => undefined)
+    }
+
     // 2 — Leer las tablas de ESE ojo, y de paso lo que la web dice haber recibido.
     //
     // En tórico la pantalla es distinta: el bloque es `.res_toric` y en vez de una

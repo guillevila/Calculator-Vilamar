@@ -4,6 +4,55 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.2.20] — 11/09/2026
+
+Kane: arreglado el modo tórico, que a veces perdía sus propias opciones.
+
+### El aviso
+
+El dueño del proyecto reportó «Kane no está funcionando». El diagnóstico
+guardado en local del fallo real decía «Kane no ha devuelto ninguna opción
+tórica legible» — pero la CAPTURA de pantalla de ese mismo fallo mostraba la
+tabla tórica ya completa, con sus tres filas.
+
+### La causa
+
+Kane esconde su aviso «Processing…» un instante ANTES de terminar de
+rellenar la tabla tórica — parece que la tabla esférica y la tórica no las
+pinta a la vez. El adaptador esperaba solo a que «Processing…» desapareciera
+y leía justo en ese hueco: a veces la tabla tórica todavía estaba vacía.
+
+Confirmado con una sonda temporal contra la web real (rellenando en modo
+tórico y volcando el HTML de sus tablas; borrada al terminar, nunca se ha
+commiteado): la estructura del formulario y de las tablas de Kane **no ha
+cambiado** — no hacía falta `pnpm reconocer:kane`, el problema no era ahí.
+
+### La corrección
+
+En `leerResultado`, solo en modo TÓRICO, se espera (hasta 8s) a una señal
+real —una fila con la forma «T3 (1.50)», con paréntesis— antes de leer las
+tablas. No es un `waitForTimeout` a ciegas: si no llega a tiempo, se sigue
+igual y el aviso que ya existía decide si hay que avisar de que la web ha
+cambiado.
+
+### Nota de colaboración
+
+Al investigar apareció en el remoto una rama de otra persona del equipo
+(`fix/kane-espera-recaptcha-y-cilindro-toric`) con un fallo de Kane
+relacionado pero DISTINTO: una espera ANTES de pulsar «Calculate», para dar
+tiempo al reCAPTCHA invisible, que evitaba un error de potencia con LT alto.
+El dueño del proyecto pidió expresamente no tocar esa rama y resolver este
+fallo por separado, aquí. Las dos correcciones no se pisan: una espera antes
+de calcular, esta espera después, a que la tabla tórica termine de pintarse.
+
+### Verificado
+
+`pnpm live kane` contra la web real, varias veces seguidas: SUCCESS todas.
+Ver SYSTEM_VISION.md D54. lint, typecheck y 672 tests unitarios en verde (1
+fallo preexistente y no relacionado, ya documentado en 1.2.19).
+
+---
+
 ## [1.2.19] — 04/09/2026
 
 Barrett True-K Toric: cuarta calculadora, para cirugía refractiva previa.
