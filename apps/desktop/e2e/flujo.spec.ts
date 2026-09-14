@@ -648,6 +648,70 @@ test('renombrar el aparato de UN ojo no deja al OTRO mirando un dataset vacío a
 })
 
 /**
+ * Fallo real reportado por el dueño (14/09/2026): calculaba solo OD, y al
+ * volver a los datos para meter también OS no había ningún sitio por donde
+ * hacerlo — el caso entero había que empezarlo de nuevo, perdiendo lente,
+ * constante, paciente y doctor ya escritos.
+ *
+ * La causa eran dos frenos pensados para otra cosa: la pestaña de OS ni
+ * siquiera se enseñaba mientras ese ojo no tuviera datos
+ * (`PanelRevision.tsx`), y aunque se hubiera enseñado, el efecto que
+ * mantiene sincronizado `ojoActivo` con los ojos que el caso YA tiene la
+ * habría deshecho en el mismo instante (`App.tsx`). Los dos se arreglan
+ * igual que ya se arregló el mismo problema para «Añadir otro biómetro»
+ * (D65): la pestaña se enseña siempre, y el freno se apaga mientras se
+ * está en la pantalla de revisión.
+ */
+test('calcular solo OD y volver después a añadir OS, sin perder nada del caso', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByLabel('Nombre del doctor').fill('Dr. Un Ojo E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Paciente Un Ojo E2E')
+
+  await ventana.getByTestId('manual-campo-AL').fill('24.20')
+  await ventana.getByTestId('manual-campo-CONSTANTE_A').fill('119.30')
+  await ventana.getByTestId('manual-campo-CONSTANTE_A').press('Tab')
+
+  await ventana.getByTestId('manual-continuar').click()
+
+  // Solo hay datos de OD: se confirma y se llega a la pantalla de cálculo
+  // sin haber tocado OS para nada.
+  await expect(ventana.getByTestId('revision-ojo-OD')).toHaveClass(/activo/)
+  await ventana.getByTestId('confirmar').click()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
+
+  // Vuelve a los datos —como haría al querer añadir el segundo ojo— y ahora
+  // SÍ tiene que poder elegir OS, aunque todavía no tenga ningún dato.
+  await ventana.getByTestId('volver-a-revisar').click()
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('24.2')
+
+  await ventana.getByTestId('revision-ojo-OS').click()
+  await expect(ventana.getByTestId('revision-ojo-OS')).toHaveClass(/activo/)
+  // La pestaña no se deshace sola: sigue en OS, con el campo vacío listo
+  // para escribir, no con el dato de OD prestado por error.
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('')
+
+  // El paciente y el doctor ya escritos siguen ahí: no hay que repetirlos.
+  await expect(ventana.getByLabel('Nombre del doctor')).toHaveValue('Dr. Un Ojo E2E')
+  await expect(ventana.getByLabel('Nombre del paciente')).toHaveValue('Paciente Un Ojo E2E')
+
+  await ventana.getByTestId('campo-AL').fill('22.60')
+  await ventana.getByTestId('campo-AL').press('Enter')
+
+  await ventana.getByTestId('confirmar').click()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.nombreCirujano).toBe('Dr. Un Ojo E2E')
+  expect(caso?.nombrePaciente).toBe('Paciente Un Ojo E2E')
+  expect(caso?.ojos?.OD?.[0]?.medidas?.AL?.valor).toBe(24.2)
+  expect(caso?.ojos?.OD?.[0]?.medidas?.CONSTANTE_A?.valor).toBe(119.3)
+  expect(caso?.ojos?.OS?.[0]?.medidas?.AL?.valor).toBe(22.6)
+
+  await ventana.screenshot({ path: 'test-results/11f-od-solo-luego-os.png', fullPage: true })
+})
+
+/**
  * Petición expresa del dueño del proyecto (06/09/2026): una carpeta por
  * paciente, con sus dos ojos dentro, en vez de que todos los pacientes
  * compartan la misma carpeta «Ojo derecho»/«Ojo izquierdo» — con el tiempo

@@ -4,6 +4,69 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.31] — 14/09/2026
+
+fix(app): calcular solo OD y volver a los datos no dejaba añadir OS al mismo
+caso — había que empezar uno nuevo.
+
+### Qué se reportó
+
+El dueño del proyecto: metía todos los datos de un paciente solo en OD,
+calculaba, y al volver a los datos para añadir también OS no había ningún
+sitio por donde hacerlo — el caso entero había que empezarlo de nuevo,
+perdiendo la lente, la constante, el nombre del paciente y el del doctor
+ya escritos.
+
+### La causa
+
+Dos frenos, cada uno pensado para otra cosa, se sumaban:
+
+- `PanelRevision.tsx` solo enseñaba la pestaña OD/OI cuando `ojos.length > 1`
+  — es decir, cuando el caso YA tenía datos en los dos ojos. Con uno solo,
+  no había ni siquiera un botón para pasar al otro.
+- Aunque se hubiera enseñado, `App.tsx` tiene un efecto que resincroniza
+  `ojoActivo` en cuanto deja de estar entre los ojos que el caso YA tiene de
+  verdad (`ojosDelCaso(caso)`) — pensado para que la pantalla nunca se quede
+  mirando un ojo fantasma al cambiar de caso. Elegir a propósito el ojo SIN
+  datos (para empezar a escribirlos) encajaba con ese mismo patrón: el
+  efecto lo deshacía en el mismo instante, devolviendo `ojoActivo` a OD.
+
+Es el mismo problema, con la misma forma, que D65 ya resolvió para
+«Añadir otro biómetro» (un aparato que todavía no existe, dentro del mismo
+ojo) — aquí faltaba la versión para un OJO que todavía no existe.
+
+### El cambio
+
+- `PanelRevision.tsx`: las dos pestañas OD/OI se enseñan siempre, igual que
+  ya hace el cuestionario manual (`FormularioManual.tsx`) — no solo cuando
+  el caso ya tiene datos en los dos.
+- `App.tsx`: el efecto que resincroniza `ojoActivo` se apaga mientras se
+  está en la pantalla de revisión (`paso === 'REVISION'`) — mismo patrón,
+  exactamente en el mismo sitio, que la excepción que D65 ya añadió para
+  `aparatoActivo` justo al lado.
+
+Nada se pierde al hacerlo: `ojoDe(caso, ojo, aparato)` ya devolvía un ojo
+vacío listo para escribir cuando no existía ningún dataset, y el primer
+campo que se escribe lo crea solo (mismo patrón perezoso que «Añadir otro
+biómetro»). La lente, la constante ya escrita en OD, el nombre del
+paciente y el del doctor viven en el caso, no en el ojo activo — no había
+que hacer nada más para conservarlos.
+
+### Verificado
+
+Nuevo test de interfaz (`apps/desktop/e2e/flujo.spec.ts`, «calcular solo OD
+y volver después a añadir OS, sin perder nada del caso») que reproduce el
+caso real: cuestionario manual con solo OD, confirmar, llegar a la
+pantalla de cálculo, volver a los datos, pasar a OS (antes imposible),
+comprobar que el campo está vacío y no con el dato de OD, escribir su AL,
+confirmar de nuevo, y comprobar que el caso final tiene los dos ojos, con
+el nombre del paciente, el del doctor y la constante A de OD intactos.
+`pnpm lint && pnpm typecheck && pnpm test` en verde (709 tests unitarios;
+el único fallo, `block-subagent-external.test.mjs`, es previo y no
+relacionado) y `pnpm test:e2e` en verde (47 pruebas de interfaz).
+
+---
+
 ## [1.15.30] — 07/09/2026
 
 fix(report): una hoja de captura recortada podía empujar su propio pie de
