@@ -163,17 +163,33 @@ lleva allí.
 ## 5. Dónde queda todo
 
 ```
+Escritorio\Calculadora Vilamar\
+   informes\       los PDF generados, uno por ojo, cada uno en su carpeta
+                   («Ojo derecho (OD)» / «Ojo izquierdo (OS)»)
+
 %APPDATA%\calculator-vilamar\
    casos\          los cálculos, en ficheros de texto
    documentos\     copia de los informes que has subido
-   informes\       los PDF generados
    diagnostico\    qué pasó cuando algo falló
    sesion-navegador\  cookies y sesiones del navegador
 ```
 
-Para llegar: tecla Windows + R, escribe `%APPDATA%\calculator-vilamar`, Enter.
+Los PDF están en el Escritorio (D57, 01/09/2026) para poder encontrarlos sin
+buscar por carpetas escondidas — el botón **Abrir la carpeta**, tras generar
+un informe, te lleva ahí directamente. El resto de datos internos del
+programa —los que no hace falta abrir a mano— se queda donde estaba: tecla
+Windows + R, escribe `%APPDATA%\calculator-vilamar`, Enter.
 
-**Nada de eso sale de tu ordenador** y nada de eso está en el repositorio.
+⚠️ **Si tu Escritorio está sincronizado con OneDrive** (como pasa en este
+mismo ordenador, con el OneDrive de la empresa), los PDF de «Calculadora
+Vilamar» se suben ahí automáticamente, igual que cualquier otro archivo que
+pongas en el Escritorio — y esos PDF llevan el nombre real del paciente
+(D44). Es una decisión tomada informado, no un descuido: si prefieres que
+no se suban a ninguna nube, dile a Claude que mueva `informes` a otra
+carpeta fuera de OneDrive.
+
+**Nada de lo que hay en `%APPDATA%\calculator-vilamar\`** sale de tu
+ordenador, y nada de lo de esta sección está en el repositorio.
 
 ---
 
