@@ -19,11 +19,10 @@
 
 import type { CampoBiometrico } from './campos.js'
 import type { Caso, LenteElegida } from './caso.js'
-import { ojosDelCaso, ojoDe } from './caso.js'
+import { conOjo, ojosDelCaso, ojoDe } from './caso.js'
 import type { Lateralidad } from './lateralidad.js'
 import type { Emparejamiento, LenteDetectada } from './lente.js'
 import { describirLente, emparejarLente } from './lente.js'
-import type { OjoBiometrico } from './medida.js'
 import { conMedida, crearMedida, obtener, sinMedida } from './medida.js'
 import type { Procedencia } from './procedencia.js'
 import { esManual } from './procedencia.js'
@@ -32,6 +31,27 @@ import { esManual } from './procedencia.js'
 export interface EleccionLente {
   readonly fabricante?: string
   readonly modelo: string
+  /**
+   * Cómo se llama esta misma lente en el desplegable de EVO/Kane, cuando
+   * difiere del nombre general (petición expresa del dueño, 27/08/2026).
+   * Ver `LenteElegida` en `caso.ts`.
+   */
+  readonly nombreEnEvo?: string
+  readonly nombreEnKane?: string
+  /**
+   * Constante A oficial de esta lente, del catálogo propio de la app —no
+   * del informe de este paciente— (D69, 05/09/2026, petición expresa del
+   * dueño del proyecto: Barrett no tiene desplegable de lentes, así que
+   * nunca resuelve su propia constante como sí hacen EVO y Kane en su
+   * propia web).
+   *
+   * **Tiene prioridad sobre la constante de la tabla de lentes del propio
+   * informe**, si la hubiera: el dueño del proyecto confirmó que esa tabla
+   * viene equivocada con frecuencia, y que estos valores sí son los
+   * oficiales del fabricante. Lo único que respeta por encima es una
+   * constante que haya escrito una persona — esa nunca se pisa.
+   */
+  readonly constanteConocida?: number
 }
 
 export interface ResultadoSeleccion {
@@ -45,17 +65,28 @@ export interface ResultadoSeleccion {
 /**
  * Elige la lente del caso y resuelve su constante A.
  *
- * Los cuatro caminos posibles:
+ * Los cinco caminos posibles:
  *
- * | Situación                                        | Qué hace con la constante              |
- * | ------------------------------------------------ | -------------------------------------- |
- * | La lente está en el informe y trae constante     | La escribe, como DEL_INFORME           |
- * | La lente está pero sin constante                 | Deja el hueco. Lo dice                 |
- * | La lente NO está en el informe                   | **Quita** la de la lente anterior      |
- * | Varias lentes del informe encajan                | No elige ninguna. Pide revisión        |
+ * | Situación                                          | Qué hace con la constante            |
+ * | --------------------------------------------------- | ------------------------------------ |
+ * | Hay una constante conocida del catálogo (D69)       | **Esa manda**, sea cual sea el informe |
+ * | Si no, la lente está en el informe y trae constante | La escribe, como DEL_INFORME         |
+ * | La lente está pero sin constante                    | Deja el hueco. Lo dice               |
+ * | La lente NO está en el informe                      | **Quita** la de la lente anterior    |
+ * | Varias lentes del informe encajan                   | No elige ninguna. Pide revisión      |
  *
- * En los tres últimos casos, si la constante que hay la escribió una persona,
- * **no se toca**: se avisa de que quizá ya no corresponde y decide ella.
+ * **La constante conocida del catálogo va PRIMERO, por delante de la del
+ * informe** (D69, corregido 05/09/2026, petición expresa del dueño del
+ * proyecto): la tabla de lentes que imprime un informe viene equivocada con
+ * frecuencia, y estas son las constantes oficiales del fabricante — las
+ * mismas que usan los propios desplegables de EVO y Kane en su propia web.
+ * Confiar en el número que trae el papel por encima del valor ya verificado
+ * sería justo al revés de lo que hace falta.
+ *
+ * En los demás casos, si la constante que hay la escribió una persona,
+ * **no se toca nunca**: se avisa de que quizá ya no corresponde y decide
+ * ella. Eso no cambia con D69 — una persona mirando el caso siempre pesa
+ * más que cualquier catálogo.
  */
 export function elegirLente(
   caso: Caso,
@@ -69,6 +100,28 @@ export function elegirLente(
   const base: LenteElegida = {
     fabricante: eleccion.fabricante === '' ? undefined : eleccion.fabricante,
     modelo: eleccion.modelo,
+    ...(eleccion.nombreEnEvo ? { nombreEnEvo: eleccion.nombreEnEvo } : {}),
+    ...(eleccion.nombreEnKane ? { nombreEnKane: eleccion.nombreEnKane } : {}),
+    ...(eleccion.constanteConocida !== undefined
+      ? { constanteConocida: eleccion.constanteConocida }
+      : {}),
+  }
+
+  const constanteConocida = eleccion.constanteConocida
+  if (constanteConocida !== undefined) {
+    const sinTabla = quitarSiEraDeLaTabla(caso, base, cuando, avisos)
+    return {
+      ...aplicarConstanteDelCatalogo(
+        sinTabla.caso,
+        base,
+        eleccion.modelo,
+        constanteConocida,
+        cuando,
+        avisos,
+      ),
+      avisos,
+      emparejamiento,
+    }
   }
 
   if (emparejamiento.estado === 'AMBIGUA') {
@@ -83,6 +136,9 @@ export function elegirLente(
   }
 
   if (emparejamiento.estado === 'NO_ESTA') {
+    // Si hubiera una constante conocida del catálogo para esta lente, ya se
+    // habría aplicado más arriba, antes de llegar aquí — este camino es
+    // solo para lentes sin ninguna de las dos.
     if (lentes.length > 0) {
       avisos.push(
         `«${eleccion.modelo}» no aparece en el informe, así que no se le ha puesto ninguna constante A. ` +
@@ -116,7 +172,7 @@ export function elegirLente(
       continue
     }
 
-    resultado = conOjoDelCaso(
+    resultado = conOjo(
       resultado,
       conMedida(
         ojo,
@@ -152,15 +208,19 @@ export function elegirLente(
 }
 
 /**
- * Quita la constante A si —y solo si— era la de la lente anterior.
+ * Quita la constante A si —y solo si— era la de la lente anterior, venga de
+ * la tabla de lentes del informe o del catálogo propio de la app (D69). Solo
+ * uno de los dos marcadores puede estar puesto a la vez —cada llamada a
+ * `elegirLente` reconstruye `lente` entero, nunca los conserva juntos—, así
+ * que comprobar los dos no los confunde.
  *
- * Es la regla 2 y la 3 juntas, y la razón de que `constanteDeLaTabla` exista. Hay
- * tres orígenes posibles para la constante que hay puesta y cada uno merece un
- * trato distinto:
+ * Es la regla 2 y la 3 juntas. Hay tres orígenes posibles para la constante
+ * que hay puesta y cada uno merece un trato distinto:
  *
- *  - **De la tabla de lentes de la lente que se acaba de descartar** → sobra. Si
- *    se quedara, el caso calcularía con la constante de una lente que no se va a
- *    implantar, y el número resultante sería perfectamente creíble.
+ *  - **De la tabla de lentes o del catálogo, de la lente que se acaba de
+ *    descartar** → sobra. Si se quedara, el caso calcularía con la
+ *    constante de una lente que no se va a implantar, y el número
+ *    resultante sería perfectamente creíble.
  *  - **De una línea suelta del informe** («A constant: 119.1»), que no pertenece a
  *    ningún modelo concreto → se respeta. Es un dato del informe.
  *  - **Escrita por una persona** → se respeta, y se dice que quizá ya no vale.
@@ -171,32 +231,151 @@ function quitarSiEraDeLaTabla(
   cuando: string,
   avisos: string[],
 ): { readonly caso: Caso } {
-  const anterior = caso.lente?.constanteDeLaTabla
   let resultado = caso
 
-  if (anterior !== undefined) {
+  const anteriorTabla = caso.lente?.constanteDeLaTabla
+  if (anteriorTabla !== undefined) {
     let quitada = false
     for (const lado of ojosDelCaso(caso)) {
       const ojo = ojoDe(resultado, lado)
       const actual = obtener(ojo, 'CONSTANTE_A')
       // Solo se quita si sigue siendo exactamente la que puso la tabla. Si alguien
       // la ha cambiado por su cuenta, ya no es «la de la lente anterior».
-      if (actual === undefined || esManual(actual.procedencia) || actual.valor !== anterior.valor) {
+      if (
+        actual === undefined ||
+        esManual(actual.procedencia) ||
+        actual.valor !== anteriorTabla.valor
+      ) {
         continue
       }
-      resultado = conOjoDelCaso(resultado, sinMedida(ojo, 'CONSTANTE_A'), cuando)
+      resultado = conOjo(resultado, sinMedida(ojo, 'CONSTANTE_A'), cuando)
       quitada = true
     }
     if (quitada) {
       avisos.push(
-        `Se ha quitado la constante A ${anterior.valor.toFixed(2)}, que era la de «${anterior.modelo}». ` +
-          'Una constante no se hereda de una lente a otra.',
+        `Se ha quitado la constante A ${anteriorTabla.valor.toFixed(2)}, que era la de ` +
+          `«${anteriorTabla.modelo}». Una constante no se hereda de una lente a otra.`,
+      )
+    }
+  }
+
+  const anteriorCatalogo = caso.lente?.constanteDelCatalogo
+  if (anteriorCatalogo !== undefined) {
+    let quitada = false
+    for (const lado of ojosDelCaso(resultado)) {
+      const ojo = ojoDe(resultado, lado)
+      const actual = obtener(ojo, 'CONSTANTE_A')
+      if (
+        actual === undefined ||
+        esManual(actual.procedencia) ||
+        actual.valor !== anteriorCatalogo.valor
+      ) {
+        continue
+      }
+      resultado = conOjo(resultado, sinMedida(ojo, 'CONSTANTE_A'), cuando)
+      quitada = true
+    }
+    if (quitada) {
+      avisos.push(
+        `Se ha quitado la constante A ${anteriorCatalogo.valor.toFixed(2)}, que era la del ` +
+          `catálogo para «${anteriorCatalogo.modelo}». Una constante no se hereda de una lente a otra.`,
       )
     }
   }
 
   return {
     caso: { ...resultado, lente, actualizadoEn: cuando },
+  }
+}
+
+/**
+ * Aplica la constante A del catálogo propio de la app (D69, corregida
+ * 05/09/2026, petición expresa del dueño del proyecto). Barrett no tiene
+ * desplegable de lentes: a diferencia de EVO y Kane, que resuelven su
+ * propia constante en su propia web, nunca tenía forma de recibir una sin
+ * escribirla a mano cada vez.
+ *
+ * **Va por delante de la constante de la tabla del informe, no solo de
+ * respaldo.** El dueño del proyecto confirmó que la tabla de lentes que
+ * imprimen algunos informes viene equivocada con frecuencia, y que estas
+ * constantes SÍ son las oficiales del fabricante — las mismas que usan los
+ * propios desplegables de EVO y Kane. Por eso se escriben con procedencia
+ * `CATALOGO`, no `DERIVADO`: no son una cuenta sobre datos de este
+ * paciente que nadie ha visto, son un dato de catálogo ya verificado, así
+ * que no piden comprobación humana ni bloquean nada — se rellenan
+ * directamente, igual que si las hubiera escrito una persona.
+ *
+ * Sigue teniendo las dos protecciones de siempre: nunca pisa lo que ha
+ * escrito una persona, y se quita sola al cambiar a otra lente —del
+ * catálogo o no—, para no arrastrarla de una a otra.
+ */
+function aplicarConstanteDelCatalogo(
+  caso: Caso,
+  base: LenteElegida,
+  modelo: string,
+  constanteConocida: number,
+  cuando: string,
+  avisos: string[],
+): { readonly caso: Caso } {
+  // La lente anterior —de la tabla del informe o del catálogo— ya se ha
+  // quitado con `quitarSiEraDeLaTabla` antes de llegar aquí: esta función
+  // solo aplica la nueva.
+  let resultado = caso
+
+  const conflictos: Lateralidad[] = []
+  for (const lado of ojosDelCaso(resultado)) {
+    const ojo = ojoDe(resultado, lado)
+    const actual = obtener(ojo, 'CONSTANTE_A')
+
+    if (actual !== undefined && esManual(actual.procedencia)) {
+      conflictos.push(lado)
+      continue
+    }
+
+    resultado = conOjo(
+      resultado,
+      conMedida(
+        ojo,
+        crearMedida(
+          'CONSTANTE_A',
+          lado,
+          constanteConocida,
+          { metodo: 'CATALOGO', registradoEn: cuando },
+          // Ya verificada — no hace falta que nadie la confirme casilla a
+          // casilla, igual que un dato escrito a mano.
+          true,
+        ),
+      ),
+      cuando,
+    )
+  }
+
+  if (conflictos.length > 0) {
+    avisos.push(
+      `La constante A que hay la escribiste tú, así que no se ha cambiado. El catálogo da ` +
+        `${constanteConocida.toFixed(2)} para «${modelo}»: si quieres esa, bórrala y vuelve a elegir la lente.`,
+    )
+  } else {
+    avisos.push(
+      `Constante A ${constanteConocida.toFixed(2)} del catálogo para «${modelo}» — la oficial del ` +
+        'fabricante, la misma que usan EVO y Kane en su propio desplegable. Tiene prioridad sobre la ' +
+        'tabla de lentes del informe, si la hubiera.',
+    )
+  }
+
+  if (ojosDelCaso(resultado).length === 0) {
+    avisos.push(
+      `Todavía no hay datos de ningún ojo, así que la constante A de «${modelo}» ` +
+        `(${constanteConocida.toFixed(2)}) se aplicará cuando los haya.`,
+    )
+  }
+
+  return {
+    caso: {
+      ...resultado,
+      lente: { ...base, constanteDelCatalogo: { modelo, valor: constanteConocida } },
+      actualizadoEn: cuando,
+    },
   }
 }
 
@@ -212,11 +391,6 @@ function procedenciaDeLaTabla(lente: LenteDetectada, cuando: string): Procedenci
   return { ...lente.procedencia, registradoEn: cuando }
 }
 
-/** `conOjo` de `caso.ts`, repetido aquí para no crear un ciclo de importaciones. */
-function conOjoDelCaso(caso: Caso, ojo: OjoBiometrico, cuando: string): Caso {
-  return { ...caso, ojos: { ...caso.ojos, [ojo.lateralidad]: ojo }, actualizadoEn: cuando }
-}
-
 /**
  * Qué campos de un ojo dependen de la lente elegida.
  *
@@ -225,3 +399,85 @@ function conOjoDelCaso(caso: Caso, ojo: OjoBiometrico, cuando: string): Caso {
  * deduce de aquí.
  */
 export const CAMPOS_DE_LA_LENTE: readonly CampoBiometrico[] = ['CONSTANTE_A']
+
+/**
+ * Aparca una segunda lente candidata, sin tocar el cálculo — petición
+ * expresa del dueño del proyecto (01/09/2026): poder comparar dos lentes
+ * con la misma biometría sin escribir los datos dos veces.
+ *
+ * A propósito NO aplica ninguna de las cuatro reglas de `elegirLente`
+ * (constante A, avisos, emparejamiento): mientras está aquí aparcada, esta
+ * lente no participa en ningún cálculo, así que no hay nada suyo que
+ * resolver todavía. Eso ocurre solo al activarla con `intercambiarLentes`.
+ */
+export function elegirLenteSecundaria(
+  caso: Caso,
+  eleccion: EleccionLente | undefined,
+  cuando: string,
+): Caso {
+  if (eleccion === undefined) {
+    const { lenteSecundaria: _borrada, ...resto } = caso
+    return { ...resto, actualizadoEn: cuando }
+  }
+  const lenteSecundaria: LenteElegida = {
+    fabricante: eleccion.fabricante === '' ? undefined : eleccion.fabricante,
+    modelo: eleccion.modelo,
+    ...(eleccion.nombreEnEvo ? { nombreEnEvo: eleccion.nombreEnEvo } : {}),
+    ...(eleccion.nombreEnKane ? { nombreEnKane: eleccion.nombreEnKane } : {}),
+    ...(eleccion.constanteConocida !== undefined
+      ? { constanteConocida: eleccion.constanteConocida }
+      : {}),
+  }
+  return { ...caso, lenteSecundaria, actualizadoEn: cuando }
+}
+
+/**
+ * Activa la lente aparcada: pasa a ser `lente` —con su propia constante A,
+ * resuelta con las mismas cuatro reglas de `elegirLente`— y la que era
+ * `lente` pasa a `lenteSecundaria`, lista para volver a intercambiarse.
+ *
+ * **Los resultados ya calculados se borran.** Son del cálculo anterior, con
+ * la lente anterior —y con Barrett, con SU constante A—; conservarlos
+ * enseñaría un informe que dice hablar de una lente pero calculó con otra.
+ * Nunca se adivina cuál seguiría siendo válida: se avisa con un caso vacío
+ * y se recalcula. El caso vuelve a `CONFIRMADO`: los datos de biometría
+ * siguen revisados, pero hace falta un cálculo nuevo antes de tener nada
+ * que enseñar.
+ *
+ * Sin lente aparcada no hay nada que intercambiar: se devuelve el caso tal
+ * cual, sin avisos.
+ */
+export function intercambiarLentes(caso: Caso, cuando: string): ResultadoSeleccion {
+  // El segundo caso (sin `modelo`) no debería darse nunca en la práctica:
+  // `elegirLenteSecundaria` siempre lo exige. Se comprueba igual porque
+  // `LenteElegida.modelo` es opcional en el tipo, y esta función no puede
+  // fabricar un modelo que no está.
+  const modelo = caso.lenteSecundaria?.modelo
+  if (caso.lenteSecundaria === undefined || modelo === undefined) {
+    return { caso, avisos: [], emparejamiento: { estado: 'NO_ESTA' } }
+  }
+  const lenteSecundaria = caso.lenteSecundaria
+  const resultado = elegirLente(
+    caso,
+    {
+      fabricante: lenteSecundaria.fabricante,
+      modelo,
+      ...(lenteSecundaria.nombreEnEvo ? { nombreEnEvo: lenteSecundaria.nombreEnEvo } : {}),
+      ...(lenteSecundaria.nombreEnKane ? { nombreEnKane: lenteSecundaria.nombreEnKane } : {}),
+      ...(lenteSecundaria.constanteConocida !== undefined
+        ? { constanteConocida: lenteSecundaria.constanteConocida }
+        : {}),
+    },
+    cuando,
+  )
+  return {
+    ...resultado,
+    caso: {
+      ...resultado.caso,
+      lenteSecundaria: caso.lente,
+      resultados: {},
+      estado: caso.estado === 'COMPLETADO' ? 'CONFIRMADO' : caso.estado,
+      actualizadoEn: cuando,
+    },
+  }
+}

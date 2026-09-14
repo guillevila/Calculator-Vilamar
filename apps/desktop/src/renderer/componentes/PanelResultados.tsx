@@ -1,8 +1,13 @@
 /**
- * PanelResultados.tsx — Los tres resultados, juntos.
+ * PanelResultados.tsx — Los resultados, juntos.
  *
- * La tabla comparativa y las observaciones. Las observaciones son descriptivas:
- * dicen en qué coinciden y en qué no. No dicen qué implantar, y no lo dirán.
+ * La tabla comparativa y las observaciones. Las columnas son las cinco
+ * casillas de siempre — EVO y Barrett, cada una con su Predicted y su
+ * Measured PCA (D45/D48), y Kane — ver `COLUMNAS_COMPARATIVA`. La que no se
+ * haya pedido para este ojo sale como «no calculada», no desaparece.
+ *
+ * Las observaciones son descriptivas: dicen en qué coinciden y en qué no. No
+ * dicen qué implantar, y no lo dirán.
  */
 
 import { useState } from 'react'
@@ -16,8 +21,10 @@ import type {
   Lateralidad,
 } from '@vilamar/domain'
 import {
-  CALCULADORAS,
+  aparatosDe,
+  COLUMNAS_COMPARATIVA,
   compararOjo,
+  fichaDe,
   nombreLateralidad,
   ojosDelCaso,
   resultadoDe,
@@ -31,6 +38,9 @@ interface Props {
   readonly caso: Caso
   readonly ojoActivo: Lateralidad
   readonly onCambiarOjo: (ojo: Lateralidad) => void
+  /** Con qué aparato/biómetro de `ojoActivo` se inspecciona el detalle (D47). */
+  readonly aparatoActivo: string
+  readonly onCambiarAparato: (aparato: string) => void
   readonly onReintentar: (calculadora: Calculadora) => void
   readonly onVolverARevisar: () => void
   /** Lo que está pasando ahora mismo, para no decir «no se ha lanzado» de algo que sí. */
@@ -202,32 +212,37 @@ export function PanelResultados({
   caso,
   ojoActivo,
   onCambiarOjo,
+  aparatoActivo,
+  onCambiarAparato,
   onReintentar,
   onVolverARevisar,
   estados = [],
 }: Props): JSX.Element {
   const ojos = ojosDelCaso(caso)
-  const [pdf, setPdf] = useState<string | null>(null)
+  const aparatos = aparatosDe(caso, ojoActivo)
+  // Un PDF por ojo (D47, 27/08/2026) — antes era uno solo por caso.
+  const [rutas, setRutas] = useState<readonly { ojo: Lateralidad; ruta: string }[]>([])
   const [generando, setGenerando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Las cinco casillas de siempre (D45/D48): Predicted y Measured PCA de EVO
+  // y de Barrett, más Kane — la que no se haya pedido para este ojo y
+  // aparato sale como «no calculada» en su columna, no desaparece. El PDF
+  // final (generar()) siempre junta TODOS los aparatos del ojo (decisión 3,
+  // D47) — este detalle en pantalla es solo para inspeccionar uno a la vez.
   const resultados: Partial<Record<Calculadora, ReturnType<typeof resultadoDe>>> = {}
-  for (const c of CALCULADORAS) {
-    const r = resultadoDe(caso, c, ojoActivo)
+  for (const c of COLUMNAS_COMPARATIVA) {
+    const r = resultadoDe(caso, c, ojoActivo, aparatoActivo)
     if (r) resultados[c] = r
   }
-  const comparativa = compararOjo(ojoActivo, resultados as never, [
-    'KANE',
-    'EVO_TORIC',
-    'BARRETT_TORIC',
-  ])
+  const comparativa = compararOjo(ojoActivo, resultados as never, COLUMNAS_COMPARATIVA)
 
   async function generar(): Promise<void> {
     setGenerando(true)
     setError(null)
     try {
       const r = await api().generarPdf()
-      setPdf(r.ruta)
+      setRutas(r.rutas)
     } catch (e) {
       setError(
         `No se ha podido generar el PDF. ${e instanceof Error ? e.message : String(e)} ` +
@@ -256,8 +271,27 @@ export function PanelResultados({
         </div>
       )}
 
+      {aparatos.length > 1 && (
+        <div className="fila" style={{ marginBottom: 14 }}>
+          <div className="selector-ojo">
+            {aparatos.map((a) => (
+              <button
+                key={a}
+                className={a === aparatoActivo ? 'activo' : ''}
+                onClick={() => onCambiarAparato(a)}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="tarjeta">
-        <h2>Comparación · {nombreLateralidad(ojoActivo)}</h2>
+        <h2>
+          Comparación · {nombreLateralidad(ojoActivo)}
+          {aparatos.length > 1 ? ` — ${aparatoActivo}` : ''}
+        </h2>
         <table className="comparativa" data-testid="tabla-comparativa">
           <thead>
             <tr>
@@ -390,13 +424,12 @@ export function PanelResultados({
         <h2>Reintentar una sola</h2>
         <p className="sub">Si alguna falló, puedes lanzarla otra vez sin perder las demás.</p>
         <div className="fila">
-          {CALCULADORAS.map((c) => {
+          {COLUMNAS_COMPARATIVA.map((c) => {
             const r = resultadoDe(caso, c, ojoActivo)
             const fallo = !r || (r.estado !== 'SUCCESS' && r.estado !== 'PARTIAL')
             return (
               <button key={c} onClick={() => onReintentar(c)} disabled={!fallo && r !== undefined}>
-                {fallo ? 'Reintentar' : 'Repetir'}{' '}
-                {c === 'EVO_TORIC' ? 'EVO' : c === 'BARRETT_TORIC' ? 'Barrett' : 'Kane'}
+                {fallo ? 'Reintentar' : 'Repetir'} {fichaDe(c).nombre}
               </button>
             )
           })}
@@ -407,17 +440,23 @@ export function PanelResultados({
       <div className="tarjeta">
         <h2>Informe</h2>
         <p className="sub">
-          Un PDF con los datos confirmados, de dónde salió cada uno, los tres resultados y las
-          diferencias entre ellos.
+          Un PDF por ojo, con los datos confirmados, de dónde salió cada uno, los resultados de
+          cada calculadora (y de cada aparato, si el ojo tiene más de uno) y las diferencias entre
+          ellos.
         </p>
         {error && <div className="aviso error">{error}</div>}
-        {pdf && (
+        {rutas.length > 0 && (
           <div className="aviso exito">
-            <strong>Informe generado.</strong> Está en <code>{pdf}</code>
+            <strong>{rutas.length === 1 ? 'Informe generado.' : 'Informes generados.'}</strong>
+            {rutas.map((r) => (
+              <div key={r.ojo}>
+                {nombreLateralidad(r.ojo)}: <code>{r.ruta}</code>
+              </div>
+            ))}
           </div>
         )}
         <div className="fila derecha">
-          {pdf && (
+          {rutas.length > 0 && (
             <button onClick={() => void api().abrirCarpetaInformes()}>Abrir la carpeta</button>
           )}
           <button
