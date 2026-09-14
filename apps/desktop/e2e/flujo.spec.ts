@@ -1234,6 +1234,58 @@ test('la constante A escrita en un ojo se copia sola al otro, sin pisar la que y
 })
 
 /**
+ * Petición expresa del dueño del proyecto (15/09/2026), tras usar el
+ * arreglo de D75 para añadir el segundo ojo a un caso ya calculado: que el
+ * SIA, su eje y el objetivo de refracción también se rellenen solos en el
+ * segundo ojo, igual que ya hace la constante A (D66) — suelen ser los
+ * mismos en los dos ojos de la misma visita. La lente ya era del caso
+ * entero, no de cada ojo (D33), así que esa parte no necesitaba ningún
+ * cambio.
+ */
+test('el SIA, su eje y el objetivo de refracción se heredan solos del otro ojo al crear el segundo dataset', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  // OD: un dato de biometría y los tres campos, con valores DISTINTOS de
+  // los que arrancan por defecto (D38: 0.25 / 135 / 0) para poder
+  // distinguir «heredado de OD» de «el valor de partida de siempre».
+  await ventana.getByTestId('manual-campo-AL').fill('24.00')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-campo-SIA').fill('0.40')
+  await ventana.getByTestId('manual-campo-SIA').press('Tab')
+  await ventana.getByTestId('manual-campo-EJE_INCISION').fill('90')
+  await ventana.getByTestId('manual-campo-EJE_INCISION').press('Tab')
+  await ventana.getByTestId('manual-campo-REFRACCION_OBJETIVO').fill('-0.50')
+  await ventana.getByTestId('manual-campo-REFRACCION_OBJETIVO').press('Tab')
+
+  // OS todavía no tiene ningún dataset: sus campos muestran el valor de
+  // partida de siempre (D38), no el de OD — no hay nada que heredar hasta
+  // que se escriba el primer dato.
+  await ventana.getByTestId('manual-ojo-OS').click()
+  await expect(ventana.getByTestId('manual-campo-SIA')).toHaveValue('0.25')
+  await expect(ventana.getByTestId('manual-campo-EJE_INCISION')).toHaveValue('135')
+  await expect(ventana.getByTestId('manual-campo-REFRACCION_OBJETIVO')).toHaveValue('0')
+
+  // En cuanto OS tiene su primer dato, hereda los tres de OD solos.
+  await ventana.getByTestId('manual-campo-AL').fill('24.30')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await expect(ventana.getByTestId('manual-campo-SIA')).toHaveValue('0.4')
+  await expect(ventana.getByTestId('manual-campo-EJE_INCISION')).toHaveValue('90')
+  await expect(ventana.getByTestId('manual-campo-REFRACCION_OBJETIVO')).toHaveValue('-0.5')
+
+  // Si la persona cambia el SIA a propósito en OS, esa es la que se queda
+  // — y la de OD, escrita antes, no se toca.
+  await ventana.getByTestId('manual-campo-SIA').fill('0.30')
+  await ventana.getByTestId('manual-campo-SIA').press('Tab')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.medidas?.SIA?.valor).toBe(0.4)
+  expect(caso?.ojos?.OS?.[0]?.medidas?.SIA?.valor).toBe(0.3)
+  expect(caso?.ojos?.OS?.[0]?.medidas?.EJE_INCISION?.valor).toBe(90)
+  expect(caso?.ojos?.OS?.[0]?.medidas?.REFRACCION_OBJETIVO?.valor).toBe(-0.5)
+})
+
+/**
  * Fallo real reportado por el dueño del proyecto (05/09/2026): eligió la
  * lente ANTES de escribir ningún dato del ojo, y la constante A del
  * catálogo (D69) se quedaba sin aplicar — `elegirLente()` solo puede

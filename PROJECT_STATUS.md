@@ -9,7 +9,19 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 14/09/2026 · **Calcular solo OD y volver después
+**Última actualización:** 15/09/2026 · **El SIA, su eje y el objetivo de
+refracción se heredan solos del otro ojo, igual que la constante A (D66,
+amplía D75) (D77).** El dueño probó D75 (añadir OS a un caso que ya tenía
+solo OD) y pidió que, al escribir los datos del segundo ojo, se rellenaran
+solos estos tres campos y la lente del primero. La lente ya era del caso
+entero (D33) — nada que hacer ahí. Los otros tres, hasta ahora exclusivos
+de cada ojo, se heredan ahora del otro en el mismo momento en que se crea
+el dataset — mismo patrón exacto que D66 ya usaba para la constante A.
+`pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+en verde (709 tests unitarios; el único fallo,
+`block-subagent-external.test.mjs`, es previo y no relacionado).
+
+Antes de esto — **14/09/2026: calcular solo OD y volver después
 a añadir OS al mismo caso, sin perder nada (D75).** El dueño reportó que,
 tras calcular solo OD, volver a los datos para meter también OS no dejaba
 hacerlo —había que empezar un caso nuevo, perdiendo lente, constante,

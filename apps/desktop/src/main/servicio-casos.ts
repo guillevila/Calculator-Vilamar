@@ -557,6 +557,34 @@ export class ServicioCasos {
       }
     }
 
+    // El SIA, su eje de incisión y el objetivo de refracción también suelen
+    // ser los mismos en los dos ojos de la misma visita (petición expresa
+    // del dueño del proyecto, 15/09/2026) — se heredan del otro ojo igual
+    // que la constante A (caso 2 de arriba): SOLO en el momento de crear el
+    // dataset nuevo, nunca en ediciones posteriores, y nunca pisando el
+    // campo que la persona acaba de escribir con este mismo `editarMedida`
+    // (si ese campo es uno de los tres, ya lleva el valor recién tecleado).
+    // La lente ya es del caso entero, no de cada ojo (D33), así que no hace
+    // falta copiarla aquí — «Lente» de la revisión ya la comparten los dos.
+    if (!yaExistiaElDataset && valor !== null) {
+      const CAMPOS_HEREDABLES_DEL_OTRO_OJO: readonly CampoBiometrico[] = [
+        'SIA',
+        'EJE_INCISION',
+        'REFRACCION_OBJETIVO',
+      ]
+      const otroOjoParaHeredar = ojoDe(conElOjo, otroLado, aparato)
+      for (const campoHeredable of CAMPOS_HEREDABLES_DEL_OTRO_OJO) {
+        if (campoHeredable === campo) continue
+        const delOtro = otroOjoParaHeredar.medidas[campoHeredable]
+        if (delOtro === undefined) continue
+        conElOjo = conOjo(
+          conElOjo,
+          corregirMedida(ojoDe(conElOjo, lado, aparato), campoHeredable, delOtro.valor, this.iso()),
+          this.iso(),
+        )
+      }
+    }
+
     // Un reconocimiento de discrepancia viejo no puede tapar una discrepancia
     // nueva: cualquier edición de un ojo lo borra, y hace falta volver a
     // comprobar (D47).
