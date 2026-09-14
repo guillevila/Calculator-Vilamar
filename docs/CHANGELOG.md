@@ -4,6 +4,59 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.33] — 15/09/2026
+
+feat(app): el SIA, su eje y el objetivo de refracción se heredan solos del
+otro ojo, igual que la constante A (D66, amplía D75).
+
+### Qué se pidió
+
+El dueño del proyecto, tras probar el arreglo de D75 (añadir OS a un caso
+que ya tenía solo OD): al escribir los datos del segundo ojo, quería que
+se rellenaran solos el SIA, su eje de incisión, el objetivo de refracción
+y la lente del primer ojo ya metido — para no tener que repetirlos.
+
+### Qué hacía falta, y qué no
+
+- **La lente ya era del caso entero, no de cada ojo** (D33: un único
+  selector de lente compartido por los dos ojos) — nada que construir
+  ahí, ya se comparte sola.
+- **El SIA, su eje y el objetivo SÍ eran, hasta ahora, campos
+  exclusivamente por ojo**, sin ningún mecanismo que los copiara — a
+  diferencia de la constante A, que D66 (02/09/2026) ya hace heredar sola
+  entre los dos ojos.
+
+### El cambio
+
+`ServicioCasos.editarMedida()` gana un bloque nuevo, independiente del ya
+existente para la constante A: al escribir el PRIMER dato de un dataset
+que se acaba de crear, si el otro ojo ya tiene, en el mismo aparato,
+SIA / EJE_INCISION / REFRACCION_OBJETIVO, se copian ahí — mismo patrón
+exacto que D66 ya usaba para la constante (caso 2: solo al crear el
+dataset, nunca en ediciones posteriores, y nunca pisando el campo que la
+persona acaba de escribir a mano en ese mismo instante). Si el campo que
+se acaba de escribir es uno de los tres, ese no se toca — ya lleva el
+valor recién tecleado.
+
+No interfiere con el valor de partida de D38 (0.25 D @ 135° / 0, cuando
+ningún ojo tiene nada todavía): la «red de seguridad» de
+`FormularioManual.tsx` solo rellena un campo si sigue sin valor al pulsar
+«Continuar» — si ya se heredó del otro ojo, no hay hueco que rellenar.
+
+### Verificado
+
+Nuevo test de interfaz (`flujo.spec.ts`, «el SIA, su eje y el objetivo de
+refracción se heredan solos del otro ojo al crear el segundo dataset»),
+con valores DISTINTOS de los que arrancan por defecto para poder
+distinguir «heredado de verdad» de «el valor de partida de siempre» —
+confirmado fallando sin el arreglo, pasando con él. Comprueba también que
+cambiar el SIA a propósito en el segundo ojo se respeta, sin tocar el del
+primero. `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm
+test:e2e` en verde (709 tests unitarios; el único fallo,
+`block-subagent-external.test.mjs`, es previo y no relacionado).
+
+---
+
 ## [1.15.31] — 14/09/2026
 
 fix(app): calcular solo OD y volver a los datos no dejaba añadir OS al mismo

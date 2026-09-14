@@ -9,7 +9,19 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 14/09/2026 · **Calcular solo OD y volver después
+**Última actualización:** 15/09/2026 · **El SIA, su eje y el objetivo de
+refracción se heredan solos del otro ojo, igual que la constante A (D66,
+amplía D75) (D77).** El dueño probó D75 (añadir OS a un caso que ya tenía
+solo OD) y pidió que, al escribir los datos del segundo ojo, se rellenaran
+solos estos tres campos y la lente del primero. La lente ya era del caso
+entero (D33) — nada que hacer ahí. Los otros tres, hasta ahora exclusivos
+de cada ojo, se heredan ahora del otro en el mismo momento en que se crea
+el dataset — mismo patrón exacto que D66 ya usaba para la constante A.
+`pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+en verde (709 tests unitarios; el único fallo,
+`block-subagent-external.test.mjs`, es previo y no relacionado).
+
+Antes de esto — **14/09/2026: calcular solo OD y volver después
 a añadir OS al mismo caso, sin perder nada (D75).** El dueño reportó que,
 tras calcular solo OD, volver a los datos para meter también OS no dejaba
 hacerlo —había que empezar un caso nuevo, perdiendo lente, constante,
@@ -23,7 +35,37 @@ typecheck && pnpm test && pnpm build && pnpm test:e2e` en verde (709 tests
 unitarios; el único fallo, `block-subagent-external.test.mjs`, es previo y
 no relacionado — 47 de interfaz).
 
-Antes de esto — **07/09/2026: corregida una hoja en blanco que
+Antes de esto — **08/09/2026 (2): en el cuestionario manual,
+el aparato de un ojo sin datos propios sugiere el del otro (D73); Kane
+investigado en dos casos reales, sin fallo del programa.** El dueño pidió
+que, si ya se eligió aparato en OD, no haya que repetirlo en OS —
+comprobado que el sexo ya se compartía solo (un campo por caso, no por
+ojo); el aparato sí es independiente por ojo a propósito (D47), así que
+se añadió una sugerencia de partida (`aparatoSugerido()` en
+`FormularioManual.tsx`), no una fusión. Solo aplica en el cuestionario
+manual: en la revisión con documento no existe la situación, porque un
+ojo sin datos no aparece como pestaña. Aparte, dos reportes de Kane con
+casos reales: un ojo sin resultado (reproducido, funcionó al repetirlo —
+apunta a un fallo puntual de la propia web) y otro con una potencia muy
+distinta a EVO/Barrett en un ojo corto y curvo (reproducido con los
+mismos números: Kane calcula lo mismo por su cuenta — discrepancia real
+entre fórmulas, no un fallo de datos). Ningún cambio de código por Kane.
+`pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+en verde (709 tests unitarios, 46 de interfaz).
+
+Antes de esto — **«Añadir otro biómetro», en
+revisión, también deja cargar un documento (D72, amplía D65).** El dueño
+reportó que tras cargar el primer documento (que escanea bien y salta a
+la revisión) no había forma de cargar un segundo de otro aparato — solo
+se podía escribir a mano. El backend ya sabía fusionar un segundo
+documento en el caso en curso; faltaba el botón. Añadido en
+`SelectorAparato.tsx`, junto al de escribirlo a mano. Verificado con una
+prueba real que sustituye el diálogo nativo de Electron en el propio
+proceso principal para simular la elección de un segundo PDF de punta a
+punta. `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm
+test:e2e` en verde (709 tests unitarios, 45 de interfaz).
+
+Antes de esto — **Corregida una hoja en blanco que
 aparecía tras recortar las capturas del PDF.** El dueño probó el cambio
 anterior (D71) con un caso real completo y encontró una página casi vacía
 entre el resultado de Barrett y el de Kane: el límite de alto de la

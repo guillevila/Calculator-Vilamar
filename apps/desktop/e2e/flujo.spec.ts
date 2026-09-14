@@ -712,6 +712,50 @@ test('calcular solo OD y volver después a añadir OS, sin perder nada del caso'
 })
 
 /**
+ * Petición expresa del dueño del proyecto (08/09/2026): «si elegimos en OD
+ * un aparato... pon que al editar ojo izdo por defecto salga el mismo
+ * aparato, para no perder tiempo cliceando». Suele ser el mismo biómetro
+ * para los dos ojos del mismo paciente, en la misma visita.
+ *
+ * A diferencia del sexo (`caso.sexo`, un solo campo para todo el caso, que
+ * YA se comparte sin hacer nada), el aparato es intencionadamente
+ * independiente por ojo (D47, invariante 12: no se mezclan). Lo que se
+ * pide aquí no es fusionarlos — es que, mientras el OTRO ojo todavía no
+ * tiene ningún dato propio (su dataset ni existe), la pantalla SUGIERA de
+ * partida el nombre del aparato del ojo que sí tiene, en vez de
+ * «Principal» — una sugerencia, no una fusión: en cuanto ese ojo escribe
+ * su primer dato, el dataset se crea con ese nombre, pero se puede
+ * cambiar antes sin tocar nada del otro ojo.
+ */
+test('el aparato recién renombrado en un ojo se sugiere solo en el otro, mientras no tenga ningún dato propio', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  // OD: dato + se renombra su único aparato ANTES de tocar el otro ojo.
+  await ventana.getByTestId('manual-campo-AL').fill('23.50')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-aparato-principal-select').selectOption('ZEISS IOLMaster 700')
+  await expect(ventana.getByTestId('manual-aparato-principal-select')).toHaveValue('ZEISS IOLMaster 700')
+
+  // OS todavía no tiene ningún dato — su dropdown de aparato ya sugiere el
+  // mismo nombre que acaba de ponerse en OD, sin que nadie lo haya escrito.
+  await ventana.getByTestId('manual-ojo-OS').click()
+  await expect(ventana.getByTestId('manual-campo-AL')).toHaveValue('')
+  await expect(ventana.getByTestId('manual-aparato-principal-select')).toHaveValue('ZEISS IOLMaster 700')
+
+  // Al escribir el primer dato de OS, su dataset se crea con ESE aparato —
+  // sin que OD se haya visto tocado en ningún momento.
+  await ventana.getByTestId('manual-campo-AL').fill('23.60')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.aparato).toBe('ZEISS IOLMaster 700')
+  expect(caso?.ojos?.OD?.[0]?.medidas?.AL?.valor).toBeCloseTo(23.5, 2)
+  expect(caso?.ojos?.OS?.[0]?.aparato).toBe('ZEISS IOLMaster 700')
+  expect(caso?.ojos?.OS?.[0]?.medidas?.AL?.valor).toBeCloseTo(23.6, 2)
+})
+
+/**
  * Petición expresa del dueño del proyecto (06/09/2026): una carpeta por
  * paciente, con sus dos ojos dentro, en vez de que todos los pacientes
  * compartan la misma carpeta «Ojo derecho»/«Ojo izquierdo» — con el tiempo
@@ -1231,6 +1275,58 @@ test('la constante A escrita en un ojo se copia sola al otro, sin pisar la que y
   const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
   expect(caso?.ojos?.OD?.[0]?.medidas?.CONSTANTE_A?.valor).toBe(119.1)
   expect(caso?.ojos?.OS?.[0]?.medidas?.CONSTANTE_A?.valor).toBe(118.5)
+})
+
+/**
+ * Petición expresa del dueño del proyecto (15/09/2026), tras usar el
+ * arreglo de D75 para añadir el segundo ojo a un caso ya calculado: que el
+ * SIA, su eje y el objetivo de refracción también se rellenen solos en el
+ * segundo ojo, igual que ya hace la constante A (D66) — suelen ser los
+ * mismos en los dos ojos de la misma visita. La lente ya era del caso
+ * entero, no de cada ojo (D33), así que esa parte no necesitaba ningún
+ * cambio.
+ */
+test('el SIA, su eje y el objetivo de refracción se heredan solos del otro ojo al crear el segundo dataset', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  // OD: un dato de biometría y los tres campos, con valores DISTINTOS de
+  // los que arrancan por defecto (D38: 0.25 / 135 / 0) para poder
+  // distinguir «heredado de OD» de «el valor de partida de siempre».
+  await ventana.getByTestId('manual-campo-AL').fill('24.00')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-campo-SIA').fill('0.40')
+  await ventana.getByTestId('manual-campo-SIA').press('Tab')
+  await ventana.getByTestId('manual-campo-EJE_INCISION').fill('90')
+  await ventana.getByTestId('manual-campo-EJE_INCISION').press('Tab')
+  await ventana.getByTestId('manual-campo-REFRACCION_OBJETIVO').fill('-0.50')
+  await ventana.getByTestId('manual-campo-REFRACCION_OBJETIVO').press('Tab')
+
+  // OS todavía no tiene ningún dataset: sus campos muestran el valor de
+  // partida de siempre (D38), no el de OD — no hay nada que heredar hasta
+  // que se escriba el primer dato.
+  await ventana.getByTestId('manual-ojo-OS').click()
+  await expect(ventana.getByTestId('manual-campo-SIA')).toHaveValue('0.25')
+  await expect(ventana.getByTestId('manual-campo-EJE_INCISION')).toHaveValue('135')
+  await expect(ventana.getByTestId('manual-campo-REFRACCION_OBJETIVO')).toHaveValue('0')
+
+  // En cuanto OS tiene su primer dato, hereda los tres de OD solos.
+  await ventana.getByTestId('manual-campo-AL').fill('24.30')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await expect(ventana.getByTestId('manual-campo-SIA')).toHaveValue('0.4')
+  await expect(ventana.getByTestId('manual-campo-EJE_INCISION')).toHaveValue('90')
+  await expect(ventana.getByTestId('manual-campo-REFRACCION_OBJETIVO')).toHaveValue('-0.5')
+
+  // Si la persona cambia el SIA a propósito en OS, esa es la que se queda
+  // — y la de OD, escrita antes, no se toca.
+  await ventana.getByTestId('manual-campo-SIA').fill('0.30')
+  await ventana.getByTestId('manual-campo-SIA').press('Tab')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.medidas?.SIA?.valor).toBe(0.4)
+  expect(caso?.ojos?.OS?.[0]?.medidas?.SIA?.valor).toBe(0.3)
+  expect(caso?.ojos?.OS?.[0]?.medidas?.EJE_INCISION?.valor).toBe(90)
+  expect(caso?.ojos?.OS?.[0]?.medidas?.REFRACCION_OBJETIVO?.valor).toBe(-0.5)
 })
 
 /**
