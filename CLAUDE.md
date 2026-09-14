@@ -30,4 +30,9 @@ Está en la constitución, pero se repite aquí porque es lo que define el produ
 - **No mezcla los datos de los dos ojos.**
 - **No envía nada a una calculadora sin confirmación humana.**
 - **No acepta términos ni rodea protecciones** en nombre del usuario.
-- **Compara, pero no recomienda.** No dice qué lente implantar.
+- **Compara, pero no recomienda.** No dice qué lente implantar. **Única
+  excepción, estrecha y siempre marcada como «no vinculante»**: una
+  estimación propia, con un criterio clínico fijo y explícito, bajo cada
+  captura de pantalla y en un cuadro final opcional (D43, ver
+  `SYSTEM_VISION.md`) — pedida expresamente por el dueño del proyecto
+  después de que se le avisara de que es justo lo que esta regla evita.
