@@ -18,10 +18,10 @@
 
 import type { Calculadora, ResultadoCalculadora } from '../modelo/calculadoras.js'
 import type { Caso } from '../modelo/caso.js'
-import { ojoDe, ojosDelCaso } from '../modelo/caso.js'
+import { datasetsDe, ojosDelCaso } from '../modelo/caso.js'
 import { CALCULADORAS, fichaDe } from '../modelo/calculadoras.js'
 import type { Lateralidad } from '../modelo/lateralidad.js'
-import { obtener } from '../modelo/medida.js'
+import { APARATO_PRINCIPAL, obtener } from '../modelo/medida.js'
 import { resultadoDe } from '../modelo/caso.js'
 
 /**
@@ -60,6 +60,8 @@ export function constanteSegunLaWeb(resultado: ResultadoCalculadora): number | u
 export interface DiscrepanciaConstante {
   readonly calculadora: Calculadora
   readonly ojo: Lateralidad
+  /** El aparato de este dataset (D47) — solo se menciona en el texto si el ojo tiene más de uno. */
+  readonly aparato: string
   /** Lo que Calculator Vilamar le mandó. */
   readonly enviada: number
   /** Lo que la web enseña en su propia pantalla. */
@@ -74,41 +76,58 @@ export interface DiscrepanciaConstante {
  * Vacío significa una de dos cosas —y las dos son buenas—: que coinciden, o que
  * esa web no publica su constante y no hay nada que comparar. Se distinguen con
  * `constanteSegunLaWeb`.
+ *
+ * **Recorre TODOS los aparatos de cada ojo (D47), no solo el principal** — fallo
+ * real corregido el 14/09/2026, de la misma familia que el de
+ * `elegirLente()`/`intercambiarLentes()`: en un caso con varios aparatos, esto
+ * comparaba «lo enviado» solo del aparato por defecto y, sin ninguno de verdad
+ * llamado así, `enviada` salía `undefined` y la auditoría entera no hacía nada,
+ * en silencio, para los aparatos reales del caso.
  */
 export function discrepanciasDeConstante(caso: Caso): readonly DiscrepanciaConstante[] {
   const salida: DiscrepanciaConstante[] = []
 
   for (const ojo of ojosDelCaso(caso)) {
-    const enviada = obtener(ojoDe(caso, ojo), 'CONSTANTE_A')?.valor
-    if (enviada === undefined) continue
+    for (const dataset of datasetsDe(caso, ojo)) {
+      const enviada = obtener(dataset, 'CONSTANTE_A')?.valor
+      if (enviada === undefined) continue
 
-    for (const calculadora of CALCULADORAS) {
-      const resultado = resultadoDe(caso, calculadora, ojo)
-      if (!resultado) continue
-      const segunLaWeb = constanteSegunLaWeb(resultado)
-      if (segunLaWeb === undefined) continue
-      if (Math.abs(segunLaWeb - enviada) <= TOLERANCIA) continue
-      salida.push({
-        calculadora,
-        ojo,
-        enviada,
-        segunLaWeb,
-        ...(caso.lente?.modelo !== undefined ? { modeloLente: caso.lente.modelo } : {}),
-      })
+      for (const calculadora of CALCULADORAS) {
+        const resultado = resultadoDe(caso, calculadora, ojo, dataset.aparato)
+        if (!resultado) continue
+        const segunLaWeb = constanteSegunLaWeb(resultado)
+        if (segunLaWeb === undefined) continue
+        if (Math.abs(segunLaWeb - enviada) <= TOLERANCIA) continue
+        salida.push({
+          calculadora,
+          ojo,
+          aparato: dataset.aparato,
+          enviada,
+          segunLaWeb,
+          ...(caso.lente?.modelo !== undefined ? { modeloLente: caso.lente.modelo } : {}),
+        })
+      }
     }
   }
 
   return salida
 }
 
-/** La discrepancia en una frase, para la pantalla y para el PDF. */
+/**
+ * La discrepancia en una frase, para la pantalla y para el PDF.
+ *
+ * El aparato solo se nombra cuando no es el principal — con un solo aparato por
+ * ojo (el caso de siempre) decirlo no añadiría nada, y con varios (D47) es
+ * necesario para saber de cuál de los dos se está hablando.
+ */
 export function describirDiscrepancia(d: DiscrepanciaConstante): string {
   const nombre = fichaDe(d.calculadora).nombre
+  const delAparato = d.aparato !== APARATO_PRINCIPAL ? ` (${d.aparato})` : ''
   const porElModelo = d.modeloLente
     ? ` Probablemente sea porque al elegir «${d.modeloLente}» esa web pone su propia constante.`
     : ''
   return (
-    `${nombre} dice haber calculado con una constante A de ${d.segunLaWeb.toFixed(2)}, ` +
+    `${nombre}${delAparato} dice haber calculado con una constante A de ${d.segunLaWeb.toFixed(2)}, ` +
     `y se le envió ${d.enviada.toFixed(2)}.${porElModelo} ` +
     'El resultado es el de la constante que usó la web, no la que se le mandó.'
   )

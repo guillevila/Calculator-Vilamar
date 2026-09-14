@@ -19,6 +19,7 @@ const paquetesDelMonorepo = [
   '@vilamar/extraction',
   '@vilamar/integrations',
   '@vilamar/report',
+  '@anthropic-ai/sdk',
 ]
 
 export default defineConfig({
