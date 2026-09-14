@@ -83,12 +83,22 @@ export function App(): JSX.Element {
 
   const ojos = useMemo(() => (caso ? ojosDelCaso(caso) : []), [caso])
 
+  // EXCEPTO en revisión (14/09/2026, mismo patrón que el de `aparatoActivo`
+  // justo debajo): ahí se puede elegir a propósito un OJO que todavía no
+  // tiene ningún dataset —para añadir el segundo ojo de un caso que solo
+  // traía uno—, y se crea solo en cuanto se escribe el primer campo. Sin
+  // esta excepción, este efecto deshacía la elección en el mismo instante:
+  // `ojoActivo` volvía al ojo original porque `ojos` (los que el caso ya
+  // tiene de verdad) no conocía el nuevo todavía. Fallo real reportado por
+  // el dueño: calcular solo OD y no poder volver a añadir OS sin empezar
+  // un caso nuevo.
   useEffect(() => {
+    if (paso === 'REVISION') return
     if (ojos.length > 0 && !ojos.includes(ojoActivo)) {
       const primero = ojos[0]
       if (primero) setOjoActivo(primero)
     }
-  }, [ojos, ojoActivo])
+  }, [ojos, ojoActivo, paso])
 
   // Igual que con el ojo: si el aparato activo deja de existir para el ojo
   // activo (p. ej. al cambiar de ojo), se cae al primero que ese ojo tenga.
