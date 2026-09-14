@@ -2085,3 +2085,73 @@ distinguir "cambió el ojo" de "cambió el caso"), sin la guarda de
 `apps/desktop/e2e/flujo.spec.ts` → «renombrar el aparato de UN ojo no
 deja al OTRO mirando un dataset vacío al cambiar de pestaña» (confirmada
 fallando sin el fix, pasando con él).
+
+---
+
+## 2026-09-14 — `git stash` sin ruta concreta borró casi un directorio sin seguimiento
+
+**Error o aprendizaje:** Al necesitar apartar cambios para cambiar de rama,
+se lanzó `git stash push -u -m "..."` sin ninguna ruta detrás. El árbol de
+trabajo pareció no cambiar (mismo `git status`), así que se interpretó
+como que el stash no había hecho nada útil y se borró con `git stash
+drop` como «redundante». En realidad SÍ había apartado algo: el
+directorio sin seguimiento `formulario-biometria-ocular-codigo/` (4
+ficheros, parte del trabajo del dueño) quedó dentro del objeto de stash,
+y al borrarlo sin haberlo restaurado antes (`git stash pop`), esos 4
+ficheros desaparecieron del árbol de trabajo sin ningún mensaje de error.
+
+**Causa raíz:** `git stash push -u` sin pathspec apila TODO lo que
+coincide (con `-u`, también lo no trackeado) — no solo lo que se cree
+que hace falta apartar. Un `git status` idéntico antes y después no
+demuestra que el stash esté vacío: hay que mirar el propio contenido del
+stash (`git stash show -u`) antes de decidir si sobra.
+
+**Lección:** Nunca lanzar `git stash push -u` a ciegas cuando el objetivo
+real es apartar SOLO unos ficheros concretos para poder cambiar de rama —
+usar siempre `git stash push -u -m "..." -- <rutas exactas>`. Si alguna
+vez se lanza sin pathspec «para probar», nunca hacer `git stash drop`
+sin antes hacer `git stash pop` (o, como mínimo, `git stash show -u
+--stat`) para confirmar de verdad qué hay dentro. Si ya se ha
+dropeado por error: el commit del stash no desaparece del todo al
+momento — `git log --format="%H %P" -1 <hash-del-drop>` da sus tres
+padres (base/índice/no-trackeados); el de no-trackeados, con
+`git ls-tree -r --name-only` y `git checkout <ese-hash> -- <ruta>`,
+recupera los ficheros byte a byte (seguido de
+`git restore --staged <ruta>` porque el checkout desde un commit deja el
+fichero en stage). Recuperado así sin pérdida esta vez — pero el hábito
+correcto es no necesitar la recuperación.
+
+**Contexto:** Cualquier cambio de rama con trabajo sin commitear de por
+medio en este repositorio — especialmente en `feature/rediseno-formulario`,
+que lleva sesiones acumulando cambios sin commitear (varios ficheros
+modificados y un directorio entero sin seguimiento).
+
+---
+
+## 2026-09-14 (2) — `pnpm test:e2e` corre contra el último `pnpm build`, no contra el código fuente actual
+
+**Error o aprendizaje:** Tras editar `PanelRevision.tsx` para mostrar
+siempre las pestañas OD/OI, se lanzó `pnpm playwright test -g "..."`
+directamente. El test falló buscando un elemento que el cambio SÍ
+añadía — la captura de pantalla del fallo (`error-context.md`) mostraba
+la pantalla de revisión entera, pero sin ningún rastro de la pestaña
+nueva. Se perdió un rato revisando si el JSX estaba bien escrito antes
+de caer en la causa real.
+
+**Causa raíz:** `apps/desktop/e2e/flujo.spec.ts` arranca la aplicación
+real vía `electron.launch({ args: [join(raizApp, 'out', 'main',
+'index.js'), ...] })` — un `out/` ya compilado por `electron-vite
+build`, no los ficheros de `src/` en caliente. Cualquier edición a
+`src/renderer` o `src/main` después del último `pnpm build` es invisible
+para `pnpm test:e2e` hasta que se reconstruye.
+
+**Lección:** Después de tocar cualquier fichero bajo
+`apps/desktop/src/` (renderer, main o preload), ejecutar `pnpm build`
+**antes** de `pnpm test:e2e` — no solo la primera vez, cada vez. Si un
+test de interfaz falla de una forma que no tiene sentido con el cambio
+que se acaba de hacer (falta algo que el código sí tiene), sospechar
+primero de un `out/` desactualizado antes de dudar del propio cambio.
+
+**Contexto:** `apps/desktop/e2e/*.spec.ts` (Electron real, vía
+`playwright.config.ts`) — no aplica a `pnpm test` (Vitest, corre sobre
+los fuentes directamente, sin build previo).
