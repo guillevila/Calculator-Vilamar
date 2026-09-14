@@ -15,7 +15,7 @@ import type { Calculadora, Caso, Lateralidad, Aviso } from '@vilamar/domain'
 import { APARATO_PRINCIPAL, aparatosDe, ojosDelCaso } from '@vilamar/domain'
 
 import { api, hayApi } from './api.js'
-import type { ArchivoEntrante, EstadoCalculo, ResumenExtraccion } from '../compartido/ipc.js'
+import type { ApiVilamar, ArchivoEntrante, EstadoCalculo, ResumenExtraccion } from '../compartido/ipc.js'
 import { CasosGuardados } from './componentes/CasosGuardados.js'
 import { ZonaSoltar } from './componentes/ZonaSoltar.js'
 import { FormularioManual } from './componentes/FormularioManual.js'
@@ -52,6 +52,13 @@ export function App(): JSX.Element {
   // `APARATO_PRINCIPAL` y ningún selector se enseña.
   const [aparatoActivo, setAparatoActivo] = useState<string>(APARATO_PRINCIPAL)
   const [ocupado, setOcupado] = useState(false)
+  // Resultado del «camino corto» de D55 (14/09/2026, «Calcular con las dos
+  // lentes»): dónde quedó el PDF de cada una. Se limpia en cuanto se lanza
+  // cualquier otro cálculo de siempre, para no enseñar una información
+  // vieja como si fuera de un cálculo que ni ha pasado por ahí.
+  const [dosLentesInfo, setDosLentesInfo] = useState<
+    Awaited<ReturnType<ApiVilamar['calcularConDosLentes']>> | undefined
+  >(undefined)
 
   const disponible = hayApi()
 
@@ -149,6 +156,7 @@ export function App(): JSX.Element {
     setResumenes([])
     setEstados([])
     setAvisos([])
+    setDosLentesInfo(undefined)
     const c = await api().casoNuevo()
     setCaso(c)
     setPaso('INICIO')
@@ -160,6 +168,7 @@ export function App(): JSX.Element {
     setResumenes([])
     setEstados([])
     setAvisos([])
+    setDosLentesInfo(undefined)
     const c = await api().abrirCaso(codigo)
     setCaso(c)
     setPaso(pasoDeCaso(c))
@@ -255,6 +264,7 @@ export function App(): JSX.Element {
       )
       try {
         await api().calcular(calculadoras, filtro)
+        setDosLentesInfo(undefined)
         setPaso('RESULTADOS')
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
@@ -264,6 +274,30 @@ export function App(): JSX.Element {
     },
     [],
   )
+
+  /**
+   * «Camino corto» de D55 (14/09/2026, petición expresa del dueño): un solo
+   * gesto en vez de los cinco pasos manuales de antes (calcular, generar,
+   * volver a los datos, intercambiar la lente, calcular otra vez, generar
+   * otra vez). El propio proceso principal hace la secuencia entera
+   * (`ServicioCasos.calcularConDosLentes`); aquí solo se guarda el
+   * resultado —dónde quedó cada PDF— para enseñarlo en la pantalla de
+   * resultados.
+   */
+  const calcularConDosLentes = useCallback(async (calculadoras: readonly Calculadora[]) => {
+    setError(null)
+    setOcupado(true)
+    setEstados([])
+    try {
+      const r = await api().calcularConDosLentes(calculadoras)
+      setDosLentesInfo(r)
+      setPaso('RESULTADOS')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setOcupado(false)
+    }
+  }, [])
 
 
   if (!disponible) {
@@ -429,6 +463,7 @@ export function App(): JSX.Element {
               // el fallo ya corregido de «solo calcula la pestaña que se
               // ve» sin que nadie lo pidiera.
               onCalcular={(c, filtro) => void calcular(c, filtro)}
+              onCalcularConDosLentes={(c) => void calcularConDosLentes(c)}
               onCancelar={() => void api().cancelarCalculo()}
               onVerResultados={() => setPaso('RESULTADOS')}
               onVolverARevisar={() => setPaso('REVISION')}
@@ -457,6 +492,7 @@ export function App(): JSX.Element {
               }}
               onVolverARevisar={() => setPaso('REVISION')}
               estados={estados}
+              dosLentes={dosLentesInfo}
             />
           )}
         </div>

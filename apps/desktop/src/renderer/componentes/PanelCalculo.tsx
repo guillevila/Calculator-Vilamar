@@ -46,6 +46,13 @@ interface Props {
     calculadoras?: readonly Calculadora[],
     filtro?: { readonly ojo?: Lateralidad },
   ) => void
+  /**
+   * «Camino corto» de D55 (14/09/2026): calcula la lente activa, genera su
+   * PDF, activa la lente aparcada, la calcula también, y genera su propio
+   * PDF — de un gesto. Solo tiene sentido, y solo se enseña el botón, con
+   * una lente alternativa ya aparcada en «Lente alternativa».
+   */
+  readonly onCalcularConDosLentes: (calculadoras: readonly Calculadora[]) => void
   readonly onCancelar: () => void
   readonly onVerResultados: () => void
   readonly onVolverARevisar: () => void
@@ -154,6 +161,7 @@ export function PanelCalculo({
   estados,
   ocupado,
   onCalcular,
+  onCalcularConDosLentes,
   onCancelar,
   onVerResultados,
   onVolverARevisar,
@@ -321,6 +329,25 @@ export function PanelCalculo({
               {`${hayAlguno ? 'Volver a calcular' : 'Calcular'} (${seleccionadas
                 .map((c) => etiquetaDe(c))
                 .join(', ')}${dosOjos && alcanceOjos !== 'AMBOS' ? ` — solo ${nombreCortoLateralidad(alcanceOjos)}` : ''})`}
+            </button>
+          )}
+          {/*
+            «Calcular con las dos lentes» (D55, camino corto, 14/09/2026):
+            solo aparece con una lente alternativa ya aparcada. Calcula la
+            de ahora, genera su PDF, cambia a la aparcada, la calcula
+            también y genera el suyo — sin el paso manual de volver a los
+            datos entre medias. Siempre las dos lentes con TODOS los ojos
+            del caso (D55: «se aplica a todos los ojos y aparatos, no solo
+            al que se esté mirando»), así que no lleva el filtro de ojos de
+            arriba.
+          */}
+          {!ocupado && caso.lenteSecundaria?.modelo && (
+            <button
+              onClick={() => onCalcularConDosLentes(seleccionadas)}
+              disabled={seleccionadas.length === 0}
+              data-testid="calcular-dos-lentes"
+            >
+              {`Calcular con las dos lentes («${caso.lente?.modelo ?? 'sin elegir'}» y «${caso.lenteSecundaria.modelo}»)`}
             </button>
           )}
           {/*

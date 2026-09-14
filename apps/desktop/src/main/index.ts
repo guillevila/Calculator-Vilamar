@@ -355,6 +355,9 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   ipcMain.handle(CANALES.reintentar, (_e, calculadora, ojo) => s().reintentar(calculadora, ojo))
   ipcMain.handle(CANALES.cancelarCalculo, () => s().cancelarCalculo())
   ipcMain.handle(CANALES.generarPdf, () => s().generarPdf())
+  ipcMain.handle(CANALES.calcularConDosLentes, (_e, calculadoras) =>
+    s().calcularConDosLentes(calculadoras),
+  )
   ipcMain.handle(CANALES.abrirCarpetaInformes, () => shell.openPath(carpetas.informes))
 }
 

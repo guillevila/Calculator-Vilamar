@@ -9,7 +9,22 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 07/09/2026 · **Corregida una hoja en blanco que
+**Última actualización:** 14/09/2026 · **«Calcular con las dos
+lentes» — el camino corto de D55, de un solo gesto (D76).** Antes, comparar
+dos lentes exigía cinco pasos manuales (calcular, generar PDF, volver a
+los datos, activar la lente aparcada, calcular otra vez, generar otra
+vez). `ServicioCasos.calcularConDosLentes()` hace la secuencia sola,
+reutilizando `calcular()`/`generarPdf()`/`intercambiarLentes()` sin
+lógica nueva — la alternativa de guardar las dos lentes en paralelo se
+descartó a propósito, mismo motivo que D55: `CONSTANTE_A` es por ojo, no
+por lente. Botón nuevo en la pantalla de cálculo, solo visible con una
+lente alternativa ya aparcada. `pnpm lint && pnpm typecheck && pnpm test
+&& pnpm build && pnpm test:e2e` en verde (711 tests unitarios, dos nuevos
+para este cambio, espiando la secuencia sin navegador real; el único
+fallo de la suite, `block-subagent-external.test.mjs`, es previo y no
+relacionado).
+
+Antes de esto — **Corregida una hoja en blanco que
 aparecía tras recortar las capturas del PDF.** El dueño probó el cambio
 anterior (D71) con un caso real completo y encontró una página casi vacía
 entre el resultado de Barrett y el de Kane: el límite de alto de la

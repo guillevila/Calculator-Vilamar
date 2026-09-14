@@ -45,6 +45,17 @@ interface Props {
   readonly onVolverARevisar: () => void
   /** Lo que está pasando ahora mismo, para no decir «no se ha lanzado» de algo que sí. */
   readonly estados?: readonly EstadoCalculo[]
+  /**
+   * Resultado del «camino corto» de D55 (14/09/2026, «Calcular con las dos
+   * lentes» en la pantalla de cálculo): los dos PDF —uno por lente— ya se
+   * generaron solos como parte de esa acción, así que aquí solo se enseña
+   * dónde quedaron. `undefined` cuando se ha llegado aquí por el camino de
+   * siempre (una sola lente, «Generar PDF» de abajo sigue disponible igual).
+   */
+  readonly dosLentes?: {
+    readonly lenteA: { readonly modelo: string; readonly rutas: readonly { readonly ojo: Lateralidad; readonly ruta: string }[] }
+    readonly lenteB: { readonly modelo: string; readonly rutas: readonly { readonly ojo: Lateralidad; readonly ruta: string }[] }
+  }
 }
 
 /**
@@ -217,6 +228,7 @@ export function PanelResultados({
   onReintentar,
   onVolverARevisar,
   estados = [],
+  dosLentes,
 }: Props): JSX.Element {
   const ojos = ojosDelCaso(caso)
   const aparatos = aparatosDe(caso, ojoActivo)
@@ -255,6 +267,22 @@ export function PanelResultados({
 
   return (
     <>
+      {dosLentes && (
+        <div className="aviso exito" data-testid="resumen-dos-lentes">
+          <strong>Calculado con las dos lentes — dos PDF generados.</strong>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
+            <li>
+              «{dosLentes.lenteA.modelo}»:{' '}
+              {dosLentes.lenteA.rutas.map((r) => nombreLateralidad(r.ojo)).join(', ')}
+            </li>
+            <li>
+              «{dosLentes.lenteB.modelo}» (la que se ve ahora mismo abajo):{' '}
+              {dosLentes.lenteB.rutas.map((r) => nombreLateralidad(r.ojo)).join(', ')}
+            </li>
+          </ul>
+        </div>
+      )}
+
       {ojos.length > 1 && (
         <div className="fila" style={{ marginBottom: 14 }}>
           <div className="selector-ojo">

@@ -298,6 +298,24 @@ export interface ApiVilamar {
   readonly generarPdf: () => Promise<{
     readonly rutas: readonly { readonly ojo: Lateralidad; readonly ruta: string }[]
   }>
+
+  /**
+   * «Camino corto» de D55 (14/09/2026): calcula la lente activa, genera su
+   * PDF, activa la lente aparcada en «Lente alternativa», la calcula
+   * también, y genera su propio PDF — todo de un gesto. Exige que ya haya
+   * una lente alternativa aparcada (`elegirLenteSecundaria`); si no la hay,
+   * rechaza con un mensaje explicando qué falta.
+   */
+  readonly calcularConDosLentes: (calculadoras?: readonly Calculadora[]) => Promise<{
+    readonly lenteA: {
+      readonly modelo: string
+      readonly rutas: readonly { readonly ojo: Lateralidad; readonly ruta: string }[]
+    }
+    readonly lenteB: {
+      readonly modelo: string
+      readonly rutas: readonly { readonly ojo: Lateralidad; readonly ruta: string }[]
+    }
+  }>
   readonly abrirCarpetaInformes: () => Promise<void>
 
   /** Suscripciones. Devuelven una función para darse de baja. */
@@ -334,6 +352,7 @@ export const CANALES = {
   reintentar: 'vilamar:reintentar',
   cancelarCalculo: 'vilamar:cancelar-calculo',
   generarPdf: 'vilamar:generar-pdf',
+  calcularConDosLentes: 'vilamar:calcular-con-dos-lentes',
   abrirCarpetaInformes: 'vilamar:abrir-carpeta-informes',
   progreso: 'vilamar:progreso',
   casoCambiado: 'vilamar:caso-cambiado',

@@ -1174,6 +1174,47 @@ export class ServicioCasos {
   }
 
   /**
+   * «Camino corto» de D55 (14/09/2026, petición expresa del dueño): calcula
+   * la lente activa, genera su PDF, activa la lente aparcada, la calcula
+   * también, y genera su segundo PDF — de un solo gesto, en vez de los
+   * cinco pasos manuales de antes (calcular, generar, volver a los datos,
+   * intercambiar, calcular otra vez, generar otra vez).
+   *
+   * Cero lógica nueva: reutiliza `calcular()`, `generarPdf()` e
+   * `intercambiarLentes()` tal cual, en el mismo orden en que ya se hacían
+   * a mano — el mismo motivo por el que D55 eligió «intercambiar y
+   * recalcular» en vez de guardar las dos lentes en paralelo sigue
+   * aplicando aquí sin tocarlo: `CONSTANTE_A` es un campo por ojo, no por
+   * lente, y cada `calcular()` solo ve la lente que en ESE momento está
+   * activa en el caso.
+   */
+  async calcularConDosLentes(calculadoras?: readonly Calculadora[]): Promise<{
+    readonly lenteA: { readonly modelo: string; readonly rutas: readonly { readonly ojo: Lateralidad; readonly ruta: string }[] }
+    readonly lenteB: { readonly modelo: string; readonly rutas: readonly { readonly ojo: Lateralidad; readonly ruta: string }[] }
+  }> {
+    const inicial = this.exigirCaso()
+    const modeloB = inicial.lenteSecundaria?.modelo
+    if (modeloB === undefined) {
+      throw new Error(
+        'Hace falta aparcar una lente alternativa antes de calcular las dos (en «Lente alternativa»).',
+      )
+    }
+    const modeloA = inicial.lente?.modelo ?? '(sin elegir)'
+
+    await this.calcular(calculadoras)
+    const { rutas: rutasA } = await this.generarPdf()
+
+    this.intercambiarLentes()
+    await this.calcular(calculadoras)
+    const { rutas: rutasB } = await this.generarPdf()
+
+    return {
+      lenteA: { modelo: modeloA, rutas: rutasA },
+      lenteB: { modelo: modeloB, rutas: rutasB },
+    }
+  }
+
+  /**
    * Lo que el informe enseña de cada casilla (calculadora × ojo × aparato,
    * D47): la captura ya en base64, la lente que se destacó y, si no hubo
    * resultado utilizable, por qué. Solo aquí hay `fs` — `recopilarInforme` y

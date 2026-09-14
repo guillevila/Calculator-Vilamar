@@ -4,6 +4,67 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.32] — 14/09/2026
+
+feat(app): «Calcular con las dos lentes» — el camino corto de D55, de un
+solo gesto.
+
+### Qué se pidió
+
+El dueño del proyecto: comparar dos lentes con la misma biometría exigía
+cinco pasos manuales — calcular con la lente de ahora, generar su PDF,
+volver a los datos, activar la lente aparcada («Calcular con esta lente»,
+D55), calcular otra vez, generar el segundo PDF. Pidió poder elegir las
+dos lentes y que el programa haga los dos cálculos directamente.
+
+### La decisión: el camino corto, no el modelo en paralelo
+
+D55 (01/09/2026) ya investigó a fondo la alternativa de guardar los
+resultados de las DOS lentes en paralelo, y la descartó a propósito:
+`CONSTANTE_A` es un campo por ojo, no por lente, así que tener las dos
+lentes activas a la vez podría mandarle a Barrett la constante equivocada
+sin que nadie lo notara — exactamente la clase de fallo silencioso que
+este proyecto no se permite. Se mantiene esa decisión sin tocarla:
+«Calcular con las dos lentes» es un ORQUESTADOR, no un modelo de datos
+nuevo. Hace, con un solo botón, la misma secuencia de cinco pasos que ya
+se podía hacer a mano: calcular, generar PDF, `intercambiarLentes()`,
+calcular, generar PDF. Cero lógica nueva de constantes.
+
+### El cambio
+
+- `ServicioCasos.calcularConDosLentes()` (`apps/desktop/src/main/servicio-casos.ts`):
+  reutiliza `calcular()`, `generarPdf()` e `intercambiarLentes()` tal
+  cual, en ese orden. Rechaza con un mensaje explícito si no hay ninguna
+  lente alternativa aparcada todavía.
+- Nuevo canal IPC `calcularConDosLentes` (`ipc.ts`, `preload/index.ts`,
+  `main/index.ts`).
+- Botón nuevo «Calcular con las dos lentes («X» y «Y»)» en la pantalla de
+  cálculo (`PanelCalculo.tsx`) — solo aparece con una lente alternativa ya
+  aparcada, y nombra las dos. Siempre calcula con TODOS los ojos del caso
+  (D55: «se aplica a todos los ojos y aparatos, no solo al que se esté
+  mirando»), así que no lleva el selector «Solo OD/Solo OS» de al lado.
+- `PanelResultados.tsx` enseña, al llegar por este camino, un aviso con
+  dónde quedó el PDF de cada lente — los dos PDF ya están generados; no
+  hace falta pulsar «Generar PDF» otra vez.
+
+### Verificado
+
+- `pnpm lint && pnpm typecheck && pnpm test` en verde (711 tests
+  unitarios; el único fallo, `block-subagent-external.test.mjs`, es
+  previo y no relacionado).
+- Dos tests unitarios nuevos (`servicio-casos.calcular-dos-lentes.test.ts`):
+  espían `calcular()`/`generarPdf()`/`intercambiarLentes()` y comprueban
+  el orden exacto de la secuencia, sin necesitar un navegador real — eso
+  ya lo cubre el resto de la suite y `pnpm test:e2e`.
+- Nuevo test de interfaz (`flujo.spec.ts`): el botón no existe sin lente
+  alternativa aparcada, y aparece —con las dos lentes nombradas— en
+  cuanto se aparca una. No llega a pulsarlo: encadenaría dos cálculos
+  reales contra EVO/Barrett/Kane, y ningún test de `flujo.spec.ts` lanza
+  un cálculo real (esa cobertura vive en `pnpm live`/`pnpm verificar:vertical`).
+- `pnpm build` en verde; `pnpm test:e2e` completo en verde.
+
+---
+
 ## [1.15.30] — 07/09/2026
 
 fix(report): una hoja de captura recortada podía empujar su propio pie de

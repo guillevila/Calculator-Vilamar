@@ -812,6 +812,51 @@ test('lente alternativa: compara sin volver a escribir los datos, y no arrastra 
 })
 
 /**
+ * «Camino corto» de D55 (14/09/2026, petición expresa del dueño): antes,
+ * comparar dos lentes exigía calcular, generar el PDF, volver a los datos,
+ * intercambiar la lente, calcular otra vez y generar otra vez — cinco
+ * pasos manuales. El botón «Calcular con las dos lentes», en la pantalla
+ * de cálculo, hace la secuencia entera de un gesto.
+ *
+ * Esta prueba NO llega a pulsarlo — el resto de la suite nunca lanza un
+ * cálculo real contra EVO/Barrett/Kane desde `flujo.spec.ts` (esa
+ * cobertura vive en `pnpm live`/`pnpm verificar:vertical`), y esta acción
+ * encadena DOS cálculos reales. Comprueba lo que sí depende de la
+ * interfaz: el botón no existe sin una lente alternativa aparcada, y
+ * aparece —con las dos lentes nombradas— en cuanto se aparca una.
+ */
+test('«Calcular con las dos lentes» solo aparece con una lente alternativa aparcada, y nombra las dos', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByLabel('Nombre del doctor').fill('Dr. Dos Lentes E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Paciente Dos Lentes E2E')
+  await ventana.getByTestId('manual-campo-AL').fill('24.00')
+  await ventana.getByTestId('manual-campo-CONSTANTE_A').fill('119.10')
+  await ventana.getByTestId('manual-campo-CONSTANTE_A').press('Tab')
+  await ventana.getByTestId('selector-lente').selectOption('Alcon SN6ATx')
+
+  await ventana.getByTestId('manual-continuar').click()
+  await ventana.getByTestId('confirmar').click()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
+
+  // Sin lente alternativa: el botón de las dos lentes no existe.
+  await expect(ventana.getByTestId('calcular-dos-lentes')).toHaveCount(0)
+
+  // Se vuelve a los datos solo para aparcar la alternativa — «Volver a los
+  // datos» (D54) no borra ni recalcula nada de lo ya escrito.
+  await ventana.getByTestId('volver-a-revisar').click()
+  await ventana.getByTestId('selector-lente-secundaria').selectOption('B&L LuxSmart')
+  await expect(ventana.getByTestId('lente-secundaria-elegida')).toContainText('B&L LuxSmart')
+  await ventana.getByTestId('confirmar').click()
+
+  await expect(ventana.getByTestId('calcular-dos-lentes')).toBeVisible()
+  await expect(ventana.getByTestId('calcular-dos-lentes')).toContainText('Alcon SN6ATx')
+  await expect(ventana.getByTestId('calcular-dos-lentes')).toContainText('B&L LuxSmart')
+
+  await ventana.screenshot({ path: 'test-results/15b-boton-dos-lentes.png', fullPage: true })
+})
+
+/**
  * El otro camino: el contenido del fichero, que es el que usa el arrastre cuando
  * Electron no da la ruta. Se comprobó que un `Uint8Array` sobrevive íntegro al
  * IPC; esta prueba lo fija para que no se rompa sin que nadie se entere.
