@@ -889,10 +889,19 @@ export class ServicioCasos {
     return detectarDiscrepancias(datasetsDe(caso, lado)).length > 0
   }
 
+  /**
+   * Las 10 reglas clínicas, sobre TODOS los aparatos de cada ojo (D47), no
+   * solo el principal — fallo real corregido el 14/09/2026, misma familia
+   * que `elegirLente()`/`discrepanciasDeConstante()`: con varios aparatos,
+   * esto solo validaba el que no existía de verdad (`ojoDe` sin aparato cae
+   * en «Principal»), así que los aparatos reales del caso nunca pasaban por
+   * las reglas clínicas. Mismo patrón que ya usa `confirmarTodo()` más
+   * arriba, aplicado aquí también.
+   */
   validar(): readonly Aviso[] {
     const caso = this.caso
     if (!caso) return []
-    return ojosDelCaso(caso).flatMap((l) => [...validarOjo(ojoDe(caso, l))])
+    return ojosDelCaso(caso).flatMap((l) => datasetsDe(caso, l).flatMap(validarOjo))
   }
 
   /**

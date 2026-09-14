@@ -19,7 +19,7 @@
 
 import type { CampoBiometrico } from './campos.js'
 import type { Caso, LenteElegida } from './caso.js'
-import { conOjo, ojosDelCaso, ojoDe } from './caso.js'
+import { conOjo, datasetsDe, ojosDelCaso } from './caso.js'
 import type { Lateralidad } from './lateralidad.js'
 import type { Emparejamiento, LenteDetectada } from './lente.js'
 import { describirLente, emparejarLente } from './lente.js'
@@ -157,29 +157,35 @@ export function elegirLente(
     return { ...quitarSiEraDeLaTabla(caso, base, cuando, avisos), avisos, emparejamiento }
   }
 
-  // Hay constante en el informe para esta lente. Se escribe en los ojos del caso.
+  // Hay constante en el informe para esta lente. Se escribe en TODOS los
+  // aparatos de cada ojo del caso — no solo en el aparato por defecto
+  // (D47/D74, fallo real encontrado el 14/09/2026: un caso con varios
+  // aparatos por ojo solo recibía la constante nueva en un aparato
+  // «Principal» fantasma, creado sobre la marcha, mientras los aparatos de
+  // verdad se quedaban con la constante de la lente anterior sin avisar).
   const constante = lente.constanteA
   const conflictos: Lateralidad[] = []
   let resultado = caso
 
   for (const lado of ojosDelCaso(caso)) {
-    const ojo = ojoDe(resultado, lado)
-    const actual = obtener(ojo, 'CONSTANTE_A')
+    for (const ojo of datasetsDe(resultado, lado)) {
+      const actual = obtener(ojo, 'CONSTANTE_A')
 
-    // Lo escrito a mano no se pisa NUNCA, ni para «mejorarlo».
-    if (actual !== undefined && esManual(actual.procedencia)) {
-      conflictos.push(lado)
-      continue
+      // Lo escrito a mano no se pisa NUNCA, ni para «mejorarlo».
+      if (actual !== undefined && esManual(actual.procedencia)) {
+        conflictos.push(lado)
+        continue
+      }
+
+      resultado = conOjo(
+        resultado,
+        conMedida(
+          ojo,
+          crearMedida('CONSTANTE_A', lado, constante, procedenciaDeLaTabla(lente, cuando)),
+        ),
+        cuando,
+      )
     }
-
-    resultado = conOjo(
-      resultado,
-      conMedida(
-        ojo,
-        crearMedida('CONSTANTE_A', lado, constante, procedenciaDeLaTabla(lente, cuando)),
-      ),
-      cuando,
-    )
   }
 
   if (conflictos.length > 0) {
@@ -237,19 +243,20 @@ function quitarSiEraDeLaTabla(
   if (anteriorTabla !== undefined) {
     let quitada = false
     for (const lado of ojosDelCaso(caso)) {
-      const ojo = ojoDe(resultado, lado)
-      const actual = obtener(ojo, 'CONSTANTE_A')
-      // Solo se quita si sigue siendo exactamente la que puso la tabla. Si alguien
-      // la ha cambiado por su cuenta, ya no es «la de la lente anterior».
-      if (
-        actual === undefined ||
-        esManual(actual.procedencia) ||
-        actual.valor !== anteriorTabla.valor
-      ) {
-        continue
+      for (const ojo of datasetsDe(resultado, lado)) {
+        const actual = obtener(ojo, 'CONSTANTE_A')
+        // Solo se quita si sigue siendo exactamente la que puso la tabla. Si alguien
+        // la ha cambiado por su cuenta, ya no es «la de la lente anterior».
+        if (
+          actual === undefined ||
+          esManual(actual.procedencia) ||
+          actual.valor !== anteriorTabla.valor
+        ) {
+          continue
+        }
+        resultado = conOjo(resultado, sinMedida(ojo, 'CONSTANTE_A'), cuando)
+        quitada = true
       }
-      resultado = conOjo(resultado, sinMedida(ojo, 'CONSTANTE_A'), cuando)
-      quitada = true
     }
     if (quitada) {
       avisos.push(
@@ -263,17 +270,18 @@ function quitarSiEraDeLaTabla(
   if (anteriorCatalogo !== undefined) {
     let quitada = false
     for (const lado of ojosDelCaso(resultado)) {
-      const ojo = ojoDe(resultado, lado)
-      const actual = obtener(ojo, 'CONSTANTE_A')
-      if (
-        actual === undefined ||
-        esManual(actual.procedencia) ||
-        actual.valor !== anteriorCatalogo.valor
-      ) {
-        continue
+      for (const ojo of datasetsDe(resultado, lado)) {
+        const actual = obtener(ojo, 'CONSTANTE_A')
+        if (
+          actual === undefined ||
+          esManual(actual.procedencia) ||
+          actual.valor !== anteriorCatalogo.valor
+        ) {
+          continue
+        }
+        resultado = conOjo(resultado, sinMedida(ojo, 'CONSTANTE_A'), cuando)
+        quitada = true
       }
-      resultado = conOjo(resultado, sinMedida(ojo, 'CONSTANTE_A'), cuando)
-      quitada = true
     }
     if (quitada) {
       avisos.push(
@@ -324,30 +332,31 @@ function aplicarConstanteDelCatalogo(
 
   const conflictos: Lateralidad[] = []
   for (const lado of ojosDelCaso(resultado)) {
-    const ojo = ojoDe(resultado, lado)
-    const actual = obtener(ojo, 'CONSTANTE_A')
+    for (const ojo of datasetsDe(resultado, lado)) {
+      const actual = obtener(ojo, 'CONSTANTE_A')
 
-    if (actual !== undefined && esManual(actual.procedencia)) {
-      conflictos.push(lado)
-      continue
-    }
+      if (actual !== undefined && esManual(actual.procedencia)) {
+        conflictos.push(lado)
+        continue
+      }
 
-    resultado = conOjo(
-      resultado,
-      conMedida(
-        ojo,
-        crearMedida(
-          'CONSTANTE_A',
-          lado,
-          constanteConocida,
-          { metodo: 'CATALOGO', registradoEn: cuando },
-          // Ya verificada — no hace falta que nadie la confirme casilla a
-          // casilla, igual que un dato escrito a mano.
-          true,
+      resultado = conOjo(
+        resultado,
+        conMedida(
+          ojo,
+          crearMedida(
+            'CONSTANTE_A',
+            lado,
+            constanteConocida,
+            { metodo: 'CATALOGO', registradoEn: cuando },
+            // Ya verificada — no hace falta que nadie la confirme casilla a
+            // casilla, igual que un dato escrito a mano.
+            true,
+          ),
         ),
-      ),
-      cuando,
-    )
+        cuando,
+      )
+    }
   }
 
   if (conflictos.length > 0) {

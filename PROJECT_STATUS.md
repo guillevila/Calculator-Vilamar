@@ -9,7 +9,23 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 07/09/2026 · **Corregida una hoja en blanco que
+**Última actualización:** 14/09/2026 · **La constante A del cambio de
+lente, su auditoría de discrepancia y las 10 reglas clínicas solo
+tocaban el aparato principal de cada ojo (D74).** El dueño reportó, con
+un caso real de dos aparatos y dos lentes (D55), que la segunda lente
+«no salía» — investigado hasta la causa exacta con los datos reales del
+caso CV-2026-0143: al cambiar de lente, la constante nueva se escribía
+en un aparato «Principal» fantasma, creado sobre la marcha, mientras los
+dos aparatos de verdad se quedaban con la constante de la lente
+ANTERIOR, sin avisar. Al buscar el mismo patrón por el código aparecieron
+dos fallos más iguales (la auditoría de constante, y la validación de
+las 10 reglas clínicas), ninguno de los tres con test hasta ahora —
+arreglados los tres, con 21 tests nuevos, cada uno confirmado fallando
+sin el arreglo antes de darlo por bueno. `pnpm lint && pnpm typecheck &&
+pnpm test` en verde (721 tests unitarios). Ver `docs/CHANGELOG.md`
+[1.15.31].
+
+Antes de esto — **Corregida una hoja en blanco que
 aparecía tras recortar las capturas del PDF.** El dueño probó el cambio
 anterior (D71) con un caso real completo y encontró una página casi vacía
 entre el resultado de Barrett y el de Kane: el límite de alto de la

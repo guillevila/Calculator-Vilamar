@@ -2085,3 +2085,63 @@ distinguir "cambió el ojo" de "cambió el caso"), sin la guarda de
 `apps/desktop/e2e/flujo.spec.ts` → «renombrar el aparato de UN ojo no
 deja al OTRO mirando un dataset vacío al cambiar de pestaña» (confirmada
 fallando sin el fix, pasando con él).
+
+---
+
+## 2026-09-14 11:10 — «ojoDe(caso, lado) sin aparato» — un patrón de fallo que se repitió tres veces sin ningún test
+
+**Error o aprendizaje:** El dueño reportó, con un caso real de dos
+aparatos y dos lentes (D55), que la segunda lente «no salía». Investigado
+hasta la causa exacta leyendo el caso real guardado en disco
+(`CV-2026-0143.json`) y comparando la constante A guardada en cada
+aparato: los dos aparatos de verdad tenían la constante de la PRIMERA
+lente mucho después de haber cambiado a la segunda, que solo estaba en
+un aparato «Principal» fantasma —creado sobre la marcha, con todos los
+datos en blanco—. Causa: `elegirLente()`/`intercambiarLentes()`
+(`seleccion-lente.ts`) llamaban a `ojoDe(caso, lado)` sin decir el
+aparato, que cae en `APARATO_PRINCIPAL` por defecto (`ojoDe(caso, lado,
+aparato = APARATO_PRINCIPAL)`) — código escrito antes de que existieran
+varios aparatos por ojo (D47, 27/08/2026), nunca actualizado. Al buscar
+el mismo patrón exacto (`ojoDe(` sin tercer argumento) por el resto del
+dominio y del proceso principal, aparecieron DOS fallos más idénticos:
+`discrepanciasDeConstante()` (la auditoría de «constante enviada vs. la
+que dice haber usado la web») y `ServicioCasos.validar()` (las 10 reglas
+clínicas) — ninguno de los tres ficheros tenía NINGÚN test antes de esto,
+a pesar de ser lógica central del producto (constantes, validación
+clínica). Los tres se arreglaron igual: recorrer `datasetsDe(caso,
+lado)` (todos los aparatos) en vez de `ojoDe(caso, lado)` (uno solo, por
+defecto) — mismo patrón que ya usaba correctamente `confirmarTodo()` en
+`servicio-casos.ts`, sin que nadie lo hubiera reutilizado en los otros
+tres sitios.
+
+**Causa raíz:** Cuando una funcionalidad nueva añade una dimensión al
+modelo de datos (aquí: D47, varios aparatos por ojo), no basta con
+migrar el tipo y el código que se estaba tocando en ese momento — hay que
+buscar por TODO el código cualquier otro sitio que asumía «un ojo, un
+único conjunto de datos», porque cada uno de esos sitios queda roto en
+silencio (sin lanzar ningún error) el día que alguien use de verdad la
+funcionalidad nueva con datos reales. Ninguno de los tres falló con un
+error visible: los tres, sencillamente, no hacían nada para los
+aparatos que no fueran el principal.
+
+**Lección:** Tras cualquier cambio de modelo de datos que añada una
+dimensión nueva (aquí, «aparato»; antes, cosas como «ojo» o «lente
+secundaria»), buscar por todo el código el patrón antiguo que la
+funcionalidad nueva dejó incompleto —aquí, `grep -rn "ojoDe("` buscando
+llamadas sin el nuevo parámetro— en vez de dar por hecho que arreglar el
+sitio reportado ya cubre el resto. Y cuando se encuentra un fallo así,
+escribir el test ANTES de cerrar el tema, aunque el fichero llevara
+semanas sin ninguno: la ausencia de tests fue lo que permitió que el
+mismo fallo se repitiera tres veces sin que nada lo avisara.
+
+**Contexto:** `packages/domain/src/modelo/seleccion-lente.ts`
+(`elegirLente`, `intercambiarLentes`),
+`packages/domain/src/comparacion/auditoria-constante.ts`
+(`discrepanciasDeConstante`), `apps/desktop/src/main/servicio-casos.ts`
+(`validar()`, línea ~895). Patrón ya usado correctamente como referencia:
+`confirmarTodo()` en el mismo fichero, línea ~820
+(`ojosDelCaso(caso).flatMap((l) => datasetsDe(caso, l))`). 21 tests
+nuevos (`seleccion-lente.test.ts`, ampliación de
+`auditoria-constante.test.ts`, `servicio-casos.validar.test.ts`), cada
+uno confirmado fallando sin el arreglo antes de darlo por bueno. Ver
+`docs/CHANGELOG.md` [1.15.31] y `SYSTEM_VISION.md` (D74).

@@ -4,6 +4,60 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.31] — 14/09/2026
+
+fix(dominio,app): la constante A, la auditoría de constante y las 10
+reglas clínicas solo tocaban el aparato principal de cada ojo — con
+varios aparatos (D47), los de verdad se quedaban sin nada de esto.
+
+### Qué se reportó
+
+El dueño del proyecto, con un caso real de dos aparatos y dos lentes
+(comparar la lente normal contra otra para comprobar, D55): «si calculas
+con dos aparatos y dos lentes... el de la segunda lente con los mismos
+aparatos no sale».
+
+### La causa
+
+Tres funciones escritas antes de que existieran varios aparatos por ojo
+(D47, 27/08/2026) nunca se actualizaron para recorrerlos todos — las
+tres llamaban a `ojoDe(caso, lado)` sin decir el aparato, que cae en
+`APARATO_PRINCIPAL` por defecto:
+
+1. `elegirLente()`/`intercambiarLentes()` (D55): al cambiar de lente, la
+   constante A nueva solo se escribía en un aparato «Principal» creado
+   sobre la marcha —que no existía de verdad—, mientras los aparatos
+   reales se quedaban con la constante de la lente ANTERIOR, sin avisar.
+2. `discrepanciasDeConstante()`: comparaba «lo enviado» solo del aparato
+   principal; sin ninguno de verdad llamado así, la auditoría entera no
+   encontraba nada que comparar y no decía nada, en silencio.
+3. `ServicioCasos.validar()`: las 10 reglas clínicas solo se aplicaban al
+   aparato principal — un dato imposible en un aparato de verdad nunca
+   salía en los avisos.
+
+Reproducido y confirmado con los datos reales del caso CV-2026-0143 del
+dueño: sus dos aparatos (ZEISS IOLMaster 700, Heidelberg ANTERION)
+tenían la constante de la PRIMERA lente (119.10) mucho después de haber
+cambiado a la segunda (119.28), que solo estaba en un aparato «Principal»
+fantasma con todos los datos en blanco.
+
+### El cambio
+
+Las tres funciones ahora recorren `datasetsDe(caso, lado)` —todos los
+aparatos del ojo— en vez de un único `ojoDe(caso, lado)` por defecto.
+`DiscrepanciaConstante` gana un campo `aparato`, mencionado en el texto
+del aviso solo cuando el ojo tiene más de uno (mismo criterio que D48).
+Sin ningún cambio de comportamiento para el caso de un solo aparato (el
+uso de siempre): sigue siendo el aparato «Principal», y todo se ve igual
+que antes.
+
+Ningún fichero de estos tres tenía test hasta ahora. 21 tests nuevos
+(`seleccion-lente.test.ts`, ampliación de `auditoria-constante.test.ts`,
+`servicio-casos.validar.test.ts`), cada uno confirmado fallando SIN el
+arreglo antes de dar el fix por bueno.
+
+---
+
 ## [1.15.30] — 07/09/2026
 
 fix(report): una hoja de captura recortada podía empujar su propio pie de

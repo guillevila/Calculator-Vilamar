@@ -118,3 +118,55 @@ describe('la discrepancia queda registrada', () => {
     expect(discrepanciasDeConstante(casoCon(119.1, resultadoEvo()))).toHaveLength(0)
   })
 })
+
+describe('con varios aparatos por ojo (D47) — fallo real corregido el 14/09/2026', () => {
+  it('audita cada aparato con SU PROPIA constante enviada, no solo el principal', () => {
+    // Antes de la corrección, esto comparaba solo contra el aparato
+    // «Principal» (por defecto): sin ninguno de verdad llamado así, la
+    // auditoría entera no encontraba nada que comparar y no decía nada, en
+    // silencio, para los dos aparatos reales.
+    const zeiss = confirmarTodas(
+      conMedida(ojoVacio('OD', 'ZEISS IOLMaster 700'), crearMedida('CONSTANTE_A', 'OD', 119.1, DEL_PDF)),
+    )
+    const anterion = confirmarTodas(
+      conMedida(ojoVacio('OD', 'Heidelberg ANTERION'), crearMedida('CONSTANTE_A', 'OD', 119.28, DEL_PDF)),
+    )
+    let caso: Caso = casoNuevo('c1', 'CV-2026-0200', CUANDO)
+    caso = conOjo(caso, zeiss, CUANDO)
+    caso = conOjo(caso, anterion, CUANDO)
+    caso = confirmar(caso, CUANDO)
+    caso = conResultado(
+      caso,
+      resultadoEvo('A Constant: 119.2'),
+      CUANDO,
+      'ZEISS IOLMaster 700',
+    )
+    caso = conResultado(caso, resultadoEvo('A Constant: 119.28'), CUANDO, 'Heidelberg ANTERION')
+
+    const d = discrepanciasDeConstante(caso)
+    expect(d).toHaveLength(1)
+    expect(d[0]!.aparato).toBe('ZEISS IOLMaster 700')
+    expect(d[0]!.enviada).toBe(119.1)
+    expect(d[0]!.segunLaWeb).toBe(119.2)
+  })
+
+  it('nombra el aparato en el texto solo cuando no es el principal', () => {
+    const caso = casoCon(119.1, resultadoEvo('A Constant: 119.2'))
+    const texto = describirDiscrepancia(discrepanciasDeConstante(caso)[0]!)
+    expect(texto).not.toContain('Principal')
+
+    const zeiss = confirmarTodas(
+      conMedida(ojoVacio('OD', 'ZEISS IOLMaster 700'), crearMedida('CONSTANTE_A', 'OD', 119.1, DEL_PDF)),
+    )
+    let conAparato: Caso = casoNuevo('c1', 'CV-2026-0200', CUANDO)
+    conAparato = confirmar(conOjo(conAparato, zeiss, CUANDO), CUANDO)
+    conAparato = conResultado(
+      conAparato,
+      resultadoEvo('A Constant: 119.2'),
+      CUANDO,
+      'ZEISS IOLMaster 700',
+    )
+    const textoConAparato = describirDiscrepancia(discrepanciasDeConstante(conAparato)[0]!)
+    expect(textoConAparato).toContain('ZEISS IOLMaster 700')
+  })
+})
