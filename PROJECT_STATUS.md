@@ -9,7 +9,21 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 07/09/2026 · **Corregida una hoja en blanco que
+**Última actualización:** 14/09/2026 · **Calcular solo OD y volver después
+a añadir OS al mismo caso, sin perder nada (D75).** El dueño reportó que,
+tras calcular solo OD, volver a los datos para meter también OS no dejaba
+hacerlo —había que empezar un caso nuevo, perdiendo lente, constante,
+paciente y doctor ya escritos. La causa era la misma que D65 ya había
+resuelto para aparatos (un freno de `App.tsx` que deshacía la elección de
+algo que todavía no existe), aplicada aquí a ojos: la pestaña OD/OI de la
+revisión ahora se enseña siempre —antes solo con datos en los dos ojos—, y
+el mismo freno se apaga mientras se está en esa pantalla. Nuevo test de
+interfaz reproduce el caso real de punta a punta. `pnpm lint && pnpm
+typecheck && pnpm test && pnpm build && pnpm test:e2e` en verde (709 tests
+unitarios; el único fallo, `block-subagent-external.test.mjs`, es previo y
+no relacionado — 47 de interfaz).
+
+Antes de esto — **07/09/2026: corregida una hoja en blanco que
 aparecía tras recortar las capturas del PDF.** El dueño probó el cambio
 anterior (D71) con un caso real completo y encontró una página casi vacía
 entre el resultado de Barrett y el de Kane: el límite de alto de la

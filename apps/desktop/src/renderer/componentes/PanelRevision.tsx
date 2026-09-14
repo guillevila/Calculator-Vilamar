@@ -321,22 +321,33 @@ export function PanelRevision({
 
       <SelectorLente caso={caso} onCambio={onCambio} />
 
-      {ojos.length > 1 && (
-        <div className="fila" style={{ marginBottom: 14 }}>
-          <div className="selector-ojo">
-            {ojos.map((l) => (
-              <button
-                key={l}
-                className={l === ojoActivo ? 'activo' : ''}
-                onClick={() => onCambiarOjo(l)}
-                data-testid={`revision-ojo-${l}`}
-              >
-                {nombreLateralidad(l)}
-              </button>
-            ))}
-          </div>
+      {
+        // Las dos pestañas se enseñan SIEMPRE, tenga o no datos todavía el
+        // otro ojo — igual que el cuestionario manual (D65: «la pantalla de
+        // revisión queda igual que el cuestionario manual»). Antes solo
+        // aparecían si `ojos.length > 1` (el caso ya tenía datos en los
+        // dos), así que un caso cargado con un solo ojo no tenía ningún
+        // sitio para pasar al otro sin empezar un caso nuevo — fallo real
+        // reportado por el dueño (14/09/2026): calcular solo OD y no poder
+        // añadir después OS al mismo caso. Elegir el ojo sin datos todavía
+        // no falla: `ojoDe()` devuelve un ojo vacío listo para escribir, y
+        // el efecto de `ojoActivo` en `App.tsx` no lo deshace mientras se
+        // esté en esta pantalla.
+      }
+      <div className="fila" style={{ marginBottom: 14 }}>
+        <div className="selector-ojo">
+          {(['OD', 'OS'] as const).map((l) => (
+            <button
+              key={l}
+              className={l === ojoActivo ? 'activo' : ''}
+              onClick={() => onCambiarOjo(l)}
+              data-testid={`revision-ojo-${l}`}
+            >
+              {nombreLateralidad(l)}
+            </button>
+          ))}
         </div>
-      )}
+      </div>
 
       {/*
         Selector de aparato (D47) — mismo componente que el formulario
