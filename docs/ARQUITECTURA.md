@@ -213,6 +213,29 @@ Es lo que permite distinguir «la constante de la lente que acabo de descartar»
 respeta—. Sin ese dato habría que deducirlo mirando la evidencia, que es
 exactamente la clase de deducción frágil que este modelo evita.
 
+**`Caso.lenteSecundaria`** (D55, 01/09/2026) es una segunda lente candidata,
+para comparar con la misma biometría sin volver a escribir ningún dato —
+pero **nunca hay dos lentes activas a la vez**. `lente` sigue siendo la
+única que de verdad viaja a las tres calculadoras; `lenteSecundaria` es
+solo una elección aparcada, y no toca `CONSTANTE_A` ni ningún otro campo
+mientras está ahí (`elegirLenteSecundaria()`, deliberadamente más simple
+que `elegirLente()` — no busca la lente en el informe ni resuelve
+constante, porque una lente aparcada no calcula nada todavía).
+
+`intercambiarLentes()` es lo único que la activa: reutiliza `elegirLente()`
+entero para la que pasa a ser `lente` —con sus propias cuatro reglas de
+constante, cero código nuevo que pueda emparejarla mal—, mueve la que era
+`lente` a `lenteSecundaria`, y **borra `Caso.resultados`**. Es deliberado y
+no un efecto secundario descuidado: los resultados que había eran de la
+lente anterior —y, con Barrett, que no elige su propio modelo como sí
+hacen EVO y Kane, con SU constante A—; conservarlos enseñaría un informe
+que dice hablar de una lente pero calculó con otra. Es la razón de fondo
+de que esta función exista en vez de, por ejemplo, dar a `CONSTANTE_A` una
+dimensión por lente (como si fuera un aparato más, D47): ese campo es del
+OJO, no de la lente, así que tener las dos lentes «activas» a la vez para
+calcular las dos en paralelo habría abierto la puerta a mandarle a Barrett
+la constante equivocada sin que nada lo avisara.
+
 **Los nombres se comparan de forma exacta tras normalizar**, nunca aproximada. Se
 ignoran mayúsculas, espacios, puntuación de adorno y el nexo del fabricante
 («Bausch & Lomb» = «Bausch and Lomb» = «Bausch-Lomb»). Lo que NO se hace es
@@ -240,6 +263,69 @@ columnas distintas de la pantalla:
 Mezclarlos era el problema de fondo: el nivel de validación `MISSING` se pintaba
 con el mismo texto que la ausencia, así que un hueco normal parecía un error.
 
+### 3.2. Varios biómetros por el mismo ojo (D47, 27/08/2026)
+
+`packages/domain/src/modelo/caso.ts` · `medida.ts` · `comparacion/discrepanciaAparatos.ts`
+
+Hasta D47, `Caso.ojos` admitía **un único** `OjoBiometrico` por lado:
+
+```ts
+// Antes
+ojos: Partial<Record<Lateralidad, OjoBiometrico>>
+
+// Desde D47
+ojos: Readonly<Partial<Record<Lateralidad, readonly OjoBiometrico[]>>>
+```
+
+Cada elemento de la lista es un conjunto de medidas de un aparato distinto —
+`OjoBiometrico` ganó `readonly aparato: string`, texto libre (el desplegable
+de la interfaz ofrece los aparatos conocidos más «Otro», pero el dominio no
+necesita una lista cerrada). El aparato implícito de un caso con un solo
+biómetro es `APARATO_PRINCIPAL`, y es el valor por defecto de **todas** las
+funciones que antes solo conocían `(caso, lado)`: `ojoDe`, `conResultado`,
+`resultadoDe`, `prepararEntradas`, `claveResultado`… Es la razón por la que
+este cambio, siendo estructural, no tocó ningún llamador existente: cada uno
+sigue compilando y comportándose igual sin pasar el nuevo parámetro. (La
+propia `columnasComparativa(caso, lado, aparato)` de entonces pasó a ser
+`COLUMNAS_COMPARATIVA`, una lista constante, en D51 — ver 5.0.1.)
+
+**Deliberadamente NO tocado**: `ResultadoCalculadora` y `EntradasCalculadora`
+no llevan `aparato`. La dimensión del aparato se pasa como parámetro
+explícito por la cadena de orquestación (`TareaCalculo.aparato`,
+`OpcionesCaso.alTerminarUna(resultado, tarea)`), no se guarda dentro del
+resultado — así ningún adaptador (`evo.ts`, `barrett.ts`, `kane.ts`) ni su
+suite de tests necesitó cambiar una sola línea: siguen sin saber que existen
+varios aparatos.
+
+**Confirmación y cálculo son por dataset, no por caso** (decisión 1 del
+dueño): `sePuedeConfirmarDataset(caso, lado, aparato)` sustituye a
+`sePuedeConfirmar` como puerta real antes de calcular; un aparato puede
+calcular mientras otro, del mismo ojo, sigue sin confirmar.
+
+**`detectarDiscrepancias`** (decisión 2) compara, campo a campo, cada par de
+datasets **confirmados** del mismo ojo contra una tabla de umbrales (AL
+0.3 mm, K1/K2 0.5 D, ACD/LT 0.3 mm, CCT 20 µm, WTW 0.5 mm — valores de
+partida, no una cifra clínica validada). `Caso.discrepanciasReconocidas`
+guarda que el cirujano ya lo comprobó para un ojo, y se **borra
+automáticamente** en cuanto `editarMedida` vuelve a tocar ese ojo — un
+reconocimiento viejo nunca puede tapar una discrepancia nueva.
+
+**La pantalla de revisión comprueba las discrepancias de TODOS los ojos
+del caso, no solo del que se está viendo** (D62, 02/09/2026, corrige un
+fallo real): antes, `PanelRevision.tsx` solo pedía
+`discrepanciasDe(ojoActivo)`, así que confirmar mirando OD (sin problemas)
+dejaba pasar una discrepancia sin reconocer en OS — `calcular()` la
+descartaba en silencio (D51 la deja pasar el resto del caso a propósito),
+sin que nadie hubiera visto la alarma. Ahora se piden las de cada ojo por
+separado y «Confirmar» se bloquea si cualquiera tiene una pendiente, con
+el aviso señalando cuál.
+
+**El informe** (decisión 3): `hojaResumenFinal` sigue mostrando un único
+cuadro por ojo, con una tarjeta por resultado; el nombre de la tarjeta
+incluye el aparato («EVO Toric — IOLMaster 700») solo cuando ese ojo tiene
+más de uno. `generarPdf()` ya no genera un PDF por caso, sino uno por cada
+ojo de `ojosDelCaso(caso)`, cada uno con `recopilarInforme(..., soloOjo)`.
+
 ---
 
 ## 4. Extracción: capas, no una masa de expresiones regulares
@@ -262,6 +348,16 @@ modelo canónico
 Hoy hay tres implementaciones en la aplicación: texto nativo de PDF con pdfjs,
 OCR con tesseract.js, y PDF escaneado → imagen → OCR. Cambiarlas no toca los
 parsers.
+
+**El OCR no corrige el giro de la imagen por su cuenta** (D59, 02/09/2026):
+una foto de móvil torcida sale con el texto ilegible. `ProveedorDocumentos`
+(`apps/desktop/src/main/extraccion/proveedor.ts`) no adivina el ángulo con
+heurísticas — lee la imagen tal cual y, **solo si esa primera lectura ya
+sale por debajo del umbral de poca fiabilidad** (`UMBRAL_FIABILIDAD_BAJA`,
+el mismo que ya avisaba al usuario), prueba las otras tres orientaciones
+(`Rasterizador.rotar()`, en `rasterizador.ts`) y se queda con la de más
+fiabilidad. Una foto bien orientada —el caso normal— no paga ningún coste
+de más.
 
 Añadir un aparato es **añadir una tabla de reglas**, no reescribir la lógica.
 Ver [MANTENIMIENTO.md](MANTENIMIENTO.md).
@@ -409,6 +505,164 @@ queda sin nada.
 
 Lo específico de cada web está en [INTEGRACIONES.md](INTEGRACIONES.md).
 
+### 5.0.1. Calculadoras con variantes — córnea posterior en EVO y Barrett (D45, D51)
+
+`Calculadora` tiene dos miembros más, `EVO_TORIC_SIN_CARA_POSTERIOR` y
+`BARRETT_TORIC_CON_CARA_POSTERIOR`, que **no** están en `CALCULADORAS` (la
+lista histórica de tres). Existen para poder comparar el efecto de la
+córnea posterior — pero en sentidos opuestos: EVO usa la córnea posterior
+**por defecto**, así que su variante se la QUITA; Barrett usa un modelo
+teórico («Predicted PCA») por defecto, así que su variante se la AÑADE
+(«Measured PCA»). Por eso el tipo no es un simple mapa a otra calculadora,
+sino:
+
+```ts
+export interface VariantePosterior {
+  readonly calculadora: Calculadora
+  readonly sentido: 'CON' | 'SIN'
+}
+export const VARIANTE_CARA_POSTERIOR: Partial<Record<Calculadora, VariantePosterior>> = {
+  EVO_TORIC: { calculadora: 'EVO_TORIC_SIN_CARA_POSTERIOR', sentido: 'SIN' },
+  BARRETT_TORIC: { calculadora: 'BARRETT_TORIC_CON_CARA_POSTERIOR', sentido: 'CON' },
+}
+```
+
+`sentido` es lo que le dice a `COLUMNAS_COMPARATIVA` (`packages/domain/src/modelo/caso.ts`)
+en qué orden mostrar cada pareja: Predicted siempre antes que Measured PCA,
+sea cuál sea la base y cuál la variante — así una tabla nunca depende de
+recordar qué calculadora hace qué. `recopilarResultadosParaInforme()`
+(proceso principal) y `PanelResultados.tsx` usan esa misma lista, para que
+la comparativa en pantalla y el informe muestren siempre las mismas cinco
+columnas.
+
+Cómo encaja cada una sin tocar el adaptador real ni duplicar selectores:
+
+- **EVO** (composición, sin tocar `AdaptadorEvoToric`):
+  `FICHAS.EVO_TORIC_SIN_CARA_POSTERIOR` es igual que la de EVO, salvo que
+  sus `opcionales` no incluyen PK1/PK1_EJE/PK2/PK2_EJE. Como
+  `prepararEntradas()` ya construye las entradas campo a campo según la
+  ficha, esto basta: la variante nunca recibe esos campos.
+  `AdaptadorSinCaraPosterior` (`packages/integrations/src/variante-sin-cara-posterior.ts`,
+  fuera de `adapters/` porque no conoce ningún HTML propio) envuelve el
+  adaptador real de EVO y solo reetiqueta el `ResultadoCalculadora.calculadora`
+  con la clave de la variante — sin eso, el resultado «sin córnea posterior»
+  pisaría al de «con» al guardarse, porque los resultados se guardan por
+  calculadora.
+- **Barrett** (un único adaptador con dos configuraciones): `AdaptadorBarrettToric`
+  recibe un `conCaraPosterior: boolean` en el constructor, y `calculadora`/
+  `nombre` son getters que devuelven una clave u otra según ese flag — no
+  una subclase, porque TypeScript no deja que una subclase estreche el tipo
+  literal de un campo `as const` de la clase base. Cuando `conCaraPosterior`
+  es `true`, después del primer «Calculate» del formulario normal,
+  `rellenarCaraPosterior()` marca «Measured PCA» y ejecuta la secuencia real
+  de nueve pasos entre dos pestañas que se explica en el docstring de
+  `barrett.ts` — descubierta en vivo, no deducible del HTML inicial, porque
+  el interruptor «Measured PCA» solo existe después de calcular una vez.
+  Tiene su propio «Calculate» (`Button4`, distinto del `Button1` del
+  formulario principal); equivocarse de botón deja el panel relleno pero el
+  cálculo sigue en «Predicted PCA» — un fallo silencioso que ya ocurrió una
+  vez aquí, por eso ahora lanza `ADAPTER_BROKEN` si la secuencia no se
+  completa entera.
+- **Desde D51 (28/08/2026), ninguna de las dos se añade sola.** Hasta
+  entonces, `ServicioCasos.calcular()` añadía la tarea de la variante junto
+  a la de su base en cuanto el ojo tenía PK1 o PK2 —
+  `conVariantesDeCaraPosterior()`, ya eliminado—. Ahora las cinco
+  calculadoras de `COLUMNAS_COMPARATIVA` son botones independientes en
+  `PanelCalculo.tsx`: cada una se pide (o no) por su cuenta, sin magia
+  detrás. La razón del cambio: con D47 (varios aparatos) la pantalla ya
+  tenía botones explícitos por calculadora, y que dos de las cinco casillas
+  aparecieran o no «solas» según los datos rompía la previsibilidad de
+  «pulso este botón, se calcula esta casilla» — además de duplicar tráfico
+  a EVO/Barrett en cuanto un ojo tenía córnea posterior, sin que la persona
+  lo hubiera pedido.
+- `recopilarResultadosParaInforme()` ya no necesita mirar `sentido` ni
+  PK1/PK2 en absoluto: recorre `COLUMNAS_COMPARATIVA` sin condiciones, y es
+  `anadirCasilla()` —no este bucle— quien decide si esa casilla sale en el
+  PDF, mirando si de verdad hay un `ResultadoCalculadora` guardado (D49). El
+  cuadro final orientativo (D43) sigue excluyendo las cinco de su
+  comparación textual, sin cambios.
+
+### 5.0. El modelo de lente en el desplegable propio de cada web (26/08/2026)
+
+Si el caso trae un modelo de lente y la web lo tiene en su propia lista,
+EVO y Kane lo eligen antes de escribir ningún número — igual que ya hacían
+con el modelo, ahora también se dejan de sobrescribir con la constante A
+escrita a mano: si el modelo se encontró, esa constante es la que la propia
+web rellena sola. Barrett no tiene estas lentes en su lista y sigue
+recibiendo la constante A del caso, sin cambios.
+
+En Kane esto tiene una vuelta: elegir una lente TÓRICA de su lista cambia el
+modo del formulario (`Toric`/`Non-toric`) por su cuenta, y ese modo lo
+decide `modoParaKane()` a partir de los datos del caso — no la lista de
+lentes. Por eso el modelo se elige DESPUÉS de fijar el modo por primera vez,
+y el modo se **reafirma** justo después de elegir el modelo, antes de
+escribir ningún número: no se pierde nada porque nada se ha escrito todavía.
+
+**El mismo modelo físico puede llamarse distinto en cada desplegable**
+(petición expresa del dueño, 27/08/2026): «B&L LuxSmart» en EVO es «B+L
+LuxSmart Toric» en Kane, y `elegirModelo()` en los dos adaptadores busca
+una coincidencia EXACTA de texto contra su propia lista — sin ese matiz,
+el nombre que le sirve a uno no encuentra nada en el otro, y esa
+calculadora calcula con la constante A escrita a mano en vez de con la
+suya propia, sin avisar de que se ha equivocado de lente. `LenteElegida`
+(`caso.ts`) lleva ahora `nombreEnEvo`/`nombreEnKane` opcionales, y
+`prepararEntradas()` (`preparar-entradas.ts`) elige cuál mandar según la
+`calculadora` que está preparando —`nombreDeLentePara()`—, cayendo en el
+nombre general (`modelo`) si esa calculadora no tiene uno propio. El
+catálogo de `SelectorLente.tsx` lleva los pares ya rellenos para las
+lentes Bausch & Lomb que los necesitan (Aspire, Envy, LuxGood, LuxSmart,
+LuxLife); los modelos que ya se llaman igual en las dos webs (Alcon,
+Tecnis, Rayner, ZEISS…) no llevan nombre propio y siguen exactamente
+igual que antes. Barrett no tiene desplegable de lentes (D33): no le
+afecta nada de esto.
+
+**El mismo patrón, para el aparato que midió la córnea posterior** (D58,
+01/09/2026): EVO y Barrett enseñan, cada una junto a su panel de córnea
+posterior medida, un desplegable «Biometer»/«Device» que cambia la
+corrección que aplican según el instrumento. `EntradasCalculadora` gana
+`dispositivoCaraPosterior?: string`, resuelto por
+`dispositivoCaraPosteriorPara(calculadora, aparato)` en
+`preparar-entradas.ts` contra dos tablas de mapeo, una por web
+(`DISPOSITIVO_EN_EVO`/`DISPOSITIVO_EN_BARRETT`) — un aparato que esa web
+no reconoce no manda nada, y el desplegable se queda en su propio valor
+por defecto («IOLMaster 700»/«IOLMaster 700 TK»). `evo.ts` lo selecciona
+con `selectOption('#DropDownListPK', { label })`, siempre visible;
+`barrett.ts` con `selectOption('#MainContent_Device', { label })`, dentro
+del mismo panel que `rellenarCaraPosterior()` ya revela al marcar
+«Measured PCA». Kane no tiene córnea posterior (D51): este dato nunca
+llega a su adaptador.
+
+**El aparato de córnea posterior no es siempre el mismo que el general**
+(D60, 02/09/2026, corrige D58 el mismo día): la primera versión reutilizaba
+directamente el `aparato` de D47 —que es el biómetro de TODO el dataset—,
+y el dueño avisó de que a veces la córnea posterior se mide con otro
+instrumento aparte. `OjoBiometrico` gana `aparatoCaraPosterior?: string`,
+un campo independiente; `dispositivoCaraPosteriorPara()` recibe
+`aparatoCaraPosterior ?? aparato`, así que sin elegir uno propio el
+comportamiento es el de D58, sin cambios. En el formulario manual esto son
+DOS selectores distintos: el de D47 (arriba del todo, para todo el
+dataset) y uno nuevo dentro de «Córnea posterior» (`SelectorAparatoCaraPosterior`,
+por defecto «Igual que arriba»).
+
+### 5.1. La captura del resultado
+
+Cada adaptador, justo después de comprobar que el resultado es del ojo
+correcto, toma un `page.screenshot({ fullPage: true })` de la pantalla de
+resultado y lo guarda con `ctx.guardarCaptura(...)` — el mismo patrón
+inyectado que ya usaba `guardarDiagnostico` para el camino de fallo, pero en
+el de éxito. La lógica compartida vive en `packages/integrations/src/captura.ts`
+y no sabe HTML de ninguna web; si fotografiar o guardar falla, no lanza:
+un resultado ya leído no se puede perder por no haberle podido hacer una foto.
+
+`ResultadoCalculadora.capturaId` guarda solo la referencia (un string), nunca
+los bytes — el dominio sigue sin `node:fs`. Los PNG viven en
+`apps/desktop/src/main/capturas.ts`, en `%APPDATA%\calculator-vilamar\capturas`,
+con el mismo aviso de privacidad que `diagnostico.ts`: pueden llevar
+biometría, nunca un dato identificativo, y no salen del ordenador. Solo
+`servicio-casos.ts` los lee de disco, al generar el PDF, y se los pasa a
+`@vilamar/report` ya en `data:` URI — `recopilarInforme` y
+`generarHtmlInforme` siguen siendo funciones puras.
+
 ---
 
 ## 6. La aplicación
@@ -417,8 +671,31 @@ Lo específico de cada web está en [INTEGRACIONES.md](INTEGRACIONES.md).
 
 - `almacen.ts` — ficheros JSON en `%APPDATA%\calculator-vilamar`. Sin base de
   datos, y es una decisión: un caso es un objeto pequeño, no hay consultas, y
-  SQLite traería un módulo nativo que hay que compilar.
+  SQLite traería un módulo nativo que hay que compilar. **Excepción:**
+  `informes` vive en `Escritorio\Calculadora Vilamar\` (D57, 01/09/2026,
+  petición expresa del dueño) — `prepararCarpetas(rutaDatos, rutaInformes?)`
+  acepta una ruta aparte solo para esa carpeta; el resto sigue en
+  `rutaDatos`. `apps/desktop/src/main/index.ts` la fija a
+  `app.getPath('desktop')`, salvo que `VILAMAR_CARPETA_INFORMES` (variable
+  de entorno) la sobreescriba — lo que usan las pruebas de interfaz para no
+  escribir PDF de prueba en el Escritorio real de quien las ejecute, ya que
+  `app.getPath('desktop')`, a diferencia de `userData`, no depende de
+  `--user-data-dir`. Aviso hecho al dueño antes de construir, y aceptado
+  informado: si el Escritorio de quien instala la app está sincronizado con
+  algún servicio en la nube (como pasa en el ordenador de desarrollo, con
+  OneDrive corporativo), los informes —que llevan el nombre real del
+  paciente, D44— se suben ahí automáticamente.
+- **Un caso solo vive en memoria** (`ServicioCasos.caso`) mientras la
+  aplicación está abierta — nunca se recarga solo de `guardarCaso()` al
+  arrancar. «Casos guardados» (D63, 02/09/2026) es la vía para volver a él
+  a propósito: `listarCasosGuardados()`/`abrirCaso(codigo)` usan
+  `leerCaso`/`listarCasos` de `almacen.ts` —ya existían, sin usar por
+  nadie— para leer un caso guardado y ponerlo como el actual, igual que
+  hace `nuevo()`.
 - `diagnostico.ts` — el cuaderno de bitácora de los adaptadores.
+- `capturas.ts` — la captura de cada resultado de éxito, tal cual. A
+  diferencia de `diagnostico.ts`, no se poda: es parte permanente del caso,
+  no un cuaderno de depuración rotatorio.
 - `servicio-casos.ts` — coordina; no decide. Todo lo que decide «qué se puede
   hacer» está en el dominio.
 - `extraccion/` — las implementaciones concretas de lectura.
@@ -431,11 +708,286 @@ internet.
 
 El flujo es uno solo, en cuatro pasos. No hay menús.
 
+**La barra de esos cuatro pasos, arriba, es navegable** (D64, 02/09/2026):
+un paso se puede volver a pulsar si el CASO ya lo ha alcanzado de verdad
+—se mira `caso.estado` (`CONFIRMADO`/`CALCULANDO`/`COMPLETADO` habilitan
+«Calcular»/«Resultados»; «Revisar datos» siempre, si hay caso)—, nunca la
+pantalla en la que se esté en ese momento: mirar la pantalla actual
+«olvidaba» que ya se había llegado más lejos en cuanto se volvía atrás.
+
+**`PanelRevision.tsx` (documentos cargados) y `FormularioManual.tsx`
+(cuestionario manual) comparten el mismo selector de aparato** (D65,
+02/09/2026): `SelectorAparato.tsx`, con `SelectorAparato`,
+`SelectorAparatoPrincipal` y `SelectorAparatoCaraPosterior` (D58/D60),
+antes solo en el cuestionario manual. Sus tres grupos de campos —
+Biometría, Lente e incisión, Córnea posterior — van en el mismo orden en
+las dos pantallas; la revisión enseña además los campos informativos
+(AQD, TK1/TK2, índice queratométrico, factor de lente) que un documento
+puede traer y que el cuestionario manual, al no escribirlos nunca nadie a
+mano, no pide.
+
+⚠️ Un aparato recién elegido con «Añadir otro biómetro» no existe todavía
+como dataset del caso —se crea solo al escribir el primer campo, igual en
+las dos pantallas—, así que `aparatoActivo` puede apuntar, durante un
+instante, a un nombre que el caso aún no tiene. En `PanelRevision.tsx`
+esto funciona porque `aparatoActivo` vive en `App.tsx` y el `useEffect`
+que lo devuelve al aparato real del caso en cuanto el elegido no existe
+—necesario en `PanelCalculo.tsx`/`PanelResultados.tsx`, para no quedarse
+viendo resultados de un aparato fantasma— tiene una excepción explícita
+mientras `paso === 'REVISION'`. Sin esa excepción, elegir un aparato
+nuevo se deshacía en el mismo instante de elegirlo — fallo real,
+encontrado y corregido antes de enseñar la función.
+
+Antes de calcular, `PanelCalculo.tsx` deja marcar/desmarcar con qué
+calculadoras lanzar el cálculo (D40) — el backend ya soportaba un subconjunto
+de `Calculadora[]` (`ServicioCasos.calcular`/`planificarCaso`), solo hacía
+falta la interfaz. El botón «Reintentar» de cada calculadora sigue siendo un
+mecanismo aparte, no afectado por la selección.
+
+**«Ojos a calcular»** (D66, 02/09/2026): mismo patrón que el de arriba —
+el backend ya tenía el filtro (`ServicioCasos.calcular(calculadoras?,
+filtro?: { ojo?, aparato? })`, D47), solo hacía falta exponerlo en la
+pantalla. `PanelCalculo.tsx` enseña «Los dos ojos» / «Solo OD» / «Solo
+OS» únicamente si `ojosDelCaso(caso).length > 1` — con un solo ojo no hay
+nada que elegir —, con «Los dos ojos» como valor de partida para no
+cambiar el comportamiento de siempre a quien no toca el selector. En
+`App.tsx`, el callback `onCalcular` ahora reenvía el `filtro` que le
+llega de la pantalla en vez de descartarlo: antes había un comentario
+explícito avisando de que filtrar por el ojo activo aquí reintroduciría
+un fallo ya corregido («solo calcula la pestaña que se ve») — sigue
+siendo cierto para un filtro AUTOMÁTICO basado en qué pestaña se está
+mirando, pero este es un filtro que la persona elige a propósito con un
+control visible, no lo mismo.
+
+**La constante A se copia sola entre los dos ojos** (D66, 02/09/2026),
+cuando comparten aparato — casi siempre es la misma lente. Un único
+punto de cambio en `ServicioCasos.editarMedida()` cubre las dos pantallas
+de entrada (comparten componente desde D65), en dos sentidos según cuál
+se toque primero:
+
+1. Se escribe la constante en un ojo cuyo aparato ya existe también en el
+   otro, sin constante propia todavía → se copia hacia el otro.
+2. Se crea el dataset de un ojo (su primer campo) cuando el otro ya tenía
+   ese mismo aparato con su constante puesta → la hereda en el momento de
+   crearse, nunca en ediciones posteriores a ese dataset — así, borrarla
+   después en un ojo no la hace reaparecer sola con la siguiente edición
+   de otro campo.
+
+Los dos sentidos comparten la misma regla de fondo: nunca pisan una
+constante que YA hubiera en el ojo de destino, así que un valor distinto
+puesto a propósito para un ojo se respeta igual que cualquier dato
+manual. Investigado antes de tocar nada si hacía falta cambiar algo en
+`SelectorLente.tsx`: no — es una única pantalla para todo el caso, así
+que una lente elegida del catálogo, con constante de tabla, ya se aplica
+a los dos ojos con datos en el mismo movimiento desde D33
+(`elegirLente()` recorre `ojosDelCaso(caso)`); el hueco real era solo la
+constante escrita a mano, sin lente de catálogo detrás.
+
+### Córnea especial: LASIK/PRK/RK previos y queratocono (D67, 02/09/2026)
+
+Un ojo con córnea alterada por cirugía refractiva previa, o con
+queratocono, necesita algo distinto de las tres calculadoras. Nuevo
+campo por dataset, `OjoBiometrico.situacionCorneal?: SituacionCornealEspecial`
+(`LASIK_MIOPE` / `LASIK_HIPERMETROPE` / `QUERATOTOMIA_RADIAL` /
+`QUERATOCONO`), editado con `ServicioCasos.editarSituacionCorneal()` —
+mismo patrón que `aparatoCaraPosterior` (D58): `undefined` de partida, un
+`SelectorSituacionCorneal` compartido (`SelectorAparato.tsx`) en el grupo
+«Lente e incisión» de las dos pantallas de entrada. Dos campos nuevos del
+catálogo, `REFRACCION_PRE_LASIK`/`REFRACCION_POST_LASIK` (categoría
+QUIRÚRGICO, opcionales): historial del paciente, no una medida de ningún
+biómetro, así que solo se enseñan cuando el ojo tiene la situación
+marcada — a diferencia de los campos informativos de siempre (AQD,
+TK1/TK2…), que se enseñan siempre porque un documento sí puede traerlos.
+
+EVO y Kane la usan como **un campo más en su mismo formulario** —cada uno
+comprobado en vivo con su sonda de reconocimiento antes de escribir el
+adaptador, nunca supuesto por simetría—:
+
+- `evo.ts`: `#DropDownLASIK`, con `No`/`Myopic`/`Hyperopic`/
+  `Radial Keratotomy`. Queratocono no tiene equivalente en EVO — se deja
+  en `No`, no se inventa una opción que la web no ofrece.
+- `kane.ts`: `keratoconus_1`/`keratoconus_2`, una CASILLA (no un radio del
+  mismo grupo que Non-toric/Toric) — comprobado en vivo que activarla no
+  cambia qué campos hacen falta ni desactiva el modo tórico: es un
+  interruptor independiente, y así se trata (`asegurarKeratoconus()`,
+  mismo patrón de «comprobar y pulsar solo si hace falta» que
+  `asegurarModo()`).
+
+**Barrett es distinto: no es un campo más, es una calculadora aparte.**
+La fórmula estándar de Barrett Toric da un resultado erróneo en un ojo
+con córnea especial; ASCRS publica una página separada, «Barrett True K
+Toric», para estos casos. Nueva calculadora `BARRETT_TRUE_K_TORIC`, con
+su propio adaptador (`barrett-true-k.ts`) — no una variante de
+`AdaptadorBarrettToric`, aunque comparte casi todo su diseño porque la
+web real resultó ser la MISMA aplicación ASP.NET, en el mismo dominio
+(`calc.apacrs.org`), con prácticamente los mismos `id` de campo y las
+mismas dos tablas de resultado (`GridView1`/`GridView2`) — comprobado con
+un cálculo sintético real de punta a punta antes de escribir el
+adaptador. Sin el paso extra de «Measured PCA» que sí tiene
+`BARRETT_TORIC_CON_CARA_POSTERIOR`: usa siempre «Predicted PCA».
+
+Las dos calculadoras de Barrett se EXCLUYEN MUTUAMENTE por ojo, en
+`prepararEntradas()` (`packages/domain/src/modelo/preparar-entradas.ts`):
+`BARRETT_TORIC`/`BARRETT_TORIC_CON_CARA_POSTERIOR` se bloquean
+(`CORNEA_ESPECIAL_USA_TRUE_K`) si el ojo tiene `situacionCorneal` puesta;
+`BARRETT_TRUE_K_TORIC` se bloquea (`TRUE_K_SIN_CORNEA_ESPECIAL`) si NO la
+tiene — así no es una casilla más a elegir libremente, es la sustituta
+obligatoria. El bloqueo pasa en el dominio, antes de que
+`ejecutarUnaCalculadoraParaUnOjo()` llegue a abrir ninguna página, con un
+mensaje explícito de cuál usar en su lugar. `COLUMNAS_COMPARATIVA` gana
+una sexta columna, al final —no forma pareja con ninguna base, así que no
+va dentro del bloque de Barrett— y `PanelCalculo.tsx` la enseña como una
+casilla más, junto a las cinco de siempre.
+
+Investigado con `pnpm reconocer <sitio>` antes de escribir una sola línea
+de ningún adaptador, con datos SINTÉTICOS —nunca un paciente real—:
+`scripts/sondas/reconocer.mjs` ganó dos entradas nuevas,
+`barrett-true-k` y `barrett-true-k-toric`. Un hallazgo real a mitad de la
+investigación: la primera página encontrada, «Barrett True K» (sin
+cilindro ni eje, solo esfera), NO es la que hay que usar — el dueño lo
+corrigió expresamente: para un caso tórico hace falta siempre «Barrett
+True K Toric», una URL distinta (`.../barrett-true-k-toric-calculator`).
+
+El objetivo de refracción (`REFRACCION_OBJETIVO`) arranca en 0 (D38):
+`servicio-casos.ts` lo rellena como medida `MANUAL` —confirmada por
+definición, como cualquier dato escrito a mano— si el documento no trae ya
+un valor propio. No hace falta ningún mecanismo nuevo de confirmación: es
+la misma regla que ya rige cualquier dato manual.
+
+### El cuestionario de entrada 100% manual (D42)
+
+Antes de calcular hay dos vías igual de visibles en el paso `INICIO`:
+cargar un archivo (`ZonaSoltar.tsx`) o escribir los datos a mano
+(`FormularioManual.tsx`, paso nuevo `MANUAL` en `App.tsx`). El cuestionario
+es deliberadamente más simple que la pantalla de revisión: sin columnas de
+Origen/Estado/Evidencia, porque todo lo que se escribe ahí ya es `MANUAL` y
+un dato manual sale confirmado por definición — no hay nada que revisar de
+ese tipo. Reutiliza `SelectorLente.tsx` tal cual (ya funciona sin ningún
+documento) y el mismo `editarMedida` que usa `PanelRevision.tsx`. Al pulsar
+«Continuar» aterriza en la **misma** `PanelRevision` de siempre — el sexo
+que pide Kane y el resto de la confirmación no se han duplicado.
+
+El nombre del doctor y el del paciente no son `CampoBiometrico` (son del
+caso, no de un ojo), así que se guardan con un método nuevo,
+`establecerIdentificacion`, en vez de `editarMedida`.
+
+**El nombre del cirujano viaja a las tres calculadoras (D41), y el del
+paciente también (D44)** — los dos, a diferencia de lo que decía antes
+esta misma sección, hasta que se corrigió el mismo día que D61: D23 (código
+local, nunca un nombre) quedó SUPERADA para el nombre del paciente por
+D44, no «sin tocar». `Caso.nombreCirujano`/`Caso.nombrePaciente` →
+`EntradasCalculadora` (hilado en `prepararEntradas()`) → cada adaptador
+los rellena si los tiene, con `.catch()` para que un selector que no
+aparezca no tire el cálculo. Los selectores están comprobados con `pnpm
+reconocer`, no supuestos: `#TextBoxSurgeon`/`#TextBoxName` en EVO,
+`#MainContent_DoctorName`/`#MainContent_PatientName` en Barrett (dentro
+del `Frame` `calc`), y `#Surgeon` en Kane —este último ya estaba en el
+código, solo que no se usaba—.
+
+**Los dos son obligatorios para confirmar** (D61, 02/09/2026):
+`IdentificacionCaso`/`faltaIdentificacion()`
+(`apps/desktop/src/renderer/componentes/Identificacion.tsx`) es un
+componente COMPARTIDO entre `FormularioManual.tsx` y `PanelRevision.tsx`
+—no duplicado—, porque quien carga un documento no tenía, antes de D61,
+ningún sitio de la interfaz donde escribir estos dos nombres. El botón
+«Confirmar datos» de `PanelRevision.tsx` se deshabilita si falta
+cualquiera de los dos, con el mismo patrón que ya usa para un dato
+imposible o una discrepancia sin reconocer.
+
 ### El PDF
 
 HTML → `printToPDF` de Electron. Cero dependencias, nada que compilar, y se
 maqueta con CSS. Se guarda también el HTML: si el PDF fallara, el informe no se
 pierde.
+
+**El informe que genera la aplicación por defecto es el simplificado**
+(D39, ampliado por D48): una hoja de biometría de entrada por cada
+aparato, luego una hoja por calculadora y ojo intentado —agrupadas por
+aparato, no por calculadora—, con su captura y una línea con la lente
+recomendada, y cierra con un cuadro de tarjetas (D43) y una tabla
+comparativa detallada. Si una casilla no tuvo resultado utilizable, lleva
+un aviso explicando por qué en vez de una hoja omitida en silencio. Sigue
+sin tener alternativas, diagramas del ojo ni trazabilidad — eso sigue solo
+en el informe detallado, sin usarse.
+
+**El título de cada hoja de cálculo, y si dice «con córnea posterior
+medida», no es fijo por calculadora** (D48, 27/08/2026): `EVO_TORIC` y
+`BARRETT_TORIC` (las calculadoras BASE, distintas de sus variantes de
+D45) solo llevan el sufijo cuando el dataset de ESE aparato tiene de
+verdad `PK1` o `PK2` —`hayCaraPosteriorEn(caso, ojo, aparato)`, en
+`plantilla.ts`—, porque la base manda la córnea posterior si el ojo la
+tiene y decirlo siempre habría mentido en el caso normal sin ella. Las
+variantes de D45 (`EVO_TORIC_SIN_CARA_POSTERIOR`,
+`BARRETT_TORIC_CON_CARA_POSTERIOR`) sí llevan un título fijo: por
+construcción solo aparecen en el informe cuando la comparación tiene
+sentido.
+
+**Con un solo aparato por ojo, la banda grande del aparato no se pinta en
+ninguna hoja** — mismo principio que el resto de D47: cero cambios
+visibles para quien no usa varios biómetros.
+
+Ese contenido más elaborado (portada, comparación, alternativas, biometría,
+diagramas, trazabilidad) sigue existiendo en el código —
+`generarHtmlInformeDetallado`, en `packages/report/src/plantilla.ts`— porque
+viene de una feature ya fusionada a `master` en una sesión anterior, pero
+**no se usa por defecto**: `servicio-casos.ts` llama a `generarHtmlInforme`,
+que es la versión simplificada. Las dos comparten la misma infraestructura de
+numeración y serialización de hojas (`documentoDeHojas`) y la misma hoja de
+estilos — solo cambia qué hojas se construyen.
+
+`ResultadoInforme` (antes `CapturaInforme`) es el tipo que describe una
+casilla en el informe: la captura, una estimación y, si no hubo resultado,
+por qué. `servicio-casos.ts` construye una entrada por CADA casilla
+intentada (`CALCULADORAS × ojosDelCaso(caso)`), tenga o no éxito — antes esto
+se saltaba en silencio las que fallaban.
+
+### 6.1. La estimación propia — excepción a «compara, pero no recomienda» (D43)
+
+`ResultadoInforme.recomendada` **ya no es** lo que la calculadora destacó
+(`resultado.recomendada`, lo que pone el adaptador al ver la marca de la
+propia web): `servicio-casos.ts` llama siempre a
+`estimarLenteRecomendada(r.opciones, ejeCurvoDe(ojo), criterioEsferaPara(caso.lente?.modelo))`,
+de `packages/domain/src/comparacion/recomendacion.ts` — un módulo NUEVO y
+deliberadamente separado de `comparar.ts`.
+
+Por qué separado: `comparar.ts` existe justo para que este producto no elija
+nunca una opción por su cuenta (tiene un test dedicado que lo vigila, «el
+producto compara, no recomienda»). `recomendacion.ts` hace exactamente eso —
+con un criterio clínico fijo, pedido de forma expresa por el dueño del
+proyecto tras el aviso de que es lo contrario a esa regla— y su propio
+docstring lo dice así, para que nadie confunda los dos ficheros ni intente
+fusionarlos.
+
+El criterio, sin caso especial por calculadora:
+
+- **Esfera**: entre las opciones con refracción prevista negativa, la más
+  cercana a cero — **salvo la familia Lux de Bausch & Lomb** (LuxSmart,
+  LuxLife, LuxGood), donde es la de refracción prevista POSITIVA más cercana
+  a cero (D52, 29/08/2026). `criterioEsferaPara(modeloLente)` decide cuál
+  aplica, comparando por `LenteElegida.modelo` — el nombre canónico del
+  catálogo, no `nombreEnEvo`/`nombreEnKane` (D50). **No es «la primera de la
+  lista subiendo potencia»**: del lado positivo esas dos nociones no
+  coinciden (la refracción baja de forma continua al subir la potencia, así
+  que la primera positiva subiendo es la MÁS ALEJADA de cero) — fallo real
+  encontrado el mismo día con un PDF de EVO, corregido tomando
+  `Math.min(Math.abs(refraccionPrevista))` del lado que toca en vez de la
+  primera que cumple el signo.
+- **Cilindro**: entre las opciones tóricas cuyo eje residual coincide con el
+  eje curvo (`ejeCurvoDe`, el meridiano más curvo de K1/K2), la ÚLTIMA antes
+  de que ese eje cambie de orientación. No depende de la lente.
+
+Ninguna de las dos partes se inventa si el criterio no señala nada: sin una
+opción con refracción negativa no hay esfera; sin eje curvo, o sin ninguna
+opción tórica que lo comparta, no hay cilindro.
+
+**Se enseña siempre como lo que es.** La línea bajo cada captura dice
+«Estimación de Calculator Vilamar (no vinculante)», nunca «lente
+recomendada» a secas. El cuadro final (`hojaResumenFinal`, una hoja por ojo
+con más de una estimación) lleva un aviso imposible de no ver y marca la que
+se aleja menos de las otras dos por su esfera como «Más cercana entre las
+tres» — nunca «la elegida». Ninguna de las dos sustituye a la captura de
+pantalla de encima, que sigue siendo, sin interpretar, lo que la calculadora
+respondió de verdad.
 
 ---
 

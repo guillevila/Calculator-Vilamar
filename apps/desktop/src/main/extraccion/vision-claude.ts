@@ -171,7 +171,7 @@ export function esquema(): Record<string, unknown> {
         type: 'array',
         items: { type: 'string' },
         description:
-          'Cualquier cosa que quien revise deba saber: un dato borroso, una etiqueta ambigua, una unidad rara, algo que no encaja.',
+          'SOLO algo que quien revise deba comprobar: un dato borroso, una etiqueta de ojo ambigua, un valor marcado como dudoso por el propio informe. NUNCA una lista de los datos del documento que no están en la lista de campos permitidos — eso es normal y no se explica aquí.',
       },
     },
   }
@@ -194,6 +194,8 @@ Reglas, por orden de importancia:
 5. CADA MEDIDA LLEVA SU LÍNEA ORIGINAL. En textoOriginal copia literalmente la línea del informe de donde sale el número, sin reescribirla. Es lo que permite a una persona comprobarlo sin volver al papel.
 
 6. SI UN NÚMERO NO SE LEE CON CLARIDAD, no lo adivines: omítelo y dilo en las notas. Un hueco se ve; un número equivocado que parece razonable, no.
+
+7. NO EXPLIQUES EN LAS NOTAS LOS DATOS QUE EL DOCUMENTO TRAE PERO NO ESTÁN EN LA LISTA DE CAMPOS DE ABAJO. Es completamente normal que un informe traiga más datos de los que se piden aquí (tablas de cálculo de otra fórmula, desviaciones estándar, valores derivados, fechas de calibración...) — eso no es un problema ni hace falta decirlo. Las notas son solo para algo que SÍ deba mirar una persona: un valor borroso, una etiqueta de ojo ambigua, un dato marcado como dudoso por el propio informe (por ejemplo, con un símbolo de aviso junto al número). Si una nota no cambia lo que alguien tiene que comprobar, no la escribas.
 
 Campos que puedes devolver (no hay otros):
 
