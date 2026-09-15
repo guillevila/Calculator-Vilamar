@@ -1032,6 +1032,81 @@ test('una discrepancia sin reconocer en OS bloquea «Confirmar» aunque se esté
 })
 
 /**
+ * Fallo real reportado por el dueño (15/09/2026): elegir calcular solo OD
+ * obligaba igualmente a comprobar los datos de OS —de una foto cargada,
+ * por ejemplo— aunque no se fueran a calcular todavía. «Confirmar datos»
+ * miraba los datos por comprobar de TODOS los ojos del caso (D47), no solo
+ * del que se estaba revisando.
+ *
+ * Se usa un ANTERION sin ACD (que el programa deriva de AQD+CCT, D31) en
+ * los dos ojos: es la forma más simple y fiable de tener un dato DERIVADO
+ * —que necesita comprobación humana— sin depender de OCR (mismo truco que
+ * la prueba de «confirmar todo de golpe»).
+ */
+test('elegir calcular solo OD no obliga a comprobar los datos de OS, de una foto cargada', async () => {
+  test.setTimeout(180_000)
+
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  await p.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <div style="display:flex;gap:90px">
+      <pre>OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+AQD (endo)     2.65 mm
+LT             4.53 mm
+CCT             530 um</pre>
+      <pre>OS
+AL            24.01 mm
+K1            40.27 D @ 8
+K2            42.68 D @ 98
+AQD (endo)     2.70 mm
+LT             4.48 mm
+CCT             533 um</pre>
+    </div></body>`)
+  const rutaPdf = join(carpetaDatos, 'anterion-solo-un-ojo.pdf')
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByLabel('Nombre del doctor').fill('Dra. Un Ojo E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Paciente Un Ojo E2E')
+  await ventana.getByTestId('manual-continuar').click()
+
+  await ventana.evaluate(
+    async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'anterion-solo-un-ojo.pdf', ruta }]),
+    rutaPdf,
+  )
+
+  // Se elige OD a propósito, sin dar por hecho que la revisión aterriza ahí
+  // — `ojoActivo` es un estado de `App.tsx` compartido entre casos, así que
+  // qué ojo quedó activo en un caso anterior no dice nada de este.
+  await ventana.getByTestId('revision-ojo-OD').click()
+  await expect(ventana.getByTestId('revision-ojo-OD')).toHaveClass(/activo/)
+
+  // Se comprueba la propia ACD derivada de OD, nada más — no hace falta
+  // tocar OS para nada.
+  await expect(ventana.getByTestId('comprobar-ACD')).toBeVisible()
+  await ventana.getByTestId('comprobar-ACD').click()
+  await expect(ventana.getByTestId('comprobar-ACD')).toHaveCount(0)
+
+  // OS sigue con su propia ACD SIN comprobar — y aun así, «Confirmar
+  // datos» ya está habilitado: es el arreglo de hoy.
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OS?.[0]?.medidas?.ACD?.confirmadoPorUsuario).toBe(false)
+  await expect(ventana.getByTestId('confirmar')).toBeEnabled()
+
+  await ventana.getByTestId('confirmar').click()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
+
+  await ventana.screenshot({ path: 'test-results/11g-confirmar-solo-un-ojo.png', fullPage: true })
+})
+
+/**
  * «Casos guardados» (02/09/2026, petición expresa del dueño del proyecto):
  * antes de esto no había ninguna forma de volver a un caso una vez cerrada
  * la aplicación — solo existía «el que está abierto ahora mismo», en

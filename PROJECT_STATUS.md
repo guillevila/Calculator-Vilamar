@@ -9,7 +9,24 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 15/09/2026 (2) · **El PDF ya no lleva ningún
+**Última actualización:** 15/09/2026 (3) · **Elegir calcular solo un
+ojo ya no obliga a revisar el otro, ni saca un PDF vacío de él (D79).**
+Dos fallos relacionados: «Confirmar datos» exigía revisar los datos de OS
+(de una foto cargada, por ejemplo) aunque solo se fuera a calcular OD —
+`porComprobar` ahora mira solo el ojo activo, no todo el caso; y
+`generarPdf()` sacaba un PDF de cualquier ojo con datos de biometría,
+aunque no tuviera ningún resultado calculado — ahora solo saca PDF de un
+ojo que sí tenga alguno, y solo cuando algún OTRO ojo sí tiene resultado
+—un caso que todavía no ha calculado nada sigue sacando un PDF por cada
+ojo con datos, como siempre—. El freno de discrepancias entre aparatos
+(D62) **no cambia**, sigue mirando todo el caso a propósito: es un riesgo
+distinto (una discrepancia sin reconocer hace que `calcular()` descarte
+la casilla en silencio, D51), no el mismo problema. `pnpm lint && pnpm
+typecheck && pnpm test && pnpm build && pnpm test:e2e` en verde (713
+tests unitarios, cuatro nuevos para este cambio; el único fallo de la
+suite es previo y no relacionado; 47/47 de interfaz).
+
+Antes de esto — **15/09/2026 (2): el PDF ya no lleva ningún
 nombre que lo relacione con Calculator Vilamar (D78).** Título de la
 primera página y `<title>` del documento: «Resumen Calculadores IOL». Las
 frases del cuerpo que nombraban «Calculator Vilamar» —estimación propia

@@ -1162,14 +1162,36 @@ export class ServicioCasos {
    * pasarle los resultados de ese ojo).
    *
    * Un caso de un solo ojo saca un único PDF, igual que antes de D47.
+   *
+   * **Un ojo con datos pero sin NINGÚN resultado no saca PDF, siempre que
+   * ALGÚN otro ojo del caso sí tenga alguno** (petición expresa del dueño
+   * del proyecto, 15/09/2026). `ojosDelCaso()` devuelve todos los ojos con
+   * DATOS de biometría, tenga o no resultado calculado — antes se sacaba
+   * igual un PDF por cada uno, así que elegir calcular solo OD (D66,
+   * «Ojos a calcular») generaba de todos modos un segundo PDF de OS,
+   * vacío, si ese ojo tenía datos (de una foto cargada, por ejemplo) pero
+   * nunca se había calculado. Mismo criterio que D49 ya usa dentro de
+   * cada informe para las CASILLAS que nunca se pidieron: la señal de
+   * «nunca se pidió» es que no hay ningún `ResultadoCalculadora`
+   * guardado, no que el ojo no tuviera datos.
+   *
+   * La condición «que ALGÚN otro ojo sí tenga resultados» importa: un
+   * caso que todavía no ha calculado NADA (los dos ojos sin resultados)
+   * no es «un ojo que se dejó fuera a propósito» — es, sencillamente, un
+   * informe pedido antes de calcular, y eso sigue sacando su PDF con
+   * todo «no calculado», como siempre.
    */
   async generarPdf(): Promise<{ rutas: readonly { ojo: Lateralidad; ruta: string }[] }> {
     const caso = this.exigirCaso()
     const todosLosResultados = this.recopilarResultadosParaInforme(caso)
     const marca = this.iso().replace(/[:.]/g, '-').slice(0, 19)
+    const hayAlgunResultado = todosLosResultados.length > 0
+    const ojosConResultados = ojosDelCaso(caso).filter(
+      (ojo) => !hayAlgunResultado || todosLosResultados.some((r) => r.ojo === ojo),
+    )
 
     const rutas: { ojo: Lateralidad; ruta: string }[] = []
-    for (const ojo of ojosDelCaso(caso)) {
+    for (const ojo of ojosConResultados) {
       const datos = recopilarInforme(caso, {
         version: this.dep.version,
         generadoEn: this.iso(),

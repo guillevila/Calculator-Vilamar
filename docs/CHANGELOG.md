@@ -4,6 +4,76 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.35] — 15/09/2026
+
+fix(app): elegir calcular solo un ojo ya no obliga a revisar el otro, ni
+saca un PDF vacío de él.
+
+### Qué se reportó
+
+El dueño del proyecto, dos fallos relacionados al elegir calcular solo un
+ojo (por ejemplo, solo OD):
+
+1. «Confirmar datos» exigía revisar también los datos de OS —si venían de
+   una foto cargada— aunque no se fueran a calcular todavía.
+2. Aunque luego se eligiera «Solo OD» para calcular, `generarPdf()` sacaba
+   igual un segundo PDF de OS, completo pero vacío (sin ningún
+   resultado), sin que nadie lo hubiera pedido.
+
+### La causa
+
+1. `porComprobar`, en `PanelRevision.tsx`, recorría TODOS los ojos del
+   caso (D47) para decidir si «Confirmar datos» se podía pulsar — no solo
+   el ojo que se estaba revisando. `ServicioCasos.confirmarTodo()` ya
+   sabía saltarse en silencio los campos que necesitan comprobación
+   humana sin bloquear nada (D28 sigue en pie: nunca los da por buenos
+   solo) — el freno de la pantalla exigía de más, mirando un ojo que ni
+   siquiera se iba a calcular.
+2. `generarPdf()` recorría `ojosDelCaso(caso)` —todos los ojos con DATOS
+   de biometría— para decidir de cuáles sacar PDF, en vez de mirar cuáles
+   tenían de verdad algún RESULTADO calculado. Un ojo con datos pero sin
+   ningún cálculo pedido (D49 ya distingue esto para las CASILLAS dentro
+   de un informe, pero `generarPdf()` no lo aplicaba a nivel de qué ojos
+   sacar PDF).
+
+### El cambio
+
+- `PanelRevision.tsx`: `porComprobar` pasa a mirar solo el ojo activo
+  (con todos sus aparatos) — cambiar de ojo repite la cuenta con sus
+  propios datos. Los avisos que mencionan la cantidad ahora nombran
+  también el ojo, para que quede claro de cuál se habla.
+- `ServicioCasos.generarPdf()`: un ojo con datos pero sin ningún
+  resultado no saca PDF, **siempre que algún OTRO ojo del caso sí tenga
+  alguno** — mismo criterio que D49 ya usa dentro de cada informe para
+  las casillas nunca pedidas. La condición del «algún otro ojo» importa:
+  un caso que todavía no ha calculado nada (los dos ojos sin resultados)
+  no es «un ojo dejado fuera a propósito» — es un PDF pedido antes de
+  calcular, y sigue saliendo con todo «no calculado», como siempre. La
+  primera versión de este cambio no tenía esa condición y rompió dos
+  pruebas existentes que generan PDF sin haber calculado nada —
+  encontrado al pasar la suite completa de interfaz, corregido antes de
+  cerrar el cambio.
+
+### Verificado
+
+- Nuevo test de interfaz que carga un documento con datos de OD y OS
+  (ambos con ACD derivada, que necesita comprobación), comprueba solo la
+  de OD, y confirma que «Confirmar datos» ya está habilitado sin tocar
+  OS — confirmado fallando sin el arreglo, pasando con él.
+- Tres tests unitarios nuevos (`servicio-casos.generar-pdf.test.ts`) que
+  sustituyen `ejecutarCaso` por una versión de prueba (sin navegador
+  real): calcular solo OD con datos en los dos ojos saca un único PDF;
+  calcular los dos ojos sigue sacando los dos de siempre; y sin haber
+  calculado nada todavía, sigue saliendo un PDF por cada ojo con datos
+  (la condición que la primera versión del arreglo rompía) — los tres
+  confirmados fallando sin el arreglo correspondiente, pasando con él.
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde (713 tests unitarios, cuatro nuevos para este cambio; el
+  único fallo de la suite es previo y no relacionado; 47/47 de
+  interfaz).
+
+---
+
 ## [1.15.34] — 15/09/2026
 
 fix(report): el PDF ya no lleva ningún nombre que lo relacione con
