@@ -9,7 +9,22 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 15/09/2026 · **El SIA, su eje y el objetivo de
+**Última actualización:** 15/09/2026 (2) · **El PDF ya no lleva ningún
+nombre que lo relacione con Calculator Vilamar (D78).** Título de la
+primera página y `<title>` del documento: «Resumen Calculadores IOL». Las
+frases del cuerpo que nombraban «Calculator Vilamar» —estimación propia
+no vinculante, aviso de que no elige, pie legal, trazabilidad— pasan a
+decir «el Resumen de calculadores». También se corrigió un comentario
+dentro de la hoja de estilos CSS que nombraba el producto y SÍ forma
+parte del texto del HTML/PDF aunque no se vea al imprimir. El nombre de
+la aplicación en su propia ventana no cambia — es la herramienta que usa
+el cirujano, no el documento que se entrega a nadie. `pnpm lint && pnpm
+typecheck && pnpm test && pnpm build && pnpm test:e2e` en verde (710
+tests unitarios, uno nuevo que comprueba que «Vilamar» no aparece en
+NINGÚN punto del documento; el único fallo de la suite es previo y no
+relacionado).
+
+Antes de esto — **15/09/2026: el SIA, su eje y el objetivo de
 refracción se heredan solos del otro ojo, igual que la constante A (D66,
 amplía D75) (D77).** El dueño probó D75 (añadir OS a un caso que ya tenía
 solo OD) y pidió que, al escribir los datos del segundo ojo, se rellenaran
