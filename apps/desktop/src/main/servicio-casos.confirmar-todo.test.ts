@@ -35,7 +35,11 @@ afterEach(() => {
 function servicioDePrueba(): ServicioCasos {
   const dep: DependenciasServicio = {
     carpetas: prepararCarpetas(raizTemporal()),
-    proveedor: { nombre: 'test', puedeCon: () => false, extraer: () => Promise.reject(new Error('no usado')) },
+    proveedor: {
+      nombre: 'test',
+      puedeCon: () => false,
+      extraer: () => Promise.reject(new Error('no usado')),
+    },
     diagnosticador: { carpeta: '', guardar: () => Promise.resolve('') },
     capturas: { carpeta: '', guardar: () => Promise.resolve(''), leer: () => null },
     version: '0.0.0-test',

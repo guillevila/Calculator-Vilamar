@@ -1,6 +1,6 @@
 ---
-name: "source-command-revisar-cambios"
-description: "Revisa los cambios actuales (staged o respecto a main) antes de hacer un commit o PR. Comprueba calidad, coherencia y posibles problemas."
+name: 'source-command-revisar-cambios'
+description: 'Revisa los cambios actuales (staged o respecto a main) antes de hacer un commit o PR. Comprueba calidad, coherencia y posibles problemas.'
 ---
 
 # source-command-revisar-cambios

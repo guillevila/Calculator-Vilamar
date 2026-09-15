@@ -379,7 +379,11 @@ export class AdaptadorBarrettTrueKToric implements AdaptadorCalculadora {
 
     const toricasPorDesignacion = new Map<
       string,
-      { cilindro: number | undefined; cilindroResidual: number | undefined; ejeResidual: number | undefined }
+      {
+        cilindro: number | undefined
+        cilindroResidual: number | undefined
+        ejeResidual: number | undefined
+      }
     >()
     for (const fila of toricas.slice(1)) {
       const designacion = fila[0]?.trim()

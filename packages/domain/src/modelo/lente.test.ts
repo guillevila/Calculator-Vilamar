@@ -277,11 +277,7 @@ describe('lente secundaria — comparar sin volver a escribir los datos (D55, 01
   })
 
   it('elegirLenteSecundaria(caso, undefined, …) la quita', () => {
-    const conLasDos = elegirLenteSecundaria(
-      casoConLentes(),
-      { modelo: 'LUX SMART' },
-      LUEGO,
-    )
+    const conLasDos = elegirLenteSecundaria(casoConLentes(), { modelo: 'LUX SMART' }, LUEGO)
     expect(conLasDos.lenteSecundaria).toBeDefined()
     const sinSecundaria = elegirLenteSecundaria(conLasDos, undefined, LUEGO)
     expect(sinSecundaria.lenteSecundaria).toBeUndefined()
@@ -436,11 +432,7 @@ describe('constante conocida del catálogo propio (D69, corregida 05/09/2026) �
     )
     expect(constanteDe(conCatalogo.caso)?.valor).toBe(119.1)
 
-    const otra = elegirLente(
-      conCatalogo.caso,
-      { modelo: 'Bausch&Lomb Akreos AO MI60' },
-      LUEGO,
-    )
+    const otra = elegirLente(conCatalogo.caso, { modelo: 'Bausch&Lomb Akreos AO MI60' }, LUEGO)
     expect(constanteDe(otra.caso)?.valor).toBe(119.1) // la de Akreos en LAS_CUATRO también es 119.1…
     expect(constanteDe(otra.caso)?.procedencia.metodo).not.toBe('CATALOGO') // …pero esta viene del informe, no del catálogo
     expect(origenDe(constanteDe(otra.caso))).toBe('DEL_INFORME')

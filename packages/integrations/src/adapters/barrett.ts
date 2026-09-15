@@ -68,7 +68,12 @@
  *     2026-08-27 (noche), antes de intentarlo otra vez de la misma forma.
  */
 
-import type { Calculadora, EntradasCalculadora, OpcionLente, ResultadoCalculadora } from '@vilamar/domain'
+import type {
+  Calculadora,
+  EntradasCalculadora,
+  OpcionLente,
+  ResultadoCalculadora,
+} from '@vilamar/domain'
 import type { Frame, Page } from 'playwright'
 
 import { capturarResultado } from '../captura.js'
@@ -413,11 +418,15 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
     }
 
     if (entradas.dispositivoCaraPosterior !== undefined) {
-      await calc.selectOption(SEL.dispositivoPosterior, { label: entradas.dispositivoCaraPosterior })
+      await calc.selectOption(SEL.dispositivoPosterior, {
+        label: entradas.dispositivoCaraPosterior,
+      })
     }
 
-    const plano = Math.abs(PK1) <= Math.abs(PK2) ? { k: PK1, eje: PK1_EJE } : { k: PK2, eje: PK2_EJE }
-    const curvo = Math.abs(PK1) <= Math.abs(PK2) ? { k: PK2, eje: PK2_EJE } : { k: PK1, eje: PK1_EJE }
+    const plano =
+      Math.abs(PK1) <= Math.abs(PK2) ? { k: PK1, eje: PK1_EJE } : { k: PK2, eje: PK2_EJE }
+    const curvo =
+      Math.abs(PK1) <= Math.abs(PK2) ? { k: PK2, eje: PK2_EJE } : { k: PK1, eje: PK1_EJE }
 
     await calc.fill(SEL.flatKPosterior, Math.abs(plano.k).toFixed(2))
     if (plano.eje !== undefined) await calc.fill(SEL.ejeFlatPosterior, plano.eje.toFixed(0))
@@ -588,7 +597,11 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
     // cilindro ni eje, aunque Barrett sí los haya dado.
     const toricasPorDesignacion = new Map<
       string,
-      { cilindro: number | undefined; cilindroResidual: number | undefined; ejeResidual: number | undefined }
+      {
+        cilindro: number | undefined
+        cilindroResidual: number | undefined
+        ejeResidual: number | undefined
+      }
     >()
     for (const fila of toricas.slice(1)) {
       const designacion = fila[0]?.trim()

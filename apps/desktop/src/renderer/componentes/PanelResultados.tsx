@@ -440,9 +440,8 @@ export function PanelResultados({
       <div className="tarjeta">
         <h2>Informe</h2>
         <p className="sub">
-          Un PDF por ojo, con los datos confirmados, de dónde salió cada uno, los resultados de
-          cada calculadora (y de cada aparato, si el ojo tiene más de uno) y las diferencias entre
-          ellos.
+          Un PDF por ojo, con los datos confirmados, de dónde salió cada uno, los resultados de cada
+          calculadora (y de cada aparato, si el ojo tiene más de uno) y las diferencias entre ellos.
         </p>
         {error && <div className="aviso error">{error}</div>}
         {rutas.length > 0 && (

@@ -1,6 +1,6 @@
 ---
-name: "source-command-nuevo-sprint"
-description: "Inicia un nuevo sprint de trabajo. Crea la estructura de seguimiento y define los objetivos con el dueño del proyecto."
+name: 'source-command-nuevo-sprint'
+description: 'Inicia un nuevo sprint de trabajo. Crea la estructura de seguimiento y define los objetivos con el dueño del proyecto.'
 ---
 
 # source-command-nuevo-sprint

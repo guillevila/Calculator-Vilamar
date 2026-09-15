@@ -1967,8 +1967,7 @@ Ninguno de los tres impide usar lo demás.
 ## 7. Lo siguiente, por orden de importancia
 
 1. **Probar D47 (varios biómetros por ojo) en la aplicación real.** Está
-   construido y en verde en todos los controles automáticos (ver apartado
-   2) — lo único que falta es que el dueño lo use de verdad: dos aparatos
+   construido y en verde en todos los controles automáticos (ver apartado 2) — lo único que falta es que el dueño lo use de verdad: dos aparatos
    en un mismo ojo, confirmarlos por separado, provocar a propósito una
    discrepancia y ver la alarma, generar el informe y comprobar los dos PDF.
 2. **Seguir probando la lectura con informes reales anonimizados** —

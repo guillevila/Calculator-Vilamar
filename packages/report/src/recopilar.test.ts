@@ -7,7 +7,15 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { casoNuevo, confirmar, confirmarTodas, conMedida, conOjo, crearMedida, ojoVacio } from '@vilamar/domain'
+import {
+  casoNuevo,
+  confirmar,
+  confirmarTodas,
+  conMedida,
+  conOjo,
+  crearMedida,
+  ojoVacio,
+} from '@vilamar/domain'
 
 import { recopilarInforme } from './recopilar.js'
 

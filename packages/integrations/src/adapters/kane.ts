@@ -781,7 +781,9 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     // tiene el nombre del paciente es ese el que se manda, con el código
     // local en el identificador; si no hay nombre, el código va al nombre,
     // como antes. El cirujano, si el caso lo tiene, se rellena (D41).
-    await pagina.fill(SEL.paciente, entradas.nombrePaciente ?? entradas.codigoCaso).catch(() => undefined)
+    await pagina
+      .fill(SEL.paciente, entradas.nombrePaciente ?? entradas.codigoCaso)
+      .catch(() => undefined)
     await pagina.fill(SEL.identificador, entradas.codigoCaso).catch(() => undefined)
     if (entradas.nombreCirujano) {
       await pagina.fill(SEL.cirujano, entradas.nombreCirujano).catch(() => undefined)
@@ -1119,7 +1121,11 @@ export class AdaptadorKane implements AdaptadorCalculadora {
           const celda = bloques[indice]?.querySelector(selector)
           return celda instanceof HTMLElement && celda.innerText.trim() !== ''
         },
-        { indice: indiceDelOjo, torico: modo === 'TORICO', selector: selectorPrimeraCelda(modo === 'TORICO') },
+        {
+          indice: indiceDelOjo,
+          torico: modo === 'TORICO',
+          selector: selectorPrimeraCelda(modo === 'TORICO'),
+        },
         { timeout: 15_000 },
       )
       .catch(() => {
@@ -1324,7 +1330,12 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     // «Print»—, sin la cabecera «KANE FORMULA / ABOUT / CONSTANTS / CONTACT»
     // ni el margen vacío alrededor. Ningún dato se recorta: solo la
     // navegación de la web (D37, corregido el mismo día).
-    const capturaId = await capturarResultado(pagina, ctx, this.calculadora, pagina.locator('.kf_form').first())
+    const capturaId = await capturarResultado(
+      pagina,
+      ctx,
+      this.calculadora,
+      pagina.locator('.kf_form').first(),
+    )
 
     return {
       calculadora: this.calculadora,

@@ -429,7 +429,9 @@ export class ServicioCasos {
         // ha detectado al leerlo — para que los dos convivan distinguibles
         // en vez de que uno pise al otro.
         const aparato =
-          previos.length === 0 ? APARATO_PRINCIPAL : NOMBRE_DISPOSITIVO[resultado.dispositivo.dispositivo]
+          previos.length === 0
+            ? APARATO_PRINCIPAL
+            : NOMBRE_DISPOSITIVO[resultado.dispositivo.dispositivo]
         const yaHabiaEseAparato = previos.some((o) => o.aparato === aparato)
         if (yaHabiaEseAparato) {
           avisos.push(
@@ -508,7 +510,10 @@ export class ServicioCasos {
       // 1. Se acaba de escribir aquí: si el otro ojo ya tiene este mismo
       //    aparato pero sin su propia constante, se copia hacia allí.
       const otroOjo = ojoDe(conElOjo, otroLado, aparato)
-      if (aparatosDe(conElOjo, otroLado).includes(aparato) && otroOjo.medidas.CONSTANTE_A === undefined) {
+      if (
+        aparatosDe(conElOjo, otroLado).includes(aparato) &&
+        otroOjo.medidas.CONSTANTE_A === undefined
+      ) {
         conElOjo = conOjo(conElOjo, corregirMedida(otroOjo, campo, valor, this.iso()), this.iso())
         ladosTocados.push(otroLado)
       }
@@ -808,9 +813,7 @@ export class ServicioCasos {
    */
   confirmarTodoElOjo(lado: Lateralidad, aparato: string = APARATO_PRINCIPAL): Caso {
     const caso = this.exigirCaso()
-    return this.establecer(
-      conOjo(caso, confirmarTodas(ojoDe(caso, lado, aparato)), this.iso()),
-    )
+    return this.establecer(conOjo(caso, confirmarTodas(ojoDe(caso, lado, aparato)), this.iso()))
   }
 
   /**
@@ -906,9 +909,7 @@ export class ServicioCasos {
    */
   renombrarAparato(lado: Lateralidad, aparatoViejo: string, aparatoNuevo: string): Caso {
     const caso = this.exigirCaso()
-    return this.establecer(
-      conAparatoRenombrado(caso, lado, aparatoViejo, aparatoNuevo, this.iso()),
-    )
+    return this.establecer(conAparatoRenombrado(caso, lado, aparatoViejo, aparatoNuevo, this.iso()))
   }
 
   /** ¿Hay una discrepancia de este ojo sin que nadie la haya reconocido todavía? */
@@ -1022,7 +1023,10 @@ export class ServicioCasos {
       ...(filtro?.ojo !== undefined ? { ojos: [filtro.ojo] } : {}),
       ...(filtro?.aparato !== undefined ? { aparatos: [filtro.aparato] } : {}),
     }
-    const planificadas = planificarCaso(caso, Object.keys(opciones).length > 0 ? opciones : undefined)
+    const planificadas = planificarCaso(
+      caso,
+      Object.keys(opciones).length > 0 ? opciones : undefined,
+    )
 
     // Un ojo con una discrepancia entre sus aparatos sin reconocer no calcula
     // — ni siquiera el aparato que "parece" estar bien, porque la duda es

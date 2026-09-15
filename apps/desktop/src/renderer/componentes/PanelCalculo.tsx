@@ -103,7 +103,13 @@ const CAMPOS_RESUMEN: readonly CampoBiometrico[] = [
  * Solo enseña los campos que de verdad tiene algún aparato: una fila de
  * guiones para cada dato que nadie metió sería ruido, no comprobación.
  */
-function ResumenParametros({ caso, ojo }: { readonly caso: Caso; readonly ojo: Lateralidad }): JSX.Element | null {
+function ResumenParametros({
+  caso,
+  ojo,
+}: {
+  readonly caso: Caso
+  readonly ojo: Lateralidad
+}): JSX.Element | null {
   const datasets = aparatosDe(caso, ojo).map((aparato) => ({
     aparato,
     datos: ojoDe(caso, ojo, aparato),
@@ -161,8 +167,7 @@ export function PanelCalculo({
   const hayAlguno = ORDEN.some((c) => resultadoDe(caso, c, ojo) !== undefined)
   const requiereUsuario = estados.filter((e) => e.requiereUsuario)
 
-  const [seleccionadas, setSeleccionadas] =
-    useState<readonly Calculadora[]>(SELECCION_POR_DEFECTO)
+  const [seleccionadas, setSeleccionadas] = useState<readonly Calculadora[]>(SELECCION_POR_DEFECTO)
 
   // El selector de ojos solo se enseña si el caso tiene datos de los dos —
   // con uno solo, elegir sería ruido. «Los dos ojos» de partida: es el
@@ -320,7 +325,9 @@ export function PanelCalculo({
             >
               {`${hayAlguno ? 'Volver a calcular' : 'Calcular'} (${seleccionadas
                 .map((c) => etiquetaDe(c))
-                .join(', ')}${dosOjos && alcanceOjos !== 'AMBOS' ? ` — solo ${nombreCortoLateralidad(alcanceOjos)}` : ''})`}
+                .join(
+                  ', ',
+                )}${dosOjos && alcanceOjos !== 'AMBOS' ? ` — solo ${nombreCortoLateralidad(alcanceOjos)}` : ''})`}
             </button>
           )}
           {/*

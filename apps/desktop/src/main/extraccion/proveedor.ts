@@ -103,9 +103,10 @@ export class ProveedorDocumentos implements ProveedorExtraccion {
    * fiabilidad de las cuatro. Con una foto bien orientada —el caso normal—
    * esto no añade ningún trabajo de más: se queda en la primera lectura.
    */
-  private async mejorGiro(
-    imagenPreparada: Uint8Array,
-  ): Promise<{ resultado: Awaited<ReturnType<MotorOcr['reconocer']>>; giroUsado: 0 | 90 | 180 | 270 }> {
+  private async mejorGiro(imagenPreparada: Uint8Array): Promise<{
+    resultado: Awaited<ReturnType<MotorOcr['reconocer']>>
+    giroUsado: 0 | 90 | 180 | 270
+  }> {
     const primera = await this.piezas.motorOcr.reconocer(imagenPreparada)
     if (primera.confianzaMedia >= UMBRAL_FIABILIDAD_BAJA) {
       return { resultado: primera, giroUsado: 0 }

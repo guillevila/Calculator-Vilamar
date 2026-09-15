@@ -604,8 +604,16 @@ describe('Invariante 12 — los aparatos del mismo ojo no se mezclan sin que la 
 
   it('guardar el mismo aparato dos veces sustituye, no acumula', () => {
     let caso = casoNuevo('caso-1', 'CV-2026-0001', CUANDO)
-    caso = conOjo(caso, conMedida(ojoVacio('OD', 'ANTERION'), crearMedida('AL', 'OD', 24.0, EXTRAIDO)), CUANDO)
-    caso = conOjo(caso, conMedida(ojoVacio('OD', 'ANTERION'), crearMedida('AL', 'OD', 24.3, EXTRAIDO)), CUANDO)
+    caso = conOjo(
+      caso,
+      conMedida(ojoVacio('OD', 'ANTERION'), crearMedida('AL', 'OD', 24.0, EXTRAIDO)),
+      CUANDO,
+    )
+    caso = conOjo(
+      caso,
+      conMedida(ojoVacio('OD', 'ANTERION'), crearMedida('AL', 'OD', 24.3, EXTRAIDO)),
+      CUANDO,
+    )
 
     expect(datasetsDe(caso, 'OD')).toHaveLength(1)
     expect(ojoDe(caso, 'OD', 'ANTERION').medidas.AL?.valor).toBe(24.3)
@@ -614,7 +622,11 @@ describe('Invariante 12 — los aparatos del mismo ojo no se mezclan sin que la 
   it('confirmar un aparato NO confirma el otro del mismo ojo', () => {
     let caso = casoNuevo('caso-1', 'CV-2026-0001', CUANDO)
     caso = conOjo(caso, confirmarTodas(odCompleto()), CUANDO)
-    caso = conOjo(caso, conMedida(ojoVacio('OD', 'ANTERION'), crearMedida('AL', 'OD', 24.5, EXTRAIDO)), CUANDO)
+    caso = conOjo(
+      caso,
+      conMedida(ojoVacio('OD', 'ANTERION'), crearMedida('AL', 'OD', 24.5, EXTRAIDO)),
+      CUANDO,
+    )
 
     expect(sePuedeConfirmarDataset(caso, 'OD', APARATO_PRINCIPAL)).toBe(true)
     expect(sePuedeConfirmarDataset(caso, 'OD', 'ANTERION')).toBe(false)
@@ -623,7 +635,11 @@ describe('Invariante 12 — los aparatos del mismo ojo no se mezclan sin que la 
   it('se puede confirmar el caso con un aparato listo, aunque otro del mismo ojo siga a medias', () => {
     let caso = casoNuevo('caso-1', 'CV-2026-0001', CUANDO)
     caso = conOjo(caso, confirmarTodas(odCompleto()), CUANDO)
-    caso = conOjo(caso, conMedida(ojoVacio('OD', 'ANTERION'), crearMedida('AL', 'OD', 24.5, EXTRAIDO)), CUANDO)
+    caso = conOjo(
+      caso,
+      conMedida(ojoVacio('OD', 'ANTERION'), crearMedida('AL', 'OD', 24.5, EXTRAIDO)),
+      CUANDO,
+    )
 
     expect(sePuedeConfirmar(caso)).toBe(true)
     expect(() => confirmar(caso, CUANDO)).not.toThrow()
@@ -660,7 +676,11 @@ describe('Invariante 12 — los aparatos del mismo ojo no se mezclan sin que la 
   it('renombrar a un nombre que ya usa OTRO aparato del mismo ojo lanza, no fusiona en silencio', () => {
     let caso = casoNuevo('caso-1', 'CV-2026-0001', CUANDO)
     caso = conOjo(caso, odCompleto(), CUANDO) // APARATO_PRINCIPAL
-    caso = conOjo(caso, conMedida(ojoVacio('OD', 'ANTERION'), crearMedida('AL', 'OD', 24.5, EXTRAIDO)), CUANDO)
+    caso = conOjo(
+      caso,
+      conMedida(ojoVacio('OD', 'ANTERION'), crearMedida('AL', 'OD', 24.5, EXTRAIDO)),
+      CUANDO,
+    )
 
     expect(() => conAparatoRenombrado(caso, 'OD', APARATO_PRINCIPAL, 'ANTERION', CUANDO)).toThrow()
     // Los dos siguen intactos: el intento fallido no ha tocado nada.
@@ -673,6 +693,8 @@ describe('Invariante 12 — los aparatos del mismo ojo no se mezclan sin que la 
     caso = conOjo(caso, odCompleto(), CUANDO)
 
     expect(conAparatoRenombrado(caso, 'OD', 'ANTERION', 'Otro', CUANDO)).toBe(caso)
-    expect(conAparatoRenombrado(caso, 'OD', APARATO_PRINCIPAL, APARATO_PRINCIPAL, CUANDO)).toBe(caso)
+    expect(conAparatoRenombrado(caso, 'OD', APARATO_PRINCIPAL, APARATO_PRINCIPAL, CUANDO)).toBe(
+      caso,
+    )
   })
 })

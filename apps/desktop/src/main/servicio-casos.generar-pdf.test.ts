@@ -29,7 +29,10 @@ vi.mock('@vilamar/integrations', async (importarOriginal) => {
         alTerminarUna,
       }: {
         readonly tareas: readonly { calculadora: string; ojo: 'OD' | 'OS'; aparato: string }[]
-        readonly alTerminarUna: (resultado: ResultadoCalculadora, tarea: (typeof tareas)[number]) => void
+        readonly alTerminarUna: (
+          resultado: ResultadoCalculadora,
+          tarea: (typeof tareas)[number],
+        ) => void
       }) => {
         for (const tarea of tareas) {
           const resultado: ResultadoCalculadora = {
@@ -70,7 +73,11 @@ afterEach(() => {
 function servicioDePrueba(): InstanceType<typeof ServicioCasos> {
   const dep: DependenciasServicio = {
     carpetas: prepararCarpetas(raizTemporal()),
-    proveedor: { nombre: 'test', puedeCon: () => false, extraer: () => Promise.reject(new Error('no usado')) },
+    proveedor: {
+      nombre: 'test',
+      puedeCon: () => false,
+      extraer: () => Promise.reject(new Error('no usado')),
+    },
     diagnosticador: { carpeta: '', guardar: () => Promise.resolve('') },
     capturas: { carpeta: '', guardar: () => Promise.resolve(''), leer: () => null },
     version: '0.0.0-test',
@@ -87,7 +94,10 @@ describe('generarPdf — no saca un PDF vacío de un ojo que nunca se calculó',
   it('con datos en los dos ojos pero solo OD calculado, solo sale el PDF de OD', async () => {
     const servicio = servicioDePrueba()
     servicio.nuevo()
-    servicio.establecerIdentificacion({ nombrePaciente: 'Paciente De Prueba', nombreCirujano: 'Dra. Prueba' })
+    servicio.establecerIdentificacion({
+      nombrePaciente: 'Paciente De Prueba',
+      nombreCirujano: 'Dra. Prueba',
+    })
 
     // Los dos ojos tienen datos de biometría (p. ej. de una foto cargada),
     // pero solo se pide calcular OD.
@@ -109,7 +119,10 @@ describe('generarPdf — no saca un PDF vacío de un ojo que nunca se calculó',
   it('con los dos ojos calculados, salen los dos PDF de siempre', async () => {
     const servicio = servicioDePrueba()
     servicio.nuevo()
-    servicio.establecerIdentificacion({ nombrePaciente: 'Paciente De Prueba', nombreCirujano: 'Dra. Prueba' })
+    servicio.establecerIdentificacion({
+      nombrePaciente: 'Paciente De Prueba',
+      nombreCirujano: 'Dra. Prueba',
+    })
 
     servicio.editarMedida('OD', 'AL', 24.0)
     servicio.editarMedida('OS', 'AL', 24.3)
@@ -130,7 +143,10 @@ describe('generarPdf — no saca un PDF vacío de un ojo que nunca se calculó',
   it('sin haber calculado nada todavía, sigue saliendo un PDF por cada ojo con datos', async () => {
     const servicio = servicioDePrueba()
     servicio.nuevo()
-    servicio.establecerIdentificacion({ nombrePaciente: 'Paciente De Prueba', nombreCirujano: 'Dra. Prueba' })
+    servicio.establecerIdentificacion({
+      nombrePaciente: 'Paciente De Prueba',
+      nombreCirujano: 'Dra. Prueba',
+    })
 
     servicio.editarMedida('OD', 'AL', 24.0)
     servicio.editarMedida('OS', 'AL', 24.3)

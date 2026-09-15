@@ -1427,7 +1427,8 @@ ${cuerpoDelDocumento}
 function lenteRecomendadaTexto(recomendada: ResultadoInforme['recomendada']): string {
   if (!recomendada) return ''
   const partes = [`${recomendada.esfera.toFixed(2)} D`]
-  if (recomendada.cilindro !== undefined) partes.push(`Cilindro ${recomendada.cilindro.toFixed(2)} D`)
+  if (recomendada.cilindro !== undefined)
+    partes.push(`Cilindro ${recomendada.cilindro.toFixed(2)} D`)
   // El eje que se enseña es el RESIDUAL —el que la propia calculadora dice
   // que quedaría con esta opción—, no `recomendada.eje` (el meridiano
   // corneal curvo, fijo, que usa el criterio para ELEGIR la fila, no para
@@ -1481,7 +1482,8 @@ function tituloCalculadoraInforme(calculadora: Calculadora, hayCaraPosterior: bo
   if (calculadora === 'BARRETT_TORIC_CON_CARA_POSTERIOR') {
     return 'Barrett Toric — con córnea posterior medida'
   }
-  if (calculadora === 'EVO_TORIC' && hayCaraPosterior) return 'EVO Toric — con córnea posterior medida'
+  if (calculadora === 'EVO_TORIC' && hayCaraPosterior)
+    return 'EVO Toric — con córnea posterior medida'
   if (calculadora === 'BARRETT_TORIC' && hayCaraPosterior) return 'Barrett Toric — estimado'
   return fichaDe(calculadora).nombre
 }
@@ -1608,7 +1610,11 @@ function tablaComparativaDetallada(
  * a ninguna calculadora ni dice qué implantar; es una lectura rápida de algo
  * que ya está, con más detalle, en las hojas de encima.
  */
-function hojaResumenFinal(caso: Caso, ojo: Lateralidad, resultados: readonly ResultadoInforme[]): Hoja {
+function hojaResumenFinal(
+  caso: Caso,
+  ojo: Lateralidad,
+  resultados: readonly ResultadoInforme[],
+): Hoja {
   const deEsteOjo = resultados.filter((r) => r.ojo === ojo)
   // Con un solo aparato (el caso de antes de D47) el nombre no cambia. Con
   // varios, cada tarjeta dice de cuál es — si no, dos tarjetas de «EVO
@@ -1617,7 +1623,10 @@ function hojaResumenFinal(caso: Caso, ojo: Lateralidad, resultados: readonly Res
 
   const tarjetas = deEsteOjo
     .map((r) => {
-      const base = tituloCalculadoraInforme(r.calculadora, hayCaraPosteriorEn(caso, r.ojo, r.aparato))
+      const base = tituloCalculadoraInforme(
+        r.calculadora,
+        hayCaraPosteriorEn(caso, r.ojo, r.aparato),
+      )
       const nombre = variosAparatos ? `${base} (${r.aparato})` : base
       const color = CLASE_TARJETA[r.calculadora]
       if (!r.recomendada) {

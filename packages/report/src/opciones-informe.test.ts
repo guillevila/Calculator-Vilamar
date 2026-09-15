@@ -68,7 +68,9 @@ function informeCon(opciones: readonly ResultadoCalculadora['opciones'][number][
     },
     CUANDO,
   )
-  return generarHtmlInformeDetallado(recopilarInforme(caso, { version: '0.1.0', generadoEn: CUANDO }))
+  return generarHtmlInformeDetallado(
+    recopilarInforme(caso, { version: '0.1.0', generadoEn: CUANDO }),
+  )
 }
 
 /**

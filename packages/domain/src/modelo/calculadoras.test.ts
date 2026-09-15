@@ -26,9 +26,7 @@ describe('D45: variantes de córnea posterior', () => {
     const evo = FICHAS.EVO_TORIC
     const sinCaraPosterior = FICHAS.EVO_TORIC_SIN_CARA_POSTERIOR
     expect(sinCaraPosterior.requeridos).toEqual(evo.requeridos)
-    expect(evo.opcionales).toEqual(
-      expect.arrayContaining(['PK1', 'PK1_EJE', 'PK2', 'PK2_EJE']),
-    )
+    expect(evo.opcionales).toEqual(expect.arrayContaining(['PK1', 'PK1_EJE', 'PK2', 'PK2_EJE']))
     for (const campo of ['PK1', 'PK1_EJE', 'PK2', 'PK2_EJE'] as const) {
       expect(sinCaraPosterior.opcionales).not.toContain(campo)
     }
