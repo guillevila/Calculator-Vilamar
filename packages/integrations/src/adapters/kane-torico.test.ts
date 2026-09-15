@@ -217,6 +217,25 @@ describe('leer una fila de la tabla tórica de Kane', () => {
     // Sin esa comprobación, la cabecera entraría en la tabla como una lente.
     expect(leerFilaToricaDeKane(['Toric (Cylinder Power)', 'Residual Cylinder'])).toBeNull()
   })
+
+  // Comprobado en vivo el 28/08/2026 con la lente «B+L LuxSmart Toric»: al elegir un
+  // modelo concreto, Kane deja de escribir «T2 (1.00)» y pone solo el número, bajo
+  // una columna que ya no se llama «Toric (Cylinder Power)» sino con el nombre de la
+  // lente («B+L Cylinder Power»). Antes de este caso, ese formato hacía que
+  // `toricasLeidas` saliera en 0 y el adaptador devolviera ADAPTER_BROKEN aunque
+  // Kane sí había dado sus tres opciones.
+  it('«0.75» a secas —una lente concreta, sin designación de Kane— también es una opción', () => {
+    expect(leerFilaToricaDeKane(['0.75', '0.29 D Axis 75'])).toEqual({
+      designacion: '0.75',
+      cilindro: 0.75,
+      cilindroResidual: 0.29,
+      ejeResidual: 75,
+    })
+  })
+
+  it('su propia cabecera con el nombre de la lente tampoco se lee como opción', () => {
+    expect(leerFilaToricaDeKane(['B+L Cylinder Power', 'Residual Cylinder'])).toBeNull()
+  })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════

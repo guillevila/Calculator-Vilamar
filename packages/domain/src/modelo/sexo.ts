@@ -384,3 +384,28 @@ export function aportarSexo(
 export function confirmarSexo(s: SexoDelCaso): SexoDelCaso {
   return { ...s, confirmadoPorUsuario: true }
 }
+
+/**
+ * El valor de partida de un caso nuevo, cuando todavía no hay informe ni
+ * nombre del que deducir nada: «Hombre», a petición expresa del dueño del
+ * proyecto (03/09/2026) — cambia poco el resultado de Kane, y así un caso que
+ * se olvida de marcarlo no se queda bloqueado ni hay que repetir el cálculo.
+ *
+ * Se distingue de `aportarSexo` a propósito: **nadie ha mirado este valor**,
+ * así que su procedencia es `DEFECTO` y no `MANUAL` — la pantalla y el
+ * informe lo dicen tal cual, y `elegirSexo`/`aportarSexo` lo sustituyen en
+ * cuanto una persona toca el botón, igual que si viniera de una deducción.
+ *
+ * `confirmadoPorUsuario` sale en `true` aunque nadie lo haya confirmado
+ * -así no hace falta un clic más para poder calcular-, pero eso no lo hace
+ * pasar por dato real: su procedencia sigue diciendo `DEFECTO` en todas
+ * partes, así que nunca se ve ni se guarda como si lo hubiera escrito
+ * alguien.
+ */
+export function sexoPorDefecto(cuando: string): SexoDelCaso {
+  return {
+    valor: 'HOMBRE',
+    procedencia: { metodo: 'DEFECTO', registradoEn: cuando },
+    confirmadoPorUsuario: true,
+  }
+}
