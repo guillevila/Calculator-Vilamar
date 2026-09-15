@@ -426,7 +426,8 @@ CCT             530 um</pre></body>`)
   await expect(ventana.getByTestId('campo-ACD')).toBeVisible()
 
   await ventana.evaluate(
-    async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'anterion-confirmar-todo.pdf', ruta }]),
+    async (ruta) =>
+      window.vilamar?.cargarDocumentos([{ nombre: 'anterion-confirmar-todo.pdf', ruta }]),
     rutaPdf,
   )
   await expect(ventana.getByTestId('comprobar-ACD')).toBeVisible()
@@ -487,7 +488,9 @@ WTW            11.80 mm</pre></body>`)
 
   await ventana.evaluate(
     async (ruta) =>
-      window.vilamar?.cargarDocumentos([{ nombre: 'anterion-renombrar-luego-confirmar.pdf', ruta }]),
+      window.vilamar?.cargarDocumentos([
+        { nombre: 'anterion-renombrar-luego-confirmar.pdf', ruta },
+      ]),
     rutaPdf,
   )
   // Sin ACD en el documento, sale DERIVADA de AQD+CCT — necesita comprobación
@@ -500,16 +503,14 @@ WTW            11.80 mm</pre></body>`)
 
   // El gesto exacto del dueño: elegir el nombre real del biómetro en el
   // desplegable de «Principal» — RENOMBRA el dataset que ya hay, no crea uno.
-  await ventana
-    .getByTestId('manual-aparato-principal-select')
-    .selectOption('Heidelberg ANTERION')
+  await ventana.getByTestId('manual-aparato-principal-select').selectOption('Heidelberg ANTERION')
 
   const trasRenombrar = await ventana.evaluate(() => window.vilamar?.casoActual())
   expect(trasRenombrar?.ojos?.OD?.[0]?.aparato).toBe('Heidelberg ANTERION')
-  expect(trasRenombrar?.ojos?.OD?.[0]?.medidas?.AL?.valor, 'el renombrado ya ha borrado datos').toBeCloseTo(
-    24.07,
-    2,
-  )
+  expect(
+    trasRenombrar?.ojos?.OD?.[0]?.medidas?.AL?.valor,
+    'el renombrado ya ha borrado datos',
+  ).toBeCloseTo(24.07, 2)
   await expect(ventana.getByTestId('comprobar-ACD')).toBeVisible()
 
   const boton = ventana.getByTestId('confirmar-todo-el-ojo')
@@ -541,7 +542,10 @@ WTW            11.80 mm</pre></body>`)
   expect(ojoTrasConfirmar?.medidas?.ACD?.valor, 'la ACD derivada ha desaparecido').toBeDefined()
   expect(ojoTrasConfirmar?.medidas?.ACD?.confirmadoPorUsuario).toBe(true)
 
-  await ventana.screenshot({ path: 'test-results/11c-renombrar-luego-confirmar.png', fullPage: true })
+  await ventana.screenshot({
+    path: 'test-results/11c-renombrar-luego-confirmar.png',
+    fullPage: true,
+  })
 })
 
 /**
@@ -572,7 +576,9 @@ test('reabrir un caso guardado tras haber renombrado su aparato: la pantalla no 
   // permite hacerlo D47 — el mismo gesto que la prueba anterior, pero ahora
   // ANTES de cerrar el caso, no en la misma pantalla en la que se confirma.
   await ventana.getByTestId('manual-aparato-principal-select').selectOption('Heidelberg ANTERION')
-  await expect(ventana.getByTestId('manual-aparato-principal-select')).toHaveValue('Heidelberg ANTERION')
+  await expect(ventana.getByTestId('manual-aparato-principal-select')).toHaveValue(
+    'Heidelberg ANTERION',
+  )
 
   const antesDeCerrar = await ventana.evaluate(() => window.vilamar?.casoActual())
   const codigo = antesDeCerrar?.codigo
@@ -609,6 +615,12 @@ test('reabrir un caso guardado tras haber renombrado su aparato: la pantalla no 
  * propósito mientras se revisa (para no deshacer «Añadir otro biómetro» a
  * medio escribir). El dato nunca se borró: seguía a salvo en el caso, pero
  * la pantalla miraba un aparato que ese ojo nunca tuvo.
+ *
+ * El aparato de OS se elige a propósito, distinto del de OD (15/09/2026,
+ * amplía D73): con el desplegable sugiriendo de partida el mismo nombre
+ * que el otro ojo cuando aún no tiene dataset propio, dejar a OS con lo
+ * que sugiere el desplegable ya no reproduce la asimetría real del fallo
+ * —los dos aparatos serían iguales—, así que aquí se cambia a mano.
  */
 test('renombrar el aparato de UN ojo no deja al OTRO mirando un dataset vacío al cambiar de pestaña', async () => {
   await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
@@ -620,11 +632,19 @@ test('renombrar el aparato de UN ojo no deja al OTRO mirando un dataset vacío a
   await ventana.getByTestId('manual-campo-AL').fill('24.10')
   await ventana.getByTestId('manual-campo-AL').press('Tab')
   await ventana.getByTestId('manual-aparato-principal-select').selectOption('Heidelberg ANTERION')
-  await expect(ventana.getByTestId('manual-aparato-principal-select')).toHaveValue('Heidelberg ANTERION')
+  await expect(ventana.getByTestId('manual-aparato-principal-select')).toHaveValue(
+    'Heidelberg ANTERION',
+  )
 
-  // OS: su propio dato, con el aparato «Principal» de siempre — nunca se
-  // renombra este, a propósito: el fallo real es justo esta asimetría.
+  // OS: su propio dato, con un aparato GENUINAMENTE DISTINTO del de OD —
+  // el fallo real es justo esta asimetría. Se elige a propósito, porque
+  // desde D73 (08/09/2026) el desplegable de OS sugiere de partida el
+  // mismo nombre que OD si OD es el único aparato que hay; sin elegir
+  // otro aquí, los dos ojos acabarían con el mismo aparato y esta prueba
+  // dejaría de comprobar lo que de verdad importa: que renombrar UN ojo
+  // no rompe la vista del OTRO cuando de verdad son aparatos distintos.
   await ventana.getByTestId('manual-ojo-OS').click()
+  await ventana.getByTestId('manual-aparato-principal-select').selectOption('OCULUS Pentacam')
   await ventana.getByTestId('manual-campo-AL').fill('22.80')
   await ventana.getByTestId('manual-campo-AL').press('Tab')
 
@@ -641,10 +661,13 @@ test('renombrar el aparato de UN ojo no deja al OTRO mirando un dataset vacío a
 
   const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
   expect(caso?.ojos?.OD?.[0]?.aparato).toBe('Heidelberg ANTERION')
-  expect(caso?.ojos?.OS?.[0]?.aparato).toBe('Principal')
+  expect(caso?.ojos?.OS?.[0]?.aparato).toBe('OCULUS Pentacam')
   expect(caso?.ojos?.OS?.[0]?.medidas?.AL?.valor).toBeCloseTo(22.8, 2)
 
-  await ventana.screenshot({ path: 'test-results/11e-dos-ojos-un-aparato-renombrado.png', fullPage: true })
+  await ventana.screenshot({
+    path: 'test-results/11e-dos-ojos-un-aparato-renombrado.png',
+    fullPage: true,
+  })
 })
 
 /**
@@ -735,13 +758,17 @@ test('el aparato recién renombrado en un ojo se sugiere solo en el otro, mientr
   await ventana.getByTestId('manual-campo-AL').fill('23.50')
   await ventana.getByTestId('manual-campo-AL').press('Tab')
   await ventana.getByTestId('manual-aparato-principal-select').selectOption('ZEISS IOLMaster 700')
-  await expect(ventana.getByTestId('manual-aparato-principal-select')).toHaveValue('ZEISS IOLMaster 700')
+  await expect(ventana.getByTestId('manual-aparato-principal-select')).toHaveValue(
+    'ZEISS IOLMaster 700',
+  )
 
   // OS todavía no tiene ningún dato — su dropdown de aparato ya sugiere el
   // mismo nombre que acaba de ponerse en OD, sin que nadie lo haya escrito.
   await ventana.getByTestId('manual-ojo-OS').click()
   await expect(ventana.getByTestId('manual-campo-AL')).toHaveValue('')
-  await expect(ventana.getByTestId('manual-aparato-principal-select')).toHaveValue('ZEISS IOLMaster 700')
+  await expect(ventana.getByTestId('manual-aparato-principal-select')).toHaveValue(
+    'ZEISS IOLMaster 700',
+  )
 
   // Al escribir el primer dato de OS, su dataset se crea con ESE aparato —
   // sin que OD se haya visto tocado en ningún momento.
@@ -1032,6 +1059,82 @@ test('una discrepancia sin reconocer en OS bloquea «Confirmar» aunque se esté
 })
 
 /**
+ * Fallo real reportado por el dueño (15/09/2026): elegir calcular solo OD
+ * obligaba igualmente a comprobar los datos de OS —de una foto cargada,
+ * por ejemplo— aunque no se fueran a calcular todavía. «Confirmar datos»
+ * miraba los datos por comprobar de TODOS los ojos del caso (D47), no solo
+ * del que se estaba revisando.
+ *
+ * Se usa un ANTERION sin ACD (que el programa deriva de AQD+CCT, D31) en
+ * los dos ojos: es la forma más simple y fiable de tener un dato DERIVADO
+ * —que necesita comprobación humana— sin depender de OCR (mismo truco que
+ * la prueba de «confirmar todo de golpe»).
+ */
+test('elegir calcular solo OD no obliga a comprobar los datos de OS, de una foto cargada', async () => {
+  test.setTimeout(180_000)
+
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  await p.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <div style="display:flex;gap:90px">
+      <pre>OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+AQD (endo)     2.65 mm
+LT             4.53 mm
+CCT             530 um</pre>
+      <pre>OS
+AL            24.01 mm
+K1            40.27 D @ 8
+K2            42.68 D @ 98
+AQD (endo)     2.70 mm
+LT             4.48 mm
+CCT             533 um</pre>
+    </div></body>`)
+  const rutaPdf = join(carpetaDatos, 'anterion-solo-un-ojo.pdf')
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByLabel('Nombre del doctor').fill('Dra. Un Ojo E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Paciente Un Ojo E2E')
+  await ventana.getByTestId('manual-continuar').click()
+
+  await ventana.evaluate(
+    async (ruta) =>
+      window.vilamar?.cargarDocumentos([{ nombre: 'anterion-solo-un-ojo.pdf', ruta }]),
+    rutaPdf,
+  )
+
+  // Se elige OD a propósito, sin dar por hecho que la revisión aterriza ahí
+  // — `ojoActivo` es un estado de `App.tsx` compartido entre casos, así que
+  // qué ojo quedó activo en un caso anterior no dice nada de este.
+  await ventana.getByTestId('revision-ojo-OD').click()
+  await expect(ventana.getByTestId('revision-ojo-OD')).toHaveClass(/activo/)
+
+  // Se comprueba la propia ACD derivada de OD, nada más — no hace falta
+  // tocar OS para nada.
+  await expect(ventana.getByTestId('comprobar-ACD')).toBeVisible()
+  await ventana.getByTestId('comprobar-ACD').click()
+  await expect(ventana.getByTestId('comprobar-ACD')).toHaveCount(0)
+
+  // OS sigue con su propia ACD SIN comprobar — y aun así, «Confirmar
+  // datos» ya está habilitado: es el arreglo de hoy.
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OS?.[0]?.medidas?.ACD?.confirmadoPorUsuario).toBe(false)
+  await expect(ventana.getByTestId('confirmar')).toBeEnabled()
+
+  await ventana.getByTestId('confirmar').click()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
+
+  await ventana.screenshot({ path: 'test-results/11g-confirmar-solo-un-ojo.png', fullPage: true })
+})
+
+/**
  * «Casos guardados» (02/09/2026, petición expresa del dueño del proyecto):
  * antes de esto no había ninguna forma de volver a un caso una vez cerrada
  * la aplicación — solo existía «el que está abierto ahora mismo», en
@@ -1165,8 +1268,8 @@ ACD (epi)      3.10 mm</pre>
   await ventana.getByTestId('campo-AL').press('Tab')
   await expect(ventana.getByTestId('manual-aparato-OCULUS Pentacam')).toBeVisible()
 
-  const aparatoOriginal = (await ventana.evaluate(() => window.vilamar?.casoActual()))?.ojos?.OD?.[0]
-    ?.aparato
+  const aparatoOriginal = (await ventana.evaluate(() => window.vilamar?.casoActual()))?.ojos
+    ?.OD?.[0]?.aparato
   expect(aparatoOriginal).toBeTruthy()
   await expect(ventana.getByTestId(`manual-aparato-${aparatoOriginal}`)).toBeVisible()
 
@@ -1177,9 +1280,9 @@ ACD (epi)      3.10 mm</pre>
   // Y el orden de los campos coincide con el cuestionario manual: AL y las
   // dos K, antes que la constante A (que vive en «Lente e incisión», no en
   // «Decisiones del cirujano» como antes).
-  const etiquetas = await ventana.getByTestId(/^campo-/).evaluateAll((els) =>
-    els.map((el) => el.getAttribute('data-testid')),
-  )
+  const etiquetas = await ventana
+    .getByTestId(/^campo-/)
+    .evaluateAll((els) => els.map((el) => el.getAttribute('data-testid')))
   const posAL = etiquetas.indexOf('campo-AL')
   const posConstanteA = etiquetas.indexOf('campo-CONSTANTE_A')
   const posPK1 = etiquetas.indexOf('campo-PK1')
@@ -1215,7 +1318,8 @@ ACD (epi)      3.18 mm</pre></body>`)
 
   await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
   await ventana.evaluate(
-    async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'informe-identificacion.pdf', ruta }]),
+    async (ruta) =>
+      window.vilamar?.cargarDocumentos([{ nombre: 'informe-identificacion.pdf', ruta }]),
     rutaPdf,
   )
   // Entrando por un documento, no por el cuestionario manual.

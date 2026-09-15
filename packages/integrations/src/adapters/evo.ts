@@ -261,14 +261,18 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
     }
 
     if (entradas.dispositivoCaraPosterior !== undefined) {
-      await pagina.selectOption(SEL.dispositivoPosterior, { label: entradas.dispositivoCaraPosterior })
+      await pagina.selectOption(SEL.dispositivoPosterior, {
+        label: entradas.dispositivoCaraPosterior,
+      })
     }
 
     // Córnea especial (D67): si el ojo la tiene y EVO tiene un equivalente
     // en su desplegable, se elige. Sin equivalente (queratocono) se deja
     // en «No», su valor por defecto — no se inventa una opción que la web
     // no ofrece.
-    const opcionLasik = entradas.situacionCorneal ? LASIK_EN_EVO[entradas.situacionCorneal] : undefined
+    const opcionLasik = entradas.situacionCorneal
+      ? LASIK_EN_EVO[entradas.situacionCorneal]
+      : undefined
     if (opcionLasik !== undefined) {
       await pagina.selectOption(SEL.lasik, { label: opcionLasik })
     }
@@ -397,7 +401,12 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
     // diagrama y sus propios botones «Print»/«Back»—, sin el margen vacío
     // alrededor que deja la página a este tamaño de ventana. Ningún dato
     // se recorta: solo el fondo de la página (D37, corregido el mismo día).
-    const capturaId = await capturarResultado(pagina, ctx, this.calculadora, pagina.locator('.shell').first())
+    const capturaId = await capturarResultado(
+      pagina,
+      ctx,
+      this.calculadora,
+      pagina.locator('.shell').first(),
+    )
 
     return {
       calculadora: this.calculadora,

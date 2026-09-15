@@ -104,10 +104,7 @@ export const APARATO_PRINCIPAL = 'Principal'
  * `packages/integrations/src/adapters/barrett.ts`.
  */
 export type SituacionCornealEspecial =
-  | 'LASIK_MIOPE'
-  | 'LASIK_HIPERMETROPE'
-  | 'QUERATOTOMIA_RADIAL'
-  | 'QUERATOCONO'
+  'LASIK_MIOPE' | 'LASIK_HIPERMETROPE' | 'QUERATOTOMIA_RADIAL' | 'QUERATOCONO'
 
 export interface OjoBiometrico {
   readonly lateralidad: Lateralidad
@@ -144,7 +141,10 @@ export interface OjoBiometrico {
   readonly medidas: MapaMedidas
 }
 
-export function ojoVacio(lateralidad: Lateralidad, aparato: string = APARATO_PRINCIPAL): OjoBiometrico {
+export function ojoVacio(
+  lateralidad: Lateralidad,
+  aparato: string = APARATO_PRINCIPAL,
+): OjoBiometrico {
   return { lateralidad, aparato, medidas: {} }
 }
 

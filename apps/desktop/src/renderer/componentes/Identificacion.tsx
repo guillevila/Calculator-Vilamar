@@ -85,9 +85,9 @@ export function IdentificacionCaso({
         </div>
       </div>
       <p className="pie-nota" style={{ marginTop: -6, marginBottom: 12 }}>
-        Ninguno de los dos sale en el PDF ni en el informe local, pero los dos son
-        obligatorios: EVO, Barrett y Kane piden un nombre en su formulario, y las tres
-        calculadoras lo reciben si su formulario lo pide.
+        Ninguno de los dos sale en el PDF ni en el informe local, pero los dos son obligatorios:
+        EVO, Barrett y Kane piden un nombre en su formulario, y las tres calculadoras lo reciben si
+        su formulario lo pide.
       </p>
       <div className="fila">
         <CampoIdentificacion

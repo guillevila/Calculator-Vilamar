@@ -138,7 +138,13 @@ export function SelectorLente({ caso, onCambio }: Props): JSX.Element {
     nombreEnKane?: string,
     constanteConocida?: number,
   ): Promise<void> {
-    const r = await api().elegirLente(fabricante, modelo, nombreEnEvo, nombreEnKane, constanteConocida)
+    const r = await api().elegirLente(
+      fabricante,
+      modelo,
+      nombreEnEvo,
+      nombreEnKane,
+      constanteConocida,
+    )
     setAvisos(r?.avisos ?? [])
     await onCambio()
   }
@@ -322,7 +328,13 @@ function SelectorLenteSecundaria({ caso, onCambio }: Props): JSX.Element {
     nombreEnKane?: string,
     constanteConocida?: number,
   ): Promise<void> {
-    await api().elegirLenteSecundaria({ fabricante, modelo, nombreEnEvo, nombreEnKane, constanteConocida })
+    await api().elegirLenteSecundaria({
+      fabricante,
+      modelo,
+      nombreEnEvo,
+      nombreEnKane,
+      constanteConocida,
+    })
     await onCambio()
   }
 
@@ -369,9 +381,9 @@ function SelectorLenteSecundaria({ caso, onCambio }: Props): JSX.Element {
       <div className="separador" />
       <h2>Lente alternativa (opcional)</h2>
       <p className="sub">
-        Para comparar otra lente con la misma biometría, sin volver a escribir ningún dato. Se
-        elige aquí y se activa cuando quieras, con «Calcular con esta lente» — lo que ya hayas
-        calculado con la de ahora no se pierde: ya tienes su PDF generado.
+        Para comparar otra lente con la misma biometría, sin volver a escribir ningún dato. Se elige
+        aquí y se activa cuando quieras, con «Calcular con esta lente» — lo que ya hayas calculado
+        con la de ahora no se pierde: ya tienes su PDF generado.
       </p>
       <div className="fila">
         <label htmlFor="modelo-lente-secundaria">Modelo</label>

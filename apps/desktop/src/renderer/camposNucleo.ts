@@ -16,4 +16,11 @@
 
 import type { CampoBiometrico } from '@vilamar/domain'
 
-export const CAMPOS_DESTACADOS: readonly CampoBiometrico[] = ['AL', 'K1', 'K1_EJE', 'K2', 'K2_EJE', 'ACD']
+export const CAMPOS_DESTACADOS: readonly CampoBiometrico[] = [
+  'AL',
+  'K1',
+  'K1_EJE',
+  'K2',
+  'K2_EJE',
+  'ACD',
+]

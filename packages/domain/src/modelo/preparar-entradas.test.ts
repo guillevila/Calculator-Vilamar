@@ -13,7 +13,13 @@
 import { describe, expect, it } from 'vitest'
 
 import { casoNuevo, confirmar, conOjo, ojoDe } from './caso.js'
-import { conAparatoCaraPosterior, conMedida, conSituacionCorneal, crearMedida, ojoVacio } from './medida.js'
+import {
+  conAparatoCaraPosterior,
+  conMedida,
+  conSituacionCorneal,
+  crearMedida,
+  ojoVacio,
+} from './medida.js'
 import { prepararEntradas } from './preparar-entradas.js'
 import type { Procedencia } from './procedencia.js'
 

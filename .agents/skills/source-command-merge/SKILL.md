@@ -1,6 +1,6 @@
 ---
-name: "source-command-merge"
-description: "Integra una rama en master de forma segura, con el agente merge-guardian. Valida de verdad antes de fusionar, y se detiene si algo no está claro."
+name: 'source-command-merge'
+description: 'Integra una rama en master de forma segura, con el agente merge-guardian. Valida de verdad antes de fusionar, y se detiene si algo no está claro.'
 ---
 
 # source-command-merge

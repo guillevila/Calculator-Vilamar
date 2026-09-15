@@ -1073,6 +1073,7 @@ una suposición sobre el mundo exterior, no en la lógica interna.
 
 **Lección:** Cuando el código depende del ORDEN o del SENTIDO de algo que
 viene de fuera (una tabla ajena, un aviso de validación de una web ajena):
+
 1. No asumir que todas las fuentes se comportan igual — comprobar cada una.
 2. Un aviso visible en una web ajena («* PK1 > PK2») es un dato a verificar,
    no una instrucción a seguir a ciegas: puede estar mal, puede referirse a
@@ -1115,6 +1116,7 @@ ha calibrado la diferencia.
 **Lección:** Cuando una petición toca una regla de privacidad y tiene más de
 una interpretación posible, no basta con una ronda de pushback genérico.
 Hay que:
+
 1. Aclarar el alcance exacto ANTES de pedir la confirmación final, no
    después.
 2. Si las opciones de alcance tienen gravedad muy distinta (un fichero local
@@ -1174,6 +1176,7 @@ estático lo habría revelado, porque el estado que hacía falta inspeccionar
 no existe hasta la tercera acción de una secuencia de nueve.
 
 **Lección:**
+
 1. **«No encontré el campo» y «el campo no existe» son afirmaciones
    distintas**, y solo la primera es la que de verdad se puede sostener tras
    mirar el HTML inicial. Un formulario dinámico puede revelar campos
@@ -1238,6 +1241,7 @@ reintento interno y se dejó que la persona pulse «Reintentar» desde fuera
 que se comprobó que funciona en esta web.
 
 **Lección:**
+
 1. Verificar una vez que un cálculo da un resultado distinto **no basta**
    si la condición que hace falta esperar es intermitente por naturaleza
    (una web lenta). Hace falta repetir la comprobación varias veces

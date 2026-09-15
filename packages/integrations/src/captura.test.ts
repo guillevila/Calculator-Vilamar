@@ -58,7 +58,11 @@ describe('capturarResultado', () => {
       },
     })
 
-    const id = await capturarResultado(paginaFalsa(async () => png), ctx, 'EVO_TORIC')
+    const id = await capturarResultado(
+      paginaFalsa(async () => png),
+      ctx,
+      'EVO_TORIC',
+    )
 
     expect(id).toBe('captura-9')
     expect(recibidos).toEqual([{ calculadora: 'EVO_TORIC', ojo: 'OD', png }])
@@ -172,7 +176,11 @@ describe('capturarResultado', () => {
         },
       })
 
-      const id = await capturarResultado(paginaFalsa(async () => pngPagina), ctx, 'KANE')
+      const id = await capturarResultado(
+        paginaFalsa(async () => pngPagina),
+        ctx,
+        'KANE',
+      )
 
       expect(id).toBe('captura-pagina')
       expect(recibidos[0]?.png).toBe(pngPagina)

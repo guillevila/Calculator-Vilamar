@@ -67,7 +67,14 @@ export function detectarDiscrepancias(datasets: readonly OjoBiometrico[]): reado
         if (valorA === undefined || valorB === undefined) continue
         const diferencia = Math.abs(valorA - valorB)
         if (diferencia > umbral) {
-          discrepancias.push({ campo, aparatoA: a.aparato, valorA, aparatoB: b.aparato, valorB, diferencia })
+          discrepancias.push({
+            campo,
+            aparatoA: a.aparato,
+            valorA,
+            aparatoB: b.aparato,
+            valorB,
+            diferencia,
+          })
         }
       }
     }

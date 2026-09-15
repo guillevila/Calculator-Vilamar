@@ -95,10 +95,18 @@ export function SelectorAparato({
         // `key={lado}` a propósito: el mismo fallo que ya costó un fallo real
         // esta noche (D47) — sin ella, React conserva el campo de texto
         // «Otro» del ojo anterior al cambiar de OD a OS.
-        <SelectorAparatoPrincipal key={lado} aparatoActivo={aparatoActivo} onRenombrar={renombrar} />
+        <SelectorAparatoPrincipal
+          key={lado}
+          aparatoActivo={aparatoActivo}
+          onRenombrar={renombrar}
+        />
       )}
       {!anadiendo && (
-        <button type="button" onClick={() => setAnadiendo(true)} data-testid="manual-anadir-aparato">
+        <button
+          type="button"
+          onClick={() => setAnadiendo(true)}
+          data-testid="manual-anadir-aparato"
+        >
           + Añadir otro biómetro
         </button>
       )}
@@ -163,7 +171,9 @@ function SelectorAparatoPrincipal({
   // hasta que se escribe y se confirma un nombre) y el `<select>` volvería
   // a saltar solo al valor anterior en el siguiente render.
   const [modoOtro, setModoOtro] = useState(() => !APARATOS_CONOCIDOS.includes(aparatoActivo))
-  const [otro, setOtro] = useState(() => (APARATOS_CONOCIDOS.includes(aparatoActivo) ? '' : aparatoActivo))
+  const [otro, setOtro] = useState(() =>
+    APARATOS_CONOCIDOS.includes(aparatoActivo) ? '' : aparatoActivo,
+  )
 
   return (
     <div className="fila" style={{ gap: 6, alignItems: 'center' }}>
@@ -292,7 +302,10 @@ export function SelectorAparatoCaraPosterior({
 }
 
 /** Las cuatro situaciones especiales, con su texto en pantalla (D67, 02/09/2026). */
-const SITUACIONES_CORNEALES: readonly { readonly valor: SituacionCornealEspecial; readonly etiqueta: string }[] = [
+const SITUACIONES_CORNEALES: readonly {
+  readonly valor: SituacionCornealEspecial
+  readonly etiqueta: string
+}[] = [
   { valor: 'LASIK_MIOPE', etiqueta: 'LASIK/PRK miópico previo' },
   { valor: 'LASIK_HIPERMETROPE', etiqueta: 'LASIK/PRK hipermetrópico previo' },
   { valor: 'QUERATOTOMIA_RADIAL', etiqueta: 'Queratotomía radial previa' },
@@ -331,7 +344,10 @@ export function SelectorSituacionCorneal({
   }
 
   return (
-    <div className="fila" style={{ gap: 6, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+    <div
+      className="fila"
+      style={{ gap: 6, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}
+    >
       <span className="pie-nota" style={{ marginRight: 2 }}>
         Córnea especial:
       </span>

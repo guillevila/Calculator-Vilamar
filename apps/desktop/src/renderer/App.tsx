@@ -25,13 +25,7 @@ import { PanelResultados } from './componentes/PanelResultados.js'
 import { Avisos } from './componentes/Avisos.js'
 
 type Paso =
-  | 'INICIO'
-  | 'CASOS_GUARDADOS'
-  | 'CARGANDO'
-  | 'MANUAL'
-  | 'REVISION'
-  | 'CALCULANDO'
-  | 'RESULTADOS'
+  'INICIO' | 'CASOS_GUARDADOS' | 'CARGANDO' | 'MANUAL' | 'REVISION' | 'CALCULANDO' | 'RESULTADOS'
 
 /** A qué pantalla lleva un caso, según cómo se haya quedado. */
 function pasoDeCaso(c: Caso): Paso {
@@ -274,7 +268,6 @@ export function App(): JSX.Element {
     },
     [],
   )
-
 
   if (!disponible) {
     return (

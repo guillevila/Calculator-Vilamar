@@ -211,9 +211,7 @@ export function estimarLenteRecomendada(
     cilindro: ultima.cilindro,
     eje: ejeCurvo,
     ...conRefraccion,
-    ...(ultima.cilindroResidual !== undefined
-      ? { cilindroResidual: ultima.cilindroResidual }
-      : {}),
+    ...(ultima.cilindroResidual !== undefined ? { cilindroResidual: ultima.cilindroResidual } : {}),
     ejeResidual: ultima.ejeResidual,
   }
 }

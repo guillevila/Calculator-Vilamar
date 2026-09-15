@@ -115,7 +115,10 @@ const DISPOSITIVO_EN_BARRETT: Partial<Record<string, string>> = {
   'OCULUS Pentacam': 'Pentacam',
 }
 
-function dispositivoCaraPosteriorPara(calculadora: Calculadora, aparato: string): string | undefined {
+function dispositivoCaraPosteriorPara(
+  calculadora: Calculadora,
+  aparato: string,
+): string | undefined {
   if (calculadora === 'EVO_TORIC') return DISPOSITIVO_EN_EVO[aparato]
   if (calculadora === 'BARRETT_TORIC_CON_CARA_POSTERIOR') return DISPOSITIVO_EN_BARRETT[aparato]
   return undefined
@@ -158,7 +161,8 @@ export function prepararEntradas(
   // que no toca daría un resultado clínicamente erróneo, con pinta de
   // válido. No es un dato que falte, es la calculadora equivocada para
   // este ojo.
-  const esBarrettNormal = calculadora === 'BARRETT_TORIC' || calculadora === 'BARRETT_TORIC_CON_CARA_POSTERIOR'
+  const esBarrettNormal =
+    calculadora === 'BARRETT_TORIC' || calculadora === 'BARRETT_TORIC_CON_CARA_POSTERIOR'
   if (esBarrettNormal && datos.situacionCorneal !== undefined) {
     return { ok: false, motivo: 'CORNEA_ESPECIAL_USA_TRUE_K' }
   }

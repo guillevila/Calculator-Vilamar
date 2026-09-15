@@ -50,7 +50,11 @@ import { api } from '../api.js'
 import { CAMPOS_DESTACADOS } from '../camposNucleo.js'
 import { BloqueSexo } from './BloqueSexo.js'
 import { faltaIdentificacion, IdentificacionCaso } from './Identificacion.js'
-import { SelectorAparato, SelectorAparatoCaraPosterior, SelectorSituacionCorneal } from './SelectorAparato.js'
+import {
+  SelectorAparato,
+  SelectorAparatoCaraPosterior,
+  SelectorSituacionCorneal,
+} from './SelectorAparato.js'
 import { SelectorLente } from './SelectorLente.js'
 
 interface Props {
@@ -228,22 +232,28 @@ export function PanelRevision({
    *  - **Leídos por una máquina**: pueden estar mal y el programa no lo sabe.
    *  - **Calculados por el programa**: la cuenta es exacta, pero nadie ha visto
    *    el resultado y va a las tres calculadoras.
+   *
+   * Solo del ojo que se está revisando ahora mismo, con TODOS sus aparatos
+   * (petición expresa del dueño del proyecto, 15/09/2026). Antes miraba
+   * todos los ojos del caso (D47): elegir calcular solo OD obligaba
+   * igualmente a revisar los datos de OS —de una foto cargada, por
+   * ejemplo— que nadie iba a calcular todavía. `confirmarTodo()` ya sabe
+   * saltarse en silencio, sin darlos por buenos, los campos que necesitan
+   * comprobación humana (D28 sigue en pie) — este freno exigía de más.
+   * Revisar el otro ojo se sigue pidiendo, solo que en el momento de
+   * verdad: en cuanto se pasa a mirarlo (`ojoActivo` cambia), esta misma
+   * cuenta se repite con sus propios datos.
    */
   const porComprobar = useMemo(
     () =>
-      // Todos los aparatos de todos los ojos (D47): un segundo biómetro con
-      // datos de OCR sin comprobar no puede quedar fuera de esta cuenta, o
-      // se podría confirmar el caso sin haberlo mirado.
-      ojos.flatMap((l) =>
-        aparatosDe(caso, l).flatMap((a) => {
-          const datos = ojoDe(caso, l, a)
-          return (Object.keys(datos.medidas) as CampoBiometrico[])
-            .map((c) => datos.medidas[c])
-            .filter((m): m is Medida => m !== undefined)
-            .filter((m) => necesitaComprobacionHumana(m.procedencia) && !m.confirmadoPorUsuario)
-        }),
-      ),
-    [caso, ojos],
+      aparatosDe(caso, ojoActivo).flatMap((a) => {
+        const datos = ojoDe(caso, ojoActivo, a)
+        return (Object.keys(datos.medidas) as CampoBiometrico[])
+          .map((c) => datos.medidas[c])
+          .filter((m): m is Medida => m !== undefined)
+          .filter((m) => necesitaComprobacionHumana(m.procedencia) && !m.confirmadoPorUsuario)
+      }),
+    [caso, ojoActivo],
   )
   const leidosPorMaquina = porComprobar.filter((m) => esLecturaAutomatica(m.procedencia))
   const calculados = porComprobar.filter((m) => !esLecturaAutomatica(m.procedencia))
@@ -400,7 +410,9 @@ export function PanelRevision({
               </button>
             </>
           ) : (
-            <p style={{ margin: '8px 0 0' }}>Ya lo has comprobado. Puedes calcular con normalidad.</p>
+            <p style={{ margin: '8px 0 0' }}>
+              Ya lo has comprobado. Puedes calcular con normalidad.
+            </p>
           )}
         </div>
       )}
@@ -420,8 +432,9 @@ export function PanelRevision({
       {porComprobar.length > 0 && invalidos.length === 0 && (
         <div className="aviso atencion">
           <strong>
-            Hay {porComprobar.length} {porComprobar.length === 1 ? 'dato' : 'datos'} que{' '}
-            {porComprobar.length === 1 ? 'tiene' : 'tienen'} que comprobarse uno a uno.
+            Hay {porComprobar.length} {porComprobar.length === 1 ? 'dato' : 'datos'} de{' '}
+            {nombreLateralidad(ojoActivo)} que {porComprobar.length === 1 ? 'tiene' : 'tienen'} que
+            comprobarse uno a uno.
           </strong>{' '}
           {/*
             Cada motivo se dice solo cuando toca. Enseñar la frase del OCR cuando
@@ -582,19 +595,21 @@ export function PanelRevision({
         )}
         {porComprobar.length > 0 && invalidos.length === 0 && (
           <p className="pie-nota">
-            Faltan {porComprobar.length} {porComprobar.length === 1 ? 'dato' : 'datos'} por
-            comprobar. Los datos que has escrito tú y los que vienen del texto de un PDF no hace
-            falta comprobarlos: son exactos.
+            Faltan {porComprobar.length} {porComprobar.length === 1 ? 'dato' : 'datos'} de{' '}
+            {nombreLateralidad(ojoActivo)} por comprobar. Los datos que has escrito tú y los que
+            vienen del texto de un PDF no hace falta comprobarlos: son exactos.
           </p>
         )}
-        {hayDiscrepanciaSinReconocerEnElCaso && invalidos.length === 0 && porComprobar.length === 0 && (
-          <p className="pie-nota" data-testid="aviso-discrepancia-otro-ojo">
-            No se puede confirmar mientras haya una discrepancia entre aparatos sin comprobar
-            {ojosConDiscrepanciaEnOtroLado.length > 0
-              ? ` — revisa ${ojosConDiscrepanciaEnOtroLado.map(nombreLateralidad).join(' y ')}, arriba.`
-              : '.'}
-          </p>
-        )}
+        {hayDiscrepanciaSinReconocerEnElCaso &&
+          invalidos.length === 0 &&
+          porComprobar.length === 0 && (
+            <p className="pie-nota" data-testid="aviso-discrepancia-otro-ojo">
+              No se puede confirmar mientras haya una discrepancia entre aparatos sin comprobar
+              {ojosConDiscrepanciaEnOtroLado.length > 0
+                ? ` — revisa ${ojosConDiscrepanciaEnOtroLado.map(nombreLateralidad).join(' y ')}, arriba.`
+                : '.'}
+            </p>
+          )}
         {faltaIdentificacion(caso) &&
           invalidos.length === 0 &&
           porComprobar.length === 0 &&
@@ -651,8 +666,8 @@ function GrupoCampos({
       {titulo === 'Córnea posterior' && (
         <>
           <p className="pie-nota" style={{ marginTop: -4, marginBottom: 8 }}>
-            Por defecto es el mismo aparato de arriba. Cámbialo aquí SOLO si la córnea posterior
-            se midió con otro instrumento — EVO y Barrett enseñan su propio desplegable
+            Por defecto es el mismo aparato de arriba. Cámbialo aquí SOLO si la córnea posterior se
+            midió con otro instrumento — EVO y Barrett enseñan su propio desplegable
             «Biometer»/«Device» para esto, aparte del resto del formulario.
           </p>
           <SelectorAparatoCaraPosterior
@@ -718,7 +733,14 @@ interface PropsFila {
   readonly onCambio: () => Promise<void>
 }
 
-function FilaCampo({ campo, caso, ojoActivo, aparatoActivo, avisos, onCambio }: PropsFila): JSX.Element {
+function FilaCampo({
+  campo,
+  caso,
+  ojoActivo,
+  aparatoActivo,
+  avisos,
+  onCambio,
+}: PropsFila): JSX.Element {
   const ojo = ojoDe(caso, ojoActivo, aparatoActivo)
   const def = definicionDe(campo)
   const medida = ojo.medidas[campo]

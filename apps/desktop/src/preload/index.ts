@@ -33,8 +33,7 @@ const api: ApiVilamar = {
 
   editarMedida: (ojo, campo, valor, aparato) =>
     ipcRenderer.invoke(CANALES.editarMedida, ojo, campo, valor, aparato),
-  establecerIdentificacion: (datos) =>
-    ipcRenderer.invoke(CANALES.establecerIdentificacion, datos),
+  establecerIdentificacion: (datos) => ipcRenderer.invoke(CANALES.establecerIdentificacion, datos),
   confirmarCampo: (ojo, campo, aparato) =>
     ipcRenderer.invoke(CANALES.confirmarCampo, ojo, campo, aparato),
   confirmarTodoElOjo: (ojo, aparato) =>
@@ -60,8 +59,7 @@ const api: ApiVilamar = {
       nombreEnKane,
       constanteConocida,
     ),
-  elegirLenteSecundaria: (eleccion) =>
-    ipcRenderer.invoke(CANALES.elegirLenteSecundaria, eleccion),
+  elegirLenteSecundaria: (eleccion) => ipcRenderer.invoke(CANALES.elegirLenteSecundaria, eleccion),
   intercambiarLentes: () => ipcRenderer.invoke(CANALES.intercambiarLentes),
 
   calcular: (calculadoras, filtro) => ipcRenderer.invoke(CANALES.calcular, calculadoras, filtro),

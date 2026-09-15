@@ -239,7 +239,10 @@ function sinSaltos(h: string): string {
 function cuerpoSinPie(h: string): string {
   const i = h.indexOf('<footer')
   const sinPie = i === -1 ? h : h.slice(0, i)
-  return sinPie.replace(/data:image\/png;base64,[A-Za-z0-9+/=]+/g, 'data:image/png;base64,[omitido]')
+  return sinPie.replace(
+    /data:image\/png;base64,[A-Za-z0-9+/=]+/g,
+    'data:image/png;base64,[omitido]',
+  )
 }
 
 describe('un dato ausente se dice, no se rellena', () => {
@@ -363,7 +366,13 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
       { calculadora: 'EVO_TORIC', ojo: 'OD', dataUri: 'data:image/png;base64,QUFB' },
     ])
     const cuerpo = cuerpoSinPie(h).toLowerCase()
-    for (const prohibido of ['fecha de nacimiento', 'número de historia', 'nhc', 'apellidos', 'dni']) {
+    for (const prohibido of [
+      'fecha de nacimiento',
+      'número de historia',
+      'nhc',
+      'apellidos',
+      'dni',
+    ]) {
       expect(cuerpo, `el informe menciona «${prohibido}»`).not.toContain(prohibido)
     }
   })
@@ -417,8 +426,16 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
       // («ejeResidual») varía. Enseñar `eje` (como hacía el fallo) daba
       // «Eje 0°» cinco veces seguidas, sin ninguna información real.
       const h = htmlSimple([
-        { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 29.5, eje: 0, ejeResidual: 94 } },
-        { calculadora: 'BARRETT_TORIC', ojo: 'OD', recomendada: { esfera: 28.5, eje: 0, ejeResidual: 4 } },
+        {
+          calculadora: 'EVO_TORIC',
+          ojo: 'OD',
+          recomendada: { esfera: 29.5, eje: 0, ejeResidual: 94 },
+        },
+        {
+          calculadora: 'BARRETT_TORIC',
+          ojo: 'OD',
+          recomendada: { esfera: 28.5, eje: 0, ejeResidual: 4 },
+        },
         { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 29.0, eje: 0, ejeResidual: 5 } },
       ])
       const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))
@@ -430,7 +447,11 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
 
     it('la tabla comparativa detallada también enseña el eje residual, no el corneal fijo', () => {
       const h = htmlSimple([
-        { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 29.5, eje: 0, ejeResidual: 94 } },
+        {
+          calculadora: 'EVO_TORIC',
+          ojo: 'OD',
+          recomendada: { esfera: 29.5, eje: 0, ejeResidual: 94 },
+        },
         { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 29.0, eje: 0, ejeResidual: 5 } },
       ])
       const inicio = h.indexOf('Tabla comparativa detallada')
@@ -487,7 +508,12 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
 
     it('D47: con dos aparatos del mismo ojo, cada tarjeta dice de cuál es', () => {
       const h = htmlSimple([
-        { calculadora: 'EVO_TORIC', ojo: 'OD', aparato: 'IOLMaster 700', recomendada: { esfera: 21.5 } },
+        {
+          calculadora: 'EVO_TORIC',
+          ojo: 'OD',
+          aparato: 'IOLMaster 700',
+          recomendada: { esfera: 21.5 },
+        },
         { calculadora: 'EVO_TORIC', ojo: 'OD', aparato: 'ANTERION', recomendada: { esfera: 22.0 } },
       ])
       const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))

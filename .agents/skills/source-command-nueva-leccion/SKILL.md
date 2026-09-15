@@ -1,6 +1,6 @@
 ---
-name: "source-command-nueva-leccion"
-description: "Registra una nueva lección aprendida en el log de lessons-learned. Usar inmediatamente tras una corrección."
+name: 'source-command-nueva-leccion'
+description: 'Registra una nueva lección aprendida en el log de lessons-learned. Usar inmediatamente tras una corrección.'
 ---
 
 # source-command-nueva-leccion
