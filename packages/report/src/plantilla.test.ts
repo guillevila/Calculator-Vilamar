@@ -155,12 +155,20 @@ describe('escapado', () => {
 })
 
 describe('el informe dice lo que hay', () => {
-  it('lleva el nombre del producto, la versión, la fecha y el código del caso', () => {
+  it('lleva el título del documento, la versión, la fecha y el código del caso', () => {
     const h = html()
-    expect(h).toContain('Calculator Vilamar')
+    expect(h).toContain('Resumen Calculadores IOL')
     expect(h).toContain('0.1.0')
     expect(h).toContain('CV-2026-0042')
     expect(h).toContain('10/08/2026')
+  })
+
+  // Petición expresa del dueño del proyecto (15/09/2026): el informe no
+  // puede llevar ningún nombre que lo relacione con «Calculator Vilamar»
+  // —es el título interno del programa, no el del documento que recibe el
+  // cirujano—; el título visible es «Resumen Calculadores IOL».
+  it('no lleva ninguna mención a Vilamar en ningún sitio', () => {
+    expect(html()).not.toContain('Vilamar')
   })
 
   it('dice qué aparato generó el informe', () => {
@@ -290,7 +298,7 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
       },
     ])
     expect(h).toContain('<img src="data:image/png;base64,QUFB"')
-    expect(h).toContain('Estimación de Calculator Vilamar')
+    expect(h).toContain('Estimación del Resumen de calculadores')
     expect(h).toContain('no vinculante')
     expect(h).toContain('21.50 D')
     expect(h).toContain('Cilindro 1.00 D')

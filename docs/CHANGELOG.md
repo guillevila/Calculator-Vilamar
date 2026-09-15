@@ -4,6 +4,52 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.34] — 15/09/2026
+
+fix(report): el PDF ya no lleva ningún nombre que lo relacione con
+Calculator Vilamar — pasa a titularse «Resumen Calculadores IOL».
+
+### Qué se pidió
+
+El dueño del proyecto: quitar del informe cualquier mención a «Calculador
+Vilamar» — el título de la primera página y todos los textos que lo
+nombran (la estimación propia no vinculante, el pie legal, los avisos de
+trazabilidad) — para que el documento no tenga ninguna relación visible
+con el nombre del programa.
+
+### El cambio
+
+- El título de la primera página (`<h1>`) y el `<title>` del documento
+  pasan de «Calculator Vilamar» a **«Resumen Calculadores IOL»**.
+- Todas las frases del informe que nombraban «Calculator Vilamar» —la
+  estimación propia no vinculante (D43), el aviso de que no elige entre
+  alternativas, el pie legal de que no calcula potencias por su cuenta, el
+  aviso de trazabilidad— pasan a decir **«el Resumen de calculadores»**.
+- Un comentario dentro de la hoja de estilos CSS también nombraba
+  «Calculator Vilamar» — invisible al imprimir, pero SÍ forma parte del
+  texto del documento (cualquiera que abra el HTML o extraiga el texto
+  del PDF lo vería), así que también se ha corregido.
+- **El nombre del programa en su propia ventana no se toca** —sigue
+  siendo «Calculator Vilamar», es el nombre de la herramienta que usa el
+  cirujano, no del documento que se le entrega a nadie más—; el pedido era
+  sobre el informe que sale de la aplicación, no sobre la aplicación en
+  sí.
+
+### Verificado
+
+Nuevo test (`plantilla.test.ts`, «no lleva ninguna mención a Vilamar en
+ningún sitio») que genera un informe completo y comprueba que la palabra
+«Vilamar» no aparece en ningún punto del HTML/PDF resultante — no solo
+en el título, sino en absolutamente todo el documento. `pnpm lint && pnpm
+typecheck && pnpm test && pnpm build && pnpm test:e2e` en verde (710
+tests unitarios, uno nuevo para este cambio; el único fallo de la suite,
+`block-subagent-external.test.mjs`, es previo y no relacionado; 46/47 de
+interfaz — el único fallo es el conflicto previo y ya documentado entre
+el test de renombrar aparato y `aparatoSugerido()` de D73, ajeno a este
+cambio).
+
+---
+
 ## [1.15.33] — 15/09/2026
 
 feat(app): el SIA, su eje y el objetivo de refracción se heredan solos del
