@@ -317,7 +317,7 @@ function opcionesDevueltas(c: Comparativa): string {
 
     const nota = senalada
       ? `${esc(celdaComp.nombre)} ha señalado una de ellas; es la que aparece en la comparación.`
-      : `${esc(celdaComp.nombre)} no ha señalado ninguna opción preferente. La elección no la hace Calculator Vilamar.`
+      : `${esc(celdaComp.nombre)} no ha señalado ninguna opción preferente. La elección no la hace el Resumen de calculadores.`
 
     return `<div class="bloque-opciones">
       <h3>${esc(celdaComp.nombre)} · ${celdaComp.opciones.length} alternativas devueltas</h3>
@@ -416,7 +416,7 @@ function seccionAuditoria(caso: Caso): string {
   return `<section class="auditoria">
     <h2>Qué dice cada calculadora haber recibido</h2>
     <p class="nota">
-      Esto no es lo que Calculator Vilamar cree haber enviado: es lo que cada web
+      Esto no es lo que el Resumen de calculadores cree haber enviado: es lo que cada web
       ha mostrado en su propia pantalla como datos de entrada. Permite comprobar
       que entrada y resultado se corresponden.
     </p>
@@ -1004,7 +1004,7 @@ export function figuraBiometrica(ojo: OjoBiometrico): string {
 const ESTILOS = `
   /*
    * El sistema visual del informe, traído del rediseño hecho en Claude Design
-   * («Rediseño informe Calculator Vilamar», 5 hojas A4).
+   * («Rediseño del informe», 5 hojas A4).
    *
    * ⚠️ **Las fuentes NO se piden a la red.** El diseño usa IBM Plex Sans y Mono
    * desde Google Fonts; aquí no se puede, y no por comodidad: este programa es
@@ -1376,7 +1376,7 @@ function documentoDeHojas(
         <path d="M3.4 15 A 13 9 0 0 0 26.6 15" fill="none" stroke="#12506E" stroke-width="1.6" opacity="0.35"></path>
       </svg>
       <div>
-        <h1>Calculator Vilamar</h1>
+        <h1>Resumen Calculadores IOL</h1>
         <div class="sub">Informe comparativo de cálculo de LIO</div>
       </div>
     </div>
@@ -1409,7 +1409,7 @@ function documentoDeHojas(
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Calculator Vilamar · ${esc(caso.codigo)}</title>
+<title>Resumen Calculadores IOL · ${esc(caso.codigo)}</title>
 <style>${ESTILOS}</style>
 </head>
 <body>
@@ -1439,7 +1439,7 @@ function lenteRecomendadaTexto(recomendada: ResultadoInforme['recomendada']): st
   if (recomendada.ejeResidual !== undefined) {
     partes.push(`Eje ${recomendada.ejeResidual.toFixed(0)}°`)
   }
-  return `<p class="lente-recomendada">Estimación de Calculator Vilamar <span class="no-vinculante">(no vinculante)</span>: <strong>${esc(partes.join(' · '))}</strong></p>`
+  return `<p class="lente-recomendada">Estimación del Resumen de calculadores <span class="no-vinculante">(no vinculante)</span>: <strong>${esc(partes.join(' · '))}</strong></p>`
 }
 
 /** Clase CSS de cada calculadora, solo para las tarjetas del cuadro final. */
@@ -1583,7 +1583,7 @@ function tablaComparativaDetallada(
     refExtra: ` · ${ojo}`,
     cuerpo: `<p class="aviso-no-vinculante">
       Un vistazo a todo lo calculado para ${esc(nombreLateralidad(ojo))}: aparato, calculadora, la lente de
-      la estimación propia de Calculator Vilamar <strong>(no vinculante)</strong>, y la refracción y el
+      la estimación propia del Resumen de calculadores <strong>(no vinculante)</strong>, y la refracción y el
       astigmatismo que se prevé que queden. No sustituye a ninguna calculadora: el detalle exacto de cada
       una, con su captura sin interpretar, sigue en las hojas de encima.
     </p>
@@ -1646,7 +1646,7 @@ function hojaResumenFinal(caso: Caso, ojo: Lateralidad, resultados: readonly Res
     apunte: 'No vinculante',
     refExtra: ` · ${ojo}`,
     cuerpo: `<p class="aviso-no-vinculante">
-      Esto es una estimación propia de Calculator Vilamar, calculada con un criterio fijo y
+      Esto es una estimación propia del Resumen de calculadores, calculada con un criterio fijo y
       el mismo para todas las calculadoras — no es lo que ninguna de ellas ha destacado, ni
       una recomendación clínica. <strong>Es opcional y no vinculante</strong>: quien opera
       decide con el detalle de cada calculadora, en las hojas de encima.
@@ -1849,7 +1849,7 @@ export function generarHtmlInformeDetallado(datos: DatosInforme): string {
       refExtra: ` · ${c.ojo}`,
       cuerpo: detalle,
       pie: `Cuando una calculadora no señala ninguna opción, la elección es de quien
-      opera. Calculator Vilamar no elige, ni la de menor cilindro residual.`,
+      opera. El Resumen de calculadores no elige, ni la de menor cilindro residual.`,
     })
   }
 
@@ -1900,7 +1900,7 @@ const PIE_LEGAL = `<footer class="principal">
     <p>
       Los resultados de este informe <strong>proceden de las calculadoras externas</strong>
       Kane (iolformula.com), EVO Toric (evoiolcalculator.com) y Barrett Toric
-      (ASCRS/APACRS). <strong>Calculator Vilamar no calcula potencias de lente</strong>
+      (ASCRS/APACRS). <strong>El Resumen de calculadores no calcula potencias de lente</strong>
       por su cuenta y <strong>no emite ninguna recomendación clínica</strong>: recoge lo
       que devuelve cada web y lo presenta junto. Cuando las calculadoras no coinciden se
       enseña el rango de lo que han devuelto, nunca un valor intermedio calculado por
