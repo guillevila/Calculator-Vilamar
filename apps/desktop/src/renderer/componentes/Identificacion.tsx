@@ -15,12 +15,19 @@
  * dueño): las tres calculadoras piden un nombre en su formulario, y sin uno
  * de verdad se manda el código local del caso en su lugar — que funciona,
  * pero no es lo que se quiere de verdad en cada informe.
+ *
+ * **El desplegable de doctor guardado** (D80, 15/09/2026) vive aquí también:
+ * junto al nombre del cirujano, porque es el mismo dato — solo que, al
+ * elegir uno de la agenda en vez de escribirlo, de paso rellena su SIA y su
+ * eje de incisión si ese doctor los tiene guardados (`aplicarDoctor`). La
+ * agenda en sí —añadir, editar, borrar un doctor— vive en su propia
+ * pantalla («Doctores», `DoctoresScreen.tsx`): aquí solo se elige.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 
-import type { Caso } from '@vilamar/domain'
+import type { Caso, Doctor } from '@vilamar/domain'
 
 import { api } from '../api.js'
 
@@ -40,6 +47,15 @@ function CampoIdentificacion({
   testId,
 }: PropsCampo): JSX.Element {
   const [valor, setValor] = useState(valorInicial)
+
+  // Se resincroniza cuando el valor cambia desde FUERA de esta casilla —
+  // por ejemplo, al elegir un doctor guardado en el desplegable de al lado
+  // (D80), que escribe `nombreCirujano` sin pasar por aquí. Sin esto, la
+  // casilla se quedaba enseñando el nombre viejo hasta que alguien la
+  // tocara a mano, aunque el caso ya tuviera el nuevo.
+  useEffect(() => {
+    setValor(valorInicial)
+  }, [valorInicial])
 
   async function guardar(): Promise<void> {
     await onGuardar(valor.trim())
@@ -66,6 +82,53 @@ function CampoIdentificacion({
 /** ¿Faltan el nombre del cirujano o el del paciente? Los dos son obligatorios. */
 export function faltaIdentificacion(caso: Caso): boolean {
   return (caso.nombreCirujano ?? '').trim() === '' || (caso.nombrePaciente ?? '').trim() === ''
+}
+
+/**
+ * Desplegable con los doctores ya guardados (D80). Elegir uno pone su
+ * nombre en el caso y, si tiene SIA/eje guardados, también los aplica
+ * (`aplicarDoctor`, en el proceso principal). No sustituye a la casilla de
+ * texto: sigue pudiéndose escribir un nombre suelto, de alguien que no está
+ * en la agenda — este desplegable es solo un atajo.
+ */
+function SelectorDoctorGuardado({
+  onElegido,
+}: {
+  readonly onElegido: () => Promise<void>
+}): JSX.Element | null {
+  const [doctores, setDoctores] = useState<readonly Doctor[] | null>(null)
+
+  useEffect(() => {
+    void api()
+      .listarDoctores()
+      .then(setDoctores)
+      .catch(() => setDoctores([]))
+  }, [])
+
+  if (doctores === null || doctores.length === 0) return null
+
+  return (
+    <div>
+      <label htmlFor="identificacion-doctor-guardado">Doctor guardado</label>
+      <select
+        id="identificacion-doctor-guardado"
+        value=""
+        data-testid="identificacion-doctor-guardado"
+        onChange={(e) => {
+          const id = e.target.value
+          if (id === '') return
+          void api().aplicarDoctor(id).then(onElegido)
+        }}
+      >
+        <option value="">— Elegir de la agenda —</option>
+        {doctores.map((d) => (
+          <option key={d.id} value={d.id}>
+            {d.nombre}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
 }
 
 export function IdentificacionCaso({
@@ -97,6 +160,7 @@ export function IdentificacionCaso({
           onCambio={onCambio}
           testId="identificacion-cirujano"
         />
+        <SelectorDoctorGuardado onElegido={onCambio} />
         <CampoIdentificacion
           etiqueta="Nombre del paciente"
           valorInicial={caso.nombrePaciente ?? ''}

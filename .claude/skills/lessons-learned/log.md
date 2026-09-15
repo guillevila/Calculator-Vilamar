@@ -6,6 +6,57 @@
 
 ---
 
+## 2026-09-15 (noche) — Un fix mergeado no llega solo al ejecutable que usa el dueño
+
+**Error o aprendizaje:** El dueño reportó, con dos PDF reales del caso
+CV-2026-0179, el MISMO fallo que ya se había arreglado y mergeado esa misma
+tarde (D79: no generar PDF vacío del ojo no calculado). El código fuente y la
+compilación de desarrollo (`out/main`) sí llevaban el arreglo. El motivo:
+el dueño no ejecuta `pnpm dev` ni una compilación fresca — usa el `.exe`
+instalado en `apps/desktop/dist/win-unpacked/`, generado por `pnpm dist`. Ese
+paquete llevaba fecha del 2/09/2026, trece días antes de todos los arreglos
+de la sesión (branding D78, D79, `aparatoSugerido` D73) — nadie había vuelto
+a ejecutar `pnpm dist` desde entonces.
+
+**Causa raíz:** Fusionar una rama a `feature/rediseno-formulario` dejó el
+*código fuente* al día, pero el *artefacto que el dueño realmente abre* (el
+paquete de `electron-builder`) es un paso manual aparte que nadie disparó.
+Confundir «está en el código» con «está en lo que la persona usa» es la
+misma familia de error que «el dato existe» ≠ «el dato está pintado»
+(25/08/2026, sobre las capturas de Kane) y que «e2e corre contra el último
+build, no el código vivo» (lección ya registrada).
+
+**Lección:**
+
+1. Tras cerrar un arreglo que toca `apps/desktop`, **preguntar o comprobar
+   cómo prueba el dueño la aplicación** (paquete instalado en
+   `dist/win-unpacked` vs. `pnpm dev`) antes de dar el problema por resuelto
+   — un merge en GitHub no actualiza un `.exe` en el disco de nadie.
+2. Si el dueño usa el paquete instalado, **regenerarlo con `pnpm dist`** como
+   parte de cerrar la tarea, no solo mergear el PR.
+3. En este equipo concreto (Windows, cuenta sin privilegios de administrador,
+   dentro de una carpeta de OneDrive), `pnpm dist` **siempre falla al final**
+   en el paso de firma de código (`electron-builder` intenta descomprimir
+   `winCodeSign`, que trae symlinks de macOS, y esta cuenta no tiene el
+   privilegio de Windows para crearlos: «El cliente no dispone de un
+   privilegio requerido»). Eso pasa **después** de reescribir
+   `dist/win-unpacked/resources/app.asar` y el `.exe`, así que el paquete
+   igualmente queda actualizado — el fallo final es solo cosmético (el `.exe`
+   sale sin firmar, como ya pasaba antes). Para confirmar que el paquete
+   quedó al día pese al "error", comprobar la fecha/contenido de
+   `dist/win-unpacked/resources/app.asar` en vez de fiarse del código de
+   salida de `pnpm dist`.
+4. Se ha añadido `"npmRebuild": false` a `apps/desktop/package.json` (sección
+   `build`) porque `electron-builder` intentaba recompilar dependencias
+   nativas que este proyecto no tiene (sin eso, fallaba antes incluso de
+   llegar a empaquetar, por una carpeta `@esbuild/aix-ppc64` que pnpm no
+   instala en Windows).
+
+**Contexto:** Cualquier sesión que cierre un arreglo en `apps/desktop` y el
+dueño vaya a probarlo él mismo fuera de esta conversación.
+
+---
+
 ## Cómo añadir una lección
 
 Di a Claude: `/nueva-leccion`

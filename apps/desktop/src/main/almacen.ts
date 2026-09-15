@@ -12,10 +12,17 @@
  */
 
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 
-import type { Caso } from '@vilamar/domain'
+import type { Caso, Doctor, EntradaBandeja } from '@vilamar/domain'
 
 export interface Carpetas {
   readonly raiz: string
@@ -102,6 +109,23 @@ export function listarCasos(carpetas: Carpetas): readonly string[] {
 }
 
 /**
+ * Saca un caso de `casos/` (D85, 16/09/2026, «Eliminar» del dashboard por
+ * doctor) — pero no lo borra para siempre: lo mueve a
+ * `casos-borrados/<día>/`, igual que se hizo a mano la primera vez que el
+ * dueño pidió limpiar unos casos de prueba. Un acierto o un error de
+ * verdad no es lo mismo que un despiste, y esto deja sitio para
+ * recuperarlo si hiciera falta. Si el caso ya no está (borrado dos veces,
+ * o movido a mano), no hace nada — no es un error, ya está fuera.
+ */
+export function moverCasoABorrados(carpetas: Carpetas, codigo: string, dia: string): void {
+  const origen = join(carpetas.casos, `${codigo}.json`)
+  if (!existsSync(origen)) return
+  const destino = join(carpetas.raiz, 'casos-borrados', dia)
+  mkdirSync(destino, { recursive: true })
+  renameSync(origen, join(destino, `${codigo}.json`))
+}
+
+/**
  * Guarda una copia local del documento subido.
  *
  * Se guarda para poder volver a leerlo o revisar la evidencia sin pedirle al
@@ -126,4 +150,87 @@ export function leerDocumento(ruta: string): Uint8Array | null {
   } catch {
     return null
   }
+}
+
+/**
+ * La agenda de doctores (D80, 15/09/2026): un único fichero, no una carpeta
+ * por doctor — es una lista corta, sin las consultas por código que
+ * justifican que cada caso tenga su propio fichero.
+ */
+export function leerDoctores(carpetas: Carpetas): readonly Doctor[] {
+  try {
+    return JSON.parse(readFileSync(join(carpetas.raiz, 'doctores.json'), 'utf8')) as Doctor[]
+  } catch {
+    return []
+  }
+}
+
+export function guardarDoctores(carpetas: Carpetas, doctores: readonly Doctor[]): void {
+  writeFileSync(join(carpetas.raiz, 'doctores.json'), JSON.stringify(doctores, null, 2), 'utf8')
+}
+
+/**
+ * La bandeja de casos (D81, 15/09/2026): igual que los doctores, un único
+ * fichero — la lista de avisos pendientes de trabajar, no depende de
+ * ningún caso concreto.
+ */
+export function leerBandeja(carpetas: Carpetas): readonly EntradaBandeja[] {
+  try {
+    return JSON.parse(readFileSync(join(carpetas.raiz, 'bandeja.json'), 'utf8')) as EntradaBandeja[]
+  } catch {
+    return []
+  }
+}
+
+export function guardarBandeja(carpetas: Carpetas, entradas: readonly EntradaBandeja[]): void {
+  writeFileSync(join(carpetas.raiz, 'bandeja.json'), JSON.stringify(entradas, null, 2), 'utf8')
+}
+
+/**
+ * Doctores excluidos del dashboard (D83, 16/09/2026): pruebas o casos
+ * metidos por error, para que no cuenten en las estadísticas sin tener
+ * que borrar el caso real. Una lista de nombres, no de ids — un caso de
+ * prueba puede llevar un nombre que ni siquiera está en la agenda de
+ * doctores (D80).
+ */
+export function leerDoctoresExcluidos(carpetas: Carpetas): readonly string[] {
+  try {
+    return JSON.parse(
+      readFileSync(join(carpetas.raiz, 'doctores-excluidos.json'), 'utf8'),
+    ) as string[]
+  } catch {
+    return []
+  }
+}
+
+export function guardarDoctoresExcluidos(carpetas: Carpetas, nombres: readonly string[]): void {
+  writeFileSync(
+    join(carpetas.raiz, 'doctores-excluidos.json'),
+    JSON.stringify(nombres, null, 2),
+    'utf8',
+  )
+}
+
+/**
+ * La carpeta de entrada por prioridad (D84, 16/09/2026): una ruta absoluta
+ * fuera de la carpeta de datos de la aplicación —vive en el OneDrive del
+ * dueño—, así que solo se guarda un puntero a ella, no su contenido.
+ */
+export function leerCarpetaEntrada(carpetas: Carpetas): string | null {
+  try {
+    const datos = JSON.parse(readFileSync(join(carpetas.raiz, 'carpeta-entrada.json'), 'utf8')) as {
+      ruta?: string
+    }
+    return datos.ruta ?? null
+  } catch {
+    return null
+  }
+}
+
+export function guardarCarpetaEntrada(carpetas: Carpetas, ruta: string): void {
+  writeFileSync(
+    join(carpetas.raiz, 'carpeta-entrada.json'),
+    JSON.stringify({ ruta }, null, 2),
+    'utf8',
+  )
 }

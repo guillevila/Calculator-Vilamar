@@ -15,7 +15,7 @@
  * al lanzarlo.
  */
 
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -1570,4 +1570,325 @@ test('el selector de córnea especial, y sus dos campos de LASIK, solo aparecen 
   // ojo, no del caso entero.
   await ventana.getByTestId('manual-ojo-OS').click()
   await expect(ventana.getByTestId('situacion-corneal-select')).toHaveValue('')
+})
+
+test('la agenda de doctores (D80): guardar uno con SIA y eje, y elegirlo aplica los dos al caso', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+
+  // La agenda es ortogonal al caso: se abre desde CUALQUIER paso, aquí
+  // desde la propia pantalla de inicio, antes incluso de elegir cómo
+  // empezar el caso.
+  await ventana.getByTestId('abrir-doctores').click()
+  await expect(ventana.getByRole('heading', { name: 'Doctores' })).toBeVisible()
+  await expect(ventana.getByText('Todavía no has guardado ningún doctor.')).toBeVisible()
+
+  await ventana.getByTestId('doctor-nombre').fill('Dra. Agenda E2E')
+  await ventana.getByTestId('doctor-sia').fill('0.55')
+  await ventana.getByTestId('doctor-eje').fill('72')
+  await ventana.getByTestId('guardar-doctor').click()
+  await expect(ventana.getByTestId('tabla-doctores')).toContainText('Dra. Agenda E2E')
+  await expect(ventana.getByTestId('tabla-doctores')).toContainText('0.55')
+  await expect(ventana.getByTestId('tabla-doctores')).toContainText('72')
+
+  await ventana.getByTestId('volver-de-doctores').click()
+
+  // De vuelta en el caso: se escribe un dato de biometría con un SIA
+  // DISTINTO del que va a traer el doctor, para poder distinguir «lo que
+  // había» de «lo que trajo la agenda».
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByTestId('manual-campo-AL').fill('24.07')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-campo-SIA').fill('0.10')
+  await ventana.getByTestId('manual-campo-SIA').press('Tab')
+
+  await ventana
+    .getByTestId('identificacion-doctor-guardado')
+    .selectOption({ label: 'Dra. Agenda E2E' })
+
+  // El nombre viaja a la casilla de texto de siempre — sigue siendo el
+  // mismo campo, editable a mano, solo que este atajo lo rellena solo.
+  await expect(ventana.getByLabel('Nombre del doctor')).toHaveValue('Dra. Agenda E2E')
+  await expect(ventana.getByTestId('manual-campo-SIA')).toHaveValue('0.55')
+  await expect(ventana.getByTestId('manual-campo-EJE_INCISION')).toHaveValue('72')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.nombreCirujano).toBe('Dra. Agenda E2E')
+  expect(caso?.ojos?.OD?.[0]?.medidas?.SIA?.valor).toBe(0.55)
+  expect(caso?.ojos?.OD?.[0]?.medidas?.EJE_INCISION?.valor).toBe(72)
+
+  // Un doctor sin SIA/eje guardados (uno nuevo, sin editar) no toca esos
+  // campos al elegirlo — se quedan con lo que el caso ya tuviera.
+  await ventana.getByTestId('abrir-doctores').click()
+  await ventana.getByTestId('doctor-nombre').fill('Dr. Sin Datos E2E')
+  await ventana.getByTestId('guardar-doctor').click()
+  await ventana.getByTestId('volver-de-doctores').click()
+
+  await ventana
+    .getByTestId('identificacion-doctor-guardado')
+    .selectOption({ label: 'Dr. Sin Datos E2E' })
+  await expect(ventana.getByLabel('Nombre del doctor')).toHaveValue('Dr. Sin Datos E2E')
+  await expect(ventana.getByTestId('manual-campo-SIA')).toHaveValue('0.55')
+  await expect(ventana.getByTestId('manual-campo-EJE_INCISION')).toHaveValue('72')
+})
+
+/**
+ * Fallo real reportado por el dueño del proyecto (15/09/2026), con
+ * capturas de pantalla: eligió el doctor de la agenda ANTES de escribir
+ * ningún dato de biometría, y el SIA/eje se quedaron en el valor de
+ * partida (0.25 / 135) en vez del guardado — `aplicarDoctor()` solo
+ * escribía en un dataset que YA existiera.
+ */
+test('elegir un doctor ANTES de escribir ningún dato también aplica su SIA/eje, en los dos ojos', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+
+  await ventana.getByTestId('abrir-doctores').click()
+  await ventana.getByTestId('doctor-nombre').fill('Dra. Antes De Escribir')
+  await ventana.getByTestId('doctor-sia').fill('0.45')
+  await ventana.getByTestId('doctor-eje').fill('60')
+  await ventana.getByTestId('guardar-doctor').click()
+  await ventana.getByTestId('volver-de-doctores').click()
+
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  // Todavía no se ha escrito NADA de biometría: el SIA/eje siguen en el
+  // valor de partida de siempre (D38), como siempre.
+  await expect(ventana.getByTestId('manual-campo-SIA')).toHaveValue('0.25')
+  await expect(ventana.getByTestId('manual-campo-EJE_INCISION')).toHaveValue('135')
+
+  await ventana
+    .getByTestId('identificacion-doctor-guardado')
+    .selectOption({ label: 'Dra. Antes De Escribir' })
+
+  // OD: el SIA/eje del doctor ya salen puestos, sin haber escrito AL.
+  await expect(ventana.getByTestId('manual-campo-SIA')).toHaveValue('0.45')
+  await expect(ventana.getByTestId('manual-campo-EJE_INCISION')).toHaveValue('60')
+
+  // OS: lo mismo, sin haber cambiado de ojo mientras se elegía el doctor.
+  await ventana.getByTestId('manual-ojo-OS').click()
+  await expect(ventana.getByTestId('manual-campo-SIA')).toHaveValue('0.45')
+  await expect(ventana.getByTestId('manual-campo-EJE_INCISION')).toHaveValue('60')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.medidas?.SIA?.valor).toBe(0.45)
+  expect(caso?.ojos?.OS?.[0]?.medidas?.SIA?.valor).toBe(0.45)
+  // Sembrar el SIA/eje no inventa biometría: AL sigue sin ningún valor.
+  expect(caso?.ojos?.OD?.[0]?.medidas?.AL).toBeUndefined()
+})
+
+test('la bandeja de casos (D81): se ordena sola por prioridad, y el estado se lee del caso una vez enganchada', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('abrir-bandeja').click()
+  await expect(ventana.getByRole('heading', { name: 'Bandeja de casos' })).toBeVisible()
+  await expect(ventana.getByText('Todavía no has apuntado ningún aviso.')).toBeVisible()
+
+  // Se apunta primero uno de prioridad baja, y DESPUÉS uno urgente: si la
+  // bandeja no se ordenara sola, el urgente seguiría segundo.
+  await ventana.getByTestId('bandeja-delegado').fill('Delegado Baja E2E')
+  await ventana.getByTestId('bandeja-descripcion').fill('Paciente Baja E2E')
+  await ventana.getByTestId('bandeja-prioridad').selectOption('BAJA')
+  await ventana.getByTestId('guardar-bandeja').click()
+
+  await ventana.getByTestId('bandeja-delegado').fill('Delegado Urgente E2E')
+  await ventana.getByTestId('bandeja-descripcion').fill('Paciente Urgente E2E')
+  await ventana.getByTestId('bandeja-prioridad').selectOption('URGENTE')
+  await ventana.getByTestId('bandeja-notas').fill('Llamó dos veces')
+  await ventana.getByTestId('guardar-bandeja').click()
+
+  const filas = ventana.getByTestId('tabla-bandeja').locator('tbody tr')
+  await expect(filas).toHaveCount(2)
+  // El urgente, aunque se apuntó el segundo, sale primero.
+  await expect(filas.nth(0)).toContainText('Delegado Urgente E2E')
+  await expect(filas.nth(1)).toContainText('Delegado Baja E2E')
+
+  const filaUrgente = filas.filter({ hasText: 'Delegado Urgente E2E' })
+  await expect(filaUrgente).toContainText('Sin empezar')
+
+  // «Empezar» crea el caso, le pone el nombre del paciente, y engancha la
+  // entrada — todo sin salir de la bandeja hasta pulsar el botón.
+  await filaUrgente.getByRole('button', { name: 'Empezar' }).click()
+
+  // Al crear el caso desde la bandeja, se vuelve al flujo normal con ese
+  // caso ya abierto.
+  await expect(ventana.getByTestId('zona-soltar')).toBeVisible()
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.nombrePaciente).toBe('Paciente Urgente E2E')
+
+  // De vuelta en la bandeja, esa entrada ya no dice «Sin empezar»: lee el
+  // estado real del caso que se acaba de crear, sin que nadie lo actualice
+  // a mano — y el botón cambia a «Abrir caso».
+  await ventana.getByTestId('abrir-bandeja').click()
+  const filaUrgenteDeNuevo = ventana
+    .getByTestId('tabla-bandeja')
+    .locator('tbody tr')
+    .filter({ hasText: 'Delegado Urgente E2E' })
+  await expect(filaUrgenteDeNuevo).toContainText('Nuevo cálculo')
+  await expect(filaUrgenteDeNuevo.getByRole('button', { name: 'Abrir caso' })).toBeVisible()
+
+  // Marcar como enviado (a mano — no hay forma de saberlo sola) la manda
+  // al final de la lista, aunque sea la urgente.
+  await filaUrgenteDeNuevo.getByRole('button', { name: 'Marcar enviado' }).click()
+  const filasTrasEnviar = ventana.getByTestId('tabla-bandeja').locator('tbody tr')
+  await expect(filasTrasEnviar.nth(1)).toContainText('Delegado Urgente E2E')
+  await expect(filasTrasEnviar.nth(1)).toContainText('Enviado')
+
+  await ventana.getByTestId('volver-de-bandeja').click()
+})
+
+/**
+ * Esta suite nunca habla con Kane, EVO ni Barrett de verdad (ver la
+ * cabecera del fichero), así que ningún caso de esta ejecución llega a
+ * `COMPLETADO` — el dashboard, con datos reales, se prueba a mano. Lo que
+ * SÍ puede probarse aquí es que la pantalla se abre, no rompe nada, y
+ * cuenta bien el caso «cero»: ningún caso calculado todavía.
+ */
+test('el dashboard (D82) se abre y, sin ningún caso calculado, lo dice claramente', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('abrir-dashboard').click()
+  await expect(ventana.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+  await expect(ventana.getByTestId('dashboard-total')).toContainText(
+    'Todavía no hay ningún caso calculado.',
+  )
+  await expect(ventana.getByTestId('dashboard-por-doctor')).toContainText(
+    'Todavía no hay ningún caso calculado.',
+  )
+  await expect(ventana.getByTestId('dashboard-por-modelo')).toContainText(
+    'Todavía no hay ningún caso calculado.',
+  )
+  await ventana.getByTestId('volver-de-dashboard').click()
+  await expect(ventana.getByTestId('zona-soltar')).toBeVisible()
+})
+
+test('el dashboard (D83): filtrar por fechas y «ver todo» no rompen nada, sin ningún caso calculado', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('abrir-dashboard').click()
+
+  await ventana.getByTestId('dashboard-desde').fill('2026-01-01')
+  await ventana.getByTestId('dashboard-hasta').fill('2026-12-31')
+  await ventana.getByTestId('dashboard-filtrar').click()
+  await expect(ventana.getByTestId('dashboard-total')).toContainText(
+    'Todavía no hay ningún caso calculado.',
+  )
+
+  await ventana.getByTestId('dashboard-ver-todo').click()
+  await expect(ventana.getByTestId('dashboard-desde')).toHaveValue('')
+  await expect(ventana.getByTestId('dashboard-hasta')).toHaveValue('')
+  await expect(ventana.getByTestId('dashboard-total')).toContainText(
+    'Todavía no hay ningún caso calculado.',
+  )
+
+  await ventana.getByTestId('volver-de-dashboard').click()
+})
+
+/**
+ * La pantalla no puede probar «excluir» de verdad porque, en esta suite,
+ * ningún caso llega a `COMPLETADO` (no habla con Kane/EVO/Barrett) — sin
+ * ningún caso en «Por doctor» no hay ninguna fila con botón que pulsar. La
+ * IPC en sí (persistencia real, ida y vuelta) sí se puede probar entera
+ * sin pasar por el botón.
+ */
+test('excluir/incluir un doctor de las estadísticas (D83): persiste de verdad, y es reversible', async () => {
+  const antes = await ventana.evaluate(() =>
+    window.vilamar?.listarDoctoresExcluidosDeEstadisticas(),
+  )
+  expect(antes).not.toContain('Dra. Excluida E2E')
+
+  const trasExcluir = await ventana.evaluate(() =>
+    window.vilamar?.excluirDoctorDeEstadisticas('Dra. Excluida E2E'),
+  )
+  expect(trasExcluir).toContain('Dra. Excluida E2E')
+
+  const trasIncluir = await ventana.evaluate(() =>
+    window.vilamar?.incluirDoctorEnEstadisticas('Dra. Excluida E2E'),
+  )
+  expect(trasIncluir).not.toContain('Dra. Excluida E2E')
+})
+
+/**
+ * «Elegir carpeta…» abre un diálogo nativo del sistema operativo, que
+ * Playwright no puede pulsar — mismo límite de siempre con «Elegir
+ * archivo» (ver la cabecera de este fichero: ningún test pulsa ESE botón
+ * tampoco). Lo que sí se prueba aquí es la pantalla ANTES de configurar
+ * nada; el resto —detectar fotos en Alta/Normal/Baja, archivarlas,
+ * enganchar la entrada— ya está cubierto por
+ * `servicio-bandeja.carpeta-entrada.test.ts`, sobre disco real.
+ */
+test('la carpeta de entrada (D84): sin configurar todavía, la pantalla lo dice y no deja buscar', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('abrir-bandeja').click()
+
+  // Puede que una sesión anterior de esta MISMA ejecución ya la haya
+  // configurado (los datos del perfil de prueba se comparten entre
+  // tests) — esto solo comprueba lo que se puede comprobar sin el
+  // diálogo: que el botón existe y que, sin carpeta, «Buscar fotos
+  // nuevas» no se puede pulsar.
+  await expect(ventana.getByTestId('elegir-carpeta-entrada')).toBeVisible()
+  const ruta = await ventana.evaluate(() => window.vilamar?.obtenerCarpetaEntrada())
+  if (ruta === null) {
+    await expect(ventana.getByTestId('carpeta-entrada-ruta')).toContainText(
+      'Todavía no has elegido ninguna carpeta.',
+    )
+    await expect(ventana.getByTestId('buscar-fotos-nuevas')).toBeDisabled()
+  }
+
+  await ventana.getByTestId('volver-de-bandeja').click()
+})
+
+/**
+ * Esta suite nunca completa un cálculo de verdad (no habla con Kane/EVO/
+ * Barrett), así que el caso «lente calculada» se escribe directamente en
+ * disco —en la misma carpeta temporal que usa esta ejecución—, sin pasar
+ * por la aplicación. Es el mismo atajo que ya usa esta suite para PDF
+ * sintéticos: lo que se prueba es la pantalla y la IPC, no cómo se llega
+ * a tener un caso terminado.
+ */
+test('eliminar un doctor del dashboard (D85): pide confirmación, y archiva el caso en vez de perderlo', async () => {
+  const codigo = 'CV-TEST-ELIMINAR-DOCTOR'
+  const rutaCaso = join(carpetaDatos, 'casos', `${codigo}.json`)
+  writeFileSync(
+    rutaCaso,
+    JSON.stringify({
+      id: 'test-eliminar-doctor',
+      codigo,
+      estado: 'COMPLETADO',
+      creadoEn: '2026-09-16T10:00:00.000Z',
+      actualizadoEn: '2026-09-16T10:00:00.000Z',
+      documentos: [],
+      ojos: {},
+      resultados: {},
+      nombreCirujano: 'Dra. Eliminar E2E',
+      lente: { modelo: 'LuxSmart' },
+    }),
+    'utf8',
+  )
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('abrir-dashboard').click()
+  await ventana.getByTestId('dashboard-ver-todo').click()
+
+  const filaDoctor = ventana.getByTestId('dashboard-por-doctor')
+  await expect(filaDoctor).toContainText('Dra. Eliminar E2E')
+  const botonEliminar = ventana.getByTestId('eliminar-doctor-Dra. Eliminar E2E')
+
+  // Cancelar el diálogo de confirmación: no debe pasar nada.
+  ventana.once('dialog', (dialogo) => void dialogo.dismiss())
+  await botonEliminar.click()
+  await expect(filaDoctor).toContainText('Dra. Eliminar E2E')
+  expect(existsSync(rutaCaso)).toBe(true)
+
+  // Aceptar el diálogo: ahora sí se archiva, y desaparece del dashboard.
+  ventana.once('dialog', (dialogo) => void dialogo.accept())
+  await botonEliminar.click()
+  await expect(ventana.getByTestId('aviso-eliminar-doctor')).toContainText(
+    'Se ha eliminado 1 caso de «Dra. Eliminar E2E»',
+  )
+  await expect(filaDoctor).not.toContainText('Dra. Eliminar E2E')
+
+  // No se ha borrado para siempre: sigue existiendo, archivado aparte —
+  // con la fecha de HOY en UTC, igual que `creadoEn`/`actualizadoEn` en
+  // todo el resto de la aplicación (puede ir un día por detrás de la
+  // fecha local según la zona horaria, y es lo esperado, no un fallo).
+  expect(existsSync(rutaCaso)).toBe(false)
+  const dia = new Date().toISOString().slice(0, 10)
+  const rutaArchivada = join(carpetaDatos, 'casos-borrados', dia, `${codigo}.json`)
+  expect(existsSync(rutaArchivada)).toBe(true)
 })

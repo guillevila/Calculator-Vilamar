@@ -16,16 +16,21 @@ import type {
   Calculadora,
   CampoBiometrico,
   Caso,
+  Doctor,
   Lateralidad,
   OjoBiometrico,
   Aviso,
+  RangoFechas,
   ResultadoCalculadora,
+  ResumenDashboard,
   Sexo,
   SituacionCornealEspecial,
 } from '@vilamar/domain'
 import {
   APARATO_PRINCIPAL,
   aparatosDe,
+  calcularResumenDashboard,
+  casosCalculadosDeDoctor,
   COLUMNAS_COMPARATIVA,
   datasetsDe,
   detectarDiscrepancias,
@@ -91,8 +96,11 @@ import type { Carpetas } from './almacen.js'
 import {
   guardarCaso,
   guardarDocumento,
+  guardarDoctoresExcluidos,
   leerCaso as leerCasoDelAlmacen,
+  leerDoctoresExcluidos,
   listarCasos as listarCasosDelAlmacen,
+  moverCasoABorrados,
   nuevoId,
   siguienteCodigo,
 } from './almacen.js'
@@ -244,6 +252,85 @@ export class ServicioCasos {
         actualizadoEn: c.actualizadoEn,
         ...(c.nombrePaciente ? { nombrePaciente: c.nombrePaciente } : {}),
       }))
+  }
+
+  /**
+   * Cuántas lentes se han calculado, por doctor y por modelo (D82,
+   * 15/09/2026). No hay nada nuevo que leer: el doctor y la lente ya viven
+   * dentro de cada caso guardado, en el mismo sitio que el resto de sus
+   * datos — esto solo recorre `casos/` y cuenta, igual que
+   * `listarCasosGuardados()`.
+   *
+   * @param rango Filtra por fecha (D83, 16/09/2026) — sin él, el total de
+   *   siempre. Los doctores excluidos (ver `excluirDoctorDeEstadisticas`)
+   *   se aplican siempre, con o sin rango.
+   */
+  resumenDashboard(rango?: RangoFechas): ResumenDashboard {
+    const casos = listarCasosDelAlmacen(this.dep.carpetas)
+      .map((codigo) => leerCasoDelAlmacen(this.dep.carpetas, codigo))
+      .filter((c): c is Caso => c !== null)
+    return calcularResumenDashboard(casos, {
+      ...(rango ? { rango } : {}),
+      doctoresExcluidos: leerDoctoresExcluidos(this.dep.carpetas),
+    })
+  }
+
+  /** Doctores cuyos casos no cuentan en el dashboard (D83, 16/09/2026). */
+  listarDoctoresExcluidos(): readonly string[] {
+    return leerDoctoresExcluidos(this.dep.carpetas)
+  }
+
+  /**
+   * Un caso de prueba, o metido por error, no tiene por qué borrarse para
+   * dejar de contar en las estadísticas: basta con excluir su doctor.
+   * Nunca toca ningún `Caso` real — es puramente un filtro del dashboard.
+   */
+  excluirDoctorDeEstadisticas(nombre: string): readonly string[] {
+    const limpio = nombre.trim()
+    if (limpio === '') return this.listarDoctoresExcluidos()
+    const actuales = leerDoctoresExcluidos(this.dep.carpetas)
+    if (actuales.some((n) => n.toLowerCase() === limpio.toLowerCase())) return actuales
+    const siguientes = [...actuales, limpio]
+    guardarDoctoresExcluidos(this.dep.carpetas, siguientes)
+    return siguientes
+  }
+
+  /** Deshace una exclusión — sus casos vuelven a contar. */
+  incluirDoctorEnEstadisticas(nombre: string): readonly string[] {
+    const siguientes = leerDoctoresExcluidos(this.dep.carpetas).filter(
+      (n) => n.toLowerCase() !== nombre.trim().toLowerCase(),
+    )
+    guardarDoctoresExcluidos(this.dep.carpetas, siguientes)
+    return siguientes
+  }
+
+  /**
+   * Elimina del dashboard, de verdad, los casos «lente calculada» de un
+   * doctor (D85, 16/09/2026) — no solo excluirlos de las estadísticas
+   * (`excluirDoctorDeEstadisticas`), sino sacarlos de `casos/`. Son
+   * exactamente los mismos casos que forman su barra ahora mismo —el
+   * mismo `rango` que se esté mirando, si hay uno—, nunca más: lo que se
+   * ve es lo que se borra.
+   *
+   * **No los borra para siempre.** Los mueve a `casos-borrados/<día>/`,
+   * igual que se hizo a mano la primera vez que hizo falta esto — un
+   * caso de un paciente real no desaparece sin dejar ni rastro por un
+   * clic. La confirmación de verdad («¿seguro?») la pide la interfaz
+   * antes de llamar aquí.
+   *
+   * Si el caso que se está editando ahora mismo es uno de los
+   * eliminados, se queda en memoria tal cual estaba — no se cierra solo.
+   */
+  eliminarCasosDeDoctor(nombre: string, rango?: RangoFechas): number {
+    const casos = listarCasosDelAlmacen(this.dep.carpetas)
+      .map((codigo) => leerCasoDelAlmacen(this.dep.carpetas, codigo))
+      .filter((c): c is Caso => c !== null)
+    const aEliminar = casosCalculadosDeDoctor(casos, nombre, rango ? { rango } : {})
+    const dia = this.iso().slice(0, 10)
+    for (const caso of aEliminar) {
+      moverCasoABorrados(this.dep.carpetas, caso.codigo, dia)
+    }
+    return aEliminar.length
   }
 
   /** Vuelve a abrir un caso guardado, tal y como se dejó. */
@@ -761,6 +848,42 @@ export class ServicioCasos {
       ...(datos.nombreCirujano !== undefined ? { nombreCirujano: datos.nombreCirujano } : {}),
       actualizadoEn: this.iso(),
     })
+  }
+
+  /**
+   * Aplica un doctor guardado (D80, 15/09/2026) al caso en curso: pone su
+   * nombre en la identificación y, si tiene SIA y/o eje de incisión
+   * guardados, los escribe en todos los ojos/aparatos que el caso ya
+   * tenga — por `editarMedida`, así que queda confirmado igual que si la
+   * persona lo hubiera tecleado a mano, y arrastra su misma herencia entre
+   * los dos ojos (D77). Un doctor sin SIA/eje guardados todavía (uno
+   * recién añadido, sin editar) no toca esos campos: se quedan con el
+   * valor de partida de siempre (D38: 0.25 D y 135°).
+   *
+   * **Un ojo que TODAVÍA no tiene ningún dataset** (fallo real reportado
+   * por el dueño, 15/09/2026: eligió el doctor antes de escribir ningún
+   * dato, y el SIA se quedó en el 0.25 de partida) también recibe el
+   * SIA/eje del doctor, creándole un dataset con el aparato principal —
+   * igual que si la persona hubiera escrito ahí el primer dato a mano—,
+   * para que el valor salga ya puesto en cuanto se elige el doctor, sin
+   * tener que esperar a la primera medida de biometría. Si el doctor no
+   * tiene ni SIA ni eje guardados, no se crea ningún dataset de más: no
+   * hay nada que sembrar.
+   */
+  aplicarDoctor(doctor: Doctor): Caso {
+    let caso = this.establecerIdentificacion({ nombreCirujano: doctor.nombre })
+    const traeAlgo = doctor.sia !== null || doctor.ejeIncision !== null
+    for (const lado of ['OD', 'OS'] as const) {
+      const existentes = aparatosDe(caso, lado)
+      const aparatos = existentes.length > 0 ? existentes : traeAlgo ? [APARATO_PRINCIPAL] : []
+      for (const aparato of aparatos) {
+        if (doctor.sia !== null) caso = this.editarMedida(lado, 'SIA', doctor.sia, aparato)
+        if (doctor.ejeIncision !== null) {
+          caso = this.editarMedida(lado, 'EJE_INCISION', doctor.ejeIncision, aparato)
+        }
+      }
+    }
+    return caso
   }
 
   /** Elige el sexo a mano. Conserva lo que hubiera antes, como cualquier dato. */

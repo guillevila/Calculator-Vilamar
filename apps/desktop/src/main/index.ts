@@ -6,7 +6,6 @@
  * Playwright: todo pasa por aquí, con `contextIsolation` puesto.
  */
 
-import { readFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -15,7 +14,7 @@ import type { Browser } from 'playwright'
 
 import type { ArchivoEntrante, EstadoCalculo } from '../compartido/ipc.js'
 import { CANALES } from '../compartido/ipc.js'
-import { prepararCarpetas } from './almacen.js'
+import { nuevoId, prepararCarpetas } from './almacen.js'
 import { crearAlmacenCapturas } from './capturas.js'
 import { crearDiagnosticador } from './diagnostico.js'
 import { crearMotorOcr } from './extraccion/ocr.js'
@@ -24,7 +23,9 @@ import { crearRasterizador } from './extraccion/rasterizador.js'
 import { ProveedorDocumentos } from './extraccion/proveedor.js'
 import { crearLectorVision } from './extraccion/vision-claude.js'
 import { cargarEnv } from './ajustes.js'
+import { ServicioBandeja } from './servicio-bandeja.js'
 import { ServicioCasos } from './servicio-casos.js'
+import { ServicioDoctores } from './servicio-doctores.js'
 
 const carpetaActual = join(fileURLToPath(import.meta.url), '..')
 
@@ -56,16 +57,23 @@ if (app.isPackaged) {
   process.env['PLAYWRIGHT_BROWSERS_PATH'] = join(process.resourcesPath, 'playwright-browsers')
 }
 
-/** La versión que se enseña en la pantalla y en el PDF. */
+/**
+ * La versión que se enseña en la pantalla (barra superior) y en el PDF —
+ * para que el dueño del proyecto vea de un vistazo si está en la última
+ * actualización. A propósito NO es el `version` de `package.json` (ese es
+ * el número técnico que usa `electron-builder`, y npm exige que tenga forma
+ * de semver: «0.1.0», nunca «1.01»): esto es un contador propio y más
+ * simple, pensado para leerse sin conocimientos técnicos.
+ *
+ * Convención (pedida por el dueño el 15/09/2026): empieza en 1.01 y sube de
+ * 0.01 en cada actualización que se le entrega — 1.01, 1.02, 1.03… Subir
+ * este número es lo ÚLTIMO que se hace al cerrar un cambio en la aplicación
+ * de escritorio, justo antes de avisar de que está listo para probar.
+ */
+const VERSION_VISIBLE = '1.11'
+
 function versionDelProducto(): string {
-  try {
-    const paquete = JSON.parse(
-      readFileSync(join(carpetaActual, '..', '..', 'package.json'), 'utf8'),
-    ) as { version?: string }
-    return paquete.version ?? app.getVersion()
-  } catch {
-    return app.getVersion()
-  }
+  return VERSION_VISIBLE
 }
 
 let ventana: BrowserWindow | null = null
@@ -279,6 +287,9 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
     emitirCaso: (caso) => enviarAlaInterfaz(CANALES.casoCambiado, caso),
   })
 
+  const doctores = new ServicioDoctores({ carpetas, nuevoId })
+  const bandeja = new ServicioBandeja({ carpetas, nuevoId, ahora: () => new Date() })
+
   const s = (): ServicioCasos => {
     if (!servicio) throw new Error('El servicio todavía no está listo.')
     return servicio
@@ -289,6 +300,17 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   ipcMain.handle(CANALES.casoActual, () => s().obtener())
   ipcMain.handle(CANALES.listarCasosGuardados, () => s().listarCasosGuardados())
   ipcMain.handle(CANALES.abrirCaso, (_e, codigo) => s().abrirCaso(codigo))
+  ipcMain.handle(CANALES.resumenDashboard, (_e, rango) => s().resumenDashboard(rango))
+  ipcMain.handle(CANALES.listarDoctoresExcluidosDeEstadisticas, () => s().listarDoctoresExcluidos())
+  ipcMain.handle(CANALES.excluirDoctorDeEstadisticas, (_e, nombre) =>
+    s().excluirDoctorDeEstadisticas(nombre),
+  )
+  ipcMain.handle(CANALES.incluirDoctorEnEstadisticas, (_e, nombre) =>
+    s().incluirDoctorEnEstadisticas(nombre),
+  )
+  ipcMain.handle(CANALES.eliminarCasosDeDoctor, (_e, nombre, rango) =>
+    s().eliminarCasosDeDoctor(nombre, rango),
+  )
 
   /** Convierte rutas en documentos leídos del disco. El contenido no sale de aquí. */
   const desdeRutas = (rutas: readonly string[]): ArchivoEntrante[] =>
@@ -321,6 +343,38 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   ipcMain.handle(CANALES.establecerIdentificacion, (_e, datos) =>
     s().establecerIdentificacion(datos),
   )
+  ipcMain.handle(CANALES.listarDoctores, () => doctores.listar())
+  ipcMain.handle(CANALES.guardarDoctor, (_e, datos) => doctores.guardar(datos))
+  ipcMain.handle(CANALES.eliminarDoctor, (_e, id) => doctores.eliminar(id))
+  ipcMain.handle(CANALES.aplicarDoctor, (_e, id: string) => {
+    const doctor = doctores.obtener(id)
+    if (!doctor) throw new Error('Ese doctor ya no está guardado.')
+    return s().aplicarDoctor(doctor)
+  })
+  ipcMain.handle(CANALES.listarBandeja, () => bandeja.listar())
+  ipcMain.handle(CANALES.crearEntradaBandeja, (_e, datos) => bandeja.crear(datos))
+  ipcMain.handle(CANALES.editarEntradaBandeja, (_e, id, datos) => bandeja.editar(id, datos))
+  ipcMain.handle(CANALES.vincularEntradaBandeja, (_e, id, casoCodigo) =>
+    bandeja.vincularCaso(id, casoCodigo),
+  )
+  ipcMain.handle(CANALES.marcarEntradaBandejaEnviada, (_e, id, enviado) =>
+    bandeja.marcarEnviado(id, enviado),
+  )
+  ipcMain.handle(CANALES.eliminarEntradaBandeja, (_e, id) => bandeja.eliminar(id))
+  ipcMain.handle(CANALES.obtenerCarpetaEntrada, () => bandeja.carpetaEntrada())
+  ipcMain.handle(CANALES.elegirYConfigurarCarpetaEntrada, async () => {
+    if (!ventana) return null
+    const r = await dialog.showOpenDialog(ventana, {
+      title: 'Elige la carpeta de entrada (donde guardas las fotos de biometría)',
+      properties: ['openDirectory'],
+    })
+    if (r.canceled || r.filePaths.length === 0) return null
+    const ruta = r.filePaths[0]
+    if (!ruta) return null
+    bandeja.configurarCarpetaEntrada(ruta)
+    return ruta
+  })
+  ipcMain.handle(CANALES.buscarFotosNuevasEnCarpeta, () => bandeja.buscarFotosNuevas())
   ipcMain.handle(CANALES.confirmarCampo, (_e, ojo, campo, aparato) =>
     s().confirmarCampo(ojo, campo, aparato),
   )

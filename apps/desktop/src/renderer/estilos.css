@@ -4,6 +4,12 @@
  * La interfaz es para un profesional que quiere terminar rápido, no para
  * enseñarla en una feria. Nada parpadea, nada se mueve sin motivo y el texto
  * importante está en negro sobre blanco.
+ *
+ * **Única excepción, pedida expresamente por el dueño (16/09/2026):** la
+ * prioridad Urgente de la bandeja de casos pulsa — ver «Bandeja de casos:
+ * prioridad por color» más abajo. Es la única animación de toda la
+ * interfaz, y a propósito: solo el aviso más caro de pasar por alto la
+ * lleva.
  */
 
 :root {
@@ -88,6 +94,60 @@ button.principal:hover:not(:disabled) {
 button.grande {
   font-size: 16px;
   padding: 14px 28px;
+}
+/* Botones de elección (qué calculadoras, qué ojos calcular…) que se marcan
+   pulsados en vez de disparar una acción — mismo azul que `.selector-ojo`,
+   generalizado para que cualquier `button.activo` se distinga sin repetir
+   la regla por cada sitio donde se use. */
+button.activo {
+  background: var(--azul);
+  border-color: var(--azul);
+  color: #fff;
+}
+button.activo:hover:not(:disabled) {
+  background: var(--azul-claro);
+}
+
+/* Botones de la barra superior (Dashboard/Bandeja/Doctores/Nuevo cálculo,
+   petición expresa del dueño, 16/09/2026): con relieve —parecen un botón
+   físico, no una casilla plana— y cada uno en un tono de azul distinto,
+   para diferenciarlos de un vistazo sin depender solo del texto. El
+   relieve es luz arriba, sombra abajo, y se «hunde» al pulsarlo
+   (`:active`); nada se mueve solo, solo reacciona al ratón. */
+button.boton-cabecera {
+  color: #fff;
+  border: none;
+  font-weight: 600;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.18),
+    0 1px 3px rgba(0, 0, 0, 0.28);
+  transition:
+    filter 0.12s ease,
+    box-shadow 0.12s ease,
+    transform 0.05s ease;
+}
+button.boton-cabecera:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+button.boton-cabecera:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.3);
+}
+button.boton-cabecera:disabled {
+  filter: grayscale(0.4);
+}
+button.boton-cabecera-dashboard {
+  background: #4a77a8;
+}
+button.boton-cabecera-bandeja {
+  background: #35618f;
+}
+button.boton-cabecera-doctores {
+  background: #204a76;
+}
+button.boton-cabecera-nuevo {
+  background: var(--azul);
 }
 
 input,
@@ -287,6 +347,30 @@ table.revision tr.invalid {
 }
 table.revision tr.warning {
   background: var(--ambar-suave);
+}
+
+/* Bandeja de casos: prioridad por color (petición expresa del dueño,
+   16/09/2026) — Baja en verde, Normal en azul, Urgente en rojo, para
+   verse de un vistazo sin tener que leer la palabra. Urgente, además,
+   pulsa: es la única fila que de verdad no conviene dejar para luego. */
+table.revision tr.bandeja-baja {
+  background: var(--verde-suave);
+}
+table.revision tr.bandeja-normal {
+  background: var(--azul-suave);
+}
+table.revision tr.bandeja-urgente {
+  background: var(--rojo-suave);
+  animation: pulso-urgente 1.6s ease-in-out infinite;
+}
+@keyframes pulso-urgente {
+  0%,
+  100% {
+    background-color: var(--rojo-suave);
+  }
+  50% {
+    background-color: #f3b8b8;
+  }
 }
 
 .estado-campo {

@@ -11,12 +11,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 
-import type { Calculadora, Caso, Lateralidad, Aviso } from '@vilamar/domain'
+import type { Calculadora, Caso, EntradaBandeja, Lateralidad, Aviso } from '@vilamar/domain'
 import { APARATO_PRINCIPAL, aparatosDe, ojosDelCaso } from '@vilamar/domain'
 
 import { api, hayApi } from './api.js'
 import type { ArchivoEntrante, EstadoCalculo, ResumenExtraccion } from '../compartido/ipc.js'
+import { BandejaScreen } from './componentes/BandejaScreen.js'
 import { CasosGuardados } from './componentes/CasosGuardados.js'
+import { DashboardScreen } from './componentes/DashboardScreen.js'
+import { DoctoresScreen } from './componentes/DoctoresScreen.js'
 import { ZonaSoltar } from './componentes/ZonaSoltar.js'
 import { FormularioManual } from './componentes/FormularioManual.js'
 import { PanelRevision } from './componentes/PanelRevision.js'
@@ -46,6 +49,16 @@ export function App(): JSX.Element {
   // `APARATO_PRINCIPAL` y ningún selector se enseña.
   const [aparatoActivo, setAparatoActivo] = useState<string>(APARATO_PRINCIPAL)
   const [ocupado, setOcupado] = useState(false)
+  // Las pantallas ortogonales al caso (D80/D81/D82): agenda de doctores,
+  // bandeja de casos, dashboard. Se pueden abrir desde cualquier paso, sin
+  // perder dónde se estaba — por eso es un interruptor aparte y no un
+  // `Paso` más, y por eso es UNA sola variable con cuál está abierta (o
+  // ninguna) en vez de un booleano por pantalla: con varios booleanos
+  // independientes, abrir una sin acordarse de cerrar las demás a mano
+  // dejaría dos superpuestas a la vez.
+  const [pantallaExtra, setPantallaExtra] = useState<'DOCTORES' | 'BANDEJA' | 'DASHBOARD' | null>(
+    null,
+  )
 
   const disponible = hayApi()
 
@@ -168,6 +181,73 @@ export function App(): JSX.Element {
     setCaso(c)
     setPaso(pasoDeCaso(c))
   }, [])
+
+  /**
+   * Empezar a trabajar un aviso de la bandeja que todavía no tiene caso
+   * (D81, 15/09/2026): crea uno nuevo, le pone el nombre del paciente si
+   * el aviso traía descripción, y engancha la entrada al código real — a
+   * partir de aquí, la bandeja lee su estado del propio caso.
+   *
+   * Si el aviso viene de la carpeta de entrada (D84, `rutaFoto`), en vez
+   * de un caso en blanco se carga y se lee la foto sola —mismo camino que
+   * `cargarDocumentos`, el de siempre—, y el nombre del paciente solo se
+   * rellena con la descripción si el propio documento no trajo ya uno (no
+   * se pisa un dato leído de verdad con una nota escrita a mano).
+   */
+  const empezarCasoDesdeBandeja = useCallback(
+    async (entrada: EntradaBandeja) => {
+      setError(null)
+      setResumenes([])
+      setEstados([])
+      setAvisos([])
+
+      if (entrada.rutaFoto) {
+        setPaso('CARGANDO')
+        setOcupado(true)
+        try {
+          const nombreArchivo = entrada.rutaFoto.split(/[\\/]/).pop() ?? 'foto'
+          const r = await api().cargarDocumentos([
+            { nombre: nombreArchivo, ruta: entrada.rutaFoto },
+          ])
+          let c = r.caso
+          if (entrada.descripcion.trim() !== '' && !c.nombrePaciente) {
+            c = await api().establecerIdentificacion({ nombrePaciente: entrada.descripcion.trim() })
+          }
+          await api().vincularEntradaBandeja(entrada.id, c.codigo)
+          setCaso(c)
+          setResumenes(r.resumenes)
+          await refrescarAvisos()
+          setPaso('REVISION')
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e))
+          setPaso('INICIO')
+        } finally {
+          setOcupado(false)
+        }
+        setPantallaExtra(null)
+        return
+      }
+
+      let c = await api().casoNuevo()
+      if (entrada.descripcion.trim() !== '') {
+        c = await api().establecerIdentificacion({ nombrePaciente: entrada.descripcion.trim() })
+      }
+      await api().vincularEntradaBandeja(entrada.id, c.codigo)
+      setCaso(c)
+      setPaso('INICIO')
+      setPantallaExtra(null)
+    },
+    [refrescarAvisos],
+  )
+
+  /** Un aviso de la bandeja que ya tenía caso: se abre igual que «Casos guardados». */
+  const abrirCasoDesdeBandeja = useCallback(
+    async (codigo: string) => {
+      await abrirCasoGuardado(codigo)
+      setPantallaExtra(null)
+    },
+    [abrirCasoGuardado],
+  )
 
   /** Aplica el resultado de una carga, venga del diálogo o de arrastrar. */
   const aplicarCarga = useCallback(
@@ -293,177 +373,237 @@ export function App(): JSX.Element {
         </div>
         <div className="fila">
           {caso && <span className="caso">Caso {caso.codigo}</span>}
-          <button onClick={() => void nuevoCalculo()} disabled={ocupado}>
+          <button
+            className="boton-cabecera boton-cabecera-dashboard"
+            onClick={() => setPantallaExtra('DASHBOARD')}
+            disabled={ocupado}
+            data-testid="abrir-dashboard"
+          >
+            Dashboard
+          </button>
+          <button
+            className="boton-cabecera boton-cabecera-bandeja"
+            onClick={() => setPantallaExtra('BANDEJA')}
+            disabled={ocupado}
+            data-testid="abrir-bandeja"
+          >
+            Bandeja de casos
+          </button>
+          <button
+            className="boton-cabecera boton-cabecera-doctores"
+            onClick={() => setPantallaExtra('DOCTORES')}
+            disabled={ocupado}
+            data-testid="abrir-doctores"
+          >
+            Doctores
+          </button>
+          <button
+            className="boton-cabecera boton-cabecera-nuevo"
+            onClick={() => void nuevoCalculo()}
+            disabled={ocupado}
+          >
             Nuevo cálculo
           </button>
         </div>
       </header>
 
-      <nav className="pasos" aria-label="Progreso">
-        {(
-          [
-            ['INICIO', 'Cargar informe'],
-            ['REVISION', 'Revisar datos'],
-            ['CALCULANDO', 'Calcular'],
-            ['RESULTADOS', 'Resultados'],
-          ] as const
-        ).map(([clave, texto], i, todos) => {
-          const posicionActual = todos.findIndex(
-            ([c]) =>
-              c ===
-              (paso === 'CARGANDO' || paso === 'MANUAL' || paso === 'CASOS_GUARDADOS'
-                ? 'INICIO'
-                : paso),
-          )
-          // Un paso ya alcanzado por el CASO —no por dónde se esté mirando
-          // ahora mismo— se puede volver a pulsar para corregir algo; nunca
-          // uno futuro, que saltaría por delante de lo que falta. Se mira el
-          // estado del caso, no la posición actual en esta barra: si se
-          // mirara la posición, volver a «Revisar datos» habría «olvidado»
-          // que ya se había llegado a «Calcular», y no dejaría volver.
-          // Petición expresa del dueño del proyecto (02/09/2026): antes esta
-          // barra era solo un indicador, sin ningún sitio que llevara de
-          // vuelta a los datos salvo un botón escondido más abajo en la
-          // pantalla de resultados.
-          const alcanzadoPorElCaso =
-            clave === 'REVISION'
-              ? true
-              : clave === 'CALCULANDO'
-                ? caso?.estado === 'CONFIRMADO' ||
-                  caso?.estado === 'CALCULANDO' ||
-                  caso?.estado === 'COMPLETADO'
-                : clave === 'RESULTADOS'
-                  ? caso?.estado === 'CALCULANDO' || caso?.estado === 'COMPLETADO'
-                  : false
-          const alcanzable = caso !== null && alcanzadoPorElCaso
-          const clase = i === posicionActual ? 'activo' : alcanzable ? 'hecho' : ''
-          return (
-            <button
-              key={clave}
-              type="button"
-              className={`paso ${clase}`}
-              disabled={!alcanzable}
-              onClick={alcanzable ? () => setPaso(clave) : undefined}
-              data-testid={`paso-${clave}`}
-            >
-              {i + 1}. {texto}
-            </button>
-          )
-        })}
-      </nav>
+      {pantallaExtra === 'DOCTORES' && (
+        <main className="contenido">
+          <div className="centrado">
+            <DoctoresScreen onVolver={() => setPantallaExtra(null)} />
+          </div>
+        </main>
+      )}
 
-      <main className="contenido">
-        <div className="centrado">
-          {error && (
-            <div className="aviso error" role="alert">
-              <strong>No se ha podido continuar.</strong> {error}
-            </div>
-          )}
-
-          {paso === 'INICIO' && (
-            <ZonaSoltar
-              onArchivos={(a) => void cargarArchivos(a)}
-              onElegir={() => void elegirYcargar()}
-              onAMano={() => void empezarAMano()}
-              onAbrirGuardados={() => setPaso('CASOS_GUARDADOS')}
-              ocupado={ocupado}
+      {pantallaExtra === 'BANDEJA' && (
+        <main className="contenido">
+          <div className="centrado">
+            <BandejaScreen
+              onEmpezarCaso={empezarCasoDesdeBandeja}
+              onAbrirCasoVinculado={abrirCasoDesdeBandeja}
+              onVolver={() => setPantallaExtra(null)}
             />
-          )}
+          </div>
+        </main>
+      )}
 
-          {paso === 'CASOS_GUARDADOS' && (
-            <CasosGuardados onAbrir={abrirCasoGuardado} onVolver={() => setPaso('INICIO')} />
-          )}
+      {pantallaExtra === 'DASHBOARD' && (
+        <main className="contenido">
+          <div className="centrado">
+            <DashboardScreen onVolver={() => setPantallaExtra(null)} />
+          </div>
+        </main>
+      )}
 
-          {paso === 'MANUAL' && caso && (
-            <FormularioManual
-              caso={caso}
-              onCambio={async () => {
-                await refrescarAvisos()
-              }}
-              onContinuar={() => {
-                void refrescarAvisos()
-                setPaso('REVISION')
-              }}
-            />
-          )}
+      {pantallaExtra === null && (
+        <>
+          <nav className="pasos" aria-label="Progreso">
+            {(
+              [
+                ['INICIO', 'Cargar informe'],
+                ['REVISION', 'Revisar datos'],
+                ['CALCULANDO', 'Calcular'],
+                ['RESULTADOS', 'Resultados'],
+              ] as const
+            ).map(([clave, texto], i, todos) => {
+              const posicionActual = todos.findIndex(
+                ([c]) =>
+                  c ===
+                  (paso === 'CARGANDO' || paso === 'MANUAL' || paso === 'CASOS_GUARDADOS'
+                    ? 'INICIO'
+                    : paso),
+              )
+              // Un paso ya alcanzado por el CASO —no por dónde se esté mirando
+              // ahora mismo— se puede volver a pulsar para corregir algo; nunca
+              // uno futuro, que saltaría por delante de lo que falta. Se mira el
+              // estado del caso, no la posición actual en esta barra: si se
+              // mirara la posición, volver a «Revisar datos» habría «olvidado»
+              // que ya se había llegado a «Calcular», y no dejaría volver.
+              // Petición expresa del dueño del proyecto (02/09/2026): antes esta
+              // barra era solo un indicador, sin ningún sitio que llevara de
+              // vuelta a los datos salvo un botón escondido más abajo en la
+              // pantalla de resultados.
+              const alcanzadoPorElCaso =
+                clave === 'REVISION'
+                  ? true
+                  : clave === 'CALCULANDO'
+                    ? caso?.estado === 'CONFIRMADO' ||
+                      caso?.estado === 'CALCULANDO' ||
+                      caso?.estado === 'COMPLETADO'
+                    : clave === 'RESULTADOS'
+                      ? caso?.estado === 'CALCULANDO' || caso?.estado === 'COMPLETADO'
+                      : false
+              const alcanzable = caso !== null && alcanzadoPorElCaso
+              const clase = i === posicionActual ? 'activo' : alcanzable ? 'hecho' : ''
+              return (
+                <button
+                  key={clave}
+                  type="button"
+                  className={`paso ${clase}`}
+                  disabled={!alcanzable}
+                  onClick={alcanzable ? () => setPaso(clave) : undefined}
+                  data-testid={`paso-${clave}`}
+                >
+                  {i + 1}. {texto}
+                </button>
+              )
+            })}
+          </nav>
 
-          {paso === 'CARGANDO' && (
-            <div className="tarjeta">
-              <div className="cargando">
-                Leyendo el informe…
-                <div className="pie-nota">
-                  Si es un documento escaneado hay que reconocer el texto, y eso tarda unos
-                  segundos.
+          <main className="contenido">
+            <div className="centrado">
+              {error && (
+                <div className="aviso error" role="alert">
+                  <strong>No se ha podido continuar.</strong> {error}
                 </div>
-              </div>
+              )}
+
+              {paso === 'INICIO' && (
+                <ZonaSoltar
+                  onArchivos={(a) => void cargarArchivos(a)}
+                  onElegir={() => void elegirYcargar()}
+                  onAMano={() => void empezarAMano()}
+                  onAbrirGuardados={() => setPaso('CASOS_GUARDADOS')}
+                  ocupado={ocupado}
+                />
+              )}
+
+              {paso === 'CASOS_GUARDADOS' && (
+                <CasosGuardados onAbrir={abrirCasoGuardado} onVolver={() => setPaso('INICIO')} />
+              )}
+
+              {paso === 'MANUAL' && caso && (
+                <FormularioManual
+                  caso={caso}
+                  onCambio={async () => {
+                    await refrescarAvisos()
+                  }}
+                  onContinuar={() => {
+                    void refrescarAvisos()
+                    setPaso('REVISION')
+                  }}
+                />
+              )}
+
+              {paso === 'CARGANDO' && (
+                <div className="tarjeta">
+                  <div className="cargando">
+                    Leyendo el informe…
+                    <div className="pie-nota">
+                      Si es un documento escaneado hay que reconocer el texto, y eso tarda unos
+                      segundos.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {paso === 'REVISION' && caso && (
+                <>
+                  <Avisos resumenes={resumenes} />
+                  <PanelRevision
+                    caso={caso}
+                    avisos={avisos}
+                    ojoActivo={ojoActivo}
+                    onCambiarOjo={setOjoActivo}
+                    aparatoActivo={aparatoActivo}
+                    onCambiarAparato={setAparatoActivo}
+                    onCambio={async () => {
+                      await refrescarAvisos()
+                    }}
+                    onConfirmar={() => void confirmar()}
+                    ocupado={ocupado}
+                  />
+                </>
+              )}
+
+              {paso === 'CALCULANDO' && caso && (
+                <PanelCalculo
+                  caso={caso}
+                  ojo={ojoActivo}
+                  estados={estados}
+                  ocupado={ocupado}
+                  // Por defecto, sin filtro: calcula TODO el caso (los dos
+                  // ojos, todos los aparatos que ya estén confirmados) — igual
+                  // que siempre. El filtro por ojo aquí es una ELECCIÓN
+                  // explícita de la persona (D66, el selector «Ojos a
+                  // calcular»), no un valor automático — eso sí reintroduciría
+                  // el fallo ya corregido de «solo calcula la pestaña que se
+                  // ve» sin que nadie lo pidiera.
+                  onCalcular={(c, filtro) => void calcular(c, filtro)}
+                  onCancelar={() => void api().cancelarCalculo()}
+                  onVerResultados={() => setPaso('RESULTADOS')}
+                  onVolverARevisar={() => setPaso('REVISION')}
+                />
+              )}
+
+              {paso === 'RESULTADOS' && caso && (
+                <PanelResultados
+                  caso={caso}
+                  ojoActivo={ojoActivo}
+                  onCambiarOjo={setOjoActivo}
+                  aparatoActivo={aparatoActivo}
+                  onCambiarAparato={setAparatoActivo}
+                  onReintentar={(c) => {
+                    // Va por `calcular()`, no por el `reintentar()` del IPC: ese
+                    // asume el aparato «Principal» a falta de otro dato, y un caso
+                    // que nombra su biómetro real (p. ej. «ZEISS IOLMaster 700»,
+                    // en vez del literal por defecto) no tiene NINGÚN dataset con
+                    // ese nombre — la casilla se recalcula sobre un ojo vacío y
+                    // falla por falta de datos, aunque estén todos ahí. `calcular()`
+                    // resuelve el aparato de verdad a través de `planificarCaso()`,
+                    // igual que el botón de la pantalla «Calcular» — por eso volver
+                    // atrás y usar ESE botón sí funcionaba.
+                    setPaso('CALCULANDO')
+                    void calcular([c], { ojo: ojoActivo, aparato: aparatoActivo })
+                  }}
+                  onVolverARevisar={() => setPaso('REVISION')}
+                  estados={estados}
+                />
+              )}
             </div>
-          )}
-
-          {paso === 'REVISION' && caso && (
-            <>
-              <Avisos resumenes={resumenes} />
-              <PanelRevision
-                caso={caso}
-                avisos={avisos}
-                ojoActivo={ojoActivo}
-                onCambiarOjo={setOjoActivo}
-                aparatoActivo={aparatoActivo}
-                onCambiarAparato={setAparatoActivo}
-                onCambio={async () => {
-                  await refrescarAvisos()
-                }}
-                onConfirmar={() => void confirmar()}
-                ocupado={ocupado}
-              />
-            </>
-          )}
-
-          {paso === 'CALCULANDO' && caso && (
-            <PanelCalculo
-              caso={caso}
-              ojo={ojoActivo}
-              estados={estados}
-              ocupado={ocupado}
-              // Por defecto, sin filtro: calcula TODO el caso (los dos
-              // ojos, todos los aparatos que ya estén confirmados) — igual
-              // que siempre. El filtro por ojo aquí es una ELECCIÓN
-              // explícita de la persona (D66, el selector «Ojos a
-              // calcular»), no un valor automático — eso sí reintroduciría
-              // el fallo ya corregido de «solo calcula la pestaña que se
-              // ve» sin que nadie lo pidiera.
-              onCalcular={(c, filtro) => void calcular(c, filtro)}
-              onCancelar={() => void api().cancelarCalculo()}
-              onVerResultados={() => setPaso('RESULTADOS')}
-              onVolverARevisar={() => setPaso('REVISION')}
-            />
-          )}
-
-          {paso === 'RESULTADOS' && caso && (
-            <PanelResultados
-              caso={caso}
-              ojoActivo={ojoActivo}
-              onCambiarOjo={setOjoActivo}
-              aparatoActivo={aparatoActivo}
-              onCambiarAparato={setAparatoActivo}
-              onReintentar={(c) => {
-                // Va por `calcular()`, no por el `reintentar()` del IPC: ese
-                // asume el aparato «Principal» a falta de otro dato, y un caso
-                // que nombra su biómetro real (p. ej. «ZEISS IOLMaster 700»,
-                // en vez del literal por defecto) no tiene NINGÚN dataset con
-                // ese nombre — la casilla se recalcula sobre un ojo vacío y
-                // falla por falta de datos, aunque estén todos ahí. `calcular()`
-                // resuelve el aparato de verdad a través de `planificarCaso()`,
-                // igual que el botón de la pantalla «Calcular» — por eso volver
-                // atrás y usar ESE botón sí funcionaba.
-                setPaso('CALCULANDO')
-                void calcular([c], { ojo: ojoActivo, aparato: aparatoActivo })
-              }}
-              onVolverARevisar={() => setPaso('REVISION')}
-              estados={estados}
-            />
-          )}
-        </div>
-      </main>
+          </main>
+        </>
+      )}
     </div>
   )
 }

@@ -4,6 +4,477 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.45] — 16/09/2026 (versión visible en pantalla: v1.11)
+
+style(app): color por prioridad en la bandeja (Urgente pulsa) y botones
+de la barra superior con relieve, cada uno en un tono de azul distinto.
+
+### Qué se pidió
+
+El dueño del proyecto: en la bandeja, Baja en verde, Normal en azul y
+Urgente en rojo, para verlo de un vistazo — Urgente, además, con un pulso
+si se puede. Y los botones de arriba (Doctores, Bandeja, Dashboard,
+Nuevo cálculo) «más bonitos, con relieve y en distintos tonos de azul».
+
+### El cambio
+
+- `table.revision tr.bandeja-{urgente,normal,baja}`: fondo verde/azul/rojo
+  suave por fila entera, no solo el texto. Urgente lleva además
+  `@keyframes pulso-urgente` — única animación de toda la interfaz, a
+  propósito (el propio fichero de estilos lo advertía: «nada parpadea» —
+  se actualizó el comentario para dejar constancia de la excepción).
+- `button.boton-cabecera` (+ una clase por botón): sombra interior/exterior
+  para el relieve, se «hunde» al pulsar, y cuatro tonos de azul distintos
+  (`#4a77a8`, `#35618f`, `#204a76`, y `var(--azul)` para «Nuevo cálculo»,
+  el más oscuro, coherente con `.principal`).
+
+### Verificado
+
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde (774 tests unitarios; el único fallo de la suite es previo y no
+  relacionado; 56/56 de interfaz).
+- Capturas de pantalla reales (Electron real, vía Playwright) de la
+  bandeja con las tres prioridades y de la barra superior — un primer
+  intento con `page.screenshot()` de página completa mostró el botón
+  «Nuevo cálculo» en blanco; una captura del elemento en solitario y los
+  estilos computados confirmaron que el color SÍ se aplica bien (fondo y
+  texto correctos) — era un artefacto de esa captura concreta, no un
+  fallo real.
+
+---
+
+## [1.15.44] — 16/09/2026 (versión visible en pantalla: v1.10)
+
+feat(app): botón «Eliminar» junto a «Excluir», en el dashboard por
+doctor — con confirmación, y sin borrar para siempre (D85).
+
+### Qué se pidió
+
+El dueño del proyecto: además de «Excluir», un botón «Eliminar» que
+borre de verdad el caso y los datos de ese doctor, con un mensaje de
+confirmación antes, para evitar errores.
+
+### El diseño
+
+Distinto de «Excluir» (D83, solo filtra las estadísticas): «Eliminar»
+saca de verdad los casos de `casos/`. Pero, siguiendo el mismo criterio
+ya usado esa misma sesión al limpiar unos casos de prueba a mano, no se
+borran para siempre — se archivan en `casos-borrados/<día>/`, por si
+hace falta recuperarlos. Elimina exactamente los mismos casos que forman
+la barra de ese doctor ahora mismo (mismo rango de fechas si hay uno
+puesto): lo que se ve es lo que se borra, nunca más.
+
+### El cambio
+
+- `casosCalculadosDeDoctor()` en `@vilamar/domain`: la misma selección
+  que ya usaba `calcularResumenDashboard` (factorizada), para que la
+  barra y lo que se elimina no puedan desincronizarse.
+- `almacen.moverCasoABorrados()` y `ServicioCasos.eliminarCasosDeDoctor()`.
+- Pantalla: botón «Eliminar» junto a «Excluir»; pide confirmación con
+  `window.confirm()` antes de llamar al proceso principal.
+
+### Verificado
+
+- Cuatro tests unitarios de `eliminarCasosDeDoctor()` (archiva y cuenta
+  bien, un caso sin terminar no se toca, respeta el rango de fechas,
+  «Sin doctor» también funciona).
+- Test de interfaz de punta a punta (caso `COMPLETADO` escrito
+  directamente en disco, cancelar el diálogo no hace nada, aceptarlo
+  archiva el caso) — encontrado y corregido sobre la marcha: la fecha
+  esperada en el test estaba fija a mano y no coincidía con la real por
+  la zona horaria (la carpeta usa UTC, igual que el resto de fechas de
+  la aplicación).
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde (774 tests unitarios, cinco nuevos para este cambio; el único
+  fallo de la suite es previo y no relacionado; 56/56 de interfaz).
+
+---
+
+## [1.15.43] — 16/09/2026 (versión visible en pantalla: v1.09)
+
+feat(app): carpeta de entrada por prioridad — leer las fotos de biometría
+directamente desde OneDrive (D84).
+
+### Qué se pidió
+
+El dueño del proyecto: guarda en una carpeta de OneDrive compartida con
+el móvil («IOL ENTRADA») las fotos de biometría que le llegan por
+WhatsApp, y quiere que la aplicación pueda leerlas directamente para
+calcular. Propuso, de paso, tres subcarpetas de prioridad (baja, normal,
+alta) para clasificarlas al meterlas.
+
+### El diseño (acotado con el dueño antes de construir)
+
+- Subcarpetas `Alta`/`Normal`/`Baja` dentro de la carpeta elegida — una
+  foto suelta fuera de las tres cuenta como prioridad Normal.
+- Tras detectarla, se archiva en una cuarta subcarpeta, `Importadas`
+  —aclarado expresamente: NO significa que el caso ya esté calculado,
+  solo que ya tiene su aviso en la Bandeja, para no duplicarlo si se
+  vuelve a buscar.
+
+### El cambio
+
+- `EntradaBandeja` gana `rutaFoto: string | null` (D81 ampliada).
+- `ServicioBandeja.buscarFotosNuevas()`: detecta ficheros válidos
+  (`.pdf`/`.jpg`/`.jpeg`/`.png`) en la raíz y en Alta/Normal/Baja, los
+  archiva en Importadas (sin pisar nombres repetidos) y crea una entrada
+  de bandeja por cada uno. Un fallo con un fichero no para el resto.
+- «Empezar» en una entrada con `rutaFoto`: en vez de un caso en blanco,
+  carga y lee la foto sola (mismo camino que `cargarDocumentos()`); el
+  nombre del paciente de la descripción solo se aplica si el documento no
+  trajo ya uno.
+- Pantalla «Bandeja»: sección «Carpeta de entrada» con «Elegir carpeta…»
+  (diálogo nativo) y «Buscar fotos nuevas».
+
+### Verificado
+
+- Ocho tests unitarios sobre disco real: subcarpetas creadas al
+  configurar, prioridad correcta por subcarpeta, foto suelta como Normal,
+  no duplica al buscar dos veces, extensión no válida se ignora, nombres
+  repetidos no se pisan.
+- Test de interfaz de la pantalla sin configurar todavía — el diálogo de
+  «Elegir carpeta…» es nativo del sistema operativo y Playwright no puede
+  pulsarlo, mismo límite ya existente con «Elegir archivo».
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde (767 tests unitarios, nueve nuevos para este cambio; el único
+  fallo de la suite es previo y no relacionado; 55/55 de interfaz).
+
+---
+
+## [1.15.42] — 16/09/2026 (versión visible en pantalla: v1.08)
+
+fix(app): excluir la fila «Sin doctor» del dashboard no hacía nada (D83).
+
+### Qué se reportó
+
+El dueño del proyecto, probando la exclusión de doctores: el botón
+«Excluir» de la fila «Sin doctor» no quitaba esos casos de las
+estadísticas.
+
+### La causa
+
+`calcularResumenDashboard` comparaba la exclusión contra `nombreCirujano`
+en crudo (`''` para un caso sin doctor), pero la etiqueta que se enseña y
+se pulsa en pantalla es «Sin doctor» — las dos cosas nunca coincidían.
+
+### El cambio
+
+Una sola función, `etiquetaDoctor(caso)`, calcula ahora la etiqueta tanto
+para agrupar como para comprobar la exclusión — lo que se ve es lo mismo
+que se compara.
+
+### Además
+
+El dueño confirmó que los 7 casos que le salían como «Sin doctor» eran
+pruebas suyas (cuatro con nombre de paciente puesto para probar, tres en
+blanco) y pidió quitarlos de en medio. Se sacaron de `casos/` a mano
+—movidos, no borrados, a `casos-borrados/2026-09-16/`, por si acaso—: no
+existe ninguna función de «borrar un caso» en la aplicación, y no se ha
+construido una solo para esto.
+
+### Verificado
+
+- Nuevo test unitario que reproduce el fallo exacto (excluir «Sin doctor»
+  con un caso que no tiene doctor).
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde (759 tests unitarios; el único fallo de la suite es previo y no
+  relacionado; 54/54 de interfaz).
+
+---
+
+## [1.15.41] — 16/09/2026 (versión visible en pantalla: v1.07)
+
+feat(app): dashboard — filtro por rango de fechas y exclusión de doctor
+de las estadísticas (D83).
+
+### Qué se pidió
+
+El dueño del proyecto, probando el dashboard: estadísticas entre fechas
+(por defecto, las totales), y poder «borrar un doctor» —pruebas o casos
+metidos por error— para que no cuenten.
+
+### El diseño
+
+«Borrar un doctor» se interpretó como EXCLUIR sus casos de las
+estadísticas, no borrar el caso real ni la entrada de la agenda de
+doctores (D80): eso sería destructivo e irreversible sobre datos de
+pacientes reales. La exclusión es una lista de nombres, no de ids —un
+caso de prueba puede llevar un nombre que ni está en la agenda.
+
+### El cambio
+
+- `calcularResumenDashboard(casos, { rango?, doctoresExcluidos? })` en
+  `@vilamar/domain`: `rango` compara el día de `actualizadoEn` (inclusive
+  en los dos extremos; sin fechas, no filtra); `doctoresExcluidos` quita
+  esos casos antes de contar nada — ni el total ni «por modelo» los
+  arrastran tampoco.
+- `doctores-excluidos.json`, fichero propio, aparte de `doctores.json`.
+  `ServicioCasos` gana `listarDoctoresExcluidos`,
+  `excluirDoctorDeEstadisticas`, `incluirDoctorEnEstadisticas`
+  (reversible).
+- Pantalla: dos campos de fecha + «Filtrar»/«Ver todo»; cada fila de «Por
+  doctor» lleva un botón «Excluir» (no las de «por modelo»); debajo, la
+  lista de excluidos con su botón para deshacer.
+
+### Verificado
+
+- Tests unitarios de dominio (rango inclusivo, sin rango no filtra,
+  exclusión sin mayúsculas/espacios de sobra, excluido no cuenta en
+  ningún gráfico) y de `ServicioCasos` (persistencia real en disco, ida y
+  vuelta).
+- Test de interfaz de los controles de fecha, y de la IPC de exclusión de
+  punta a punta — nunca con un caso `COMPLETADO` real, porque esta suite
+  no habla con Kane/EVO/Barrett.
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde (758 tests unitarios, ocho nuevos para este cambio; el único
+  fallo de la suite es previo y no relacionado; 54/54 de interfaz).
+
+---
+
+## [1.15.40] — 16/09/2026 (versión visible en pantalla: v1.06)
+
+feat(app): dashboard (D82) — lentes calculadas por doctor y por modelo,
+con gráficos de barras.
+
+### Qué se pidió
+
+El dueño del proyecto: unificar la base de datos (doctores/bandeja) con
+los informes PDF, para que los cálculos se guarden en el mismo sitio que
+cada paciente; y un botón «Dashboard» con gráficos de las lentes
+calculadas por doctor y por modelo.
+
+### La investigación, antes de construir
+
+El doctor (`Caso.nombreCirujano`) y la lente elegida (`Caso.lente`) YA
+viven dentro de cada caso, junto al resto de sus datos — no hacía falta
+mover ni duplicar nada. «Unificar» se resuelve construyendo una vista que
+cuenta sobre lo que ya existe, no una migración.
+
+### El cambio
+
+- `calcularResumenDashboard(casos)` en `@vilamar/domain` (puro): un caso
+  cuenta como «lente calculada» cuando `estado === 'COMPLETADO'` y tiene
+  un modelo de lente elegido; cuenta por doctor y por modelo (combinando
+  fabricante+modelo cuando el modelo no lo repite ya), ordenado de más a
+  menos.
+- `ServicioCasos.resumenDashboard()`: recorre `casos/`, mismo patrón que
+  `listarCasosGuardados()`.
+- Pantalla nueva «Dashboard» (botón en la barra superior): dos gráficos de
+  barras horizontales, con `<div>` — sin ninguna librería de gráficos
+  nueva.
+- `App.tsx`: las tres pantallas ortogonales al caso (Doctores, Bandeja,
+  Dashboard) pasan de tres booleanos independientes a una sola variable
+  (`pantallaExtra`), para no poder dejar dos superpuestas por olvidar
+  cerrar una al abrir otra.
+
+### Verificado
+
+- Tests unitarios de `calcularResumenDashboard` (sin casos, sin lente,
+  sin terminar, agrupación por doctor/modelo, fabricante combinado) y de
+  `ServicioCasos.resumenDashboard()` (casos escritos directamente en
+  disco).
+- Test de interfaz del caso «cero»: esta suite nunca habla con Kane/EVO/
+  Barrett de verdad, así que ningún caso llega a `COMPLETADO` aquí — los
+  números reales se comprueban a mano.
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde (750 tests unitarios; el único fallo de la suite es previo y no
+  relacionado; 52/52 de interfaz).
+
+---
+
+## [1.15.39] — 15/09/2026 (versión visible en pantalla: v1.05)
+
+feat(app): bandeja de casos (D81) — cola de avisos de los delegados,
+ordenada sola por prioridad.
+
+### Qué se pidió
+
+El dueño del proyecto: recibe casos por WhatsApp de varios delegados y
+necesita un sitio único, ordenado por prioridad, desde el que ir
+trabajándolos y, una vez generado el PDF, reenviarlo por WhatsApp.
+
+### El diseño (acotado con el dueño antes de construir)
+
+Pushback explícito sobre automatizar WhatsApp: la API oficial exige
+verificación de empresa, y las alternativas no oficiales arriesgan el
+número y sacan datos de pacientes por un canal sin control — choca con la
+regla de que nada sale de este ordenador. El dueño aceptó: recepción,
+cálculo y envío los sigue gestionando él; **solo se automatiza la
+organización**.
+
+### El cambio
+
+- `EntradaBandeja` nuevo en `@vilamar/domain` (delegado, descripción,
+  prioridad Urgente/Normal/Baja, notas, `casoCodigo`, `enviado`);
+  `ordenarBandeja()` — prioridad primero, FIFO a igual prioridad, lo
+  enviado siempre al final.
+- `ServicioBandeja` (proceso principal): `bandeja.json`, fichero propio en
+  la carpeta de datos, aparte de cualquier caso.
+- Pantalla nueva «Bandeja de casos» (botón en la barra superior,
+  alcanzable desde cualquier paso). «Empezar» crea el caso, le pone el
+  nombre del paciente (si la descripción lo traía) y engancha la entrada;
+  a partir de ahí el estado que se enseña se lee del caso real
+  (`listarCasosGuardados`) — nunca se duplica. «Marcar enviado» es la
+  única marca manual: no hay forma de saber desde el programa que el PDF
+  ya salió por WhatsApp.
+- Cinco canales IPC nuevos (`listarBandeja`, `crearEntradaBandeja`,
+  `editarEntradaBandeja`, `vincularEntradaBandeja`,
+  `marcarEntradaBandejaEnviada`, `eliminarEntradaBandeja`).
+
+### Verificado
+
+- Tests unitarios de `ordenarBandeja` (orden por prioridad, FIFO,
+  enviados al final, no muta la lista) y de `ServicioBandeja`
+  (persistencia real en disco, delegado vacío rechazado, editar sobre una
+  entrada borrada falla en vez de crear una nueva).
+- Test de interfaz de punta a punta: dos avisos de distinta prioridad se
+  enseñan ya ordenados; «Empezar» crea el caso y pone el nombre del
+  paciente; al volver a la bandeja el estado ya sale solo.
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde (742 tests unitarios; el único fallo de la suite es previo y no
+  relacionado; 51/51 de interfaz).
+
+---
+
+## [1.15.38] — 15/09/2026 (versión visible en pantalla: v1.04)
+
+fix(app): elegir un doctor de la agenda ANTES de escribir ningún dato no
+aplicaba su SIA/eje — se quedaban en el valor de partida (D80).
+
+### Qué se reportó
+
+El dueño del proyecto, con dos capturas de pantalla reales: editó un
+doctor con su nombre, SIA y eje de incisión, pero al elegirlo en un caso
+nuevo el SIA seguía en 0.25 y el eje en 135 (el valor de partida de
+siempre, D38) en vez de los guardados.
+
+### La causa
+
+`aplicarDoctor()` solo escribía el SIA/eje en un dataset que YA existiera
+(`aparatosDe(caso, lado)`, vacío si el ojo no tiene ningún dato de
+biometría todavía). El dueño eligió el doctor en el orden natural —primero
+quién opera, luego los datos— así que ni OD ni OS tenían todavía ningún
+dataset donde escribir nada.
+
+### El cambio
+
+`ServicioCasos.aplicarDoctor()`: si un ojo no tiene ningún dataset y el
+doctor trae SIA y/o eje guardados, le crea uno con el aparato principal
+—igual que al escribir el primer dato de biometría a mano—, en los dos
+ojos. Un doctor sin SIA ni eje guardados sigue sin crear ningún dataset de
+más.
+
+### Verificado
+
+- Nuevo test unitario y nuevo test de interfaz que reproducen exactamente
+  el caso reportado: elegir el doctor con el formulario todavía vacío, en
+  los dos ojos, sin que aparezca ninguna biometría inventada (AL sigue sin
+  valor).
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde (728 tests unitarios; el único fallo de la suite es previo y no
+  relacionado; 50/50 de interfaz).
+
+---
+
+## [1.15.37] — 15/09/2026 (versión visible en pantalla: v1.03)
+
+feat(app): agenda de doctores (D80) — SIA y eje de incisión guardados por
+doctor, elegibles con un desplegable en «Identificación».
+
+### Qué se pidió
+
+El dueño del proyecto: un desplegable en el campo del doctor, con doctores
+que se puedan editar y guardar, para recordar el SIA de cada uno y no
+tener que preguntarlo (o dudar de memoria) en cada caso nuevo.
+
+### El diseño (acotado con el dueño antes de construir)
+
+- Se guarda SIA **y** eje de incisión —los dos dependen de la técnica del
+  cirujano, no del paciente— no solo el SIA.
+- La gestión (añadir/editar/borrar) vive en una pantalla propia
+  («Doctores», nuevo botón en la barra superior, alcanzable desde
+  cualquier paso); el desplegable de `Identificacion.tsx` solo ELIGE.
+- Elegir un doctor **siempre sustituye** el SIA/eje del caso en curso por
+  el guardado (no solo si está vacío) — decisión explícita del dueño.
+
+### El cambio
+
+- `Doctor` nuevo en `@vilamar/domain` (`id`, `nombre`, `sia`,
+  `ejeIncision`); `doctorVacio()`.
+- `ServicioDoctores` (proceso principal): lista en `doctores.json`, un
+  fichero propio en la carpeta de datos — no vive dentro de `casos/`.
+- `ServicioCasos.aplicarDoctor(doctor)`: pone el nombre en la
+  identificación y, si el doctor tiene SIA/eje guardados, los escribe con
+  `editarMedida()` en todos los ojos/aparatos que el caso ya tenga —mismo
+  canal de siempre, así que queda confirmado y hereda entre ojos igual que
+  D77—; un doctor sin SIA/eje guardados no toca esos campos.
+- Cuatro canales IPC nuevos (`listarDoctores`, `guardarDoctor`,
+  `eliminarDoctor`, `aplicarDoctor`); pantalla `DoctoresScreen.tsx`;
+  desplegable nuevo en `Identificacion.tsx` (visible solo si ya hay algún
+  doctor guardado).
+
+### Verificado
+
+- Tests unitarios de `ServicioDoctores` (persistencia real en disco, orden
+  alfabético, nombre vacío rechazado) y de `ServicioCasos.aplicarDoctor()`
+  (doctor sin SIA/eje no toca nada; con los dos, los escribe en varios
+  aparatos de los dos ojos).
+- Test de interfaz de punta a punta: añadir un doctor con SIA/eje,
+  elegirlo, comprobar que el caso los recibe; añadir uno SIN esos datos y
+  comprobar que no borra lo que ya había.
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde (49/49 de interfaz).
+
+---
+
+## [1.15.36] — 15/09/2026 (versión visible en pantalla: v1.02)
+
+fix(app): los botones de elección (qué calculadoras, qué ojo calcular) no
+se coloreaban al pulsarlos · feat(app): número de versión visible en
+pantalla y en el PDF.
+
+### Qué se reportó
+
+El dueño del proyecto, dos peticiones tras confirmar que el fallo del PDF
+en blanco (D79) ya estaba resuelto en el paquete instalado:
+
+1. Elegir con qué calculadoras trabajar, o qué ojo(s) calcular, no dejaba
+   ver cuál estaba elegido — el botón se veía igual antes y después de
+   pulsarlo.
+2. Poder saber, de un vistazo, si la aplicación (o el PDF) que se está
+   viendo es la última actualización.
+
+### La causa (1)
+
+`PanelCalculo.tsx` ya marcaba el botón elegido con `className="activo"`,
+pero esa clase solo tenía color definido dentro de `.selector-ojo
+button.activo` en `estilos.css` — los botones de «Calcular con:» y «Ojos a
+calcular:» no están dentro de ese selector, así que la marca existía por
+dentro sin ningún color asociado.
+
+### El cambio
+
+- `estilos.css`: regla general `button.activo` (mismo azul que
+  `.selector-ojo`), para que cualquier botón de elección del programa se
+  distinga sin repetir la regla en cada sitio.
+- `main/index.ts`: `versionDelProducto()` deja de leer el `version` de
+  `package.json` (formato semver, «0.1.0» — no admite un número simple
+  como «1.02») y devuelve una constante propia, `VERSION_VISIBLE`, pensada
+  para leerse sin conocimientos técnicos. Ya se enseñaba en la barra
+  superior y en el pie de cada página del PDF desde antes (código
+  preexistente sin usar del todo) — el cambio fue de dónde sale el
+  número, no de dónde se enseña. Convención: empieza en 1.01 y sube de
+  0.01 en cada actualización que se entrega, justo antes de avisar de que
+  está lista para probar.
+
+### Verificado
+
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build` en verde.
+- Comprobado a mano en el paquete instalado (`dist/win-unpacked`): el
+  color aparece al elegir, y la barra superior muestra «v1.02».
+
+---
+
 ## [1.15.35] — 15/09/2026
 
 fix(app): elegir calcular solo un ojo ya no obliga a revisar el otro, ni

@@ -39,6 +39,7 @@
   "build": {
     "appId": "net.vilamar.calculator",
     "productName": "Calculator Vilamar",
+    "npmRebuild": false,
     "directories": {
       "output": "dist",
       "buildResources": "build"

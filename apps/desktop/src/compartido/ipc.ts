@@ -10,12 +10,17 @@
 import type {
   Calculadora,
   Caso,
+  Doctor,
+  EntradaBandeja,
   EstadoCaso,
   Lateralidad,
   CampoBiometrico,
+  PrioridadBandeja,
+  RangoFechas,
   Sexo,
   Aviso,
   ResultadoCalculadora,
+  ResumenDashboard,
   SituacionCornealEspecial,
 } from '@vilamar/domain'
 
@@ -83,6 +88,27 @@ export interface ApiVilamar {
   readonly listarCasosGuardados: () => Promise<readonly ResumenCasoGuardado[]>
   /** Vuelve a abrir un caso guardado, tal y como se dejó. */
   readonly abrirCaso: (codigo: string) => Promise<Caso>
+  /**
+   * Cuántas lentes se han calculado, por doctor y por modelo (D82,
+   * 15/09/2026) — recorre todos los casos guardados, no solo el actual.
+   *
+   * @param rango Filtra por fecha (D83, 16/09/2026); sin él, el total de
+   *   siempre.
+   */
+  readonly resumenDashboard: (rango?: RangoFechas) => Promise<ResumenDashboard>
+  /** Doctores excluidos del dashboard (D83, 16/09/2026) — pruebas o errores, sin borrar el caso. */
+  readonly listarDoctoresExcluidosDeEstadisticas: () => Promise<readonly string[]>
+  readonly excluirDoctorDeEstadisticas: (nombre: string) => Promise<readonly string[]>
+  /** Deshace una exclusión — sus casos vuelven a contar. */
+  readonly incluirDoctorEnEstadisticas: (nombre: string) => Promise<readonly string[]>
+  /**
+   * Elimina de verdad (D85, 16/09/2026) los casos «lente calculada» de un
+   * doctor — los mismos que forman su barra ahora mismo, con el mismo
+   * rango que se esté mirando. No los borra para siempre: los archiva,
+   * fuera de `casos/`. Devuelve cuántos se movieron. La confirmación
+   * («¿seguro?») la pide la pantalla antes de llamar a esto.
+   */
+  readonly eliminarCasosDeDoctor: (nombre: string, rango?: RangoFechas) => Promise<number>
 
   /** Lee los documentos indicados, por ruta o por contenido. */
   readonly cargarDocumentos: (
@@ -130,6 +156,79 @@ export interface ApiVilamar {
     readonly nombrePaciente?: string
     readonly nombreCirujano?: string
   }) => Promise<Caso>
+
+  /** Los doctores guardados (D80, 15/09/2026), por nombre. */
+  readonly listarDoctores: () => Promise<readonly Doctor[]>
+  /**
+   * Añade un doctor nuevo (sin `id`) o edita uno ya existente (con `id`).
+   * Devuelve la lista entera ya actualizada.
+   */
+  readonly guardarDoctor: (doctor: {
+    readonly id?: string
+    readonly nombre: string
+    readonly sia: number | null
+    readonly ejeIncision: number | null
+  }) => Promise<readonly Doctor[]>
+  /** Devuelve la lista entera, ya sin ese doctor. */
+  readonly eliminarDoctor: (id: string) => Promise<readonly Doctor[]>
+  /**
+   * Pone el nombre de este doctor en la identificación del caso en curso y,
+   * si tiene SIA y/o eje de incisión guardados, los escribe en todos los
+   * ojos/aparatos que el caso ya tenga (D80) — mismo criterio que si la
+   * persona los hubiera tecleado a mano. Un doctor sin SIA/eje guardados
+   * todavía no toca esos campos.
+   */
+  readonly aplicarDoctor: (id: string) => Promise<Caso>
+
+  /**
+   * La bandeja de casos (D81, 15/09/2026): la cola de avisos que llegan de
+   * los delegados, ordenada sola por prioridad. La recepción y el reenvío
+   * del PDF siguen siendo por WhatsApp, fuera de la aplicación — esto solo
+   * organiza en qué orden trabajarlos y en qué punto va cada uno.
+   */
+  readonly listarBandeja: () => Promise<readonly EntradaBandeja[]>
+  readonly crearEntradaBandeja: (datos: {
+    readonly delegado: string
+    readonly descripcion: string
+    readonly prioridad: PrioridadBandeja
+    readonly notas: string
+  }) => Promise<readonly EntradaBandeja[]>
+  readonly editarEntradaBandeja: (
+    id: string,
+    datos: {
+      readonly delegado?: string
+      readonly descripcion?: string
+      readonly prioridad?: PrioridadBandeja
+      readonly notas?: string
+    },
+  ) => Promise<readonly EntradaBandeja[]>
+  /** Engancha esta entrada al caso que se acaba de crear o abrir para trabajarla. */
+  readonly vincularEntradaBandeja: (
+    id: string,
+    casoCodigo: string,
+  ) => Promise<readonly EntradaBandeja[]>
+  /** Se marca a mano cuando el PDF ya se ha reenviado por WhatsApp. */
+  readonly marcarEntradaBandejaEnviada: (
+    id: string,
+    enviado: boolean,
+  ) => Promise<readonly EntradaBandeja[]>
+  readonly eliminarEntradaBandeja: (id: string) => Promise<readonly EntradaBandeja[]>
+
+  /**
+   * La carpeta de entrada por prioridad (D84, 16/09/2026): fotos de
+   * biometría que llegan por WhatsApp, guardadas por el dueño en una
+   * carpeta de OneDrive compartida con el móvil, clasificadas a mano en
+   * tres subcarpetas (Alta/Normal/Baja).
+   */
+  readonly obtenerCarpetaEntrada: () => Promise<string | null>
+  /** Abre el diálogo de elegir carpeta, la guarda y prepara sus subcarpetas. `null` si se cancela. */
+  readonly elegirYConfigurarCarpetaEntrada: () => Promise<string | null>
+  /**
+   * Busca fotos nuevas en la carpeta de entrada, las archiva en
+   * «Importadas» y crea una entrada de bandeja por cada una. Devuelve la
+   * bandeja entera ya actualizada.
+   */
+  readonly buscarFotosNuevasEnCarpeta: () => Promise<readonly EntradaBandeja[]>
 
   readonly confirmarCampo: (
     ojo: Lateralidad,
@@ -312,10 +411,28 @@ export const CANALES = {
   casoActual: 'vilamar:caso-actual',
   listarCasosGuardados: 'vilamar:listar-casos-guardados',
   abrirCaso: 'vilamar:abrir-caso',
+  resumenDashboard: 'vilamar:resumen-dashboard',
+  listarDoctoresExcluidosDeEstadisticas: 'vilamar:listar-doctores-excluidos-estadisticas',
+  excluirDoctorDeEstadisticas: 'vilamar:excluir-doctor-estadisticas',
+  incluirDoctorEnEstadisticas: 'vilamar:incluir-doctor-estadisticas',
+  eliminarCasosDeDoctor: 'vilamar:eliminar-casos-de-doctor',
   cargarDocumentos: 'vilamar:cargar-documentos',
   elegirYCargarDocumentos: 'vilamar:elegir-y-cargar',
   editarMedida: 'vilamar:editar-medida',
   establecerIdentificacion: 'vilamar:establecer-identificacion',
+  listarDoctores: 'vilamar:listar-doctores',
+  guardarDoctor: 'vilamar:guardar-doctor',
+  eliminarDoctor: 'vilamar:eliminar-doctor',
+  aplicarDoctor: 'vilamar:aplicar-doctor',
+  listarBandeja: 'vilamar:listar-bandeja',
+  crearEntradaBandeja: 'vilamar:crear-entrada-bandeja',
+  editarEntradaBandeja: 'vilamar:editar-entrada-bandeja',
+  vincularEntradaBandeja: 'vilamar:vincular-entrada-bandeja',
+  marcarEntradaBandejaEnviada: 'vilamar:marcar-entrada-bandeja-enviada',
+  eliminarEntradaBandeja: 'vilamar:eliminar-entrada-bandeja',
+  obtenerCarpetaEntrada: 'vilamar:obtener-carpeta-entrada',
+  elegirYConfigurarCarpetaEntrada: 'vilamar:elegir-y-configurar-carpeta-entrada',
+  buscarFotosNuevasEnCarpeta: 'vilamar:buscar-fotos-nuevas-en-carpeta',
   confirmarCampo: 'vilamar:confirmar-campo',
   confirmarTodoElOjo: 'vilamar:confirmar-todo-el-ojo',
   elegirSexo: 'vilamar:elegir-sexo',

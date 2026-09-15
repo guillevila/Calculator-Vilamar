@@ -23,6 +23,15 @@ const api: ApiVilamar = {
   casoActual: () => ipcRenderer.invoke(CANALES.casoActual),
   listarCasosGuardados: () => ipcRenderer.invoke(CANALES.listarCasosGuardados),
   abrirCaso: (codigo) => ipcRenderer.invoke(CANALES.abrirCaso, codigo),
+  resumenDashboard: (rango) => ipcRenderer.invoke(CANALES.resumenDashboard, rango),
+  listarDoctoresExcluidosDeEstadisticas: () =>
+    ipcRenderer.invoke(CANALES.listarDoctoresExcluidosDeEstadisticas),
+  excluirDoctorDeEstadisticas: (nombre) =>
+    ipcRenderer.invoke(CANALES.excluirDoctorDeEstadisticas, nombre),
+  incluirDoctorEnEstadisticas: (nombre) =>
+    ipcRenderer.invoke(CANALES.incluirDoctorEnEstadisticas, nombre),
+  eliminarCasosDeDoctor: (nombre, rango) =>
+    ipcRenderer.invoke(CANALES.eliminarCasosDeDoctor, nombre, rango),
 
   cargarDocumentos: (rutas) => ipcRenderer.invoke(CANALES.cargarDocumentos, rutas),
   elegirYCargarDocumentos: () => ipcRenderer.invoke(CANALES.elegirYCargarDocumentos),
@@ -34,6 +43,22 @@ const api: ApiVilamar = {
   editarMedida: (ojo, campo, valor, aparato) =>
     ipcRenderer.invoke(CANALES.editarMedida, ojo, campo, valor, aparato),
   establecerIdentificacion: (datos) => ipcRenderer.invoke(CANALES.establecerIdentificacion, datos),
+  listarDoctores: () => ipcRenderer.invoke(CANALES.listarDoctores),
+  guardarDoctor: (doctor) => ipcRenderer.invoke(CANALES.guardarDoctor, doctor),
+  eliminarDoctor: (id) => ipcRenderer.invoke(CANALES.eliminarDoctor, id),
+  aplicarDoctor: (id) => ipcRenderer.invoke(CANALES.aplicarDoctor, id),
+  listarBandeja: () => ipcRenderer.invoke(CANALES.listarBandeja),
+  crearEntradaBandeja: (datos) => ipcRenderer.invoke(CANALES.crearEntradaBandeja, datos),
+  editarEntradaBandeja: (id, datos) => ipcRenderer.invoke(CANALES.editarEntradaBandeja, id, datos),
+  vincularEntradaBandeja: (id, casoCodigo) =>
+    ipcRenderer.invoke(CANALES.vincularEntradaBandeja, id, casoCodigo),
+  marcarEntradaBandejaEnviada: (id, enviado) =>
+    ipcRenderer.invoke(CANALES.marcarEntradaBandejaEnviada, id, enviado),
+  eliminarEntradaBandeja: (id) => ipcRenderer.invoke(CANALES.eliminarEntradaBandeja, id),
+  obtenerCarpetaEntrada: () => ipcRenderer.invoke(CANALES.obtenerCarpetaEntrada),
+  elegirYConfigurarCarpetaEntrada: () =>
+    ipcRenderer.invoke(CANALES.elegirYConfigurarCarpetaEntrada),
+  buscarFotosNuevasEnCarpeta: () => ipcRenderer.invoke(CANALES.buscarFotosNuevasEnCarpeta),
   confirmarCampo: (ojo, campo, aparato) =>
     ipcRenderer.invoke(CANALES.confirmarCampo, ojo, campo, aparato),
   confirmarTodoElOjo: (ojo, aparato) =>
