@@ -16,12 +16,22 @@ import { Fragment, useState } from 'react'
 import type { JSX } from 'react'
 
 import type { CampoBiometrico, Caso, Lateralidad } from '@vilamar/domain'
-import { APARATO_PRINCIPAL, aparatosDe, definicionDe, nombreLateralidad, ojoDe } from '@vilamar/domain'
+import {
+  APARATO_PRINCIPAL,
+  aparatosDe,
+  definicionDe,
+  nombreLateralidad,
+  ojoDe,
+} from '@vilamar/domain'
 
 import { api } from '../api.js'
 import { CAMPOS_DESTACADOS } from '../camposNucleo.js'
 import { IdentificacionCaso } from './Identificacion.js'
-import { SelectorAparato, SelectorAparatoCaraPosterior, SelectorSituacionCorneal } from './SelectorAparato.js'
+import {
+  SelectorAparato,
+  SelectorAparatoCaraPosterior,
+  SelectorSituacionCorneal,
+} from './SelectorAparato.js'
 import { SelectorLente } from './SelectorLente.js'
 
 interface Props {
@@ -40,6 +50,47 @@ interface GrupoDeCampos {
   /** «Obligatorios» en rojo, «Opcional» en ámbar, o nada. */
   readonly etiqueta?: { readonly texto: string; readonly clase: 'obligatorios' | 'opcional' }
   readonly campos: readonly (readonly [CampoBiometrico, CampoBiometrico | null])[]
+}
+
+/**
+ * Con qué aparato empezar a mirar un ojo que la persona todavía no ha
+ * elegido explícitamente (petición expresa del dueño, 08/09/2026): suele
+ * ser el mismo biómetro para los dos ojos del mismo paciente, en la misma
+ * visita, así que si ESTE ojo no tiene ningún dato propio todavía y el
+ * OTRO sí —con un único aparato, sin ambigüedad—, se sugiere ese nombre en
+ * vez de «Principal». Es solo el punto de partida: en cuanto este ojo
+ * escribe su primer dato, su dataset se crea con lo que haya en pantalla
+ * en ese momento, y se puede cambiar antes sin tocar nada del otro ojo
+ * (D47, invariante 12: los aparatos de los dos ojos nunca se mezclan).
+ *
+ * Si este ojo YA tiene su propio dataset, se respeta el suyo — nunca se
+ * sugiere nada por encima de un dato real.
+ *
+ * `aparatoPorOjo` (fallo real, 15/09/2026): al RENOMBRAR el aparato del
+ * otro ojo, `onElegir` guarda el nombre nuevo en este estado local de
+ * inmediato, pero `renombrarAparato()` en el proceso principal y el
+ * `onCambio()` que refresca `caso` siguen en marcha — hay un instante en
+ * el que la pantalla ya enseña el nombre nuevo pero `caso` (esta prop)
+ * todavía no lo sabe. Cambiar de ojo justo en ese instante hacía que esta
+ * función mirara el `caso` viejo, no encontrara ningún aparato en el otro
+ * lado, y cayera en «Principal» — el desplegable se veía en modo «Otro…»
+ * un instante, aunque el aparato ya se hubiera renombrado de verdad.
+ * Mirar primero `aparatoPorOjo` (lo que la propia pantalla acaba de
+ * elegir, antes incluso de que el caso lo confirme) evita la carrera sin
+ * tener que esperar a nada.
+ */
+function aparatoSugerido(
+  caso: Caso,
+  lado: Lateralidad,
+  aparatoPorOjo: Partial<Record<Lateralidad, string>>,
+): string {
+  const propios = aparatosDe(caso, lado)
+  if (propios.length > 0) return propios[0] ?? APARATO_PRINCIPAL
+  const otroLado: Lateralidad = lado === 'OD' ? 'OS' : 'OD'
+  const localOtro = aparatoPorOjo[otroLado]
+  if (localOtro !== undefined) return localOtro
+  const delOtro = aparatosDe(caso, otroLado)
+  return delOtro.length === 1 ? (delOtro[0] ?? APARATO_PRINCIPAL) : APARATO_PRINCIPAL
 }
 
 const GRUPOS: readonly GrupoDeCampos[] = [
@@ -87,9 +138,13 @@ const GRUPOS: readonly GrupoDeCampos[] = [
 export function FormularioManual({ caso, onCambio, onContinuar }: Props): JSX.Element {
   const [ladoActivo, setLadoActivo] = useState<Lateralidad>('OD')
   // El aparato activo es por ojo: cambiar de OD a OS no tiene por qué
-  // conservar el mismo biómetro seleccionado en el otro.
+  // conservar el mismo biómetro seleccionado en el otro. Pero mientras el
+  // ojo activo no tenga NINGÚN dato propio, se sugiere el del otro ojo si
+  // es el único que tiene (08/09/2026) — sigue siendo por ojo, solo que la
+  // sugerencia de partida ya no es siempre «Principal».
   const [aparatoPorOjo, setAparatoPorOjo] = useState<Partial<Record<Lateralidad, string>>>({})
-  const aparatoActivo = aparatoPorOjo[ladoActivo] ?? APARATO_PRINCIPAL
+  const aparatoActivo =
+    aparatoPorOjo[ladoActivo] ?? aparatoSugerido(caso, ladoActivo, aparatoPorOjo)
 
   async function continuar(): Promise<void> {
     // Red de seguridad de los valores por defecto (D38, ampliada): si el
@@ -131,7 +186,9 @@ export function FormularioManual({ caso, onCambio, onContinuar }: Props): JSX.El
           </div>
         </div>
         <div className="progreso">
-          <span>{porcentaje}% completo — {nombreLateralidad(ladoActivo)}</span>
+          <span>
+            {porcentaje}% completo — {nombreLateralidad(ladoActivo)}
+          </span>
           <div className="progreso-barra">
             <div className="progreso-relleno" style={{ width: `${porcentaje}%` }} />
           </div>
@@ -166,7 +223,9 @@ export function FormularioManual({ caso, onCambio, onContinuar }: Props): JSX.El
           caso={caso}
           lado={ladoActivo}
           aparatoActivo={aparatoActivo}
-          onElegir={(aparato) => setAparatoPorOjo((previo) => ({ ...previo, [ladoActivo]: aparato }))}
+          onElegir={(aparato) =>
+            setAparatoPorOjo((previo) => ({ ...previo, [ladoActivo]: aparato }))
+          }
           onCambio={onCambio}
         />
       </div>
@@ -180,15 +239,17 @@ export function FormularioManual({ caso, onCambio, onContinuar }: Props): JSX.El
               <p>{grupo.subtitulo}</p>
             </div>
             {grupo.etiqueta && (
-              <span className={`seccion-etiqueta ${grupo.etiqueta.clase}`}>{grupo.etiqueta.texto}</span>
+              <span className={`seccion-etiqueta ${grupo.etiqueta.clase}`}>
+                {grupo.etiqueta.texto}
+              </span>
             )}
           </div>
           {grupo.titulo === 'Mediciones de cara posterior' && (
             <>
               <p className="pie-nota" style={{ marginTop: -4, marginBottom: 8 }}>
-                Por defecto es el mismo aparato de arriba. Cámbialo aquí SOLO si la córnea
-                posterior se midió con otro instrumento — EVO y Barrett enseñan su propio
-                desplegable «Biometer»/«Device» para esto, aparte del resto del formulario.
+                Por defecto es el mismo aparato de arriba. Cámbialo aquí SOLO si la córnea posterior
+                se midió con otro instrumento — EVO y Barrett enseñan su propio desplegable
+                «Biometer»/«Device» para esto, aparte del resto del formulario.
               </p>
               <SelectorAparatoCaraPosterior
                 caso={caso}
@@ -263,14 +324,18 @@ export function FormularioManual({ caso, onCambio, onContinuar }: Props): JSX.El
 
       <div className="tarjeta">
         <div className="fila derecha">
-          <button className="principal grande" onClick={() => void continuar()} data-testid="manual-continuar">
+          <button
+            className="principal grande"
+            onClick={() => void continuar()}
+            data-testid="manual-continuar"
+          >
             Continuar
           </button>
         </div>
         <p className="pie-nota">
           * Campo obligatorio. En la siguiente pantalla ves todo lo escrito, con el sexo del
-          paciente si Kane lo necesita, y confirmas antes de calcular — igual que si vinieras de
-          un documento.
+          paciente si Kane lo necesita, y confirmas antes de calcular — igual que si vinieras de un
+          documento.
         </p>
       </div>
     </>
@@ -307,7 +372,14 @@ const VALOR_POR_DEFECTO: Partial<Record<CampoBiometrico, string>> = {
  * cualquier otro sitio del programa: un hueco no se rellena solo (D3),
  * salvo estas excepciones ya decididas (D38).
  */
-function CampoManual({ caso, ojo, aparato, campo, destacado, onCambio }: PropsCampoManual): JSX.Element {
+function CampoManual({
+  caso,
+  ojo,
+  aparato,
+  campo,
+  destacado,
+  onCambio,
+}: PropsCampoManual): JSX.Element {
   const datosOjo = ojoDe(caso, ojo, aparato)
   const def = definicionDe(campo)
   const medida = datosOjo.medidas[campo]
