@@ -9,7 +9,52 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 17/09/2026 (5) · **El dashboard junta las
+**Última actualización:** 20/09/2026 · **Empieza el plan de acceso desde
+el móvil (servidor + PWA) — de momento solo el andamiaje, sin ejecutar
+ni probar todavía (D91).** Nuevo proyecto, en la rama
+`feature/app-movil-servidor`, con su propia guía completa en
+`docs/PLAN-APP-MOVIL.md`: el producto deja de ser exclusivamente local
+(matiza D1) para poder funcionar también como servidor, y así el dueño
+y su mujer puedan calcular un caso desde el móvil. **Etapa real de esta
+pieza: prototipo interno, no demo ni producto** — nada de lo siguiente
+se ha visto funcionar de verdad todavía:
+
+1. `ServicioCasos` y el resto del proceso principal que no depende de
+   Electron (`almacen.ts`, `diagnostico.ts`, `capturas.ts`) se sacaron
+   de `apps/desktop/src/main/` a un paquete propio, `@vilamar/casos` —
+   movimiento mecánico, mismo comportamiento, mismos tests.
+2. Primer esqueleto de `apps/server` (Express): crear un caso, cargar
+   un documento, editar una medida, calcular, generar el PDF — sobre el
+   mismo `ServicioCasos`, con Playwright en vez de Electron para el
+   navegador de las calculadoras y para imprimir el PDF. **Sin login
+   todavía** (Fase 2 del plan, sin construir) — un único caso en
+   memoria, igual que hoy en escritorio — y con un lector de documentos
+   PROVISIONAL que solo entiende PDF con texto nativo (nada de
+   imágenes, OCR ni el lector con IA).
+3. **`apps/server` no se ha arrancado ni una sola vez** — a propósito:
+   esta sesión se hizo en el portátil de empresa del dueño, y el propio
+   plan pide expresamente no arrancar un servidor en red ni lanzar
+   Playwright ahí, porque el proyecto entero vive dentro de su OneDrive
+   corporativo y esa actividad puede llamar la atención de IT. La
+   primera prueba real —un caso completo contra EVO/Barrett/Kane
+   verdaderos, hasta el PDF— queda pendiente para el ordenador
+   personal.
+
+**Fallo real encontrado y corregido al retomar el trabajo (20/09/2026)**:
+la sesión anterior había sacado `ServicioCasos` a `@vilamar/casos` pero
+dejó `apps/desktop/src/main/index.ts` importando los ficheros movidos
+por su ruta antigua — **la propia app de escritorio, la que el dueño usa
+hoy, no compilaba** (`pnpm typecheck` fallaba con «Cannot find module»).
+El commit que hizo el movimiento ya avisaba del hueco («queda pendiente
+de actualizar, hay otra sesión editándolo en paralelo»); se cerró antes
+de seguir con nada más. `pnpm install --frozen-lockfile && pnpm lint &&
+pnpm typecheck && pnpm test` en verde (801 tests unitarios; el único
+fallo de la suite, `block-subagent-external.test.mjs`, es previo y no
+relacionado) — sin `pnpm test:e2e` ni `pnpm build` en esta sesión (no
+hacía falta para un cambio de imports puro). Decisión D91 en
+`SYSTEM_VISION.md`.
+
+Antes de esto — **17/09/2026 (5): el dashboard junta las
 distintas formas de escribir el mismo modelo de lente en una sola
 barra (D90).** El dueño enseñó una captura real: nueve barras para lo
 que eran solo dos lentes («Bausch & Lomb B&L Aspire»/«bausch and lomb

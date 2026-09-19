@@ -4,6 +4,50 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.51] — 20/09/2026 (sin cambio en la app de escritorio; no aplica «versión visible en pantalla»)
+
+feat(server): primer esqueleto del servidor Node para el acceso desde el
+móvil (Fase 1, D91) + fix(app): arregla la app de escritorio, que había
+quedado sin compilar tras el refactor anterior.
+
+### Qué se pidió
+
+Continuar `docs/PLAN-APP-MOVIL.md` desde donde lo dejó la sesión
+anterior: `ServicioCasos` ya sacado a `@vilamar/casos`, primer esqueleto
+de `apps/server` escrito. Nada de esto se había ejecutado ni una vez
+—a propósito, ver D91— ni se había reflejado en `PROJECT_STATUS.md`.
+
+### El cambio
+
+- Documentado formalmente en `SYSTEM_VISION.md` (D91) lo que
+  `docs/PLAN-APP-MOVIL.md` ya decidía: el producto deja de ser
+  exclusivamente local (matiza D1) para poder funcionar también como
+  servidor, con las condiciones ya acordadas con el dueño (VPS, no el
+  portátil de empresa, sin login todavía).
+- **Fallo real encontrado y corregido antes de seguir**:
+  `apps/desktop/src/main/index.ts` seguía importando
+  `almacen.ts`/`capturas.ts`/`diagnostico.ts`/`servicio-casos.ts` por
+  ruta relativa, después de que esos ficheros se movieran a
+  `@vilamar/casos` en la sesión anterior — la propia app de escritorio
+  no compilaba (`pnpm typecheck`: «Cannot find module»). El commit que
+  hizo el movimiento ya avisaba de este hueco; se cierra aquí.
+- Sin cambios de comportamiento en ningún sitio: ni en la app de
+  escritorio (vuelve a compilar, nada más) ni en `apps/server` (sigue
+  sin arrancarse).
+
+### Verificado
+
+- `pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test`
+  en verde (801 tests unitarios; el único fallo de la suite,
+  `block-subagent-external.test.mjs`, es previo y no relacionado).
+- **No se ha ejecutado `pnpm test:e2e` ni `pnpm build`** en esta sesión
+  (no hacía falta para un cambio de imports puro, y el resto no toca
+  nada de interfaz).
+- **`apps/server` sigue sin arrancarse ni una sola vez**: esta sesión se
+  hizo en el portátil de empresa del dueño, y `docs/PLAN-APP-MOVIL.md`
+  pide expresamente no lanzar un servidor en red ni Playwright ahí. La
+  primera prueba real queda pendiente para el ordenador personal.
+
 ## [1.15.50] — 17/09/2026 (versión visible en pantalla: v1.16)
 
 fix(app): el dashboard junta las distintas formas de escribir el mismo
