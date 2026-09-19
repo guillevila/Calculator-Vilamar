@@ -14,9 +14,7 @@ import type { Browser } from 'playwright'
 
 import type { ArchivoEntrante, EstadoCalculo } from '../compartido/ipc.js'
 import { CANALES } from '../compartido/ipc.js'
-import { nuevoId, prepararCarpetas } from './almacen.js'
-import { crearAlmacenCapturas } from './capturas.js'
-import { crearDiagnosticador } from './diagnostico.js'
+import { nuevoId, prepararCarpetas, crearAlmacenCapturas, crearDiagnosticador, ServicioCasos } from '@vilamar/casos'
 import { crearMotorOcr } from './extraccion/ocr.js'
 import { crearLectorPdf } from './extraccion/lector-pdf.js'
 import { crearRasterizador } from './extraccion/rasterizador.js'
@@ -24,7 +22,6 @@ import { ProveedorDocumentos } from './extraccion/proveedor.js'
 import { crearLectorVision } from './extraccion/vision-claude.js'
 import { cargarEnv } from './ajustes.js'
 import { ServicioBandeja } from './servicio-bandeja.js'
-import { ServicioCasos } from './servicio-casos.js'
 import { ServicioDoctores } from './servicio-doctores.js'
 
 const carpetaActual = join(fileURLToPath(import.meta.url), '..')
