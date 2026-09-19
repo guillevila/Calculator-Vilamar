@@ -103,7 +103,7 @@ import type {
   EstadoCalculo,
   ResumenCasoGuardado,
   ResumenExtraccion,
-} from '../compartido/ipc.js'
+} from './tipos.js'
 import type { Carpetas } from './almacen.js'
 import {
   guardarCaso,

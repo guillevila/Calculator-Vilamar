@@ -8,8 +8,8 @@
 
 import type { Doctor } from '@vilamar/domain'
 
-import type { Carpetas } from './almacen.js'
-import { guardarDoctores, leerDoctores } from './almacen.js'
+import type { Carpetas } from '@vilamar/casos'
+import { guardarDoctores, leerDoctores } from '@vilamar/casos'
 
 export class ServicioDoctores {
   constructor(

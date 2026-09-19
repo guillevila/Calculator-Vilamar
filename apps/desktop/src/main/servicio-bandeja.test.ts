@@ -8,7 +8,8 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { prepararCarpetas } from './almacen.js'
+import { prepararCarpetas } from '@vilamar/casos'
+
 import { ServicioBandeja } from './servicio-bandeja.js'
 
 const carpetas: string[] = []

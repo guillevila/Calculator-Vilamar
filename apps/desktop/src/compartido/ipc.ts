@@ -12,7 +12,6 @@ import type {
   Caso,
   Doctor,
   EntradaBandeja,
-  EstadoCaso,
   Lateralidad,
   CampoBiometrico,
   PrioridadBandeja,
@@ -23,60 +22,19 @@ import type {
   ResumenDashboard,
   SituacionCornealEspecial,
 } from '@vilamar/domain'
-
 /**
- * Un fichero que se va a leer. Llega por RUTA o, si no hay ruta, por contenido.
- *
- * Se admiten los dos caminos porque ninguno funciona siempre:
- *
- *  - **La ruta** es lo preferible: el proceso principal lee el fichero una sola
- *    vez, donde tiene acceso al disco, y no se copia nada por IPC. Es lo que se
- *    usa al elegir un fichero con el diálogo del sistema.
- *  - **El contenido** hace falta para los ficheros arrastrados a la ventana:
- *    `webUtils.getPathForFile` a veces devuelve una cadena vacía y entonces no
- *    hay ruta que mandar. Se comprobó que un `Uint8Array` **sí sobrevive
- *    íntegro al IPC** —llega con su tipo, su longitud y sus bytes—, así que es
- *    un camino perfectamente válido; solo copia datos de más.
- *
- * Exactamente uno de los dos tiene que venir.
+ * Estos cuatro tipos son del contrato de `ServicioCasos`, no del IPC en sí —
+ * se movieron a `@vilamar/casos` (20/09/2026, Fase 1 del plan móvil) para que
+ * un servidor Node pueda usarlos sin saber nada de Electron. Se reexportan
+ * aquí tal cual para no tener que tocar ningún otro import de esta app.
  */
-export interface ArchivoEntrante {
-  readonly nombre: string
-  readonly ruta?: string
-  readonly datos?: Uint8Array
-}
-
-export interface ResumenExtraccion {
-  readonly documentoId: string
-  readonly nombreArchivo: string
-  readonly dispositivo: string
-  readonly nombreDispositivo: string
-  readonly confianzaDispositivo: number
-  readonly explicacionOjos: string
-  readonly ojosEncontrados: readonly Lateralidad[]
-  readonly avisos: readonly string[]
-}
-
-/**
- * Lo mínimo de un caso guardado para poder elegirlo en una lista, sin tener
- * que cargarlo entero (02/09/2026: «Casos guardados», para volver a abrir
- * uno después de cerrar la aplicación).
- */
-export interface ResumenCasoGuardado {
-  readonly codigo: string
-  readonly estado: EstadoCaso
-  readonly actualizadoEn: string
-  /** Si el caso lo tiene — nunca sale de este ordenador (D44), y aquí tampoco. */
-  readonly nombrePaciente?: string
-}
-
-export interface EstadoCalculo {
-  readonly calculadora: Calculadora
-  readonly ojo: Lateralidad
-  readonly fase: string
-  readonly mensaje: string
-  readonly requiereUsuario: boolean
-}
+import type {
+  ArchivoEntrante,
+  EstadoCalculo,
+  ResumenCasoGuardado,
+  ResumenExtraccion,
+} from '@vilamar/casos'
+export type { ArchivoEntrante, EstadoCalculo, ResumenCasoGuardado, ResumenExtraccion }
 
 /** Lo que la interfaz puede pedirle al proceso principal. */
 export interface ApiVilamar {

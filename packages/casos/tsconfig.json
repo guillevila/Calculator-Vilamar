@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // `@vilamar/integrations` trae los tipos del DOM para sus callbacks de
+    // `evaluate` (ver su propio tsconfig) — al importarlo aquí, este
+    // proyecto de TypeScript también necesita esa librería.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"]
+}

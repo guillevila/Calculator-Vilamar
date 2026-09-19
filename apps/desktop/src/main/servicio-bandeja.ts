@@ -34,13 +34,13 @@ import { existsSync, mkdirSync, readdirSync, renameSync, statSync } from 'node:f
 import type { EntradaBandeja, PrioridadBandeja } from '@vilamar/domain'
 import { CARPETA_IMPORTADAS, NOMBRE_CARPETA_PRIORIDAD, ordenarBandeja } from '@vilamar/domain'
 
-import type { Carpetas } from './almacen.js'
+import type { Carpetas } from '@vilamar/casos'
 import {
   guardarBandeja,
   guardarCarpetaEntrada,
   leerBandeja,
   leerCarpetaEntrada,
-} from './almacen.js'
+} from '@vilamar/casos'
 
 /** Mismas extensiones que admite «Elegir archivo» en la pantalla de inicio. */
 const EXTENSIONES_VALIDAS = new Set(['.pdf', '.jpg', '.jpeg', '.png'])
