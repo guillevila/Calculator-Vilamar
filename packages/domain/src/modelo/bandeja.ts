@@ -17,6 +17,14 @@
  * móvil, dentro de tres subcarpetas por prioridad. `NOMBRE_CARPETA_PRIORIDAD`
  * es el único sitio que sabe cómo se llama cada una — si algún día cambian
  * de nombre, es el único punto que hay que tocar.
+ *
+ * **Varias fotos del mismo paciente** (D86, 17/09/2026): dentro de
+ * Alta/Normal/Baja se puede crear una subcarpeta con el nombre del
+ * paciente y meter ahí todas sus fotos (las dos del mismo ojo, o las de
+ * los dos ojos) — se detectan como UN solo aviso, con esa carpeta de
+ * nombre, y las carga todas juntas de una vez. Por eso `rutaFoto`
+ * (singular) pasó a `rutasFotos` (una lista): un fichero suelto sigue
+ * siendo un aviso con una sola foto, como siempre.
  */
 
 export type PrioridadBandeja = 'URGENTE' | 'NORMAL' | 'BAJA'
@@ -55,12 +63,12 @@ export interface EntradaBandeja {
   /** Se marca a mano cuando el PDF ya se ha reenviado por WhatsApp — no hay forma de saberlo sola. */
   readonly enviado: boolean
   /**
-   * La foto de la carpeta de entrada (D84) que dio origen a este aviso, ya
-   * archivada en «Importadas» — `null` si la entrada se apuntó a mano. Al
-   * pulsar «Empezar», esta foto se carga y se lee sola, en vez de arrancar
-   * un caso en blanco.
+   * Las fotos de la carpeta de entrada (D84/D86) que dieron origen a este
+   * aviso, ya archivadas en «Importadas» — vacío si la entrada se apuntó
+   * a mano. Al pulsar «Empezar», se cargan y se leen todas juntas, en vez
+   * de arrancar un caso en blanco.
    */
-  readonly rutaFoto: string | null
+  readonly rutasFotos: readonly string[]
 }
 
 const ORDEN_PRIORIDAD: Readonly<Record<PrioridadBandeja, number>> = {

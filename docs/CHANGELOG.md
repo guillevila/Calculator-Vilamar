@@ -4,6 +4,219 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.50] — 17/09/2026 (versión visible en pantalla: v1.16)
+
+fix(app): el dashboard junta las distintas formas de escribir el mismo
+modelo de lente en una sola barra, en vez de una por cada variante (D90).
+
+### Qué se pidió
+
+El dueño del proyecto, con una captura de pantalla real: «en las
+estadísticas del dashboard me parecen lentes con nombres muy
+parecidos y que en realidad son la misma... júntalas con el nombre
+primero que es el que sale en los desplegables de las lentes».
+
+### El cambio
+
+`dashboard.ts` agrupaba «Por modelo de lente» por el texto exacto, así
+que «Bausch & Lomb B&L Aspire» (catálogo), «bausch and lomb aspire» y
+«bausch& lomb aspire» (texto libre) sacaban tres barras minúsculas en
+vez de sumarse a la de verdad. Ahora agrupa por `claveLente()` —la
+misma clave que ya usa el resto del programa para emparejar la lente
+elegida con la tabla del informe (D50)—, con un añadido solo para el
+dashboard: también quita «B&L»/«B+L», la abreviatura que el propio
+catálogo mete dentro del nombre del modelo, porque un texto libre casi
+nunca la trae. Dentro de cada grupo se enseña la forma que más veces
+se escribió así tal cual — en la práctica, la del desplegable.
+
+### Verificado
+
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde (790 tests unitarios; el único fallo de la suite es previo y
+  no relacionado; 57/57 de interfaz).
+- Dos tests unitarios nuevos: reproducción literal de la captura (33
+  casos de Aspire en cuatro formas, 23 de Envy en dos formas → dos
+  barras, con los totales y el nombre del catálogo); y una prueba
+  negativa (Aspire y Envy nunca se juntan entre sí, aunque compartan
+  fabricante).
+
+---
+
+## [1.15.49] — 17/09/2026 (versión visible en pantalla: v1.15)
+
+feat(app): la foto de «Importadas» se borra en cuanto el caso se
+calcula y ya está a salvo en «Datos previos» del doctor (D89).
+
+### Qué se pidió
+
+El dueño del proyecto: «una vez que las imágenes pasan a la carpeta de
+importadas y se usan para calcular, lo mejor sería que desaparezcan de
+allí para que no se acumulen, pues si las necesitamos ya están en la
+carpeta del dr en la sesión datos previos».
+
+### El cambio
+
+`DocumentoCargado` gana `rutaOrigenEntrada` — solo se rellena cuando el
+fichero cargado vive dentro de `<carpeta de entrada>/Importadas`; un
+fichero elegido a mano desde cualquier otro sitio del disco nunca lo
+lleva, y por tanto nunca se toca. Al generar el PDF, justo después de
+copiar el documento a `<Doctor>/Datos previos/` (D87) y comprobar que
+la copia existe de verdad, se borra el original de Importadas. Si esa
+foto vivía en una subcarpeta agrupada (D86) que se queda vacía tras
+borrar la última, la subcarpeta también se quita — pero la propia
+carpeta «Importadas» nunca se borra, aunque quede vacía: sigue
+haciendo falta para la siguiente búsqueda.
+
+### Verificado
+
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde (788 tests unitarios; el único fallo de la suite es previo y
+  no relacionado; 57/57 de interfaz).
+- Tres tests unitarios nuevos (`servicio-casos.borrar-importadas.test.ts`):
+  una foto suelta desaparece de Importadas tras calcular y sigue en
+  Datos previos; un fichero fuera de Importadas nunca se borra; una
+  subcarpeta agrupada se quita entera cuando sus fotos ya se archivaron.
+
+---
+
+## [1.15.48] — 17/09/2026 (versión visible en pantalla: v1.14)
+
+fix(app): la fusión de fotos del mismo ojo (D88) solo ocurre con el
+aparato reconocido — sin reconocer, nunca se fusiona, sale como «Otro».
+
+### Qué se pidió
+
+El dueño probó el arreglo anterior (D88, v1.13) y aclaró el criterio
+correcto: «cuando no reconozca el aparato, no la fusione con el otro,
+haga lo mismo y meta los datos como si fuera otro aparato pero que
+ponga OTRO y ya edito yo el nombre». Confirmó, además, que el caso de
+dos aparatos DISTINTOS Y RECONOCIDOS ya funcionaba perfectamente.
+
+### El cambio
+
+La fusión de D88 pasa a exigir dos condiciones, no una: el dispositivo
+detectado tiene que ser el MISMO **y** estar RECONOCIDO. Cuando no se
+reconoce ninguno de los dos, ya no se fusionan — cada foto se queda
+como su propio aparato, con un nombre libre (`nombreAparatoLibreParaDesconocido`):
+«Otro», o «Otro (2)», «Otro (3)»… si ya había uno, para no pisarse
+entre sí y para que la persona lo renombre a mano con el aparato real.
+
+### Verificado
+
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde (785 tests unitarios; el único fallo de la suite es previo y
+  no relacionado; 57/57 de interfaz).
+- Cuatro tests unitarios (`servicio-casos.cargar-documentos.test.ts`):
+  mismo aparato reconocido → se fusionan; aparato no reconocido en las
+  dos → dos datasets, «Principal» y «Otro»; una tercera foto sin
+  reconocer → «Otro (2)», no pisa la anterior; aparatos de verdad
+  distintos y reconocidos → siguen separados, sin romper D47.
+
+---
+
+## [1.15.47] — 17/09/2026 (versión visible en pantalla: v1.13)
+
+fix(app): dos o más fotos del mismo ojo, cargadas juntas, se fusionan
+en un solo dataset en vez de repartirse en aparatos separados (D88).
+
+### Qué se pidió
+
+El dueño del proyecto, tras probar D86: «sigue sin funcionar si tengo
+dos imágenes o más del mismo paciente; al crear el caso sube una, y
+luego al darle a otro aparato la encuentra, pero no la sube».
+
+### La causa
+
+D86 hacía que la carpeta de entrada ENCONTRARA las fotos agrupadas en
+una subcarpeta, pero `cargarDocumentos()` seguía tratando cada foto
+adicional del mismo ojo como un biómetro distinto (D47): la etiquetaba
+con el nombre del aparato detectado y creaba un dataset NUEVO, en vez
+de fusionarla con el que ya había. Dos fotos del mismo examen —partido
+en dos porque no cabía entero en el encuadre del móvil— acababan en dos
+pestañas de «aparato» separadas, cada una con solo una parte de los
+campos; el dueño veía la primera pestaña incompleta y creía que «solo
+sube una». Confirmado con una prueba real antes de tocar nada — no se
+adivinó el fallo, se reprodujo primero.
+
+### El cambio
+
+Dentro de una misma llamada a `cargarDocumentos()` (varias fotos
+elegidas a la vez, o agrupadas por una subcarpeta de la carpeta de
+entrada, D86), un documento que trae datos de un ojo que ya tiene
+dataset creado por OTRO documento de esta misma carga se fusiona con
+él, siempre que el dispositivo detectado sea el mismo (incluido cuando
+ninguna de las dos fotos se reconoce). Un campo nuevo se añade; uno que
+las dos fotos traen conserva el de la primera, con aviso. Si el
+dispositivo es REALMENTE distinto, sigue comportándose como D47:
+datasets separados, sin fusionar. Cargar un documento en una llamada
+POSTERIOR (con el caso ya abierto) no cambia.
+
+**Corregido el mismo día, ver v1.14 arriba**: el caso «ninguno de los
+dos se reconoce» se fusionaba también, y no debía.
+
+### Verificado
+
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde (784 tests unitarios; el único fallo de la suite es previo y
+  no relacionado; 57/57 de interfaz).
+- Tres tests unitarios nuevos que reproducen el caso real: dos fotos
+  del mismo aparato se fusionan con todos sus campos; dos fotos sin
+  aparato reconocido también se fusionan; dos fotos de aparatos de
+  verdad distintos siguen creando dos datasets, para no romper D47.
+
+---
+
+## [1.15.46] — 17/09/2026 (versión visible en pantalla: v1.12)
+
+feat(app): carpeta de entrada agrupa varias fotos por subcarpeta (D86),
+PDF organizado por doctor con «Calculados» y «Datos previos» (D87).
+
+### Qué se pidió
+
+El dueño del proyecto, probando la carpeta de entrada (D84): si un
+paciente tiene varias fotos del mismo ojo, hoy se guardan sueltas en la
+carpeta de prioridad; había intentado él mismo crear una subcarpeta con
+el nombre del paciente dentro de «Normal», pero al pulsar «Buscar fotos
+nuevas» la aplicación no la encontraba — pedía que sí se pudieran crear
+esas subcarpetas para tener todo ordenado. Aparte, que los PDF de los
+cálculos ya no vayan todos juntos a una carpeta general, sino por
+doctor, y dentro de cada doctor, una carpeta de «Datos previos» (la
+biometría original) y otra de «Calculados» (los resultados).
+
+### El cambio
+
+- `EntradaBandeja.rutaFoto` (una ruta) pasa a `rutasFotos` (una lista).
+  Una subcarpeta con nombre de paciente, dentro de Alta/Normal/Baja, con
+  una o más fotos válidas, se agrupa en UN solo aviso de la Bandeja, con
+  el nombre de la carpeta como descripción; una vacía o sin fotos
+  válidas no genera ningún aviso. `leerBandeja()` migra sola las
+  entradas antiguas que todavía tuvieran `rutaFoto` en el disco del
+  dueño. La búsqueda en la raíz de la carpeta de entrada sigue siendo
+  solo de ficheros sueltos — agrupar ahí confundía las propias carpetas
+  Alta/Normal/Baja/Importadas con carpetas de paciente, fallo real
+  encontrado con los tests nuevos y corregido antes de cerrar el cambio.
+- `generarPdf()`: la ruta pasa de `<carpeta informes>/<Paciente>/<Ojo>/`
+  a `<carpeta informes>/<Doctor>/Calculados/<Paciente>/<Ojo>/`. Un caso
+  sin doctor cae en una carpeta fija «Sin doctor» (mismo texto que ya
+  usa el dashboard, D82/D83). Nuevo `archivarDatosPrevios()`: copia cada
+  documento que el caso tenga cargado a
+  `<Doctor>/Datos previos/<Paciente>/`, con su nombre original — un caso
+  escrito a mano, sin documentos, no crea esa carpeta.
+
+### Verificado
+
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde (781 tests unitarios; el único fallo de la suite es previo y
+  no relacionado — un `SyntaxError` en un hook por un carácter especial
+  en un comentario; 57/57 de interfaz).
+- Tests unitarios nuevos: tres para el agrupado por subcarpeta (bandeja)
+  y cuatro para la carpeta por doctor/«Datos previos»/«Calculados» (PDF).
+- Dos tests de interfaz de punta a punta que generan un PDF real y
+  comprueban la ruta completa en disco, incluido un nombre de doctor con
+  caracteres prohibidos en Windows.
+
+---
+
 ## [1.15.45] — 16/09/2026 (versión visible en pantalla: v1.11)
 
 style(app): color por prioridad en la bandeja (Urgente pulsa) y botones

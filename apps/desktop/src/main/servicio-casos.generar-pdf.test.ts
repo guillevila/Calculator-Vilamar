@@ -10,7 +10,7 @@
  * completa cada tarea que se le pida sin tocar ninguna web, para poder
  * comprobar `generarPdf()` sin depender de una calculadora externa.
  */
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -70,9 +70,13 @@ afterEach(() => {
   }
 })
 
-function servicioDePrueba(): InstanceType<typeof ServicioCasos> {
+function servicioDePrueba(): {
+  servicio: InstanceType<typeof ServicioCasos>
+  carpetas: ReturnType<typeof prepararCarpetas>
+} {
+  const carpetasDePrueba = prepararCarpetas(raizTemporal())
   const dep: DependenciasServicio = {
-    carpetas: prepararCarpetas(raizTemporal()),
+    carpetas: carpetasDePrueba,
     proveedor: {
       nombre: 'test',
       puedeCon: () => false,
@@ -87,12 +91,12 @@ function servicioDePrueba(): InstanceType<typeof ServicioCasos> {
     emitirProgreso: () => {},
     emitirCaso: () => {},
   }
-  return new ServicioCasos(dep)
+  return { servicio: new ServicioCasos(dep), carpetas: carpetasDePrueba }
 }
 
 describe('generarPdf — no saca un PDF vacío de un ojo que nunca se calculó', () => {
   it('con datos en los dos ojos pero solo OD calculado, solo sale el PDF de OD', async () => {
-    const servicio = servicioDePrueba()
+    const { servicio } = servicioDePrueba()
     servicio.nuevo()
     servicio.establecerIdentificacion({
       nombrePaciente: 'Paciente De Prueba',
@@ -117,7 +121,7 @@ describe('generarPdf — no saca un PDF vacío de un ojo que nunca se calculó',
   })
 
   it('con los dos ojos calculados, salen los dos PDF de siempre', async () => {
-    const servicio = servicioDePrueba()
+    const { servicio } = servicioDePrueba()
     servicio.nuevo()
     servicio.establecerIdentificacion({
       nombrePaciente: 'Paciente De Prueba',
@@ -141,7 +145,7 @@ describe('generarPdf — no saca un PDF vacío de un ojo que nunca se calculó',
   // resultados, dejando `generarPdf()` sin sacar ningún PDF — rotura real
   // encontrada al pasar la suite completa de interfaz.
   it('sin haber calculado nada todavía, sigue saliendo un PDF por cada ojo con datos', async () => {
-    const servicio = servicioDePrueba()
+    const { servicio } = servicioDePrueba()
     servicio.nuevo()
     servicio.establecerIdentificacion({
       nombrePaciente: 'Paciente De Prueba',
@@ -154,5 +158,66 @@ describe('generarPdf — no saca un PDF vacío de un ojo que nunca se calculó',
     const { rutas } = await servicio.generarPdf()
 
     expect(rutas.map((r) => r.ojo).sort()).toEqual(['OD', 'OS'])
+  })
+})
+
+describe('generarPdf — carpeta por doctor, con «Calculados» y «Datos previos» (D87, 17/09/2026)', () => {
+  it('el PDF cae dentro de <doctor>/Calculados/<paciente>/<ojo>', async () => {
+    const { servicio } = servicioDePrueba()
+    servicio.nuevo()
+    servicio.establecerIdentificacion({
+      nombrePaciente: 'Paciente De Prueba',
+      nombreCirujano: 'Dra. Ruiz',
+    })
+    servicio.editarMedida('OD', 'AL', 24.0)
+
+    const { rutas } = await servicio.generarPdf()
+
+    expect(rutas[0]?.ruta).toContain(
+      join('Dra. Ruiz', 'Calculados', 'Paciente De Prueba', 'Ojo derecho (OD)'),
+    )
+  })
+
+  it('sin doctor asignado, cae en una carpeta «Sin doctor» — no se pierde ni se mezcla suelto', async () => {
+    const { servicio } = servicioDePrueba()
+    servicio.nuevo()
+    servicio.establecerIdentificacion({ nombrePaciente: 'Paciente De Prueba' })
+    servicio.editarMedida('OD', 'AL', 24.0)
+
+    const { rutas } = await servicio.generarPdf()
+
+    expect(rutas[0]?.ruta).toContain(join('Sin doctor', 'Calculados', 'Paciente De Prueba'))
+  })
+
+  it('un nombre de doctor con caracteres prohibidos en Windows no rompe la carpeta', async () => {
+    const { servicio } = servicioDePrueba()
+    servicio.nuevo()
+    servicio.establecerIdentificacion({
+      nombrePaciente: 'Paciente De Prueba',
+      nombreCirujano: 'Dr. Pérez: Ruiz / Test',
+    })
+    servicio.editarMedida('OD', 'AL', 24.0)
+
+    const { rutas } = await servicio.generarPdf()
+
+    expect(rutas[0]?.ruta).toContain(
+      join('Dr. Pérez Ruiz Test', 'Calculados', 'Paciente De Prueba'),
+    )
+  })
+
+  it('un caso escrito a mano (sin ningún documento cargado) no crea ninguna carpeta «Datos previos»', async () => {
+    const { servicio, carpetas } = servicioDePrueba()
+    servicio.nuevo()
+    servicio.establecerIdentificacion({
+      nombrePaciente: 'Paciente De Prueba',
+      nombreCirujano: 'Dra. Ruiz',
+    })
+    servicio.editarMedida('OD', 'AL', 24.0)
+
+    await servicio.generarPdf()
+
+    const raizDoctor = join(carpetas.informes, 'Dra. Ruiz')
+    expect(existsSync(join(raizDoctor, 'Datos previos'))).toBe(false)
+    expect(existsSync(join(raizDoctor, 'Calculados'))).toBe(true)
   })
 })

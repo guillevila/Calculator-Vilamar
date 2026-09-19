@@ -9,7 +9,85 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 16/09/2026 (6) · **Color por prioridad en la
+**Última actualización:** 17/09/2026 (5) · **El dashboard junta las
+distintas formas de escribir el mismo modelo de lente en una sola
+barra (D90).** El dueño enseñó una captura real: nueve barras para lo
+que eran solo dos lentes («Bausch & Lomb B&L Aspire»/«bausch and lomb
+aspire»/…, «Bausch & Lomb B&L Envy»/«BAUSCH AND LOMB ENVY»). Ahora
+agrupa por `claveLente()` (ya existente, D50) más quitar «B&L»/«B+L» —
+la abreviatura que el propio catálogo mete en el nombre del modelo—,
+solo para esta vista; el resto del programa (emparejar con la tabla
+del informe) no se toca, para no arriesgar aplicar la constante A de
+otra lente por un emparejamiento demasiado generoso. `pnpm lint &&
+pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e` en verde
+(790 tests unitarios; el único fallo de la suite es previo y no
+relacionado; 57/57 de interfaz).
+
+Antes de esto — **17/09/2026 (4): la foto de «Importadas»
+(carpeta de entrada) se borra en cuanto el caso se calcula y ya tiene
+su copia a salvo en «Datos previos» del doctor (D89).** Petición del
+dueño: que las fotos ya usadas no se queden acumulando en Importadas,
+puesto que ya están archivadas en la carpeta del doctor. Solo se borra
+un fichero que el propio programa metió ahí (nunca uno elegido a mano
+desde otro sitio del disco), y solo DESPUÉS de comprobar que la copia
+en Datos previos existe de verdad — nunca antes. Una subcarpeta
+agrupada (D86) que se queda vacía también se quita, pero la carpeta
+«Importadas» en sí nunca se borra. `pnpm lint && pnpm typecheck && pnpm
+test && pnpm build && pnpm test:e2e` en verde (788 tests unitarios; el
+único fallo de la suite es previo y no relacionado; 57/57 de interfaz).
+
+Antes de esto — **17/09/2026 (3): la fusión de fotos del
+mismo ojo (D88) solo ocurre con el aparato reconocido — sin reconocer,
+ya nunca se fusiona, sale como «Otro».** El dueño probó la versión
+anterior (misma tarde) y aclaró el criterio: cuando el aparato SÍ se
+reconoce y es distinto, ya funcionaba perfectamente (dos aparatos, una
+biometría cada uno, tal y como debe ser); el problema era que, cuando
+NINGUNA de las dos fotos se reconocía, también se fusionaban — y eso no
+lo quería, porque podrían ser dos biómetros de verdad distintos que el
+programa simplemente no sabe nombrar. Ahora, sin reconocer, cada foto
+se queda como su propio aparato («Otro», «Otro (2)»…) para que la
+persona lo renombre a mano. `pnpm lint && pnpm typecheck && pnpm test
+&& pnpm build && pnpm test:e2e` en verde (785 tests unitarios; el único
+fallo de la suite es previo y no relacionado; 57/57 de interfaz).
+
+Antes de esto — **17/09/2026 (2): dos o más fotos del mismo
+ojo, cargadas juntas, se fusionan en un solo dataset (D88) — corrige
+D86 el mismo día.** El dueño probó D86 y seguía sin funcionar: «al
+crear el caso sube una [foto], y luego al darle a otro aparato la
+encuentra, pero no la sube». Causa real, confirmada con una prueba
+antes de arreglar nada: `cargarDocumentos()` etiquetaba cada foto
+adicional del mismo ojo como un biómetro distinto (D47) en vez de
+fusionarla — dos fotos del mismo examen, partido en dos porque no cabía
+en un encuadre, acababan en dos pestañas de «aparato» separadas, cada
+una con solo parte de los campos. Ahora, dentro de la MISMA carga,
+documentos del mismo ojo con el mismo dispositivo detectado se
+fusionan (campos que se completan; un mismo campo repetido conserva el
+de la primera foto, con aviso); si el dispositivo es de verdad
+distinto, sigue creando dos datasets separados, como siempre (D47).
+`pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+en verde (784 tests unitarios; el único fallo de la suite es previo y
+no relacionado; 57/57 de interfaz).
+
+Antes de esto — **17/09/2026 (1): carpeta de entrada agrupa
+varias fotos por subcarpeta de paciente (D86), y los PDF se organizan
+por doctor con «Calculados»/«Datos previos» (D87).** Petición del dueño
+tras probar la carpeta de entrada: había creado a mano una subcarpeta
+con el nombre del paciente dentro de «Normal» para juntar varias fotos
+del mismo ojo, pero «Buscar fotos nuevas» no la encontraba. Ahora una
+subcarpeta con fotos válidas, dentro de Alta/Normal/Baja, se agrupa en
+UN solo aviso de la Bandeja (`EntradaBandeja.rutasFotos`, antes
+`rutaFoto` único); la raíz de la carpeta de entrada sigue siendo solo de
+ficheros sueltos, a propósito. Aparte, `generarPdf()` deja de escribir
+todo en una carpeta general: ahora es
+`<informes>/<Doctor>/Calculados/<Paciente>/<Ojo>/`, con un
+`<Doctor>/Datos previos/<Paciente>/` nuevo que archiva copia de los
+documentos originalmente cargados (un caso escrito a mano no crea esa
+carpeta); sin doctor asignado, cae en «Sin doctor» (mismo texto que el
+dashboard). `pnpm lint && pnpm typecheck && pnpm test && pnpm build &&
+pnpm test:e2e` en verde (781 tests unitarios; el único fallo de la suite
+es previo y no relacionado; 57/57 de interfaz).
+
+Antes de esto — **16/09/2026 (6): color por prioridad en la
 bandeja (Urgente pulsa), y botones de la barra superior con relieve en
 tonos de azul distintos.** Petición de estilo del dueño: en la bandeja,
 cada fila entera se tiñe de verde/azul/rojo según su prioridad

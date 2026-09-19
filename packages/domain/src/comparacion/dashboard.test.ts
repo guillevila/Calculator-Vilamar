@@ -72,6 +72,49 @@ describe('calcularResumenDashboard', () => {
     )
   })
 
+  it(
+    'junta variantes de escritura del mismo modelo (D90, 17/09/2026) — caso real reportado ' +
+      'por el dueño: «Bausch & Lomb B&L Aspire», «bausch and lomb aspire», «bausch& lomb aspire» ' +
+      'y «BAUSCH AND LOMB ENVY» no debían salir como barras aparte',
+    () => {
+      const resumen = calcularResumenDashboard([
+        ...Array.from({ length: 30 }, (_, i) =>
+          casoCompletado(`aspire-catalogo-${i}`, {
+            lente: { modelo: 'B&L Aspire', fabricante: 'Bausch & Lomb' },
+          }),
+        ),
+        casoCompletado('aspire-1', { lente: { modelo: 'bausch & lomb aspire' } }),
+        casoCompletado('aspire-2', { lente: { modelo: 'bausch and lomb aspire' } }),
+        casoCompletado('aspire-3', { lente: { modelo: 'bausch& lomb aspire' } }),
+        ...Array.from({ length: 22 }, (_, i) =>
+          casoCompletado(`envy-catalogo-${i}`, {
+            lente: { modelo: 'B&L Envy', fabricante: 'Bausch & Lomb' },
+          }),
+        ),
+        casoCompletado('envy-1', { lente: { modelo: 'BAUSCH AND LOMB ENVY' } }),
+      ])
+
+      expect(resumen.porModeloLente).toEqual([
+        { etiqueta: 'Bausch & Lomb B&L Aspire', cantidad: 33 },
+        { etiqueta: 'Bausch & Lomb B&L Envy', cantidad: 23 },
+      ])
+    },
+  )
+
+  it('dos modelos de verdad distintos (Aspire y Envy) nunca se juntan, aunque compartan fabricante', () => {
+    const resumen = calcularResumenDashboard([
+      casoCompletado('1', { lente: { modelo: 'B&L Aspire', fabricante: 'Bausch & Lomb' } }),
+      casoCompletado('2', { lente: { modelo: 'B&L Envy', fabricante: 'Bausch & Lomb' } }),
+    ])
+    expect(resumen.porModeloLente).toEqual(
+      expect.arrayContaining([
+        { etiqueta: 'Bausch & Lomb B&L Aspire', cantidad: 1 },
+        { etiqueta: 'Bausch & Lomb B&L Envy', cantidad: 1 },
+      ]),
+    )
+    expect(resumen.porModeloLente).toHaveLength(2)
+  })
+
   it('filtra por rango de fechas, comparando el día de actualizadoEn', () => {
     const casos = [
       {

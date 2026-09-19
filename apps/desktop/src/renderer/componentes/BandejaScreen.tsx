@@ -1,6 +1,7 @@
 /**
  * BandejaScreen.tsx — La cola de avisos de los delegados (D81, 15/09/2026;
- * carpeta de entrada por prioridad D84, 16/09/2026).
+ * carpeta de entrada por prioridad D84, 16/09/2026; varias fotos por
+ * paciente D86, 17/09/2026).
  *
  * Petición expresa del dueño del proyecto: recibe casos por WhatsApp de
  * varios delegados y necesita un sitio único, ordenado por prioridad, desde
@@ -14,8 +15,9 @@
  * el aviso—: el dueño guarda las fotos en una carpeta de OneDrive
  * compartida con el móvil, clasificadas a mano en tres subcarpetas
  * (Alta/Normal/Baja); «Buscar fotos nuevas» las detecta y crea un aviso
- * por cada una, ya enganchado a su foto (`rutaFoto`) — «Empezar» la carga
- * y la lee sola, en `onEmpezarCaso`.
+ * por cada una, ya enganchado a sus fotos (`rutasFotos` — una subcarpeta
+ * con el nombre del paciente agrupa varias en un solo aviso, D86) —
+ * «Empezar» las carga y las lee juntas, en `onEmpezarCaso`.
  */
 
 import { useEffect, useState } from 'react'

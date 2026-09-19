@@ -16,6 +16,7 @@
  */
 
 import type { Caso } from '../modelo/caso.js'
+import { claveLente } from '../modelo/lente.js'
 
 export interface ConteoDashboard {
   readonly etiqueta: string
@@ -75,6 +76,78 @@ function contarPor(casos: readonly Caso[], clave: (c: Caso) => string): readonly
     .sort((a, b) => b.cantidad - a.cantidad || a.etiqueta.localeCompare(b.etiqueta, 'es'))
 }
 
+/**
+ * Quita «B&L»/«B+L» —la abreviatura de fabricante que el propio catálogo
+ * de la aplicación mete DENTRO del nombre del modelo, p. ej. «B&L Aspire»
+ * (D69)— antes de calcular la clave de agrupación del dashboard (D90,
+ * 17/09/2026). Un texto libre —de un informe, o escrito a mano— casi
+ * nunca la trae («aspire», sin más): sin quitarla, esa forma y la del
+ * catálogo no se emparejaban nunca, aunque `claveLente` ya quitase el
+ * nexo del fabricante («&»/«and»/«y»).
+ *
+ * Solo se usa AQUÍ, para las barras del dashboard — nunca se toca
+ * `normalizarNombreLente` en sí: en el resto del programa (comparar con
+ * la tabla del informe, D50) confundir «Aspire» con «B&L Aspire» podría
+ * aplicar la constante A de la lente equivocada, y ahí el riesgo no lo
+ * compensa; aquí, como mucho, se juntan dos barras que ya eran la misma
+ * lente.
+ */
+function sinAbreviaturaDeFabricante(texto: string): string {
+  return texto.replace(/\bb\s*[&+]\s*l\b/gi, ' ')
+}
+
+/** La clave de agrupación de una lente, para el dashboard (D90, ver arriba). */
+function claveLenteParaDashboard(l: {
+  readonly fabricante?: string
+  readonly modelo: string
+}): string {
+  return claveLente({
+    fabricante: l.fabricante ? sinAbreviaturaDeFabricante(l.fabricante) : l.fabricante,
+    modelo: sinAbreviaturaDeFabricante(l.modelo),
+  })
+}
+
+/**
+ * Cuenta por modelo de lente, agrupando las distintas formas de ESCRIBIR
+ * el mismo modelo —«Bausch & Lomb B&L Aspire», «bausch and lomb aspire»,
+ * «BAUSCH&LOMB ASPIRE»— en una sola barra (D90, 17/09/2026).
+ *
+ * `contarPor` agrupaba por el texto exacto de `etiquetaLente`, así que
+ * cada variante ortográfica —sobre todo las que llegan como texto libre
+ * de un informe, en vez de elegidas del desplegable— sacaba su propia
+ * barra minúscula, mezclada entre las de verdad. Aquí se agrupa por
+ * `claveLenteParaDashboard` y, dentro de cada grupo, se enseña la forma
+ * que MÁS veces se escribió así tal cual: en la práctica, casi siempre
+ * es la del desplegable de lentes, porque es como se elige la inmensa
+ * mayoría de las veces; un empate se rompe alfabéticamente, para que el
+ * resultado no dependa del orden en que vinieran los casos.
+ */
+function contarPorLente(casos: readonly Caso[]): readonly ConteoDashboard[] {
+  const grupos = new Map<string, { etiquetas: Map<string, number>; total: number }>()
+  for (const caso of casos) {
+    const etiqueta = etiquetaLente(caso.lente)
+    const clave =
+      etiqueta === SIN_MODELO
+        ? SIN_MODELO
+        : claveLenteParaDashboard({
+            fabricante: caso.lente?.fabricante,
+            modelo: caso.lente?.modelo ?? '',
+          })
+    const grupo = grupos.get(clave) ?? { etiquetas: new Map<string, number>(), total: 0 }
+    grupo.etiquetas.set(etiqueta, (grupo.etiquetas.get(etiqueta) ?? 0) + 1)
+    grupo.total += 1
+    grupos.set(clave, grupo)
+  }
+  return [...grupos.values()]
+    .map((grupo) => ({
+      etiqueta: [...grupo.etiquetas.entries()].sort(
+        (a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'es'),
+      )[0]![0],
+      cantidad: grupo.total,
+    }))
+    .sort((a, b) => b.cantidad - a.cantidad || a.etiqueta.localeCompare(b.etiqueta, 'es'))
+}
+
 /** El día de `actualizadoEn` (YYYY-MM-DD) cae dentro de [desde, hasta], inclusive. */
 function dentroDelRango(actualizadoEn: string, rango: RangoFechas): boolean {
   const dia = actualizadoEn.slice(0, 10)
@@ -115,7 +188,7 @@ export function calcularResumenDashboard(
   return {
     totalCalculados: calculados.length,
     porDoctor: contarPor(calculados, etiquetaDoctor),
-    porModeloLente: contarPor(calculados, (c) => etiquetaLente(c.lente)),
+    porModeloLente: contarPorLente(calculados),
   }
 }
 

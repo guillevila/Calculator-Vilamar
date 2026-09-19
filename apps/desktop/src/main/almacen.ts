@@ -173,10 +173,22 @@ export function guardarDoctores(carpetas: Carpetas, doctores: readonly Doctor[])
  * La bandeja de casos (D81, 15/09/2026): igual que los doctores, un único
  * fichero — la lista de avisos pendientes de trabajar, no depende de
  * ningún caso concreto.
+ *
+ * `rutaFoto` (D84, singular) pasó a `rutasFotos` (D86, una lista) — una
+ * entrada ya guardada en disco de antes de este cambio todavía trae el
+ * campo viejo; se migra sola al leerla, para no perder ningún aviso real
+ * que ya hubiera en la bandeja.
  */
 export function leerBandeja(carpetas: Carpetas): readonly EntradaBandeja[] {
   try {
-    return JSON.parse(readFileSync(join(carpetas.raiz, 'bandeja.json'), 'utf8')) as EntradaBandeja[]
+    const crudo = JSON.parse(readFileSync(join(carpetas.raiz, 'bandeja.json'), 'utf8')) as (Omit<
+      EntradaBandeja,
+      'rutasFotos'
+    > & { rutasFotos?: readonly string[]; rutaFoto?: string | null })[]
+    return crudo.map(({ rutaFoto, ...resto }) => ({
+      ...resto,
+      rutasFotos: resto.rutasFotos ?? (rutaFoto ? [rutaFoto] : []),
+    }))
   } catch {
     return []
   }

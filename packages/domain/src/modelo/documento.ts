@@ -68,4 +68,17 @@ export interface DocumentoCargado {
   readonly ojosDetectados: readonly Lateralidad[]
   /** Si el documento no se pudo leer, por qué. En lenguaje normal. */
   readonly problema?: string
+  /**
+   * Dónde vivía este documento dentro de «Importadas», de la carpeta de
+   * entrada (D84/D86), si vino de ahí (D89, 17/09/2026).
+   *
+   * Solo se rellena cuando el fichero de origen está dentro de la propia
+   * carpeta «Importadas» que gestiona el programa —nunca para un fichero
+   * elegido a mano desde cualquier otro sitio del disco—: es lo que
+   * permite, más tarde, borrar SOLO la copia que el programa archivó ahí,
+   * sabiendo que ya existe otra copia a salvo en «Datos previos» del
+   * doctor (D87), sin arriesgarse nunca a tocar un fichero que no es
+   * nuestro.
+   */
+  readonly rutaOrigenEntrada?: string
 }

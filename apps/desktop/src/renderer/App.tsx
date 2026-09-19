@@ -188,11 +188,14 @@ export function App(): JSX.Element {
    * el aviso traía descripción, y engancha la entrada al código real — a
    * partir de aquí, la bandeja lee su estado del propio caso.
    *
-   * Si el aviso viene de la carpeta de entrada (D84, `rutaFoto`), en vez
-   * de un caso en blanco se carga y se lee la foto sola —mismo camino que
-   * `cargarDocumentos`, el de siempre—, y el nombre del paciente solo se
-   * rellena con la descripción si el propio documento no trajo ya uno (no
-   * se pisa un dato leído de verdad con una nota escrita a mano).
+   * Si el aviso viene de la carpeta de entrada (D84/D86, `rutasFotos`), en
+   * vez de un caso en blanco se cargan y se leen las fotos juntas —una
+   * subcarpeta con varias fotos del mismo paciente (D86) llega aquí como
+   * varios ficheros, y `cargarDocumentos` ya sabía combinar varios
+   * ficheros en un mismo caso desde el principio—, y el nombre del
+   * paciente solo se rellena con la descripción si el propio documento no
+   * trajo ya uno (no se pisa un dato leído de verdad con una nota escrita
+   * a mano).
    */
   const empezarCasoDesdeBandeja = useCallback(
     async (entrada: EntradaBandeja) => {
@@ -201,14 +204,15 @@ export function App(): JSX.Element {
       setEstados([])
       setAvisos([])
 
-      if (entrada.rutaFoto) {
+      if (entrada.rutasFotos.length > 0) {
         setPaso('CARGANDO')
         setOcupado(true)
         try {
-          const nombreArchivo = entrada.rutaFoto.split(/[\\/]/).pop() ?? 'foto'
-          const r = await api().cargarDocumentos([
-            { nombre: nombreArchivo, ruta: entrada.rutaFoto },
-          ])
+          const archivos = entrada.rutasFotos.map((ruta) => ({
+            nombre: ruta.split(/[\\/]/).pop() ?? 'foto',
+            ruta,
+          }))
+          const r = await api().cargarDocumentos(archivos)
           let c = r.caso
           if (entrada.descripcion.trim() !== '' && !c.nombrePaciente) {
             c = await api().establecerIdentificacion({ nombrePaciente: entrada.descripcion.trim() })

@@ -9,13 +9,24 @@
  * llama a `prepararEntradas` como todo el mundo.
  */
 
-import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmdirSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
+import { dirname, isAbsolute, join, relative } from 'node:path'
 
 import type {
   Calculadora,
   CampoBiometrico,
   Caso,
+  Dispositivo,
   Doctor,
   Lateralidad,
   OjoBiometrico,
@@ -30,6 +41,7 @@ import {
   APARATO_PRINCIPAL,
   aparatosDe,
   calcularResumenDashboard,
+  CARPETA_IMPORTADAS,
   casosCalculadosDeDoctor,
   COLUMNAS_COMPARATIVA,
   datasetsDe,
@@ -98,6 +110,7 @@ import {
   guardarDocumento,
   guardarDoctoresExcluidos,
   leerCaso as leerCasoDelAlmacen,
+  leerCarpetaEntrada,
   leerDoctoresExcluidos,
   listarCasos as listarCasosDelAlmacen,
   moverCasoABorrados,
@@ -136,25 +149,105 @@ function primeraLinea(texto: string): string {
 }
 
 /**
- * El nombre del paciente, convertido en un nombre de carpeta seguro para
- * Windows (petición expresa del dueño, 06/09/2026: un informe por
- * paciente, con sus dos ojos dentro, en vez de todos los pacientes
- * compartiendo la misma carpeta «Ojo derecho»/«Ojo izquierdo»).
+ * Un nombre (de paciente, o de doctor — D87, 17/09/2026) convertido en un
+ * nombre de carpeta seguro para Windows (petición expresa del dueño,
+ * 06/09/2026: un informe por paciente, con sus dos ojos dentro, en vez de
+ * todos los pacientes compartiendo la misma carpeta «Ojo derecho»/«Ojo
+ * izquierdo»).
  *
  * Quita los caracteres que Windows no admite en un nombre de carpeta
  * (`< > : " / \ | ? *`), los espacios y puntos sueltos al final —Windows
- * tampoco los admite ahí—, y se queda con el código del caso si el nombre
- * queda vacío después de limpiarlo. D61 exige el nombre del paciente para
- * poder confirmar un caso, así que esto último no debería darse nunca en
- * la práctica; es una red de seguridad, no el camino normal.
+ * tampoco los admite ahí—, y se queda con `sinNombre` si el nombre queda
+ * vacío después de limpiarlo (para el paciente, esto no debería darse
+ * nunca en la práctica — D61 exige su nombre para poder confirmar un
+ * caso —, es una red de seguridad; para el doctor sí es el camino normal
+ * cuando no se ha escrito ninguno, ver `NOMBRE_CARPETA_SIN_DOCTOR`).
  */
-function nombreDeCarpeta(nombrePaciente: string | undefined, codigoCaso: string): string {
+function nombreDeCarpeta(nombre: string | undefined, sinNombre: string): string {
   const caracteresProhibidos = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
-  let limpio = nombrePaciente ?? ''
+  let limpio = nombre ?? ''
   for (const c of caracteresProhibidos) limpio = limpio.split(c).join(' ')
   limpio = limpio.replace(/\s+/g, ' ').trim()
   while (limpio.endsWith('.') || limpio.endsWith(' ')) limpio = limpio.slice(0, -1)
-  return limpio === '' ? codigoCaso : limpio
+  return limpio === '' ? sinNombre : limpio
+}
+
+/** Cuando el caso no tiene doctor asignado (D87) — mismo texto que ya usa el dashboard para «Sin doctor» (D82). */
+const NOMBRE_CARPETA_SIN_DOCTOR = 'Sin doctor'
+
+/**
+ * Si `ruta` vive dentro de «Importadas», de la carpeta de entrada
+ * configurada (D84/D86), devuelve la propia ruta; si no —un fichero
+ * elegido a mano desde cualquier otro sitio del disco, o si no hay
+ * carpeta de entrada configurada— devuelve `undefined` (D89, 17/09/2026).
+ *
+ * Es la comprobación que permite, más tarde, borrar SOLO la copia que el
+ * propio programa archivó ahí, nunca un fichero que no es nuestro.
+ */
+function rutaEnImportadas(carpetas: Carpetas, ruta: string | undefined): string | undefined {
+  if (!ruta) return undefined
+  const raizEntrada = leerCarpetaEntrada(carpetas)
+  if (!raizEntrada) return undefined
+  const importadas = join(raizEntrada, CARPETA_IMPORTADAS)
+  const rel = relative(importadas, ruta)
+  const dentro = rel !== '' && !rel.startsWith('..') && !isAbsolute(rel)
+  return dentro ? ruta : undefined
+}
+
+/**
+ * Junta los campos de dos lecturas del MISMO dataset (D88, 17/09/2026):
+ * dos fotos de un mismo ojo, cargadas juntas en la misma llamada a
+ * `cargarDocumentos` —una subcarpeta de la carpeta de entrada (D86), o
+ * varios ficheros elegidos a la vez— Y con el MISMO dispositivo
+ * RECONOCIDO, son fragmentos del MISMO examen, no biómetros distintos.
+ * Solo se llama en ese caso concreto —nunca si el dispositivo no se ha
+ * podido reconocer, ver `nombreAparatoLibreParaDesconocido`— para no
+ * fusionar dos biómetros de verdad distintos que el programa simplemente
+ * no supo nombrar. Un campo que ya tenía valor no se pisa —dos fotos del
+ * mismo campo no dicen cuál es la buena, así que se avisa y se conserva el
+ * primero, igual que el resto del programa nunca pisa un dato en
+ * silencio.
+ */
+/**
+ * Un nombre libre para el dataset de un documento cuyo aparato NO se ha
+ * podido reconocer, cuando ya hay otro dataset en ese ojo (D88 corregido,
+ * 17/09/2026: petición expresa del dueño del proyecto).
+ *
+ * Un informe no reconocido nunca se fusiona con lo que ya había —a
+ * diferencia de uno reconocido con el mismo dispositivo (ver
+ * `fusionarMedidas`)—, porque no hay ninguna base para asumir que es el
+ * mismo examen: podrían ser perfectamente dos biómetros distintos que el
+ * programa simplemente no sabe nombrar. Se etiqueta «Otro» —o «Otro (2)»,
+ * «Otro (3)»… si ya había uno— para que la persona lo renombre a mano con
+ * el aparato real, igual que hace con el que empieza como «Principal».
+ */
+function nombreAparatoLibreParaDesconocido(previos: readonly OjoBiometrico[]): string {
+  const base = 'Otro'
+  if (!previos.some((o) => o.aparato === base)) return base
+  let n = 2
+  while (previos.some((o) => o.aparato === `${base} (${n})`)) n++
+  return `${base} (${n})`
+}
+
+function fusionarMedidas(
+  existente: OjoBiometrico,
+  leido: OjoBiometrico,
+  nombreArchivo: string,
+): { readonly fusionado: OjoBiometrico; readonly avisos: readonly string[] } {
+  const avisos: string[] = []
+  const medidas = { ...existente.medidas }
+  for (const [campo, medida] of Object.entries(leido.medidas)) {
+    if (!medida) continue
+    const clave = campo as CampoBiometrico
+    if (medidas[clave] !== undefined) {
+      avisos.push(
+        `«${nombreArchivo}» también trae ${campo} para el ${existente.lateralidad}; se ha mantenido el valor de la foto anterior.`,
+      )
+      continue
+    }
+    medidas[clave] = medida
+  }
+  return { fusionado: { ...existente, medidas }, avisos }
 }
 
 export class ServicioCasos {
@@ -347,16 +440,38 @@ export class ServicioCasos {
   /**
    * Carga documentos y los lee.
    *
-   * Cada documento se lee por separado y NO se asume ninguna relación entre
-   * ellos: si dos informes traen el mismo ojo, el segundo no pisa al primero
-   * en silencio — se avisa y se queda el primero, que es lo que el usuario ya
-   * ha visto en pantalla.
+   * Dos fotos de un mismo ojo cargadas EN LA MISMA LLAMADA (D88,
+   * 17/09/2026: varias fotos de un paciente, juntas en una subcarpeta de la
+   * carpeta de entrada —D86— o elegidas a la vez con «Elegir archivo»),
+   * CON EL MISMO DISPOSITIVO RECONOCIDO, se entienden como fragmentos del
+   * mismo examen y se FUSIONAN en un solo dataset — no se pisan entre sí,
+   * se completan: lo que trae una y no la otra se suma; un mismo campo
+   * repetido conserva el de la primera foto, con aviso.
+   *
+   * Con un dispositivo RECONOCIDO distinto, o con cualquiera de los dos
+   * SIN reconocer, no se fusiona nunca —corregido el mismo día, a
+   * petición expresa del dueño del proyecto: no hay ninguna base para
+   * asumir que dos fotos que el programa no sabe identificar son el mismo
+   * examen, bien podrían ser dos biómetros de verdad distintos— y cada
+   * una se queda como su propio aparato, igual que si hubieran llegado en
+   * llamadas separadas (D47): si dos informes traen el mismo ojo, el
+   * segundo no pisa al primero en silencio — se avisa y los dos conviven,
+   * distinguibles.
    */
   async cargarDocumentos(
     archivos: readonly ArchivoEntrante[],
   ): Promise<{ caso: Caso; resumenes: readonly ResumenExtraccion[] }> {
     let caso = this.caso ?? this.nuevo()
     const resumenes: ResumenExtraccion[] = []
+    // Qué dataset ha creado, en ESTE ojo, un documento anterior DE ESTE
+    // MISMO LOTE, y con qué dispositivo se detectó — para decidir si el
+    // siguiente documento del mismo ojo se fusiona con él (mismo
+    // dispositivo: son fragmentos del mismo examen) o crea uno aparte
+    // (dispositivo distinto: son de verdad dos biómetros, aunque hayan
+    // llegado juntos en la misma selección de ficheros).
+    const datasetDeEsteLote: Partial<
+      Record<Lateralidad, { aparato: string; dispositivo: Dispositivo }>
+    > = {}
 
     for (const archivo of archivos) {
       // Si viene la ruta, se lee del disco aquí —una sola vez, y sin copiar
@@ -459,6 +574,7 @@ export class ServicioCasos {
 
       const avisos = [...resultado.avisos]
 
+      const rutaOrigenEntrada = rutaEnImportadas(this.dep.carpetas, archivo.ruta)
       caso = {
         ...caso,
         documentos: [
@@ -473,6 +589,7 @@ export class ServicioCasos {
             cargadoEn: this.iso(),
             dispositivoDetectado: resultado.dispositivo,
             ojosDetectados: Object.keys(resultado.ojos) as Lateralidad[],
+            ...(rutaOrigenEntrada ? { rutaOrigenEntrada } : {}),
           },
         ],
       }
@@ -505,6 +622,35 @@ export class ServicioCasos {
 
       for (const [lado, leido] of Object.entries(resultado.ojos)) {
         const lateralidad = lado as Lateralidad
+
+        // Ya ha llegado, en ESTE MISMO LOTE, otro documento de este ojo con
+        // el MISMO dispositivo RECONOCIDO (D88, corregido el mismo día a
+        // petición expresa del dueño del proyecto): son fragmentos del
+        // mismo examen —por ejemplo, dos fotos porque la pantalla del
+        // biómetro no cupo entera en un encuadre— y se fusionan en un solo
+        // dataset en vez de crear uno nuevo por cada foto. Si el
+        // dispositivo detectado es DISTINTO, o si NINGUNO de los dos se ha
+        // podido reconocer (`DESCONOCIDO`), no se fusiona nunca —no hay
+        // ninguna base para asumir que son el mismo examen; podrían ser dos
+        // biómetros de verdad distintos que el programa no sabe nombrar—:
+        // cada uno se queda como su propio aparato, más abajo.
+        const delLote = datasetDeEsteLote[lateralidad]
+        if (
+          delLote !== undefined &&
+          delLote.dispositivo === resultado.dispositivo.dispositivo &&
+          resultado.dispositivo.dispositivo !== 'DESCONOCIDO'
+        ) {
+          const existente = ojoDe(caso, lateralidad, delLote.aparato)
+          const { fusionado, avisos: avisosFusion } = fusionarMedidas(
+            existente,
+            leido,
+            archivo.nombre,
+          )
+          avisos.push(...avisosFusion)
+          caso = conOjo(caso, this.conValoresPorDefecto(fusionado), this.iso())
+          continue
+        }
+
         const previos = datasetsDe(caso, lateralidad)
         // El PRIMER documento de un ojo se queda con `APARATO_PRINCIPAL` —
         // igual que antes de D47—, para que un caso de un solo documento no
@@ -514,17 +660,30 @@ export class ServicioCasos {
         // dataset nuevo con el aparato que el propio documento dice ser
         // (D47, 27/08/2026) — no hace falta preguntarle nada a nadie, ya se
         // ha detectado al leerlo — para que los dos convivan distinguibles
-        // en vez de que uno pise al otro.
+        // en vez de que uno pise al otro. Esto cubre tanto un documento que
+        // llega en una llamada posterior como uno de un dispositivo
+        // distinto dentro del mismo lote (el `if` de arriba ya se ha hecho
+        // cargo del caso de mismo dispositivo reconocido, que se fusiona).
+        //
+        // Cuando el dispositivo NO se reconoce, no se usa el texto genérico
+        // «Informe no reconocido» tal cual —un segundo documento sin
+        // reconocer pisaría al primero, porque los dos pedirían el mismo
+        // nombre—: se le da un nombre libre, «Otro»/«Otro (2)»/…, para que
+        // la persona lo renombre a mano con el aparato real (D88 corregido,
+        // 17/09/2026).
         const aparato =
           previos.length === 0
             ? APARATO_PRINCIPAL
-            : NOMBRE_DISPOSITIVO[resultado.dispositivo.dispositivo]
+            : resultado.dispositivo.dispositivo === 'DESCONOCIDO'
+              ? nombreAparatoLibreParaDesconocido(previos)
+              : NOMBRE_DISPOSITIVO[resultado.dispositivo.dispositivo]
         const yaHabiaEseAparato = previos.some((o) => o.aparato === aparato)
         if (yaHabiaEseAparato) {
           avisos.push(
             `Ya había un conjunto de «${aparato}» para el ${lateralidad}; se ha sustituido por los datos de «${archivo.nombre}».`,
           )
         }
+        datasetDeEsteLote[lateralidad] = { aparato, dispositivo: resultado.dispositivo.dispositivo }
         caso = conOjo(caso, this.conValoresPorDefecto({ ...leido, aparato }), this.iso())
       }
 
@@ -1307,6 +1466,19 @@ export class ServicioCasos {
    * no es «un ojo que se dejó fuera a propósito» — es, sencillamente, un
    * informe pedido antes de calcular, y eso sigue sacando su PDF con
    * todo «no calculado», como siempre.
+   *
+   * **Una carpeta por doctor** (D87, 17/09/2026): antes todos los
+   * doctores compartían la misma carpeta de informes, así que con el
+   * tiempo se mezclaban los PDF de todo el mundo — petición expresa del
+   * dueño, con su propio flujo real: recibe la foto de un doctor,
+   * calcula, y quiere el PDF ya archivado en la carpeta de ESE doctor.
+   * Dentro de la carpeta del doctor, dos subcarpetas: «Datos previos»
+   * —una copia de los documentos originales que se cargaron, la biometría
+   * de antes de calcular— y «Calculados» —los PDF, con su misma
+   * estructura de siempre (una carpeta por paciente y, dentro, una por
+   * ojo)—. «Datos previos» solo tiene sentido si el caso vino de un
+   * documento cargado (`cargarDocumentos`); un caso escrito a mano no
+   * tiene ningún original que archivar.
    */
   async generarPdf(): Promise<{ rutas: readonly { ojo: Lateralidad; ruta: string }[] }> {
     const caso = this.exigirCaso()
@@ -1317,6 +1489,12 @@ export class ServicioCasos {
       (ojo) => !hayAlgunResultado || todosLosResultados.some((r) => r.ojo === ojo),
     )
 
+    const carpetaDoctor = join(
+      this.dep.carpetas.informes,
+      nombreDeCarpeta(caso.nombreCirujano, NOMBRE_CARPETA_SIN_DOCTOR),
+    )
+    this.archivarDatosPrevios(caso, carpetaDoctor)
+
     const rutas: { ojo: Lateralidad; ruta: string }[] = []
     for (const ojo of ojosConResultados) {
       const datos = recopilarInforme(caso, {
@@ -1326,16 +1504,16 @@ export class ServicioCasos {
         soloOjo: ojo,
       })
       const html = generarHtmlInforme(datos)
-      // Una carpeta por paciente y, dentro, una por ojo (petición expresa
-      // del dueño, 06/09/2026, que amplía la de 01/09/2026 de abajo): antes
-      // todos los pacientes compartían la misma carpeta «Ojo derecho»/«Ojo
-      // izquierdo», así que con el tiempo se mezclaban los informes de
-      // gente distinta. Ahora cada paciente tiene la suya, con sus dos
-      // ojos dentro — varias visitas del mismo paciente caen en la misma
-      // carpeta, porque el nombre del archivo ya lleva el código del caso
-      // y la fecha, así que nunca se pisan entre sí.
+      // Dentro de la carpeta del doctor: una por paciente y, dentro, una
+      // por ojo — antes todos los pacientes compartían la misma carpeta
+      // «Ojo derecho»/«Ojo izquierdo», así que con el tiempo se
+      // mezclaban los informes de gente distinta (petición expresa del
+      // dueño, 06/09/2026). Varias visitas del mismo paciente caen en la
+      // misma carpeta, porque el nombre del archivo ya lleva el código
+      // del caso y la fecha, así que nunca se pisan entre sí.
       const carpetaOjo = join(
-        this.dep.carpetas.informes,
+        carpetaDoctor,
+        'Calculados',
         nombreDeCarpeta(caso.nombrePaciente, caso.codigo),
         nombreLateralidad(ojo),
       )
@@ -1348,6 +1526,77 @@ export class ServicioCasos {
       rutas.push({ ojo, ruta: destino })
     }
     return { rutas }
+  }
+
+  /**
+   * Una copia de los documentos originales del caso —la biometría de
+   * antes de calcular— en `<carpetaDoctor>/Datos previos/<paciente>/`
+   * (D87, 17/09/2026). El original interno (`documentos/`, indexado por
+   * hash de contenido, D30) no se toca ni se mueve: esto es solo una
+   * copia legible por su nombre de verdad, para que el dueño la
+   * encuentre sin tener que abrir la aplicación. Si ya se copió antes
+   * (`generarPdf()` puede llamarse varias veces sobre el mismo caso), no
+   * se repite. Un documento que ya no esté en el almacén interno —caso
+   * raro, movido o borrado a mano— no impide generar el PDF: se avisa
+   * por consola y se sigue con los demás.
+   *
+   * **Además, si el documento venía de «Importadas» (D89, 17/09/2026),
+   * se borra de ahí en cuanto la copia de arriba existe de verdad** —
+   * petición expresa del dueño del proyecto: una vez calculado el caso,
+   * la foto ya está a salvo en «Datos previos», así que dejarla también
+   * en «Importadas» solo la duplica y hace que esa carpeta crezca sin
+   * parar. El orden importa: se copia primero, se borra después, y solo
+   * si la copia salió bien —nunca al revés—. Si esa foto vivía en una
+   * subcarpeta agrupada (D86, varias fotos de un mismo paciente) y queda
+   * vacía tras borrar la última, la subcarpeta también se quita.
+   */
+  private archivarDatosPrevios(caso: Caso, carpetaDoctor: string): void {
+    if (caso.documentos.length === 0) return
+    const carpetaPaciente = join(
+      carpetaDoctor,
+      'Datos previos',
+      nombreDeCarpeta(caso.nombrePaciente, caso.codigo),
+    )
+    mkdirSync(carpetaPaciente, { recursive: true })
+    for (const documento of caso.documentos) {
+      try {
+        const extension = documento.nombre.toLowerCase().split('.').pop() ?? 'bin'
+        const origen = join(this.dep.carpetas.documentos, `${documento.id}.${extension}`)
+        const destino = join(carpetaPaciente, documento.nombre)
+        if (!existsSync(destino)) copyFileSync(origen, destino)
+        if (existsSync(destino)) this.borrarDeImportadas(documento.rutaOrigenEntrada)
+      } catch (e) {
+        console.error(`[datos previos] no se pudo archivar ${documento.nombre}`, e)
+      }
+    }
+  }
+
+  /**
+   * Borra la copia de «Importadas» de una foto ya archivada en «Datos
+   * previos» (D89, 17/09/2026), y su subcarpeta de grupo (D86) si queda
+   * vacía. `rutaOrigenEntrada` solo existe cuando el documento venía de
+   * ahí (`rutaEnImportadas`, más arriba) — un fichero elegido a mano
+   * desde cualquier otro sitio nunca llega hasta aquí. Cualquier fallo
+   * —el fichero ya no está, o no hay permiso— se avisa por consola y no
+   * interrumpe el resto del archivado.
+   *
+   * La propia carpeta «Importadas» NUNCA se borra, aunque quede vacía
+   * —solo sus subcarpetas de grupo (D86)—: es la carpeta que gestiona la
+   * aplicación, y tiene que seguir existiendo para la siguiente «Buscar
+   * fotos nuevas».
+   */
+  private borrarDeImportadas(rutaOrigenEntrada: string | undefined): void {
+    if (!rutaOrigenEntrada || !existsSync(rutaOrigenEntrada)) return
+    const raizEntrada = leerCarpetaEntrada(this.dep.carpetas)
+    if (!raizEntrada) return
+    const importadas = join(raizEntrada, CARPETA_IMPORTADAS)
+    try {
+      unlinkSync(rutaOrigenEntrada)
+      const carpeta = dirname(rutaOrigenEntrada)
+      if (carpeta !== importadas && readdirSync(carpeta).length === 0) rmdirSync(carpeta)
+    } catch (e) {
+      console.error(`[importadas] no se pudo borrar ${rutaOrigenEntrada}`, e)
+    }
   }
 
   /**

@@ -788,7 +788,7 @@ test('el aparato recién renombrado en un ojo se sugiere solo en el otro, mientr
  * compartan la misma carpeta «Ojo derecho»/«Ojo izquierdo» — con el tiempo
  * se mezclaban los informes de gente distinta en el mismo sitio.
  */
-test('el PDF se guarda en una carpeta con el nombre del paciente, y un nombre con caracteres de Windows prohibidos no rompe nada', async () => {
+test('el PDF se guarda en una carpeta por doctor y, dentro, una por paciente (D87) — un nombre con caracteres de Windows prohibidos no rompe nada', async () => {
   test.setTimeout(180_000)
 
   await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
@@ -797,7 +797,7 @@ test('el PDF se guarda en una carpeta con el nombre del paciente, y un nombre co
   // Un nombre con caracteres que Windows NO admite en una carpeta: ':' y '/'.
   await ventana.getByTestId('identificacion-paciente').fill('María: Pérez / Test')
   await ventana.getByTestId('identificacion-paciente').press('Tab')
-  await ventana.getByTestId('identificacion-cirujano').fill('Dra. Ruiz')
+  await ventana.getByTestId('identificacion-cirujano').fill('Dra. Ruiz: Test / 2')
   await ventana.getByTestId('identificacion-cirujano').press('Tab')
   await ventana.getByTestId('manual-campo-AL').fill('24.00')
   await ventana.getByTestId('manual-campo-AL').press('Tab')
@@ -808,16 +808,37 @@ test('el PDF se guarda en una carpeta con el nombre del paciente, y un nombre co
   const ruta = resultado?.rutas[0]?.ruta ?? ''
   expect(ruta, 'no ha generado ningún PDF').not.toBe('')
 
-  // La carpeta del paciente, limpia de los caracteres prohibidos ('María:
-  // Pérez / Test' → 'María Pérez Test'), con el ojo dentro. Comprobar el
-  // trozo exacto de ruta, no toda la cadena, porque la ruta absoluta trae
-  // sus propios ':' y '\' de sintaxis (la unidad de Windows, los separadores).
-  expect(ruta).toContain(join('María Pérez Test', 'Ojo derecho (OD)'))
+  // La carpeta del doctor y, dentro, la del paciente, las dos limpias de
+  // los caracteres prohibidos, con el ojo dentro de la del paciente.
+  // Comprobar el trozo exacto de ruta, no toda la cadena, porque la ruta
+  // absoluta trae sus propios ':' y '\' de sintaxis (la unidad de
+  // Windows, los separadores).
+  expect(ruta).toContain(
+    join('Dra. Ruiz Test 2', 'Calculados', 'María Pérez Test', 'Ojo derecho (OD)'),
+  )
 
   // Y el archivo existe de verdad, no solo la ruta devuelta.
   expect(statSync(ruta).size).toBeGreaterThan(0)
 
-  await ventana.screenshot({ path: 'test-results/11c-carpeta-por-paciente.png', fullPage: true })
+  await ventana.screenshot({ path: 'test-results/11c-carpeta-por-doctor.png', fullPage: true })
+})
+
+test('el PDF se guarda en «Sin doctor» cuando el caso no tiene ninguno asignado (D87)', async () => {
+  test.setTimeout(180_000)
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  await ventana.getByTestId('identificacion-paciente').fill('Paciente Sin Doctor E2E')
+  await ventana.getByTestId('identificacion-paciente').press('Tab')
+  // A propósito, no se rellena «Nombre del doctor».
+  await ventana.getByTestId('manual-campo-AL').fill('24.00')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  const resultado = await ventana.evaluate(() => window.vilamar?.generarPdf())
+  const ruta = resultado?.rutas[0]?.ruta ?? ''
+  expect(ruta, 'no ha generado ningún PDF').not.toBe('')
+  expect(ruta).toContain(join('Sin doctor', 'Calculados', 'Paciente Sin Doctor E2E'))
 })
 
 /**

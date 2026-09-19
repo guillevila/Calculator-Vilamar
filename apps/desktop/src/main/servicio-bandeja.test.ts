@@ -57,7 +57,7 @@ describe('ServicioBandeja', () => {
       creadoEn: '2026-09-15T10:00:00.000Z',
       casoCodigo: null,
       enviado: false,
-      rutaFoto: null,
+      rutasFotos: [],
     })
   })
 
