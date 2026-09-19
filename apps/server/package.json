@@ -1,0 +1,27 @@
+{
+  "name": "@vilamar/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "vite-node src/index.ts",
+    "start": "vite-node src/index.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@vilamar/casos": "workspace:*",
+    "@vilamar/domain": "workspace:*",
+    "@vilamar/extraction": "workspace:*",
+    "@vilamar/integrations": "workspace:*",
+    "@vilamar/report": "workspace:*",
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1",
+    "playwright": "^1.49.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/multer": "^1.4.12",
+    "vite-node": "^2.1.8"
+  }
+}

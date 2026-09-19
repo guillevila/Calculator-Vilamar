@@ -21,6 +21,7 @@ export default defineConfig({
     include: [
       'packages/*/src/**/*.test.ts',
       'apps/desktop/src/main/**/*.test.ts',
+      'apps/server/src/**/*.test.ts',
       // La guardia de Git protege la rama principal. Sin pruebas que la
       // disparen no sería una protección, sería un comentario.
       '.claude/hooks/**/*.test.mjs',
