@@ -10,33 +10,42 @@
 ## 1. El mapa en treinta segundos
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│  apps/desktop                                                        │
-│                                                                      │
-│   renderer (React)  ──IPC──▶  main (Node)                            │
-│   la pantalla                 ficheros, navegador, PDF               │
-└───────────────┬──────────────────────────┬───────────────────────────┘
-                │                          │
-    ┌───────────▼──────────┐   ┌───────────▼───────────┐
-    │  @vilamar/extraction │   │ @vilamar/integrations │
-    │  documento → datos   │   │  Playwright, HTML     │
-    └───────────┬──────────┘   └───────────┬───────────┘
-                │                          │
-                └────────────┬─────────────┘
-                             ▼
-                  ┌─────────────────────┐      ┌──────────────────┐
-                  │   @vilamar/domain   │◀─────│ @vilamar/report  │
-                  │  el modelo y sus    │      │  HTML del PDF    │
-                  │  invariantes        │      └──────────────────┘
-                  └─────────────────────┘
+┌───────────────────────────┐   ┌───────────────────────────────────────┐
+│  apps/desktop             │   │  apps/server (Fase 1, sin probar aún) │
+│  renderer (React) ─IPC─▶  │   │  Express ─▶ ServicioCasos              │
+│  main (Node)              │   │  Playwright headless en vez de        │
+│  ficheros, navegador, PDF │   │  Electron — docs/PLAN-APP-MOVIL.md    │
+└─────────────┬──────────────┘   └───────────────┬───────────────────────┘
+              │                                  │
+              └────────────────┬─────────────────┘
+                                ▼
+                     ┌─────────────────────┐
+                     │    @vilamar/casos    │
+                     │  ServicioCasos, el   │
+                     │  caso en disco       │
+                     └───────────┬──────────┘
+                                 │
+    ┌────────────────────┬──────┴───────┬────────────────────┐
+    │                    │              │                    │
+┌───▼──────────┐  ┌──────▼───────┐  ┌───▼──────────┐  ┌──────▼───────────┐
+│ @vilamar/    │  │ @vilamar/    │  │ @vilamar/    │  │ @vilamar/report  │
+│ extraction   │  │ integrations │  │ domain       │  │ HTML del PDF     │
+│ documento →  │  │ Playwright,  │  │ el modelo y  │  │                  │
+│ datos        │  │ HTML ajeno   │  │ sus          │  │                  │
+│              │  │              │  │ invariantes  │  │                  │
+└──────────────┘  └──────────────┘  └──────────────┘  └──────────────────┘
 ```
 
 Las flechas apuntan **hacia dentro**. El dominio no conoce a nadie; todos lo
-conocen a él.
+conocen a él. `@vilamar/casos` (20/09/2026) es la pieza que hace posible
+`apps/server`: es exactamente `ServicioCasos`, sacado de `apps/desktop` a un
+paquete propio para que las dos apps lo reutilicen sin que una dependa de la
+otra — cada una le da sus propias implementaciones de lo que sí depende de
+dónde corre (imprimir el PDF, abrir el navegador, avisar a la interfaz).
 
 ---
 
-## 2. Los cinco paquetes
+## 2. Los paquetes
 
 | Paquete                 | Qué hace                                                              | Qué NO puede importar                                     |
 | ----------------------- | --------------------------------------------------------------------- | --------------------------------------------------------- |
@@ -44,7 +53,9 @@ conocen a él.
 | `@vilamar/extraction`   | Documento → datos, con evidencia                                      | Nada de calculadoras. Ni siquiera sabe que existen.       |
 | `@vilamar/integrations` | Los tres adaptadores de Playwright                                    | Es la **única** capa con HTML ajeno                       |
 | `@vilamar/report`       | El HTML del informe                                                   | Nada del sistema; son funciones puras                     |
-| `@vilamar/desktop`      | Electron, la interfaz y las implementaciones concretas                | —                                                         |
+| `@vilamar/casos`        | `ServicioCasos` y el caso en disco (20/09/2026, sacado de `apps/desktop/src/main/`) | Electron — sí importa Playwright (solo el tipo `Browser`, inyectado) y `node:fs` |
+| `@vilamar/desktop`      | Electron, la interfaz y las implementaciones concretas de escritorio  | —                                                         |
+| `@vilamar/server`       | Express y las implementaciones de servidor (Fase 1, escrito pero sin probar en producción) | —                                                         |
 
 ### Las tres reglas estructurales
 
@@ -668,6 +679,16 @@ biometría, nunca un dato identificativo, y no salen del ordenador. Solo
 ## 6. La aplicación
 
 ### Proceso principal
+
+> `almacen.ts`, `diagnostico.ts`, `capturas.ts` y `servicio-casos.ts` viven
+> ahora en `packages/casos/src/` (`@vilamar/casos`), no en
+> `apps/desktop/src/main/` — se sacaron el 20/09/2026 para que
+> `apps/server` los reutilice (ver el mapa del apartado 1 y
+> `docs/PLAN-APP-MOVIL.md`). El comportamiento es idéntico; solo cambió
+> dónde vive el fichero. `apps/desktop/src/main/index.ts` sigue siendo
+> quien les da sus implementaciones de Electron (`imprimirPdf`,
+> `abrirNavegador`, `emitirProgreso`/`emitirCaso`); `apps/server` les da
+> las suyas (Playwright headless, Server-Sent Events).
 
 - `almacen.ts` — ficheros JSON en `%APPDATA%\calculator-vilamar`. Sin base de
   datos, y es una decisión: un caso es un objeto pequeño, no hay consultas, y
