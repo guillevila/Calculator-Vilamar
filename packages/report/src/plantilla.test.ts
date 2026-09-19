@@ -210,13 +210,25 @@ describe('el informe dice lo que hay', () => {
   it('dice claramente que los resultados son de las calculadoras externas', () => {
     const h = html()
     expect(h).toMatch(/proceden de las calculadoras externas/i)
-    expect(h).toMatch(/no calcula potencias de lente/i)
+    expect(sinSaltos(h)).toMatch(/no calcula ninguna potencia de lente/i)
   })
 
   it('dice que no emite recomendación clínica', () => {
     // El texto del pie va partido en varias líneas: se compara sin espacios.
     expect(sinSaltos(html())).toMatch(/no emite ninguna recomendación clínica/i)
   })
+
+  it(
+    'se presenta como organizador de cálculos, no como instrucción médica, y deja la ' +
+      'responsabilidad en el oftalmólogo — reforzado el 20/09/2026 con el mismo tono que ' +
+      'usa el ESCRS IOL Calculator en sus propios términos',
+    () => {
+      const h = sinSaltos(html())
+      expect(h).toMatch(/organizador de cálculos/i)
+      expect(h).toMatch(/no está destinado a servir de instrucción médica ni quirúrgica/i)
+      expect(h).toMatch(/responsabilidad exclusiva del oftalmólogo/i)
+    },
+  )
 })
 
 /** Junta el HTML en una línea para poder buscar frases que van partidas. */

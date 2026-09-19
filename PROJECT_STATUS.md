@@ -9,7 +9,22 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 17/09/2026 (5) · **El dashboard junta las
+**Última actualización:** 20/09/2026 (1) · **Aviso legal del PDF
+reforzado: «organizador de cálculos», sin instrucción médica,
+responsabilidad exclusiva del oftalmólogo (D91).** Surgió al estudiar
+con el dueño si vender este software a clínicas — se investigó el
+ESCRS IOL Calculator (automatiza las mismas webs, sin marcado CE, con
+avisos de este tipo en vez de certificación) y se llevó ese mismo tono
+al aviso legal que ya tenía la app. Aplica a todo PDF, no solo a una
+hipotética venta futura. Investigación completa de la posible venta
+—permiso pendiente de Barrett/EVO/Kane, duda de regulación MDR, costes
+de servidor y API— recogida en `docs/PLAN-COMERCIALIZACION.md`, sin
+decisión tomada todavía sobre si seguir adelante. `pnpm lint && pnpm
+typecheck && pnpm test && pnpm build && pnpm test:e2e` en verde (791
+tests unitarios; el único fallo de la suite es previo y no
+relacionado; 57/57 de interfaz).
+
+Antes de esto — **17/09/2026 (5): el dashboard junta las
 distintas formas de escribir el mismo modelo de lente en una sola
 barra (D90).** El dueño enseñó una captura real: nueve barras para lo
 que eran solo dos lentes («Bausch & Lomb B&L Aspire»/«bausch and lomb

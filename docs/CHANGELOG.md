@@ -4,6 +4,42 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.51] — 20/09/2026 (versión visible en pantalla: v1.17)
+
+feat(report): refuerza el aviso legal del PDF — "organizador de cálculos",
+sin instrucción médica, responsabilidad exclusiva del oftalmólogo (D91).
+
+### Qué se pidió
+
+El dueño del proyecto, estudiando si vender este software a clínicas:
+un texto "bonito, como con la ESCRS, y muy claro" para el PDF, diciendo
+que la decisión es del oftalmólogo y que esto es solo un organizador
+de cálculos — investigado antes el [ESCRS IOL Calculator](https://iolcalculator.escrs.org/),
+que automatiza las mismas webs de calculadoras y se protege con avisos
+de este tipo en vez de con marcado CE.
+
+### El cambio
+
+`PIE_LEGAL` (`packages/report/src/plantilla.ts`) ya decía que el
+Resumen de calculadores no calcula ni recomienda; se añaden tres
+frases, en el mismo tono directo que usa ESCRS en sus propios
+términos: "Este documento es únicamente un organizador de cálculos",
+"No está destinado a servir de instrucción médica ni quirúrgica", y
+"responsabilidad exclusiva del oftalmólogo" en vez de "la decisión es
+del cirujano". Se le mostró el texto propuesto al dueño antes de
+tocar el código, lo aprobó tal cual. Aplica a todo PDF que genere la
+app desde ahora.
+
+### Verificado
+
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde (791 tests unitarios; el único fallo de la suite es previo
+  y no relacionado; 57/57 de interfaz).
+- Dos tests actualizados en `plantilla.test.ts` para el texto nuevo, y
+  un test nuevo que comprueba las tres frases añadidas.
+
+---
+
 ## [1.15.50] — 17/09/2026 (versión visible en pantalla: v1.16)
 
 fix(app): el dashboard junta las distintas formas de escribir el mismo

@@ -1907,13 +1907,16 @@ export function generarHtmlInformeDetallado(datos: DatosInforme): string {
  */
 const PIE_LEGAL = `<footer class="principal">
     <p>
-      Los resultados de este informe <strong>proceden de las calculadoras externas</strong>
-      Kane (iolformula.com), EVO Toric (evoiolcalculator.com) y Barrett Toric
-      (ASCRS/APACRS). <strong>El Resumen de calculadores no calcula potencias de lente</strong>
-      por su cuenta y <strong>no emite ninguna recomendación clínica</strong>: recoge lo
-      que devuelve cada web y lo presenta junto. Cuando las calculadoras no coinciden se
-      enseña el rango de lo que han devuelto, nunca un valor intermedio calculado por
-      este programa. La decisión de qué lente implantar es del cirujano.
+      Este documento es únicamente un <strong>organizador de cálculos</strong>. Los
+      resultados <strong>proceden de las calculadoras externas</strong> Kane
+      (iolformula.com), EVO Toric (evoiolcalculator.com) y Barrett Toric
+      (ASCRS/APACRS): el Resumen de calculadores <strong>no calcula ninguna potencia de
+      lente</strong> por su cuenta, <strong>no emite ninguna recomendación clínica</strong>,
+      y no interpreta ni corrige lo que cada web devuelve — se limita a introducir los
+      datos, capturar la pantalla de cada resultado tal cual y presentarlos juntos.
+      <strong>No está destinado a servir de instrucción médica ni quirúrgica.</strong> La
+      decisión de qué lente implantar, y el análisis de cada resultado mostrado, son
+      <strong>responsabilidad exclusiva del oftalmólogo</strong> que opera.
     </p>
     <p>
       Este documento <strong>no contiene el nombre, la fecha de nacimiento ni el número
