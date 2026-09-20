@@ -1082,14 +1082,33 @@ const ESTILOS = `
   }
   .cab-meta .codigo { font-size: 10pt; font-weight: 600; color: var(--tinta); }
 
-  /* Cabecera menor, de las hojas 2 a 5. */
+  /*
+   * Cabecera menor, de las hojas 2 a 5.
+   *
+   * Ojo: «.titulo» necesita min-width: 0 — sin ella, un div dentro de un
+   * flex no encoge nunca por debajo del ancho de su texto, aunque el texto
+   * SÍ pueda partirse en líneas: con un título largo (un aparato o una
+   * variante de córnea posterior con nombre largo, D45), el título invadía
+   * el hueco de «.ref» en vez de ajustarse al suyo — fallo real reportado
+   * por el dueño del proyecto (20/09/2026), confirmado generando un informe
+   * de muestra y mirándolo con Playwright antes de tocar nada. «.apunte»
+   * pasa a su propia línea, debajo del título, en vez de ir pegado en la
+   * misma frase: además de arreglar el sitio, queda más claro qué es el
+   * título (qué calculadora, si la córnea posterior es estimada o medida) y
+   * qué es la nota aparte.
+   */
   .cab-menor {
-    display: flex; align-items: center; justify-content: space-between;
-    border-bottom: 1px solid var(--linea); padding-bottom: 8px;
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 16px; border-bottom: 1px solid var(--linea); padding-bottom: 8px;
   }
-  .cab-menor .titulo { font-size: 13pt; font-weight: 700; }
-  .cab-menor .apunte { font-size: 9pt; color: var(--gris); margin-left: 8px; font-weight: 400; }
+  .cab-menor .titulo {
+    flex: 1 1 auto; min-width: 0; font-size: 13pt; font-weight: 700; line-height: 1.3;
+  }
+  .cab-menor .apunte {
+    display: block; font-size: 8pt; color: var(--gris); font-weight: 400; margin-top: 2px;
+  }
   .cab-menor .ref {
+    flex-shrink: 0; white-space: nowrap; text-align: right;
     font-size: 8pt; color: var(--gris);
     font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace;
   }
@@ -1492,8 +1511,14 @@ function tituloCalculadoraInforme(calculadora: Calculadora, hayCaraPosterior: bo
  * Los datos de entrada de un aparato, al principio del informe (D47,
  * 27/08/2026, petición expresa del dueño): antes de ver ningún cálculo, qué
  * se ha usado para calcular y de dónde salió cada dato — la misma tabla que
- * ya usa el informe detallado (`seccionEntradas`), y el mismo esquema del
- * ojo con la biometría anotada (`figuraBiometrica`), reutilizados aquí.
+ * ya usa el informe detallado (`seccionEntradas`).
+ *
+ * **Sin el esquema del ojo** (`figuraBiometrica`), a diferencia del informe
+ * detallado que sí lo lleva — petición expresa del dueño del proyecto
+ * (20/09/2026): en estas primeras hojas salía pequeño, ocupaba espacio y no
+ * aportaba nada que la propia tabla no dijera ya con números. Se queda solo
+ * en `generarHtmlInformeDetallado` —el informe legado, que no genera la
+ * aplicación por defecto—, donde tiene más sitio.
  */
 function hojaBiometriaAparato(
   caso: Caso,
@@ -1507,7 +1532,7 @@ function hojaBiometriaAparato(
     apunte: 'Lo que se ha usado para calcular',
     refExtra: ` · ${lado}`,
     ...(variosAparatos ? { aparatoDestacado: aparato } : {}),
-    cuerpo: `${seccionEntradas(caso, ojo)}${figuraBiometrica(ojo)}`,
+    cuerpo: seccionEntradas(caso, ojo),
     pie: `Datos de entrada confirmados de ${esc(nombreLateralidad(lado))}${
       variosAparatos ? ` · ${esc(aparato)}` : ''
     }, antes de calcular.`,
@@ -1711,18 +1736,26 @@ export function generarHtmlInforme(datos: DatosInforme): string {
           // — aquí solo se decide si hace falta la banda grande del aparato,
           // que con uno solo no se pinta nunca.
           const variosAparatos = aparatosDe(caso, r.ojo).length > 1
+          // El título es SOLO la calculadora, con su variante de córnea
+          // posterior si aplica (p. ej. «Barrett Toric — con córnea
+          // posterior medida») — nada más. El ojo y el aparato ya se ven
+          // aparte (`.ref`, a la derecha, y la banda grande de abajo si hay
+          // varios aparatos), así que repetirlos aquí solo alargaba una
+          // línea que ya tenía que decir de qué calculadora es y si la
+          // córnea posterior es estimada o medida — lo que de verdad hace
+          // falta ver claro de un vistazo (petición expresa del dueño,
+          // 20/09/2026).
           const nombre = tituloCalculadoraInforme(
             r.calculadora,
             hayCaraPosteriorEn(caso, r.ojo, r.aparato),
           )
-          const tituloBase = `${nombre} · ${nombreLateralidad(r.ojo)}`
           const comun = variosAparatos ? { aparatoDestacado: r.aparato } : {}
 
           if (r.fallo !== undefined) {
             return {
               ...comun,
-              titulo: `${tituloBase} · No se pudo calcular`,
-              apunte: 'Aviso',
+              titulo: nombre,
+              apunte: 'No se pudo calcular',
               refExtra: ` · ${r.ojo}`,
               cuerpo: `<p class="captura-ausente">${esc(r.fallo)}</p>`,
               pie: `${esc(nombre)} no ha podido calcular para este ojo. Las demás calculadoras y ojos no se ven afectados.`,
@@ -1731,8 +1764,8 @@ export function generarHtmlInforme(datos: DatosInforme): string {
 
           return {
             ...comun,
-            titulo: `${tituloBase} · Captura de pantalla`,
-            apunte: 'Tal cual la devolvió la web, sin recortar',
+            titulo: nombre,
+            apunte: 'Captura de pantalla · tal cual la devolvió la web, sin recortar',
             refExtra: ` · ${r.ojo}`,
             cuerpo: `${
               r.dataUri

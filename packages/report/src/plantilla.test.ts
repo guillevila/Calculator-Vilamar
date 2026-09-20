@@ -534,6 +534,54 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
     })
   })
 
+  describe('cabecera de la hoja de captura, reforzada (D91, 20/09/2026)', () => {
+    // Fallo real reportado por el dueño del proyecto: con un título largo
+    // (una calculadora con su variante de córnea posterior), el título y la
+    // referencia de la derecha se solapaban — confirmado generando un
+    // informe de muestra y mirándolo con Playwright antes de arreglar nada.
+    // El arreglo tiene dos partes: quitar del título lo que ya se ve en
+    // otro sitio (el ojo, ya en `.ref`), y separar la nota («Captura de
+    // pantalla…») del título en su propia línea, en vez de ir pegada.
+
+    it('el título de una captura con éxito es SOLO el nombre de la calculadora, sin el ojo ni «Captura de pantalla»', () => {
+      const h = htmlSimple([
+        { calculadora: 'EVO_TORIC', ojo: 'OD', dataUri: 'data:image/png;base64,QUFB' },
+      ])
+      expect(h).toContain('<div class="titulo">EVO Toric<span class="apunte">')
+      expect(h).not.toContain('EVO Toric · Ojo')
+    })
+
+    it('la nota de la captura va en el apunte, en su propia línea, no pegada al título', () => {
+      const h = htmlSimple([
+        { calculadora: 'KANE', ojo: 'OD', dataUri: 'data:image/png;base64,QUFB' },
+      ])
+      expect(h).toContain(
+        '<span class="apunte">Captura de pantalla · tal cual la devolvió la web, sin recortar</span>',
+      )
+    })
+
+    it('una casilla sin resultado dice «No se pudo calcular» en el apunte, con el título limpio', () => {
+      const h = htmlSimple([{ calculadora: 'BARRETT_TORIC', ojo: 'OD', fallo: 'Falta el WTW.' }])
+      expect(h).toContain(
+        '<div class="titulo">Barrett Toric<span class="apunte">No se pudo calcular</span></div>',
+      )
+    })
+
+    it('el título de la cabecera se puede encoger (min-width: 0) para no invadir la referencia de la derecha', () => {
+      const h = htmlSimple([{ calculadora: 'EVO_TORIC', ojo: 'OD' }])
+      expect(h).toContain('.cab-menor .titulo {')
+      expect(h).toMatch(/\.cab-menor \.titulo \{[^}]*min-width:\s*0/)
+      expect(h).toMatch(/\.cab-menor \.ref \{[^}]*flex-shrink:\s*0/)
+    })
+  })
+
+  it('la hoja de «Datos de entrada» no lleva el esquema pequeño del ojo (petición expresa del dueño, 20/09/2026: ocupaba espacio y no gustaba)', () => {
+    const h = htmlSimple([{ calculadora: 'EVO_TORIC', ojo: 'OD' }])
+    expect(h).toContain('Datos de entrada')
+    expect(h).not.toContain('class="figura"')
+    expect(h).not.toContain('Esquema del ojo')
+  })
+
   it('D45: una casilla de la variante «sin córnea posterior» dice «estimado» en su título (petición del dueño, 27/08/2026)', () => {
     const h = htmlSimple([
       {
@@ -570,7 +618,9 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
       },
     ])
     expect(h).not.toContain('con córnea posterior medida')
-    expect(h).toContain('EVO Toric · Ojo derecho (OD)')
+    // El título de la hoja es SOLO el nombre de la calculadora (D91,
+    // 20/09/2026): el ojo ya se ve en `.ref`, no hace falta repetirlo aquí.
+    expect(h).toContain('<div class="titulo">EVO Toric<span')
   })
 
   it('D45+D47: EVO_TORIC (la base) SÍ dice «con córnea posterior medida» cuando el dataset de verdad tiene PK1/PK2', () => {

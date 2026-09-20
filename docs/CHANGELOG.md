@@ -4,6 +4,50 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.52] — 20/09/2026 (versión visible en pantalla: v1.18)
+
+feat(app): cabecera del PDF sin solape, títulos más claros, sin el
+esquema del ojo al principio, y el eje de K2 se rellena solo (D92).
+
+### Qué se pidió
+
+El dueño del proyecto, cuatro cosas juntas: los encabezados del PDF no
+están bien ajustados y se montan letras; que se vea claro qué aparato,
+qué calculadora y si la córnea posterior es estimada o medida; quitar
+los diagramas del ojo del principio del informe, que son pequeños y no
+gustan; y que, al escribir el eje de K1 a mano, el eje de K2 se marque
+solo a 90º, para ir más rápido.
+
+### El cambio
+
+- **Cabecera sin solape**: `.cab-menor .titulo` gana `min-width: 0` (un
+  div dentro de un flex no encogía por debajo del ancho de su texto,
+  aunque pudiera partirse en líneas) y `.ref` gana `flex-shrink: 0`.
+  Confirmado el fallo, y el arreglo, generando un informe de muestra y
+  mirándolo con Playwright antes de tocar nada.
+- **Títulos más claros**: el título de cada hoja de captura pasa a ser
+  solo el nombre de la calculadora (con su variante de córnea
+  posterior si aplica); el ojo y «Captura de pantalla» se quitan de ahí
+  —el ojo ya está en la referencia, y la nota pasa a su propia línea,
+  debajo del título, en vez de ir pegada.
+- **Sin el esquema del ojo al principio**: `hojaBiometriaAparato` ya no
+  llama a `figuraBiometrica`; se queda solo en el informe detallado,
+  que no genera la aplicación por defecto.
+- **Eje de K2 automático**: `ServicioCasos.editarMedida()` rellena
+  K2_EJE con K1_EJE + 90° (envuelto dentro de 0-180°) en cuanto se
+  escribe el eje de K1 — solo si K2 no tenía ya su propio valor, y
+  solo en ese sentido, nunca al revés.
+
+### Verificado
+
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde (801 tests unitarios; el único fallo de la suite es previo y
+  no relacionado; 57/57 de interfaz).
+- 52 tests en `plantilla.test.ts` (títulos, CSS, ausencia del esquema)
+  y 5 tests nuevos en `servicio-casos.editar-medida.test.ts`.
+
+---
+
 ## [1.15.51] — 20/09/2026 (versión visible en pantalla: v1.17)
 
 feat(report): refuerza el aviso legal del PDF — "organizador de cálculos",

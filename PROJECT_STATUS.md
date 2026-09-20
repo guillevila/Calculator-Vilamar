@@ -9,7 +9,23 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 20/09/2026 (1) · **Aviso legal del PDF
+**Última actualización:** 20/09/2026 (2) · **cabecera del PDF sin
+solape, títulos más claros, sin el esquema del ojo al principio, y el
+eje de K2 se rellena solo con el de K1 + 90° (D92).** El dueño reportó
+que los encabezados de las hojas de captura se montaban unas letras
+con otras — confirmado generando un informe de muestra real y
+mirándolo con Playwright antes de tocar nada: faltaba `min-width: 0`
+en el título, así que no encogía y se metía en el hueco de la
+referencia. De paso: título de cada hoja reducido a solo la
+calculadora (más claro qué es y si la córnea posterior es estimada o
+medida), quitado el esquema pequeño del ojo de las primeras hojas, y
+en el formulario manual/revisión, escribir el eje de K1 rellena solo
+el de K2 a 90° (las dos queratometrías son perpendiculares), sin pisar
+uno que ya hubiera. `pnpm lint && pnpm typecheck && pnpm test && pnpm
+build && pnpm test:e2e` en verde (801 tests unitarios; el único fallo
+de la suite es previo y no relacionado; 57/57 de interfaz).
+
+Antes de esto — **20/09/2026 (1): aviso legal del PDF
 reforzado: «organizador de cálculos», sin instrucción médica,
 responsabilidad exclusiva del oftalmólogo (D91).** Surgió al estudiar
 con el dueño si vender este software a clínicas — se investigó el

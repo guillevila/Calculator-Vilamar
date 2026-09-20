@@ -746,6 +746,23 @@ export class ServicioCasos {
     const ladosTocados: Lateralidad[] = [lado]
     const otroLado: Lateralidad = lado === 'OD' ? 'OS' : 'OD'
 
+    // El eje de K2 es, por definición clínica, el de K1 más 90° — las dos
+    // queratometrías son perpendiculares entre sí (petición expresa del
+    // dueño del proyecto, 20/09/2026, «para ser más rápida»). Se rellena
+    // solo al escribir el eje de K1, nunca al revés, y solo si K2 todavía
+    // no tenía su propio eje — un astigmatismo irregular, poco común pero
+    // real, puede necesitar uno distinto, y eso nunca se pisa.
+    if (campo === 'K1_EJE' && valor !== null) {
+      const ojoActual = ojoDe(conElOjo, lado, aparato)
+      if (ojoActual.medidas.K2_EJE === undefined) {
+        conElOjo = conOjo(
+          conElOjo,
+          corregirMedida(ojoActual, 'K2_EJE', (valor + 90) % 180, this.iso()),
+          this.iso(),
+        )
+      }
+    }
+
     // La constante A es casi siempre la misma lente en los dos ojos
     // (petición expresa del dueño, 02/09/2026). Se propaga sola entre los
     // dos datasets del mismo aparato, en el sentido que corresponda según
