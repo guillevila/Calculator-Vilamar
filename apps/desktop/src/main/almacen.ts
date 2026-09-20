@@ -22,7 +22,7 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 
-import type { Caso, Doctor, EntradaBandeja } from '@vilamar/domain'
+import type { Caso, Doctor, EntradaBandeja, Laboratorio } from '@vilamar/domain'
 
 export interface Carpetas {
   readonly raiz: string
@@ -167,6 +167,32 @@ export function leerDoctores(carpetas: Carpetas): readonly Doctor[] {
 
 export function guardarDoctores(carpetas: Carpetas, doctores: readonly Doctor[]): void {
   writeFileSync(join(carpetas.raiz, 'doctores.json'), JSON.stringify(doctores, null, 2), 'utf8')
+}
+
+/**
+ * Los laboratorios a los que se piden las lentes, uno por fabricante (D93,
+ * 20/09/2026) — mismo patrón que los doctores: una lista aparte, fuera de
+ * cualquier caso concreto.
+ */
+export function leerLaboratorios(carpetas: Carpetas): readonly Laboratorio[] {
+  try {
+    return JSON.parse(
+      readFileSync(join(carpetas.raiz, 'laboratorios.json'), 'utf8'),
+    ) as Laboratorio[]
+  } catch {
+    return []
+  }
+}
+
+export function guardarLaboratorios(
+  carpetas: Carpetas,
+  laboratorios: readonly Laboratorio[],
+): void {
+  writeFileSync(
+    join(carpetas.raiz, 'laboratorios.json'),
+    JSON.stringify(laboratorios, null, 2),
+    'utf8',
+  )
 }
 
 /**

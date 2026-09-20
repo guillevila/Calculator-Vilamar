@@ -9,7 +9,20 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 20/09/2026 (2) · **cabecera del PDF sin
+**Última actualización:** 20/09/2026 (3) · **El cirujano graba qué
+lente pide de verdad, y un botón redacta el correo al laboratorio
+correcto (D93).** Tarjeta nueva «Lente a pedir» en la pantalla de
+resultados — la misma que se abre al reabrir un caso terminado desde
+«Casos guardados», a propósito: la decisión se toma con calma, no
+necesariamente el mismo día del cálculo. Nueva agenda «Laboratorios»
+(fabricante → email, calcada de la de doctores). El correo nunca lleva
+el nombre del paciente, solo el código del caso — y nunca se manda
+solo, hace falta pulsar «Enviar» a mano. `pnpm lint && pnpm typecheck
+&& pnpm test && pnpm build && pnpm test:e2e` en verde (816 tests
+unitarios; el único fallo de la suite es previo y no relacionado;
+58/58 de interfaz).
+
+Antes de esto — **20/09/2026 (2): cabecera del PDF sin
 solape, títulos más claros, sin el esquema del ojo al principio, y el
 eje de K2 se rellena solo con el de K1 + 90° (D92).** El dueño reportó
 que los encabezados de las hojas de captura se montaban unas letras

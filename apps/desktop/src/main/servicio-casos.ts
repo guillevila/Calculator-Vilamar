@@ -55,6 +55,7 @@ import {
   conSituacionCorneal,
   conMedida,
   conOjo,
+  conPedidoLente,
   conResultado,
   corregirMedida,
   crearMedida,
@@ -1060,6 +1061,68 @@ export class ServicioCasos {
       }
     }
     return caso
+  }
+
+  /**
+   * Graba qué lente ha decidido pedir el cirujano para un ojo, después de
+   * mirar el informe con calma (D93, 20/09/2026) — funciona igual sobre el
+   * caso recién calculado que sobre uno reabierto desde «Casos guardados»
+   * días después: no depende de ninguna sesión de cálculo en curso.
+   */
+  guardarPedidoLente(
+    lado: Lateralidad,
+    datos: {
+      readonly fabricante: string
+      readonly modelo: string
+      readonly esfera: number
+      readonly cilindro?: number
+      readonly eje?: number
+    },
+  ): Caso {
+    const caso = this.exigirCaso()
+    return this.establecer(
+      conPedidoLente(caso, lado, {
+        fabricante: datos.fabricante.trim(),
+        modelo: datos.modelo.trim(),
+        esfera: datos.esfera,
+        cilindro: datos.cilindro,
+        eje: datos.eje,
+        decididoEn: this.iso(),
+      }),
+    )
+  }
+
+  /**
+   * El asunto y el cuerpo del correo para pedir esa lente al laboratorio
+   * (D93, 20/09/2026) — nunca el nombre del paciente, a petición expresa
+   * del dueño: solo el código local del caso, que es lo mismo que ya se
+   * manda a las calculadoras externas cuando piden un identificador (D44).
+   * El email de destino lo resuelve quien llama a esto (`main/index.ts`),
+   * mirando el fabricante en la agenda de laboratorios — `ServicioCasos` no
+   * depende de `ServicioLaboratorios`, igual que no depende de
+   * `ServicioDoctores` (ver `aplicarDoctor`, que recibe el `Doctor` ya
+   * resuelto).
+   */
+  mailtoPedidoLente(lado: Lateralidad): { asunto: string; cuerpo: string } {
+    const caso = this.exigirCaso()
+    const pedido = caso.pedidosLente?.[lado]
+    if (!pedido) {
+      throw new Error(`Todavía no se ha guardado ninguna lente a pedir para el ${lado}.`)
+    }
+    const asunto = `Pedido de lente — ${caso.codigo} · ${nombreLateralidad(lado)}`
+    const lineas = [
+      `Caso: ${caso.codigo}`,
+      `Ojo: ${nombreLateralidad(lado)}`,
+      caso.nombreCirujano ? `Cirujano: ${caso.nombreCirujano}` : undefined,
+      `Fabricante: ${pedido.fabricante}`,
+      `Modelo: ${pedido.modelo}`,
+      `Potencia esférica: ${pedido.esfera.toFixed(2)} D`,
+      pedido.cilindro !== undefined
+        ? `Potencia cilíndrica: ${pedido.cilindro.toFixed(2)} D`
+        : undefined,
+      pedido.eje !== undefined ? `Eje: ${pedido.eje.toFixed(0)}°` : undefined,
+    ].filter((l): l is string => l !== undefined)
+    return { asunto, cuerpo: lineas.join('\n') }
   }
 
   /** Elige el sexo a mano. Conserva lo que hubiera antes, como cualquier dato. */

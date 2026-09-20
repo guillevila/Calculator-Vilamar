@@ -1913,3 +1913,72 @@ test('eliminar un doctor del dashboard (D85): pide confirmación, y archiva el c
   const rutaArchivada = join(carpetaDatos, 'casos-borrados', dia, `${codigo}.json`)
   expect(existsSync(rutaArchivada)).toBe(true)
 })
+
+/**
+ * D93, 20/09/2026: la lente que el cirujano decide pedir, guardada con el
+ * caso, reabriéndolo desde «Casos guardados» —exactamente el escenario
+ * pedido: «el dr pueda acceder a sus casos e ir decidiendo qué lente
+ * escoge», no necesariamente el mismo día en que se calculó.
+ *
+ * No se pulsa «Pedir al laboratorio» de verdad: abriría el programa de
+ * correo real del equipo que ejecute la prueba (mismo motivo por el que
+ * «Abrir la carpeta», que usa `shell.openPath`, tampoco se prueba aquí) —
+ * se comprueba hasta que el botón aparece, que es la parte que sí depende
+ * de este programa.
+ */
+test('la lente a pedir (D93): se guarda con el caso, reabriéndolo desde «Casos guardados» días después', async () => {
+  const codigo = 'CV-TEST-PEDIDO-LENTE'
+  const rutaCaso = join(carpetaDatos, 'casos', `${codigo}.json`)
+  writeFileSync(
+    rutaCaso,
+    JSON.stringify({
+      id: 'test-pedido-lente',
+      codigo,
+      estado: 'COMPLETADO',
+      creadoEn: '2026-09-20T10:00:00.000Z',
+      actualizadoEn: '2026-09-20T10:00:00.000Z',
+      documentos: [],
+      ojos: {},
+      resultados: {},
+      nombreCirujano: 'Dra. Pedido E2E',
+    }),
+    'utf8',
+  )
+
+  // Primero, un laboratorio guardado — si no, no habría a qué email pedir.
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('abrir-laboratorios').click()
+  await ventana.getByTestId('laboratorio-fabricante').fill('Bausch & Lomb')
+  await ventana.getByTestId('laboratorio-email').fill('pedidos@bl-e2e.example')
+  await ventana.getByTestId('guardar-laboratorio').click()
+  await expect(ventana.getByTestId('tabla-laboratorios')).toContainText('Bausch & Lomb')
+  await ventana.getByTestId('volver-de-laboratorios').click()
+
+  // Se reabre el caso terminado desde «Casos guardados» — no el que se
+  // acaba de calcular en esta sesión.
+  await ventana.getByTestId('tarjeta-casos-guardados').getByRole('button').click()
+  await expect(ventana.getByTestId('tabla-casos-guardados')).toBeVisible()
+  const fila = ventana.locator('tr', { hasText: codigo })
+  await fila.getByRole('button', { name: 'Abrir' }).click()
+
+  // Sin ningún pedido guardado todavía, «Pedir al laboratorio» no aparece.
+  await expect(ventana.getByTestId('pedir-al-laboratorio')).toHaveCount(0)
+
+  await ventana.getByTestId('pedido-fabricante').selectOption('Bausch & Lomb')
+  await ventana.getByTestId('pedido-modelo').fill('B&L Aspire')
+  await ventana.getByTestId('pedido-esfera').fill('21.5')
+  await ventana.getByTestId('pedido-cilindro').fill('1')
+  await ventana.getByTestId('pedido-eje').fill('90')
+  await ventana.getByTestId('guardar-pedido-lente').click()
+
+  await expect(ventana.getByTestId('pedido-guardado-texto')).toContainText('Bausch & Lomb')
+  await expect(ventana.getByTestId('pedido-guardado-texto')).toContainText('B&L Aspire')
+  await expect(ventana.getByTestId('pedir-al-laboratorio')).toBeVisible()
+
+  // Y queda de verdad en el caso guardado en disco, no solo en pantalla.
+  const guardado = JSON.parse(readFileSync(rutaCaso, 'utf8')) as {
+    pedidosLente?: { OD?: { fabricante?: string; esfera?: number } }
+  }
+  expect(guardado.pedidosLente?.OD?.fabricante).toBe('Bausch & Lomb')
+  expect(guardado.pedidosLente?.OD?.esfera).toBe(21.5)
+})

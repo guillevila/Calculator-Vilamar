@@ -20,6 +20,7 @@ import { BandejaScreen } from './componentes/BandejaScreen.js'
 import { CasosGuardados } from './componentes/CasosGuardados.js'
 import { DashboardScreen } from './componentes/DashboardScreen.js'
 import { DoctoresScreen } from './componentes/DoctoresScreen.js'
+import { LaboratoriosScreen } from './componentes/LaboratoriosScreen.js'
 import { ZonaSoltar } from './componentes/ZonaSoltar.js'
 import { FormularioManual } from './componentes/FormularioManual.js'
 import { PanelRevision } from './componentes/PanelRevision.js'
@@ -56,9 +57,9 @@ export function App(): JSX.Element {
   // ninguna) en vez de un booleano por pantalla: con varios booleanos
   // independientes, abrir una sin acordarse de cerrar las demás a mano
   // dejaría dos superpuestas a la vez.
-  const [pantallaExtra, setPantallaExtra] = useState<'DOCTORES' | 'BANDEJA' | 'DASHBOARD' | null>(
-    null,
-  )
+  const [pantallaExtra, setPantallaExtra] = useState<
+    'DOCTORES' | 'LABORATORIOS' | 'BANDEJA' | 'DASHBOARD' | null
+  >(null)
 
   const disponible = hayApi()
 
@@ -402,6 +403,14 @@ export function App(): JSX.Element {
             Doctores
           </button>
           <button
+            className="boton-cabecera boton-cabecera-doctores"
+            onClick={() => setPantallaExtra('LABORATORIOS')}
+            disabled={ocupado}
+            data-testid="abrir-laboratorios"
+          >
+            Laboratorios
+          </button>
+          <button
             className="boton-cabecera boton-cabecera-nuevo"
             onClick={() => void nuevoCalculo()}
             disabled={ocupado}
@@ -415,6 +424,14 @@ export function App(): JSX.Element {
         <main className="contenido">
           <div className="centrado">
             <DoctoresScreen onVolver={() => setPantallaExtra(null)} />
+          </div>
+        </main>
+      )}
+
+      {pantallaExtra === 'LABORATORIOS' && (
+        <main className="contenido">
+          <div className="centrado">
+            <LaboratoriosScreen onVolver={() => setPantallaExtra(null)} />
           </div>
         </main>
       )}

@@ -10,7 +10,7 @@
  * dicen qué implantar, y no lo dirán.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 
 import type {
@@ -18,6 +18,7 @@ import type {
   Caso,
   CeldaComparativa,
   DatoComparativo,
+  Laboratorio,
   Lateralidad,
 } from '@vilamar/domain'
 import {
@@ -204,6 +205,225 @@ function OpcionesDevueltas({ celda }: { celda: CeldaComparativa }): JSX.Element 
           ))}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+interface FormularioPedido {
+  readonly fabricante: string
+  readonly modelo: string
+  readonly esfera: string
+  readonly cilindro: string
+  readonly eje: string
+}
+
+function formularioDesdeCaso(caso: Caso, ojo: Lateralidad): FormularioPedido {
+  const pedido = caso.pedidosLente?.[ojo]
+  return {
+    fabricante: pedido?.fabricante ?? '',
+    modelo: pedido?.modelo ?? '',
+    esfera: pedido?.esfera !== undefined ? String(pedido.esfera) : '',
+    cilindro: pedido?.cilindro !== undefined ? String(pedido.cilindro) : '',
+    eje: pedido?.eje !== undefined ? String(pedido.eje) : '',
+  }
+}
+
+/**
+ * La lente que el cirujano decide pedir de verdad, una vez visto el informe
+ * (D93, 20/09/2026) — funciona igual reabriendo un caso terminado días
+ * después que justo tras calcular. `key={ojoActivo}`, en el sitio donde se
+ * usa este componente, fuerza que se reinicie al cambiar de ojo — mismo
+ * motivo que ya explica `SelectorAparatoPrincipal` (D47): sin ella, React
+ * conserva el formulario del ojo anterior en pantalla.
+ */
+function TarjetaPedidoLente({
+  caso,
+  ojoActivo,
+}: {
+  readonly caso: Caso
+  readonly ojoActivo: Lateralidad
+}): JSX.Element {
+  const [laboratorios, setLaboratorios] = useState<readonly Laboratorio[] | null>(null)
+  const [form, setForm] = useState<FormularioPedido>(() => formularioDesdeCaso(caso, ojoActivo))
+  const [guardando, setGuardando] = useState(false)
+  const [pidiendo, setPidiendo] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    void api()
+      .listarLaboratorios()
+      .then(setLaboratorios)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+  }, [])
+
+  const pedidoGuardado = caso.pedidosLente?.[ojoActivo]
+
+  async function guardar(): Promise<void> {
+    setError(null)
+    const esfera = Number(form.esfera.replace(',', '.'))
+    if (form.fabricante.trim() === '') {
+      setError('Elige el fabricante.')
+      return
+    }
+    if (form.modelo.trim() === '') {
+      setError('Escribe el modelo de la lente.')
+      return
+    }
+    if (!Number.isFinite(esfera)) {
+      setError('La potencia esférica no es un número válido.')
+      return
+    }
+    const cilindro =
+      form.cilindro.trim() === '' ? undefined : Number(form.cilindro.replace(',', '.'))
+    const eje = form.eje.trim() === '' ? undefined : Number(form.eje.replace(',', '.'))
+    if (cilindro !== undefined && !Number.isFinite(cilindro)) {
+      setError('La potencia cilíndrica no es un número válido.')
+      return
+    }
+    if (eje !== undefined && !Number.isFinite(eje)) {
+      setError('El eje no es un número válido.')
+      return
+    }
+    setGuardando(true)
+    try {
+      await api().guardarPedidoLente(ojoActivo, {
+        fabricante: form.fabricante.trim(),
+        modelo: form.modelo.trim(),
+        esfera,
+        cilindro,
+        eje,
+      })
+      // `caso` se actualiza solo: `guardarPedidoLente()` emite el caso
+      // nuevo por el mismo canal que ya escucha App.tsx (`alCambiarCaso`),
+      // igual que cualquier otro cambio del caso en curso.
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  async function pedir(): Promise<void> {
+    setError(null)
+    setPidiendo(true)
+    try {
+      await api().pedirAlLaboratorio(ojoActivo)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPidiendo(false)
+    }
+  }
+
+  return (
+    <div className="tarjeta">
+      <h2>Lente a pedir · {nombreLateralidad(ojoActivo)}</h2>
+      <p className="sub">
+        Una vez visto el informe, escribe aquí la lente que vas a pedir de verdad — no tiene que
+        coincidir exactamente con ninguna casilla calculada. Se guarda con el caso, así que puedes
+        decidirlo con calma, incluso días después, reabriendo el caso desde «Casos guardados».
+      </p>
+
+      {error && <div className="aviso error">{error}</div>}
+
+      {laboratorios !== null && laboratorios.length === 0 && (
+        <p className="pie-nota">
+          Todavía no has guardado ningún laboratorio — hazlo desde el botón «Laboratorios» de arriba
+          para poder pedir por correo.
+        </p>
+      )}
+
+      <div className="fila" style={{ flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <label htmlFor={`pedido-fabricante-${ojoActivo}`}>Fabricante</label>
+          <select
+            id={`pedido-fabricante-${ojoActivo}`}
+            value={form.fabricante}
+            data-testid="pedido-fabricante"
+            onChange={(e) => setForm((f) => ({ ...f, fabricante: e.target.value }))}
+          >
+            <option value="">(elige uno)</option>
+            {(laboratorios ?? []).map((l) => (
+              <option key={l.id} value={l.fabricante}>
+                {l.fabricante}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor={`pedido-modelo-${ojoActivo}`}>Modelo de la lente</label>
+          <input
+            id={`pedido-modelo-${ojoActivo}`}
+            value={form.modelo}
+            data-testid="pedido-modelo"
+            onChange={(e) => setForm((f) => ({ ...f, modelo: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label htmlFor={`pedido-esfera-${ojoActivo}`}>Potencia esférica (D)</label>
+          <input
+            id={`pedido-esfera-${ojoActivo}`}
+            type="number"
+            step="0.25"
+            value={form.esfera}
+            data-testid="pedido-esfera"
+            onChange={(e) => setForm((f) => ({ ...f, esfera: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label htmlFor={`pedido-cilindro-${ojoActivo}`}>Potencia cilíndrica (D)</label>
+          <input
+            id={`pedido-cilindro-${ojoActivo}`}
+            type="number"
+            step="0.25"
+            value={form.cilindro}
+            data-testid="pedido-cilindro"
+            onChange={(e) => setForm((f) => ({ ...f, cilindro: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label htmlFor={`pedido-eje-${ojoActivo}`}>Eje (°)</label>
+          <input
+            id={`pedido-eje-${ojoActivo}`}
+            type="number"
+            step="1"
+            value={form.eje}
+            data-testid="pedido-eje"
+            onChange={(e) => setForm((f) => ({ ...f, eje: e.target.value }))}
+          />
+        </div>
+      </div>
+
+      <div className="fila" style={{ marginTop: 12, gap: 8, alignItems: 'center' }}>
+        <button
+          className="principal"
+          onClick={() => void guardar()}
+          disabled={guardando}
+          data-testid="guardar-pedido-lente"
+        >
+          {guardando ? 'Guardando…' : 'Guardar la lente a pedir'}
+        </button>
+        {pedidoGuardado && (
+          <button
+            onClick={() => void pedir()}
+            disabled={pidiendo}
+            data-testid="pedir-al-laboratorio"
+          >
+            {pidiendo ? 'Abriendo el correo…' : 'Pedir al laboratorio'}
+          </button>
+        )}
+      </div>
+
+      {pedidoGuardado && (
+        <p className="pie-nota" data-testid="pedido-guardado-texto">
+          Guardado: <strong>{pedidoGuardado.fabricante}</strong> {pedidoGuardado.modelo} ·{' '}
+          {pedidoGuardado.esfera.toFixed(2)} D
+          {pedidoGuardado.cilindro !== undefined
+            ? ` · Cil. ${pedidoGuardado.cilindro.toFixed(2)} D`
+            : ''}
+          {pedidoGuardado.eje !== undefined ? ` · Eje ${pedidoGuardado.eje.toFixed(0)}°` : ''}
+        </p>
+      )}
     </div>
   )
 }
@@ -468,6 +688,14 @@ export function PanelResultados({
           </button>
         </div>
       </div>
+
+      {/*
+        `key={ojoActivo}`: al cambiar de ojo, es un formulario distinto —sin
+        la clave, React conserva lo que se estuviera escribiendo del ojo
+        anterior en pantalla (mismo motivo que ya explica `SelectorAparato`,
+        D47).
+      */}
+      <TarjetaPedidoLente key={ojoActivo} caso={caso} ojoActivo={ojoActivo} />
     </>
   )
 }

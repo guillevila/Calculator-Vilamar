@@ -10,6 +10,7 @@ import { basename, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import type { Lateralidad } from '@vilamar/domain'
 import type { Browser } from 'playwright'
 
 import type { ArchivoEntrante, EstadoCalculo } from '../compartido/ipc.js'
@@ -26,6 +27,7 @@ import { cargarEnv } from './ajustes.js'
 import { ServicioBandeja } from './servicio-bandeja.js'
 import { ServicioCasos } from './servicio-casos.js'
 import { ServicioDoctores } from './servicio-doctores.js'
+import { ServicioLaboratorios } from './servicio-laboratorios.js'
 
 const carpetaActual = join(fileURLToPath(import.meta.url), '..')
 
@@ -70,7 +72,7 @@ if (app.isPackaged) {
  * este número es lo ÚLTIMO que se hace al cerrar un cambio en la aplicación
  * de escritorio, justo antes de avisar de que está listo para probar.
  */
-const VERSION_VISIBLE = '1.18'
+const VERSION_VISIBLE = '1.19'
 
 function versionDelProducto(): string {
   return VERSION_VISIBLE
@@ -288,6 +290,7 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   })
 
   const doctores = new ServicioDoctores({ carpetas, nuevoId })
+  const laboratorios = new ServicioLaboratorios({ carpetas, nuevoId })
   const bandeja = new ServicioBandeja({ carpetas, nuevoId, ahora: () => new Date() })
 
   const s = (): ServicioCasos => {
@@ -350,6 +353,33 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
     const doctor = doctores.obtener(id)
     if (!doctor) throw new Error('Ese doctor ya no está guardado.')
     return s().aplicarDoctor(doctor)
+  })
+  ipcMain.handle(CANALES.listarLaboratorios, () => laboratorios.listar())
+  ipcMain.handle(CANALES.guardarLaboratorio, (_e, datos) => laboratorios.guardar(datos))
+  ipcMain.handle(CANALES.eliminarLaboratorio, (_e, id) => laboratorios.eliminar(id))
+  ipcMain.handle(CANALES.guardarPedidoLente, (_e, lado, datos) =>
+    s().guardarPedidoLente(lado, datos),
+  )
+  /**
+   * Abre el programa de correo con el pedido ya redactado (D93, 20/09/2026)
+   * — nunca se manda solo. `ServicioCasos` construye el texto sin depender
+   * de `ServicioLaboratorios` (igual que `aplicarDoctor` no depende de
+   * `ServicioDoctores`); el email de destino se resuelve aquí, mirando el
+   * fabricante del pedido guardado.
+   */
+  ipcMain.handle(CANALES.pedirAlLaboratorio, async (_e, lado: Lateralidad) => {
+    const caso = s().obtener()
+    const pedido = caso?.pedidosLente?.[lado]
+    if (!pedido) throw new Error('Todavía no se ha guardado ninguna lente a pedir para ese ojo.')
+    const email = laboratorios.emailDe(pedido.fabricante)
+    if (!email) {
+      throw new Error(
+        `No hay ningún email guardado para «${pedido.fabricante}». Añádelo en «Laboratorios».`,
+      )
+    }
+    const { asunto, cuerpo } = s().mailtoPedidoLente(lado)
+    const url = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`
+    await shell.openExternal(url)
   })
   ipcMain.handle(CANALES.listarBandeja, () => bandeja.listar())
   ipcMain.handle(CANALES.crearEntradaBandeja, (_e, datos) => bandeja.crear(datos))

@@ -4,6 +4,50 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.53] — 20/09/2026 (versión visible en pantalla: v1.19)
+
+feat(app): el cirujano graba qué lente pide de verdad, y un botón redacta
+el correo al laboratorio correcto según el fabricante (D93).
+
+### Qué se pidió
+
+El dueño del proyecto: «una vez calculado el caso y almacenado en la
+carpeta, me gustaría que el doctor pudiera de alguna forma decidir qué
+lente elige y que quede grabado, y dándole a un botón poder crear un mail
+directo al laboratorio para pedirlo». Aclarado en dos rondas: (1) la
+decisión se toma reabriendo el caso desde «Casos guardados», no
+necesariamente el mismo día del cálculo — «hasta que no tiene el PDF no
+puede elegir»; (2) el correo nunca lleva el nombre del paciente, solo el
+código del caso; el email del laboratorio depende del fabricante de la
+lente, así que hace falta una lista fabricante → email.
+
+### El cambio
+
+- `Caso.pedidosLente` (dominio): fabricante, modelo, esfera, cilindro y
+  eje opcionales, por ojo — distinto de `Caso.lente` (la usada para
+  calcular) y de la estimación propia del PDF (D43): es la decisión real
+  del cirujano, escrita a mano, no copiada de ninguna calculadora.
+- Tarjeta nueva «Lente a pedir» en `PanelResultados.tsx` — la misma
+  pantalla que ya se abre al reabrir un caso terminado.
+- Agenda nueva «Laboratorios» (`ServicioLaboratorios`, calcada de la
+  agenda de doctores D80): fabricante → email, con su propia pantalla.
+- Botón «Pedir al laboratorio»: abre el programa de correo de siempre
+  (`mailto:`) con el asunto y el cuerpo ya redactados — nunca se manda
+  solo, hay que pulsar «Enviar» a mano.
+
+### Verificado
+
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde (816 tests unitarios; el único fallo de la suite es previo y no
+  relacionado; 58/58 de interfaz).
+- Tests de dominio, de `ServicioCasos` y de `ServicioLaboratorios`, más un
+  test de interfaz de punta a punta que reabre un caso desde «Casos
+  guardados», guarda el pedido y comprueba que persiste en disco (sin
+  pulsar «Pedir al laboratorio» de verdad, por el mismo motivo que «Abrir
+  la carpeta» tampoco se prueba: abriría un programa externo real).
+
+---
+
 ## [1.15.52] — 20/09/2026 (versión visible en pantalla: v1.18)
 
 feat(app): cabecera del PDF sin solape, títulos más claros, sin el

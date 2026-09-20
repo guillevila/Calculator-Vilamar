@@ -145,6 +145,31 @@ export interface Caso {
   readonly nombreCirujano?: string
   /** Notas del usuario. No se envían a ningún sitio. */
   readonly notas?: string
+  /**
+   * La lente que el cirujano ha decidido pedir para cada ojo, una vez visto
+   * el informe (D93, 20/09/2026) — distinta de `lente` (la que se usó para
+   * calcular, con su constante A) y de la «estimación propia» del PDF (D43,
+   * no vinculante): esto es la decisión de VERDAD del cirujano, escrita a
+   * mano después de mirar el PDF con calma, no necesariamente igual a
+   * ninguna casilla calculada. Vive en el caso, no en una pantalla aparte,
+   * para poder decidirla el mismo día o semanas después, reabriendo el caso
+   * desde «Casos guardados» — nunca se pierde con la sesión.
+   */
+  readonly pedidosLente?: Readonly<Partial<Record<Lateralidad, PedidoLente>>>
+}
+
+/**
+ * La lente que el cirujano decide pedir para un ojo, para generar el correo
+ * al laboratorio (D93, 20/09/2026). Texto y números escritos a mano por el
+ * cirujano — no se copian automáticamente de ninguna calculadora.
+ */
+export interface PedidoLente {
+  readonly fabricante: string
+  readonly modelo: string
+  readonly esfera: number
+  readonly cilindro?: number
+  readonly eje?: number
+  readonly decididoEn: string
 }
 
 export interface LenteElegida {
@@ -361,6 +386,20 @@ export function resultadoDe(
   aparato: string = APARATO_PRINCIPAL,
 ): ResultadoCalculadora | undefined {
   return caso.resultados[claveResultado(calculadora, ojo, aparato)]
+}
+
+/**
+ * Graba la lente que el cirujano decide pedir para un ojo (D93,
+ * 20/09/2026). Sustituye siempre lo que hubiera antes para ese ojo —si el
+ * cirujano cambia de opinión, la decisión nueva manda, sin dejar restos de
+ * la anterior.
+ */
+export function conPedidoLente(caso: Caso, ojo: Lateralidad, pedido: PedidoLente): Caso {
+  return {
+    ...caso,
+    pedidosLente: { ...caso.pedidosLente, [ojo]: pedido },
+    actualizadoEn: pedido.decididoEn,
+  }
 }
 
 /**

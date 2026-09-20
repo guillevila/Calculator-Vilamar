@@ -13,6 +13,7 @@ import type {
   Doctor,
   EntradaBandeja,
   EstadoCaso,
+  Laboratorio,
   Lateralidad,
   CampoBiometrico,
   PrioridadBandeja,
@@ -179,6 +180,43 @@ export interface ApiVilamar {
    * todavía no toca esos campos.
    */
   readonly aplicarDoctor: (id: string) => Promise<Caso>
+
+  /** Los laboratorios guardados (D93, 20/09/2026), uno por fabricante. */
+  readonly listarLaboratorios: () => Promise<readonly Laboratorio[]>
+  /**
+   * Añade un laboratorio nuevo (sin `id`) o edita uno ya existente (con
+   * `id`). Devuelve la lista entera ya actualizada.
+   */
+  readonly guardarLaboratorio: (laboratorio: {
+    readonly id?: string
+    readonly fabricante: string
+    readonly email: string
+  }) => Promise<readonly Laboratorio[]>
+  /** Devuelve la lista entera, ya sin ese laboratorio. */
+  readonly eliminarLaboratorio: (id: string) => Promise<readonly Laboratorio[]>
+
+  /**
+   * Graba qué lente ha decidido pedir el cirujano para un ojo, después de
+   * mirar el informe con calma (D93, 20/09/2026) — funciona tanto sobre el
+   * caso recién calculado como sobre uno reabierto desde «Casos guardados».
+   */
+  readonly guardarPedidoLente: (
+    lado: Lateralidad,
+    datos: {
+      readonly fabricante: string
+      readonly modelo: string
+      readonly esfera: number
+      readonly cilindro?: number
+      readonly eje?: number
+    },
+  ) => Promise<Caso>
+  /**
+   * Abre el programa de correo de siempre, con el pedido de esa lente ya
+   * redactado — nunca se manda solo, hace falta pulsar «Enviar» a mano.
+   * Falla con un mensaje claro si ese fabricante no tiene email guardado en
+   * «Laboratorios», o si todavía no se ha grabado ningún pedido para ese ojo.
+   */
+  readonly pedirAlLaboratorio: (lado: Lateralidad) => Promise<void>
 
   /**
    * La bandeja de casos (D81, 15/09/2026): la cola de avisos que llegan de
@@ -424,6 +462,11 @@ export const CANALES = {
   guardarDoctor: 'vilamar:guardar-doctor',
   eliminarDoctor: 'vilamar:eliminar-doctor',
   aplicarDoctor: 'vilamar:aplicar-doctor',
+  listarLaboratorios: 'vilamar:listar-laboratorios',
+  guardarLaboratorio: 'vilamar:guardar-laboratorio',
+  eliminarLaboratorio: 'vilamar:eliminar-laboratorio',
+  guardarPedidoLente: 'vilamar:guardar-pedido-lente',
+  pedirAlLaboratorio: 'vilamar:pedir-al-laboratorio',
   listarBandeja: 'vilamar:listar-bandeja',
   crearEntradaBandeja: 'vilamar:crear-entrada-bandeja',
   editarEntradaBandeja: 'vilamar:editar-entrada-bandeja',
