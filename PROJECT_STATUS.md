@@ -9,15 +9,63 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 20/09/2026 · **Empieza el plan de acceso desde
-el móvil (servidor + PWA) — de momento solo el andamiaje, sin ejecutar
-ni probar todavía (D91).** Nuevo proyecto, en la rama
-`feature/app-movil-servidor`, con su propia guía completa en
-`docs/PLAN-APP-MOVIL.md`: el producto deja de ser exclusivamente local
-(matiza D1) para poder funcionar también como servidor, y así el dueño
-y su mujer puedan calcular un caso desde el móvil. **Etapa real de esta
-pieza: prototipo interno, no demo ni producto** — nada de lo siguiente
-se ha visto funcionar de verdad todavía:
+**Última actualización:** 20/09/2026 (2) · **Primera prueba real de
+`apps/server`: un caso completo, contra la web real de EVO, hasta un PDF
+de verdad — pero solo EVO, y solo en el portátil de empresa, con
+consentimiento informado del dueño (D91).** Con el fallo de compilación
+de la app de escritorio ya corregido (ver más abajo), se arrancó el
+servidor por primera vez en la vida de este código y se hizo, a mano
+por HTTP, exactamente lo que hará la futura PWA: crear un caso, escribir
+los diez campos de un ojo (AL, K1/K2 con sus ejes, ACD, refracción
+objetivo, constante A, SIA, eje de incisión — datos sintéticos,
+inventados para esta prueba, nunca de un paciente), confirmarlo y
+calcular. **EVO Toric funcionó de punta a punta contra la web real**:
+Chromium sin cabeza rellenó el formulario, `evoiolcalculator.com`
+devolvió su tabla completa de opciones con una recomendada, y
+`POST /casos/pdf` generó un PDF de verdad (3 páginas) con el mismo
+`@vilamar/report` de siempre, usando `page.pdf()` de Playwright en vez
+de Electron. Los datos y el PDF de la prueba se guardaron fuera de esta
+carpeta (en una carpeta temporal, no en el OneDrive del proyecto) y se
+borraron al terminar.
+
+**Lo que esta prueba NO cubre, para no dar una sensación de avance que
+no es real:**
+
+- **Barrett y Kane, sin probar.** Ya se sabía antes de probar nada:
+  Barrett «no admite navegador sin ventana» (ficha en
+  `calculadoras.ts`) y Kane exige aceptar sus condiciones a mano la
+  primera vez — ninguna de las dos funciona con el Chromium SIN CABEZA
+  que usa `apps/server` hoy (`navegador.ts` lo avisa explícitamente).
+  Sin resolver: para un servidor de verdad hará falta otra solución
+  (un escritorio remoto para ese primer clic, por ejemplo).
+- **La carga de un documento (foto/PDF de un paciente) no se probó.**
+  Esta prueba escribió los datos a mano por la misma vía que usará el
+  cuestionario manual — el lector PROVISIONAL de `apps/server` (solo
+  PDF con texto nativo, sin OCR ni visión) sigue sin haberse probado
+  contra ningún documento real.
+- **Login, aislamiento por persona, `/eventos` (avisos en tiempo real)
+  y el propio VPS**: nada de esto se ha tocado. Sigue habiendo un único
+  caso en memoria, como hoy en escritorio.
+- Esto fue en `localhost`, en el ordenador de pruebas — **no es una
+  prueba de acceso desde el móvil**, solo de que el motor del servidor
+  funciona.
+
+**Un aviso sobre cómo se probó, no sobre el producto**: al terminar, la
+orden de parar el servidor en segundo plano dijo haberlo hecho pero el
+proceso y los tres Chromium que había abierto seguían vivos — hubo que
+matarlos a mano, comprobando antes cuáles eran los correctos para no
+tocar el navegador normal del propio ordenador. Lección registrada en
+`.claude/skills/lessons-learned/log.md` (20/09/2026), justo porque un
+proceso de este tipo abandonado en el portátil de empresa es exactamente
+el rastro que se quería evitar al mínimo (D91).
+
+Antes de esto — **20/09/2026 (1): empieza el plan de acceso
+desde el móvil (servidor + PWA) — de momento solo el andamiaje.** Nuevo
+proyecto, en la rama `feature/app-movil-servidor`, con su propia guía
+completa en `docs/PLAN-APP-MOVIL.md`: el producto deja de ser
+exclusivamente local (matiza D1) para poder funcionar también como
+servidor, y así el dueño y su mujer puedan calcular un caso desde el
+móvil.
 
 1. `ServicioCasos` y el resto del proceso principal que no depende de
    Electron (`almacen.ts`, `diagnostico.ts`, `capturas.ts`) se sacaron
@@ -31,14 +79,6 @@ se ha visto funcionar de verdad todavía:
    memoria, igual que hoy en escritorio — y con un lector de documentos
    PROVISIONAL que solo entiende PDF con texto nativo (nada de
    imágenes, OCR ni el lector con IA).
-3. **`apps/server` no se ha arrancado ni una sola vez** — a propósito:
-   esta sesión se hizo en el portátil de empresa del dueño, y el propio
-   plan pide expresamente no arrancar un servidor en red ni lanzar
-   Playwright ahí, porque el proyecto entero vive dentro de su OneDrive
-   corporativo y esa actividad puede llamar la atención de IT. La
-   primera prueba real —un caso completo contra EVO/Barrett/Kane
-   verdaderos, hasta el PDF— queda pendiente para el ordenador
-   personal.
 
 **Fallo real encontrado y corregido al retomar el trabajo (20/09/2026)**:
 la sesión anterior había sacado `ServicioCasos` a `@vilamar/casos` pero

@@ -6,6 +6,54 @@
 
 ---
 
+## 2026-09-20 — Parar el proceso del servidor no basta: Chromium se queda vivo detrás
+
+**Error o aprendizaje:** Primera prueba real de `apps/server` (D91): arrancó,
+creó un caso, calculó EVO Toric de verdad contra la web real y generó el PDF —
+todo correcto. Al terminar, se pidió parar la tarea en segundo plano
+(`TaskStop`) y la herramienta respondió que se había parado con éxito. **Era
+falso**: comprobando con PowerShell, el proceso `node.exe` seguía vivo, y con
+él sus tres procesos `chrome-headless-shell.exe` — el navegador headless que
+`navegador.ts`/`pdf.ts` habían abierto.
+
+**Causa raíz:** En Windows, un proceso hijo (aquí, `vite-node` lanzado dentro
+de un `pnpm --filter ... dev`) no muere solo porque el proceso que lo lanzó
+reciba la señal de parada — hace falta matar el ÁRBOL de procesos
+explícitamente (`taskkill /T`), y Node tampoco propaga automáticamente el
+cierre a los procesos de Chromium que él mismo lanzó con Playwright. «La
+herramienta dijo que lo paró» no es lo mismo que «está parado» — la misma
+familia de error que «he pulsado el botón» ≠ «el aviso ya no está»
+(11/08/2026).
+
+**Por qué esta vez importaba más de lo normal:** esta prueba se hizo, con
+pushback previo y consentimiento informado del dueño, en el PORTÁTIL DE
+EMPRESA (D91) — precisamente el escenario en el que un `chrome-headless-shell.exe`
+huérfano, consumiendo memoria y con un perfil de navegador persistente vivo
+sin que nadie lo esté usando, es justo el tipo de rastro que se quería evitar
+al mínimo.
+
+**Lección:**
+
+1. Tras parar cualquier tarea que haya lanzado Playwright/Chromium en segundo
+   plano, **no fiarse del mensaje de éxito de la herramienta que la para** —
+   comprobar de verdad con el sistema operativo (`Get-CimInstance Win32_Process`
+   filtrando por línea de comandos, o `tasklist`) que el proceso y sus hijos ya
+   no existen.
+2. Para identificar CUÁLES son los procesos propios entre varios `chrome.exe`
+   del sistema (el usuario puede tener su navegador normal abierto a la vez),
+   comprobar el árbol de `ParentProcessId` hasta el proceso raíz conocido, no
+   adivinar por nombre — matar un `chrome.exe` ajeno sería mucho peor que no
+   matar ninguno.
+3. Si el primer intento de parada no cierra el árbol entero, `taskkill /PID
+   <pid> /T /F` sí lo hace — verificado aquí: los tres `chrome-headless-shell.exe`
+   y el `node.exe` desaparecieron con un único comando sobre el proceso raíz.
+
+**Contexto:** Cualquier prueba real de `apps/server` (o de cualquier script
+que lance Playwright) desde ahora — y con más motivo mientras se siga
+trabajando en el portátil de empresa.
+
+---
+
 ## 2026-09-15 (noche) — Un fix mergeado no llega solo al ejecutable que usa el dueño
 
 **Error o aprendizaje:** El dueño reportó, con dos PDF reales del caso
