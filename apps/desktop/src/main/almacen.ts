@@ -65,18 +65,44 @@ export function prepararCarpetas(rutaDatos: string, rutaInformes?: string): Carp
 /**
  * Genera el código legible del caso: CV-2026-0007.
  *
- * El contador se saca de cuántos casos hay ya guardados este año. Es sencillo y
- * suficiente para un usuario único; si algún día hay varios, habrá que cambiarlo.
+ * ⚠️ Hasta el 20/09/2026 esto contaba cuántos ficheros había en `casos/` en
+ * ese momento y sumaba uno — que parecía sencillo pero tenía un fallo grave:
+ * en cuanto se borraba un caso (p. ej. limpiar uno de prueba desde el
+ * dashboard), la cuenta bajaba y el siguiente caso nuevo podía caer en un
+ * número YA USADO antes, pisando sin avisar el fichero de un paciente
+ * distinto. Así se perdieron varios casos reales entre el 16 y el 19/09.
+ *
+ * Ahora se busca el número más alto que se ha usado ALGUNA VEZ — mirando
+ * tanto `casos/` como `casos-borrados/` (un caso borrado sigue contando: su
+ * número no se reutiliza jamás) — y se devuelve ese número más uno. Nunca
+ * baja, pase lo que pase con los borrados.
  */
 export function siguienteCodigo(carpetas: Carpetas, ahora: Date): string {
   const anio = ahora.getFullYear()
-  let contador = 0
+  const prefijo = `CV-${anio}-`
+  const maximo = Math.max(
+    0,
+    ...numerosDeCasos(carpetas.casos, prefijo),
+    ...numerosDeCasos(join(carpetas.raiz, 'casos-borrados'), prefijo),
+  )
+  return `${prefijo}${String(maximo + 1).padStart(4, '0')}`
+}
+
+/** Recorre una carpeta (y sus subcarpetas, p. ej. los días de `casos-borrados/`)
+ *  y saca el número de cada `CV-<año>-NNNN.json` que encuentra. */
+function numerosDeCasos(dir: string, prefijo: string): number[] {
+  let entradas
   try {
-    contador = readdirSync(carpetas.casos).filter((f) => f.startsWith(`CV-${anio}-`)).length
+    entradas = readdirSync(dir, { withFileTypes: true })
   } catch {
-    contador = 0
+    return []
   }
-  return `CV-${anio}-${String(contador + 1).padStart(4, '0')}`
+  return entradas.flatMap((entrada) => {
+    if (entrada.isDirectory()) return numerosDeCasos(join(dir, entrada.name), prefijo)
+    if (!entrada.name.startsWith(prefijo) || !entrada.name.endsWith('.json')) return []
+    const numero = Number(entrada.name.slice(prefijo.length, -'.json'.length))
+    return Number.isFinite(numero) ? [numero] : []
+  })
 }
 
 export function nuevoId(): string {

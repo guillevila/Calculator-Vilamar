@@ -10,7 +10,14 @@ import { join } from 'node:path'
 import { casoNuevo } from '@vilamar/domain'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { guardarCaso, leerCaso, listarCasos, prepararCarpetas } from './almacen.js'
+import {
+  guardarCaso,
+  leerCaso,
+  listarCasos,
+  moverCasoABorrados,
+  prepararCarpetas,
+  siguienteCodigo,
+} from './almacen.js'
 
 const carpetas: string[] = []
 
@@ -86,5 +93,44 @@ describe('guardarCaso / leerCaso / listarCasos — el viaje de ida y vuelta', ()
   it('sin ningún caso guardado, no lanza: devuelve una lista vacía', () => {
     const carpetas = prepararCarpetas(raizTemporal())
     expect(listarCasos(carpetas)).toEqual([])
+  })
+})
+
+/**
+ * `siguienteCodigo` no reutiliza números (20/09/2026): hasta esta fecha
+ * contaba los ficheros vivos en `casos/`, así que borrar uno bajaba la
+ * cuenta y el siguiente caso podía pisar a otro paciente ya guardado con ese
+ * mismo número. Pasó de verdad entre el 16 y el 19/09 con varios pacientes
+ * reales. Estos tests reproducen exactamente ese escenario.
+ */
+describe('siguienteCodigo — nunca reutiliza un número, aunque se borren casos', () => {
+  const ahora = new Date('2026-09-20T10:00:00.000Z')
+
+  it('sin ningún caso, empieza en 0001', () => {
+    const carpetas = prepararCarpetas(raizTemporal())
+    expect(siguienteCodigo(carpetas, ahora)).toBe('CV-2026-0001')
+  })
+
+  it('sigue después del más alto ya guardado', () => {
+    const carpetas = prepararCarpetas(raizTemporal())
+    guardarCaso(carpetas, casoNuevo('id-1', 'CV-2026-0007', ahora.toISOString()))
+    expect(siguienteCodigo(carpetas, ahora)).toBe('CV-2026-0008')
+  })
+
+  it('borrar el caso más reciente no hace bajar el contador (el fallo real)', () => {
+    const carpetas = prepararCarpetas(raizTemporal())
+    guardarCaso(carpetas, casoNuevo('id-1', 'CV-2026-0151', ahora.toISOString()))
+    guardarCaso(carpetas, casoNuevo('id-2', 'CV-2026-0152', ahora.toISOString()))
+    moverCasoABorrados(carpetas, 'CV-2026-0152', '2026-09-19')
+    // Antes del arreglo, esto devolvía CV-2026-0152 otra vez — pisando al
+    // paciente que ya estaba guardado con ese número en `casos-borrados/`.
+    expect(siguienteCodigo(carpetas, ahora)).toBe('CV-2026-0153')
+  })
+
+  it('un año nuevo empieza de cero, sin verse afectado por los borrados del año anterior', () => {
+    const carpetas = prepararCarpetas(raizTemporal())
+    guardarCaso(carpetas, casoNuevo('id-1', 'CV-2026-0050', ahora.toISOString()))
+    moverCasoABorrados(carpetas, 'CV-2026-0050', '2026-09-19')
+    expect(siguienteCodigo(carpetas, new Date('2027-01-05T10:00:00.000Z'))).toBe('CV-2027-0001')
   })
 })

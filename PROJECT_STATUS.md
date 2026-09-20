@@ -9,7 +9,25 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 20/09/2026 (3) · **El cirujano graba qué
+**Última actualización:** 20/09/2026 (4) · 🔴 **Fallo grave corregido: el
+código de un caso nuevo podía repetirse y pisar el caso de otro paciente
+(D94).** El dueño notó que «Casos guardados» llevaba días sin enseñar
+nada nuevo — investigado mirando los ficheros reales en disco: entre el
+16 y el 20/09, varios pacientes reales de cuatro doctores distintos
+(Rocha, Handy, Espejo, Marina) acabaron compartiendo el mismo código
+interno, `CV-2026-0152`, porque el generador de códigos contaba
+ficheros VIVOS en `casos/` — y borrar un caso (con «Eliminar», D85)
+hacía bajar la cuenta y liberaba un número ya usado antes. Cada paciente
+nuevo pisaba, sin avisar, el caso guardado del anterior. **Los PDF están
+a salvo** (nombre de fichero único, con fecha y hora); **el caso vivo
+—reabrirlo, revisarlo, pedir la lente— de los pacientes intermedios NO
+se puede recuperar**, solo el del último que usó cada número. Arreglado:
+el código ya nunca baja, cuente lo que cuente `casos/` en cada momento.
+`pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm
+test:e2e` en verde (820 tests unitarios; el único fallo de la suite es
+previo y no relacionado; 58/58 de interfaz).
+
+Antes de esto — **20/09/2026 (3): el cirujano graba qué
 lente pide de verdad, y un botón redacta el correo al laboratorio
 correcto (D93).** Tarjeta nueva «Lente a pedir» en la pantalla de
 resultados — la misma que se abre al reabrir un caso terminado desde

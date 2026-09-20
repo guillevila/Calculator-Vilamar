@@ -4,6 +4,57 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.54] — 20/09/2026 (versión visible en pantalla: v1.20)
+
+fix(app): el código de un caso nuevo ya no reutiliza un número usado antes por otro paciente (D94).
+
+### Qué se pidió
+
+El dueño del proyecto notó dos síntomas conectados: «Casos guardados» no
+enseñaba nada nuevo desde el 15/09, y al abrir un caso reciente no
+aparecía el botón «Lente a pedir» (D93). Investigado mirando los ficheros
+reales en disco, no solo la pantalla.
+
+### El fallo
+
+`siguienteCodigo()` calculaba el número del siguiente caso contando
+cuántos ficheros había EN ESE MOMENTO en `casos/`. Mientras nunca se
+borraba nada, funcionaba; en cuanto se usaba «Eliminar» (D85) para
+limpiar un caso, la cuenta bajaba, y el siguiente caso NUEVO — un
+paciente real, sin ninguna relación con el borrado — podía caer en un
+número ya usado antes, **pisando ese fichero sin avisar**. Pasó de
+verdad: varios informes de días distintos (16 al 20/09), de cuatro
+doctores y cuatro pacientes reales distintos, compartían el mismo código
+interno `CV-2026-0152` — cada paciente nuevo borró sin querer el caso
+guardado del anterior.
+
+### El cambio
+
+`siguienteCodigo()` ya no cuenta ficheros vivos: busca el número más alto
+que se ha usado alguna vez, mirando tanto `casos/` como
+`casos-borrados/` — un caso borrado sigue contando para siempre, su
+número nunca vuelve a estar libre.
+
+### Lo que se ha perdido (y lo que no)
+
+Los PDF de cada paciente están a salvo — cada uno con su propio nombre de
+fichero, con fecha y hora, así que no se han borrado entre sí. Lo que
+**no** se puede recuperar es el caso «vivo» — reabrirlo, revisarlo, pedir
+la lente — de todos los pacientes menos el último que usó cada número
+reciclado.
+
+### Verificado
+
+- Reproducido el fallo exacto con un test antes de tocar el código:
+  crear CV-2026-0151 y CV-2026-0152, borrar el 0152, comprobar que sin
+  el arreglo el siguiente caso volvía a salir como CV-2026-0152.
+- Cuatro tests nuevos en `almacen.test.ts` (sin ningún caso previo, caso
+  normal sin borrados, el fallo real reproducido, año nuevo sin arrastrar
+  los borrados del año anterior).
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`.
+
+---
+
 ## [1.15.53] — 20/09/2026 (versión visible en pantalla: v1.19)
 
 feat(app): el cirujano graba qué lente pide de verdad, y un botón redacta
