@@ -21,6 +21,9 @@
  * de verdad (`app.listen(...)`) es cosa de `index.ts`.
  */
 
+import { existsSync } from 'node:fs'
+import { relative } from 'node:path'
+
 import express, { type Express, type NextFunction, type Request, type Response } from 'express'
 import multer from 'multer'
 
@@ -28,8 +31,8 @@ import type { ServicioCasos } from '@vilamar/casos'
 
 import { crearToken, verificarContrasena, verificarToken } from './auth.js'
 import { borrarCookieSesion, leerCookie, NOMBRE_COOKIE_SESION, ponerCookieSesion } from './cookies.js'
-import type { RaicesServidor } from './dependencias.js'
-import { archivoEntranteDesdeSubida, estadoHttpDelError, mensajeDelError } from './rutas.js'
+import { carpetasDeUsuario, type RaicesServidor } from './dependencias.js'
+import { archivoEntranteDesdeSubida, estadoHttpDelError, mensajeDelError, rutaDescargaSegura } from './rutas.js'
 import type { RegistroPorUsuario } from './servicios-por-usuario.js'
 import { buscarUsuarioPorId, buscarUsuarioPorNombre } from './usuarios.js'
 
@@ -122,6 +125,48 @@ export function crearServidor(
     }
   })
 
+  casos.patch('/identificacion', async (req, res) => {
+    try {
+      const { nombrePaciente, nombreCirujano } = req.body as {
+        readonly nombrePaciente?: string
+        readonly nombreCirujano?: string
+      }
+      res.json(await servicioDe(req).establecerIdentificacion({ nombrePaciente, nombreCirujano }))
+    } catch (error) {
+      res.status(estadoHttpDelError(error)).json({ error: mensajeDelError(error) })
+    }
+  })
+
+  casos.patch('/sexo', async (req, res) => {
+    try {
+      const { sexo } = req.body as { readonly sexo: Parameters<ServicioCasos['elegirSexo']>[0] }
+      res.json(await servicioDe(req).elegirSexo(sexo))
+    } catch (error) {
+      res.status(estadoHttpDelError(error)).json({ error: mensajeDelError(error) })
+    }
+  })
+
+  // Sin catálogo de lentes en el móvil a propósito (Fase 3, ver
+  // docs/PLAN-APP-MOVIL.md): el modelo se escribe a mano, y la constante A
+  // conocida, si la hay, se le manda directamente — `elegirLente` sigue
+  // siendo el único sitio donde una constante se convierte en la del caso,
+  // así que el resto de reglas (D33) no cambia, solo se salta la búsqueda
+  // en la tabla de lentes conocidas de la interfaz de escritorio.
+  casos.post('/lente', async (req, res) => {
+    try {
+      const { fabricante, modelo, constanteConocida } = req.body as {
+        readonly fabricante?: string
+        readonly modelo: string
+        readonly constanteConocida?: number
+      }
+      res.json(
+        await servicioDe(req).elegirLente(fabricante ?? '', modelo, undefined, undefined, constanteConocida),
+      )
+    } catch (error) {
+      res.status(estadoHttpDelError(error)).json({ error: mensajeDelError(error) })
+    }
+  })
+
   casos.patch('/medida', async (req, res) => {
     try {
       const { ojo, campo, valor, aparato } = req.body as {
@@ -156,12 +201,39 @@ export function crearServidor(
     }
   })
 
+  // El PDF vive en el disco del SERVIDOR: `generarPdf()` devuelve una ruta
+  // absoluta de ahí (útil para la app de escritorio, que es la misma
+  // máquina) — un móvil no puede pedir esa ruta directamente. Aquí se
+  // convierte en un enlace de descarga propio, relativo a la carpeta de
+  // informes de ESTE usuario, nunca la ruta real del disco.
   casos.post('/pdf', async (req, res) => {
     try {
-      res.json(await servicioDe(req).generarPdf())
+      const carpetas = carpetasDeUsuario(raices, usuarioIdDe(req))
+      const { rutas } = await servicioDe(req).generarPdf()
+      res.json({
+        rutas: rutas.map((r) => ({
+          ojo: r.ojo,
+          descarga: `/casos/pdf/archivo?ruta=${encodeURIComponent(relative(carpetas.informes, r.ruta))}`,
+        })),
+      })
     } catch (error) {
       res.status(estadoHttpDelError(error)).json({ error: mensajeDelError(error) })
     }
+  })
+
+  casos.get('/pdf/archivo', (req, res) => {
+    const relativo = req.query['ruta']
+    if (typeof relativo !== 'string') {
+      res.status(400).json({ error: 'Falta el parámetro «ruta».' })
+      return
+    }
+    const carpetas = carpetasDeUsuario(raices, usuarioIdDe(req))
+    const ruta = rutaDescargaSegura(carpetas.informes, relativo)
+    if (!ruta || !existsSync(ruta)) {
+      res.status(404).json({ error: 'No se encuentra ese informe.' })
+      return
+    }
+    res.download(ruta)
   })
 
   app.use('/casos', casos)

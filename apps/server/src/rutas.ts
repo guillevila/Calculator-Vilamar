@@ -8,6 +8,8 @@
  * que no sea ya la propia prueba de `ServicioCasos`.
  */
 
+import { resolve, sep } from 'node:path'
+
 import type { ArchivoEntrante } from '@vilamar/casos'
 
 /** Un fichero tal y como lo entrega `multer` tras un `multipart/form-data`. */
@@ -35,4 +37,20 @@ export function estadoHttpDelError(error: unknown): number {
 
 export function mensajeDelError(error: unknown): string {
   return error instanceof Error ? error.message : 'Fallo inesperado del servidor.'
+}
+
+/**
+ * La ruta absoluta de un informe a descargar, o `null` si `relativo` se sale
+ * de `raizInformes` (por ejemplo, `../../../etc/passwd`).
+ *
+ * `POST /casos/pdf` nunca manda al cliente la ruta real del disco —solo esta
+ * ruta relativa, ya generada por el propio servidor—, pero igualmente se
+ * comprueba aquí que no se escapa: el cliente podría mandar cualquier cosa en
+ * el parámetro, y esta es la única barrera entre eso y `res.download()`.
+ */
+export function rutaDescargaSegura(raizInformes: string, relativo: string): string | null {
+  const raiz = resolve(raizInformes)
+  const objetivo = resolve(raiz, relativo)
+  if (objetivo !== raiz && !objetivo.startsWith(raiz + sep)) return null
+  return objetivo
 }
