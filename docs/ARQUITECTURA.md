@@ -696,6 +696,24 @@ biometría, nunca un dato identificativo, y no salen del ordenador. Solo
 > Barrett no carga sin ventana, y Kane exige que una persona acepte su
 > licencia). En un VPS Linux sin monitor, «con ventana» exige una pantalla
 > virtual (`Xvfb` o similar) — pendiente de probar allí.
+>
+> **Fase 2 del plan móvil (20/09/2026): login por persona, verificado en
+> vivo.** Antes había un único `ServicioCasos` para todo `apps/server` — con
+> más de una persona, cualquiera vería el caso de cualquiera.
+> `apps/server/src/servicios-por-usuario.ts` crea ahora uno POR CUENTA,
+> perezosamente, cada uno con sus propias `Carpetas`
+> (`dependencias.ts:carpetasDeUsuario`, bajo `usuarios/<id>/` — incluido su
+> propio perfil de navegador, `sesion-navegador`) y su propio
+> `EmisorEventos`, para que ni los casos ni los avisos de progreso se
+> mezclen entre personas. Las cuentas viven en `usuarios.json`
+> (`usuarios.ts`), en la raíz de los datos del servidor — se crean con
+> `pnpm crear-usuario-servidor`, sin registro público. `auth.ts` hashea la
+> contraseña con `scrypt` y firma un token de sesión con HMAC —los dos de
+> `node:crypto`, sin librerías nuevas—, que viaja en una cookie
+> (`cookies.ts`, escrita a mano, sin `cookie-parser`) verificada por el
+> middleware `requiereSesion` en toda ruta de `/casos*` y `/eventos`. Sin
+> lista de sesiones que revocar en el servidor: cerrar sesión borra la
+> cookie; invalidar TODAS de golpe es rotar el secreto (`secreto.ts`).
 
 - `almacen.ts` — ficheros JSON en `%APPDATA%\calculator-vilamar`. Sin base de
   datos, y es una decisión: un caso es un objeto pequeño, no hay consultas, y

@@ -89,21 +89,34 @@ sin querer. Esto es una pieza de diseño nueva, no solo «montar un servidor».
 
 ## La estrategia, en cuatro fases
 
-1. **Sacar `ServicioCasos` a un servidor Node**, con otras piezas inyectadas:
-   generar el PDF con Playwright (`page.pdf()`, que ya se usa para las
-   calculadoras) en vez de con `Electron.webContents.printToPDF`; guardar los
-   archivos en el disco del servidor en vez de en el Escritorio del usuario.
-2. **Login sencillo + una carpeta de datos por persona** en el servidor —
+1. ✅ **Sacar `ServicioCasos` a un servidor Node**, con otras piezas
+   inyectadas: generar el PDF con Playwright (`page.pdf()`, que ya se usa
+   para las calculadoras) en vez de con `Electron.webContents.printToPDF`;
+   guardar los archivos en el disco del servidor en vez de en el Escritorio
+   del usuario. **Hecho y verificado en vivo el 20/09/2026**: las tres
+   calculadoras (EVO, Barrett, Kane) funcionan de punta a punta contra las
+   webs reales, hasta un PDF válido — ver `PROJECT_STATUS.md`. Pendiente
+   solo para cuando se despliegue en el VPS de verdad: una pantalla virtual
+   (`Xvfb` o similar), porque Barrett y Kane necesitan ventana y un Linux
+   sin monitor no la tiene por defecto (`apps/server/src/navegador.ts`).
+2. ✅ **Login sencillo + una carpeta de datos por persona** en el servidor —
    equivalente a como hoy cada PC tiene la suya, solo que compartiendo
-   máquina.
+   máquina. **Hecho y verificado en vivo el 20/09/2026**: cuentas en
+   `usuarios.json` (creadas con `pnpm crear-usuario-servidor`, sin registro
+   público), cookie de sesión firmada, y un `ServicioCasos` —con su propia
+   carpeta de casos y su propio perfil de navegador— por cada cuenta, nunca
+   uno compartido. Sin probar todavía CON una calculadora real de por medio
+   (las pruebas de login no tocaron EVO/Barrett/Kane). Ver `PROJECT_STATUS.md`
+   para la consecuencia de diseño sobre el código legible del caso
+   (`CV-2026-0001…`), que puede repetirse entre dos cuentas distintas.
 3. **Interfaz web (PWA)**, reaprovechando componentes de
    `apps/desktop/src/renderer` donde se pueda, cambiando la capa `api.ts` de
    IPC a `fetch()`/HTTP. `manifest.json` + Service Worker para que se pueda
-   «instalar» en la pantalla de inicio del móvil.
+   «instalar» en la pantalla de inicio del móvil. Sin empezar.
 4. **Subida de foto directa desde el móvil** (cámara/galería) — esto además
    SIMPLIFICA el flujo actual para uso móvil: sustituye el rodeo de
    WhatsApp → OneDrive → «carpeta de entrada» (D84/D86) por una subida
-   directa, sin mover ficheros a mano.
+   directa, sin mover ficheros a mano. Sin empezar.
 
 ## Lo que se mantiene exactamente igual
 
@@ -113,9 +126,10 @@ código, con las mismas comprobaciones que ya tiene hoy en el escritorio. No es
 reconstruir la aplicación: es ponerle una puerta de entrada nueva al mismo
 motor.
 
-## Próximo paso, sin empezar todavía
+## Próximo paso
 
-Falta decidir con el dueño si se arranca por la Fase 1 (el servidor,
-reutilizando `ServicioCasos`) o si primero se le enseña un boceto de cómo
-quedaría la pantalla del móvil. No se ha escrito ni una línea de código de
-este proyecto todavía — este documento es solo el plan acordado.
+Fases 1 y 2 hechas y verificadas en vivo (20/09/2026) — ver el detalle en
+`PROJECT_STATUS.md`. Sigue la Fase 3 (interfaz web/PWA) o, antes, decidir
+con el dueño si hace falta resolver ya la pantalla virtual del VPS (Fase 1)
+y la consecuencia del código de caso repetido entre cuentas (Fase 2), o si
+pueden esperar a que haya algo que enseñar en el móvil.

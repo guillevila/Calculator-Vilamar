@@ -9,7 +9,55 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 20/09/2026 (3) · **Las tres calculadoras
+**Última actualización:** 20/09/2026 (4) · **Fase 2 del plan móvil:
+login por persona, con una carpeta de casos y un perfil de navegador
+propios para cada usuario — probado en vivo, sin tocar ninguna
+calculadora real.** Hasta ahora `apps/server` tenía un único
+`ServicioCasos` para todo el mundo; con dos o más personas usando el
+mismo servidor, cualquiera vería el caso de cualquiera. Ahora:
+
+- **Cuentas**: `usuarios.json`, en la raíz de los datos del servidor —
+  sin registro público a propósito. Se crean con
+  `pnpm crear-usuario-servidor --usuario <nombre> --nombre "<Nombre>"`
+  (pide la contraseña por teclado), probado en vivo por primera vez:
+  crea la cuenta, la contraseña queda hasheada (`scrypt`, de
+  `node:crypto` — sin librerías nuevas).
+- **Entrar**: `POST /login` con usuario/contraseña, deja una cookie de
+  sesión firmada (HMAC, también `node:crypto`) — sin ella, cualquier
+  ruta de `/casos*` o `/eventos` da 401. `POST /logout` la borra.
+- **Aislamiento de verdad, no solo de nombre**: cada usuario recibe su
+  propio `ServicioCasos`, con sus propias carpetas
+  (`usuarios/<id>/casos`, `.../documentos`, `.../informes` y —
+  importante— `.../sesion-navegador`, el perfil de Chromium: la
+  aceptación de las condiciones de Kane, por ejemplo, es de cada
+  persona, no prestada). Probado en vivo (script + servidor real +
+  `curl`): cuenta creada, login correcto/incorrecto, `/casos` sin
+  sesión → 401, caso creado por una cuenta invisible para otra.
+
+**Una consecuencia del diseño, no un fallo, que conviene saber**: el
+código legible del caso (`CV-2026-0001…`) lo cuenta cada usuario por su
+cuenta, empezando de cero — dos personas pueden tener cada una su
+propio «CV-2026-0001» al mismo tiempo, sin que eso mezcle sus datos
+(vistos por separado, en carpetas separadas). Es lo mismo que ya pasaba
+entre dos instalaciones de escritorio independientes; el servidor no
+lo empeora, solo lo hereda. Si el dueño usa ese código para hablar de
+un caso con un delegado o un doctor y hay más de una persona usando el
+servidor, ese código por sí solo podría no bastar para saber de quién
+es — pendiente de que el dueño diga si le importa antes de tocarlo.
+
+**Sin probar todavía, para no dar más sensación de avance de la que
+hay**: crear un caso de verdad con datos y calcularlo YA CON LOGIN
+—las pruebas de esta sesión no tocaron ninguna calculadora real, para
+no repetir el mismo procedimiento de aceptar Kane dos veces en la misma
+sesión—; la interfaz para entrar (esto sigue siendo solo la API, la
+PWA es la Fase 3); y qué pasa si el servidor se reinicia con un caso a
+medias (se pierde de memoria, como ya pasaba antes del login — lo
+guardado en disco no se toca). `pnpm lint && pnpm typecheck && pnpm
+test` en verde (826 tests unitarios, 25 nuevos; el único fallo de la
+suite es el previo y sin relación). Decisión y detalle técnico
+completo en `docs/PLAN-APP-MOVIL.md`.
+
+Antes de esto — **20/09/2026 (3): las tres calculadoras
 —EVO, Barrett y Kane— funcionan ya desde `apps/server`, contra las
 webs reales, hasta el PDF.** Tras la primera prueba (solo EVO, más
 abajo), se investigó por qué Barrett y Kane no funcionaban con el
