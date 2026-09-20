@@ -10,8 +10,25 @@ const NOMBRE: Record<Calculadora, string> = {
   BARRETT_TORIC: 'Barrett',
   KANE: 'Kane',
   EVO_TORIC_SIN_CARA_POSTERIOR: 'EVO (sin córnea posterior)',
-  BARRETT_TORIC_CON_CARA_POSTERIOR: 'Barrett (con córnea posterior)',
+  BARRETT_TORIC_CON_CARA_POSTERIOR: 'Barrett (con córnea posterior medida)',
   BARRETT_TRUE_K_TORIC: 'Barrett True K Toric',
+}
+
+/**
+ * Si el caso trae PK1 o PK2 en algún ojo. EVO ya los usa sola, dentro de
+ * `EVO_TORIC` (su ficha los lleva como opcionales, D45) — no hace falta
+ * pedir nada aparte. Barrett es distinto: su calculadora normal (`BARRETT_TORIC`)
+ * SIEMPRE usa un modelo teórico («Predicted PCA») y nunca mira estos datos;
+ * la que sí los usa es una calculadora aparte, `BARRETT_TORIC_CON_CARA_POSTERIOR`
+ * (D45/D51) — por eso solo esta se ofrece como casilla extra, y solo cuando
+ * hay algo que medirle. Kane no tiene ningún campo de córnea posterior
+ * (D51, comprobado en vivo): no se ofrece nunca.
+ */
+function tieneCaraPosterior(caso: Caso): boolean {
+  return (['OD', 'OS'] as const).some((l) => {
+    const medidas = caso.ojos?.[l]?.[0]?.medidas
+    return medidas?.PK1 !== undefined || medidas?.PK2 !== undefined
+  })
 }
 
 export function Calculo({
@@ -24,6 +41,10 @@ export function Calculo({
   readonly alTerminar: (caso: Caso) => void
 }): React.JSX.Element {
   const dosOjos = Boolean(caso.ojos?.OD && caso.ojos?.OS)
+  const conCaraPosterior = tieneCaraPosterior(caso)
+  const opciones: readonly Calculadora[] = conCaraPosterior
+    ? [...CALCULADORAS, 'BARRETT_TORIC_CON_CARA_POSTERIOR']
+    : CALCULADORAS
   const [elegidas, setElegidas] = useState<readonly Calculadora[]>(CALCULADORAS)
   const [ojoFiltro, setOjoFiltro] = useState<Lateralidad | 'TODOS'>('TODOS')
   const [calculando, setCalculando] = useState(false)
@@ -65,13 +86,21 @@ export function Calculo({
 
       <h3>Calculadoras</h3>
       <div className="pila">
-        {CALCULADORAS.map((c) => (
+        {opciones.map((c) => (
           <label key={c} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <input type="checkbox" checked={elegidas.includes(c)} onChange={() => alternar(c)} disabled={calculando} />
             {NOMBRE[c]}
           </label>
         ))}
       </div>
+
+      {conCaraPosterior && (
+        <div className="aviso info">
+          Este caso tiene córnea posterior medida. EVO ya la usa sola, dentro de «EVO» — no hace
+          falta marcar nada aparte. Barrett solo la usa si marcas «Barrett (con córnea posterior
+          medida)»; sin marcarla, Barrett calcula con su modelo teórico de siempre.
+        </div>
+      )}
 
       {elegidas.includes('KANE') && (
         <div className="aviso info">

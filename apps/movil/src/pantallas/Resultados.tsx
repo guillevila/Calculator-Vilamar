@@ -9,9 +9,15 @@ const NOMBRE: Record<Calculadora, string> = {
   BARRETT_TORIC: 'Barrett',
   KANE: 'Kane',
   EVO_TORIC_SIN_CARA_POSTERIOR: 'EVO (sin córnea posterior)',
-  BARRETT_TORIC_CON_CARA_POSTERIOR: 'Barrett (con córnea posterior)',
+  BARRETT_TORIC_CON_CARA_POSTERIOR: 'Barrett (con córnea posterior medida)',
   BARRETT_TRUE_K_TORIC: 'Barrett True K Toric',
 }
+
+// Las tres de siempre, más la variante de Barrett con córnea posterior
+// medida (D45/D51) — la única «extra» que se puede pedir desde el móvil
+// (ver Calculo.tsx). Comprobar las cuatro siempre es inofensivo: si no se
+// pidió esa casilla, `claveResultado` no encuentra nada y no se enseña.
+const CALCULADORAS_A_ENSEÑAR: readonly Calculadora[] = [...CALCULADORAS, 'BARRETT_TORIC_CON_CARA_POSTERIOR']
 
 function aparatoDe(caso: Caso, lado: Lateralidad): string {
   return caso.ojos?.[lado]?.[0]?.aparato ?? 'Principal'
@@ -54,7 +60,7 @@ export function Resultados({
         <div key={lado} style={{ marginBottom: 20 }}>
           <h3>{lado === 'OD' ? 'Ojo derecho (OD)' : 'Ojo izquierdo (OS)'}</h3>
           <div className="pila">
-            {CALCULADORAS.map((c) => {
+            {CALCULADORAS_A_ENSEÑAR.map((c) => {
               const resultado = caso.resultados[claveResultado(c, lado, aparatoDe(caso, lado))]
               if (!resultado) return null
               return <TarjetaResultado key={c} resultado={resultado} />
