@@ -106,6 +106,7 @@ export function App(): React.JSX.Element {
         <Resultados
           caso={caso}
           alVolverACalcular={() => setPaso('CALCULO')}
+          alVolverAlCaso={() => setPaso('DATOS')}
           alEmpezarOtroCaso={() => {
             setCaso(null)
             setPaso('INICIO')

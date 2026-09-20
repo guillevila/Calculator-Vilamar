@@ -27,10 +27,12 @@ const CALCULADORAS_A_ENSEÑAR: readonly Calculadora[] = [
 export function Resultados({
   caso,
   alVolverACalcular,
+  alVolverAlCaso,
   alEmpezarOtroCaso,
 }: {
   readonly caso: Caso
   readonly alVolverACalcular: () => void
+  readonly alVolverAlCaso: () => void
   readonly alEmpezarOtroCaso: () => void
 }): React.JSX.Element {
   const [generando, setGenerando] = useState(false)
@@ -100,9 +102,14 @@ export function Resultados({
       )}
 
       <div style={{ height: 12 }} />
-      <button className="boton secundario" onClick={alEmpezarOtroCaso}>
-        Empezar otro caso
-      </button>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="boton secundario" style={{ flex: 1 }} onClick={alVolverAlCaso}>
+          Volver al caso
+        </button>
+        <button className="boton secundario" style={{ flex: 1 }} onClick={alEmpezarOtroCaso}>
+          Empezar otro caso
+        </button>
+      </div>
       <button className="enlace" onClick={alVolverACalcular}>
         ‹ Volver a calcular este mismo caso
       </button>

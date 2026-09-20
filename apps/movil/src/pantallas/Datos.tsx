@@ -32,6 +32,26 @@ const VALOR_POR_DEFECTO: Partial<Record<CampoBiometrico, string>> = {
 const NUEVO_APARATO = '__nuevo__'
 
 /**
+ * Los dos meridianos de la córnea —el plano y el curvo, K1/K2— son
+ * perpendiculares por definición clínica, y lo mismo K1/K2 medidos en la
+ * cara posterior (PK1/PK2). Al escribir el primero, si el segundo está
+ * vacío, se rellena solo a 90° — nunca al revés si el segundo ya tiene un
+ * valor propio, escrito a mano o ya perpendicular.
+ */
+const EJE_PAREJA: Partial<Record<CampoBiometrico, CampoBiometrico>> = {
+  K1_EJE: 'K2_EJE',
+  K2_EJE: 'K1_EJE',
+  PK1_EJE: 'PK2_EJE',
+  PK2_EJE: 'PK1_EJE',
+}
+
+/** Un eje va de 0° a 180° (es una orientación, no una dirección) — 175° + 90° «da la vuelta» a 85°. */
+function ejePerpendicular(eje: number): number {
+  const opuesto = eje + 90
+  return opuesto >= 180 ? opuesto - 180 : opuesto
+}
+
+/**
  * Igual que hace la app de escritorio (`FormularioManual.tsx`, `continuar()`):
  * un dataset que ya tiene ALGÚN dato pero nunca tocó el target, el SIA o su
  * eje —que ya se le enseñan con un valor de partida— se guarda igual con
@@ -126,7 +146,12 @@ export function Datos({
 
   async function guardarCampo(campo: CampoBiometrico, valor: number | null): Promise<void> {
     try {
-      alCambiar(await api.editarMedida(lado, campo, valor, aparato))
+      let actualizado = await api.editarMedida(lado, campo, valor, aparato)
+      const pareja = EJE_PAREJA[campo]
+      if (valor !== null && pareja && ojoDe(actualizado, lado, aparato).medidas[pareja] === undefined) {
+        actualizado = await api.editarMedida(lado, pareja, ejePerpendicular(valor), aparato)
+      }
+      alCambiar(actualizado)
     } catch (err) {
       setError(err instanceof ErrorApi ? err.message : 'No se ha podido guardar el dato.')
     }
