@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Calculadora, Caso, Lateralidad, OpcionLente, ResultadoCalculadora } from '@vilamar/domain'
-import { claveResultado } from '@vilamar/domain'
+import { aparatosDe, claveResultado } from '@vilamar/domain'
 
 import { api, ErrorApi } from '../api.js'
 
@@ -23,10 +23,6 @@ const CALCULADORAS_A_ENSEÑAR: readonly Calculadora[] = [
   'BARRETT_TORIC_CON_CARA_POSTERIOR',
   'KANE',
 ]
-
-function aparatoDe(caso: Caso, lado: Lateralidad): string {
-  return caso.ojos?.[lado]?.[0]?.aparato ?? 'Principal'
-}
 
 export function Resultados({
   caso,
@@ -61,18 +57,28 @@ export function Resultados({
       <h2>Resultados</h2>
       {error && <div className="aviso error">{error}</div>}
 
-      {ojos.map((lado) => (
-        <div key={lado} style={{ marginBottom: 20 }}>
-          <h3>{lado === 'OD' ? 'Ojo derecho (OD)' : 'Ojo izquierdo (OS)'}</h3>
-          <div className="pila">
-            {CALCULADORAS_A_ENSEÑAR.map((c) => {
-              const resultado = caso.resultados[claveResultado(c, lado, aparatoDe(caso, lado))]
-              if (!resultado) return null
-              return <TarjetaResultado key={c} resultado={resultado} />
-            })}
+      {ojos.map((lado) => {
+        const aparatos = aparatosDe(caso, lado)
+        return (
+          <div key={lado} style={{ marginBottom: 20 }}>
+            <h3>{lado === 'OD' ? 'Ojo derecho (OD)' : 'Ojo izquierdo (OS)'}</h3>
+            {aparatos.map((aparato) => (
+              <div key={aparato} style={{ marginBottom: 12 }}>
+                {aparatos.length > 1 && (
+                  <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 6px' }}>{aparato}</p>
+                )}
+                <div className="pila">
+                  {CALCULADORAS_A_ENSEÑAR.map((c) => {
+                    const resultado = caso.resultados[claveResultado(c, lado, aparato)]
+                    if (!resultado) return null
+                    return <TarjetaResultado key={c} resultado={resultado} />
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
-      ))}
+        )
+      })}
 
       <div className="aviso info" style={{ fontSize: 13 }}>
         Lo recomendado aquí es lo que cada calculadora destaca por su cuenta — Calculator Vilamar
@@ -93,11 +99,12 @@ export function Resultados({
         </div>
       )}
 
-      <button className="enlace" onClick={alVolverACalcular}>
-        ‹ Volver a calcular
-      </button>
-      <button className="enlace" onClick={alEmpezarOtroCaso}>
+      <div style={{ height: 12 }} />
+      <button className="boton secundario" onClick={alEmpezarOtroCaso}>
         Empezar otro caso
+      </button>
+      <button className="enlace" onClick={alVolverACalcular}>
+        ‹ Volver a calcular este mismo caso
       </button>
     </div>
   )

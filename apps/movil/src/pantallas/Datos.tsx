@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { CampoBiometrico, Caso, Lateralidad, Sexo } from '@vilamar/domain'
-import { APARATO_PRINCIPAL, REGISTRO_CAMPOS } from '@vilamar/domain'
+import { APARATO_PRINCIPAL, aparatosDe, ojoDe, REGISTRO_CAMPOS } from '@vilamar/domain'
 
 import { api, ErrorApi } from '../api.js'
 // El mismo catálogo de lentes conocidas que ya usa la app de escritorio —
@@ -15,9 +15,7 @@ import { MODELOS_DE_LAS_CALCULADORAS } from '../../../desktop/src/renderer/catal
  * (AQD, TK1/TK2, situaciones especiales de córnea, factor de lente, índice
  * queratométrico… se quedan fuera, son informativos o de uso raro), pero
  * ampliado a petición del dueño (20/09/2026) con LT/CCT/WTW y la córnea
- * posterior medida (PK1/PK2), que sí se piden a menudo. Sin selector de
- * aparato: cada ojo usa aquí uno solo, el que ya tenga (una foto reconocida)
- * o «Principal» si se escribe a mano.
+ * posterior medida (PK1/PK2), que sí se piden a menudo.
  */
 const CAMPOS_BIOMETRIA: readonly CampoBiometrico[] = ['AL', 'K1', 'K1_EJE', 'K2', 'K2_EJE', 'ACD', 'LT', 'CCT', 'WTW']
 const CAMPOS_CARA_POSTERIOR: readonly CampoBiometrico[] = ['PK1', 'PK1_EJE', 'PK2', 'PK2_EJE']
@@ -30,30 +28,32 @@ const VALOR_POR_DEFECTO: Partial<Record<CampoBiometrico, string>> = {
   EJE_INCISION: '135',
 }
 
-function aparatoDe(caso: Caso, lado: Lateralidad): string {
-  return caso.ojos?.[lado]?.[0]?.aparato ?? APARATO_PRINCIPAL
-}
+/** Valor especial del desplegable de aparato para «añadir uno nuevo». */
+const NUEVO_APARATO = '__nuevo__'
 
 /**
  * Igual que hace la app de escritorio (`FormularioManual.tsx`, `continuar()`):
  * un dataset que ya tiene ALGÚN dato pero nunca tocó el target, el SIA o su
  * eje —que ya se le enseñan con un valor de partida— se guarda igual con
- * ese valor antes de confirmar. Recorre los dos ojos, no solo el activo.
+ * ese valor antes de confirmar. Recorre los dos ojos y TODOS sus aparatos
+ * (D47) — un segundo biómetro que se rellenó y se dejó de mirar no puede
+ * quedarse sin el valor de partida.
  */
 async function aplicarValoresPorDefecto(inicial: Caso): Promise<Caso> {
   let actual = inicial
   for (const lado of ['OD', 'OS'] as const) {
-    const dataset = actual.ojos?.[lado]?.[0]
-    if (!dataset || Object.keys(dataset.medidas).length === 0) continue
-    const ap = aparatoDe(actual, lado)
-    if (dataset.medidas.REFRACCION_OBJETIVO === undefined) {
-      actual = await api.editarMedida(lado, 'REFRACCION_OBJETIVO', 0, ap)
-    }
-    if (actual.ojos?.[lado]?.[0]?.medidas.SIA === undefined) {
-      actual = await api.editarMedida(lado, 'SIA', 0.25, ap)
-    }
-    if (actual.ojos?.[lado]?.[0]?.medidas.EJE_INCISION === undefined) {
-      actual = await api.editarMedida(lado, 'EJE_INCISION', 135, ap)
+    for (const ap of aparatosDe(actual, lado)) {
+      const dataset = ojoDe(actual, lado, ap)
+      if (Object.keys(dataset.medidas).length === 0) continue
+      if (dataset.medidas.REFRACCION_OBJETIVO === undefined) {
+        actual = await api.editarMedida(lado, 'REFRACCION_OBJETIVO', 0, ap)
+      }
+      if (ojoDe(actual, lado, ap).medidas.SIA === undefined) {
+        actual = await api.editarMedida(lado, 'SIA', 0.25, ap)
+      }
+      if (ojoDe(actual, lado, ap).medidas.EJE_INCISION === undefined) {
+        actual = await api.editarMedida(lado, 'EJE_INCISION', 135, ap)
+      }
     }
   }
   return actual
@@ -71,11 +71,42 @@ export function Datos({
   const [lado, setLado] = useState<Lateralidad>('OD')
   const [nombrePaciente, setNombrePaciente] = useState(caso.nombrePaciente ?? '')
   const [nombreCirujano, setNombreCirujano] = useState(caso.nombreCirujano ?? '')
+  const [aparatoPorOjo, setAparatoPorOjo] = useState<Partial<Record<Lateralidad, string>>>({})
+  const [añadiendoAparato, setAñadiendoAparato] = useState(false)
+  const [nombreNuevoAparato, setNombreNuevoAparato] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [confirmando, setConfirmando] = useState(false)
 
-  const aparato = useMemo(() => aparatoDe(caso, lado), [caso, lado])
-  const ojo = caso.ojos?.[lado]?.[0]
+  const aparatosDelOjo = aparatosDe(caso, lado)
+  const aparato = aparatoPorOjo[lado] ?? aparatosDelOjo[0] ?? APARATO_PRINCIPAL
+  const ojo = ojoDe(caso, lado, aparato)
+
+  function cambiarLado(nuevo: Lateralidad): void {
+    setLado(nuevo)
+    setAñadiendoAparato(false)
+    setNombreNuevoAparato('')
+  }
+
+  function elegirAparato(valor: string): void {
+    if (valor === NUEVO_APARATO) {
+      setAñadiendoAparato(true)
+      setNombreNuevoAparato('')
+      return
+    }
+    setAparatoPorOjo((actual) => ({ ...actual, [lado]: valor }))
+  }
+
+  function confirmarNuevoAparato(): void {
+    const nombre = nombreNuevoAparato.trim()
+    if (!nombre) return
+    // El dataset no existe todavía en el servidor — se crea solo al
+    // escribir el primer campo, igual que en la app de escritorio
+    // (`SelectorAparato.tsx`): elegirlo aquí solo cambia qué se está
+    // mirando, no crea nada por sí mismo.
+    setAparatoPorOjo((actual) => ({ ...actual, [lado]: nombre }))
+    setNombreNuevoAparato('')
+    setAñadiendoAparato(false)
+  }
 
   async function guardarIdentificacion(): Promise<void> {
     try {
@@ -186,12 +217,45 @@ export function Datos({
       </div>
 
       <div className="fila-pestañas">
-        <button className={lado === 'OD' ? 'activa' : ''} onClick={() => setLado('OD')}>
+        <button className={lado === 'OD' ? 'activa' : ''} onClick={() => cambiarLado('OD')}>
           Ojo derecho (OD)
         </button>
-        <button className={lado === 'OS' ? 'activa' : ''} onClick={() => setLado('OS')}>
+        <button className={lado === 'OS' ? 'activa' : ''} onClick={() => cambiarLado('OS')}>
           Ojo izquierdo (OS)
         </button>
+      </div>
+
+      <div className="campo">
+        <label htmlFor="aparato">Aparato (biómetro) de este ojo</label>
+        {!añadiendoAparato ? (
+          <select id="aparato" value={aparato} onChange={(e) => elegirAparato(e.target.value)}>
+            {aparatosDelOjo.length === 0 && <option value={APARATO_PRINCIPAL}>Principal</option>}
+            {aparatosDelOjo.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+            <option value={NUEVO_APARATO}>➕ Añadir otro aparato…</option>
+          </select>
+        ) : (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              autoFocus
+              placeholder="Nombre del aparato (p. ej. ZEISS IOLMaster 700)"
+              value={nombreNuevoAparato}
+              onChange={(e) => setNombreNuevoAparato(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && confirmarNuevoAparato()}
+            />
+            <button className="boton secundario" style={{ width: 'auto' }} onClick={confirmarNuevoAparato}>
+              Añadir
+            </button>
+          </div>
+        )}
+        {aparatosDelOjo.length > 1 && (
+          <p style={{ fontSize: 12, color: 'var(--texto-suave)', margin: '4px 0 0' }}>
+            Este ojo tiene {aparatosDelOjo.length} aparatos — cada uno con sus propios datos.
+          </p>
+        )}
       </div>
 
       <h3>Biometría</h3>
@@ -200,8 +264,8 @@ export function Datos({
           <CampoNumero
             key={campo}
             campo={campo}
-            valor={ojo?.medidas[campo]?.valor}
-            pendiente={ojo?.medidas[campo]?.confirmadoPorUsuario === false}
+            valor={ojo.medidas[campo]?.valor}
+            pendiente={ojo.medidas[campo]?.confirmadoPorUsuario === false}
             alGuardar={(v) => void guardarCampo(campo, v)}
           />
         ))}
@@ -213,8 +277,8 @@ export function Datos({
           <CampoNumero
             key={campo}
             campo={campo}
-            valor={ojo?.medidas[campo]?.valor}
-            pendiente={ojo?.medidas[campo]?.confirmadoPorUsuario === false}
+            valor={ojo.medidas[campo]?.valor}
+            pendiente={ojo.medidas[campo]?.confirmadoPorUsuario === false}
             alGuardar={(v) => void guardarCampo(campo, v)}
           />
         ))}
@@ -226,9 +290,9 @@ export function Datos({
           <CampoNumero
             key={campo}
             campo={campo}
-            valor={ojo?.medidas[campo]?.valor}
+            valor={ojo.medidas[campo]?.valor}
             valorPorDefecto={VALOR_POR_DEFECTO[campo]}
-            pendiente={ojo?.medidas[campo]?.confirmadoPorUsuario === false}
+            pendiente={ojo.medidas[campo]?.confirmadoPorUsuario === false}
             alGuardar={(v) => void guardarCampo(campo, v)}
           />
         ))}
