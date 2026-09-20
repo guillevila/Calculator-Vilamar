@@ -72,7 +72,13 @@ export const api = {
   elegirSexo: (sexo: Sexo): Promise<Caso> =>
     peticion('/casos/sexo', { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ sexo }) }),
 
-  elegirLente: (datos: { fabricante?: string; modelo: string; constanteConocida?: number }): Promise<Caso> =>
+  elegirLente: (datos: {
+    fabricante?: string
+    modelo: string
+    nombreEnEvo?: string
+    nombreEnKane?: string
+    constanteConocida?: number
+  }): Promise<Caso> =>
     peticion('/casos/lente', { method: 'POST', headers: jsonHeaders, body: JSON.stringify(datos) }),
 
   confirmarTodo: (): Promise<Caso> => peticion('/casos/confirmar', { method: 'POST' }),

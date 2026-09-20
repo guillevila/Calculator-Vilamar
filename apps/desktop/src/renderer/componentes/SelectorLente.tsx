@@ -25,91 +25,12 @@ import type { Caso } from '@vilamar/domain'
 import { claveLente } from '@vilamar/domain'
 
 import { api } from '../api.js'
+import { MODELOS_DE_LAS_CALCULADORAS as MODELOS } from '../catalogoLentes.js'
 
 interface Props {
   readonly caso: Caso
   readonly onCambio: () => Promise<void>
 }
-
-/**
- * Modelos que EVO, Kane o Barrett tienen en su desplegable propio.
- *
- * No es un catálogo clínico: es lo que ofrecen esas webs, comprobado al leer
- * sus formularios. Añadir uno aquí solo tiene sentido si aparece con ese
- * nombre exacto en alguna de ellas.
- *
- * **Estos NO traen constante**, salvo los marcados con `constanteConocida`
- * — ver más abajo. La constante, si no, sale del informe o la escribes tú.
- *
- * `nombreEnEvo`/`nombreEnKane` existen porque el MISMO modelo físico se llama
- * distinto en cada desplegable (petición expresa del dueño, 27/08/2026):
- * «B&L LuxSmart» en EVO es «B+L LuxSmart Toric» en Kane. Sin ellos, cada
- * adaptador busca `modelo` tal cual — sigue así para los modelos de esta
- * lista que ya se llaman igual en las dos webs.
- *
- * `constanteConocida` es D69 (corregida 05/09/2026, petición expresa del
- * dueño del proyecto): Barrett no tiene desplegable de lentes, así que —a
- * diferencia de EVO y Kane, que resuelven su propia constante en su propia
- * web— nunca tenía forma de recibir una sin escribirla a mano cada vez.
- * Son las constantes **oficiales del fabricante, dadas por el propio
- * dueño** — las mismas que usan los desplegables de EVO y Kane. **Tienen
- * prioridad sobre la tabla de lentes del propio informe**, si la hubiera:
- * el dueño confirmó que esa tabla viene equivocada con frecuencia. Se
- * aplican directamente, sin pedir comprobación humana (ver
- * `seleccion-lente.ts`) — lo único que respetan por encima es una
- * constante que haya escrito una persona.
- */
-const MODELOS: readonly {
-  fabricante: string
-  modelo: string
-  nombreEnEvo?: string
-  nombreEnKane?: string
-  constanteConocida?: number
-}[] = [
-  { fabricante: 'Alcon', modelo: 'Alcon SN6ATx' },
-  { fabricante: 'Alcon', modelo: 'Alcon SA6ATx' },
-  { fabricante: 'Alcon', modelo: 'Alcon Vivity' },
-  { fabricante: 'Alcon', modelo: 'Alcon Panoptix' },
-  { fabricante: 'Johnson & Johnson', modelo: 'Tecnis' },
-  { fabricante: 'Bausch & Lomb', modelo: 'B&L MX60T' },
-  { fabricante: 'Bausch & Lomb', modelo: 'B&L MX60ET/PT', constanteConocida: 119.1 },
-  {
-    fabricante: 'Bausch & Lomb',
-    modelo: 'B&L Aspire',
-    nombreEnEvo: 'B&L Aspire',
-    nombreEnKane: 'B+L enVista Aspire Toric',
-    constanteConocida: 119.1,
-  },
-  {
-    fabricante: 'Bausch & Lomb',
-    modelo: 'B&L Envy',
-    nombreEnEvo: 'B&L Envy',
-    nombreEnKane: 'B+L enVista Envy Toric',
-    constanteConocida: 119.28,
-  },
-  {
-    fabricante: 'Bausch & Lomb',
-    modelo: 'B&L LuxGood',
-    nombreEnEvo: 'B&L LuxGood',
-    nombreEnKane: 'B+L LuxGood Toric',
-  },
-  {
-    fabricante: 'Bausch & Lomb',
-    modelo: 'B&L LuxSmart',
-    nombreEnEvo: 'B&L LuxSmart',
-    nombreEnKane: 'B+L LuxSmart Toric',
-    constanteConocida: 118.5,
-  },
-  {
-    fabricante: 'Bausch & Lomb',
-    modelo: 'B&L LuxLife',
-    nombreEnEvo: 'B&L LuxLife',
-    nombreEnKane: 'B+L LuxLife Toric',
-    constanteConocida: 118.63,
-  },
-  { fabricante: 'Rayner', modelo: 'Rayner EMV' },
-  { fabricante: 'ZEISS', modelo: 'Zeiss 709M/MP' },
-]
 
 export function SelectorLente({ caso, onCambio }: Props): JSX.Element {
   const [otro, setOtro] = useState(false)
@@ -446,6 +367,3 @@ function SelectorLenteSecundaria({ caso, onCambio }: Props): JSX.Element {
     </>
   )
 }
-
-/** Se exporta para que los tests puedan comprobar que la lista no se toca sola. */
-export const MODELOS_DE_LAS_CALCULADORAS = MODELOS

@@ -146,21 +146,24 @@ export function crearServidor(
     }
   })
 
-  // Sin catálogo de lentes en el móvil a propósito (Fase 3, ver
-  // docs/PLAN-APP-MOVIL.md): el modelo se escribe a mano, y la constante A
-  // conocida, si la hay, se le manda directamente — `elegirLente` sigue
-  // siendo el único sitio donde una constante se convierte en la del caso,
-  // así que el resto de reglas (D33) no cambia, solo se salta la búsqueda
-  // en la tabla de lentes conocidas de la interfaz de escritorio.
+  // Móvil (20/09/2026): el mismo catálogo de lentes conocidas de la app de
+  // escritorio (`MODELOS_DE_LAS_CALCULADORAS`, en SelectorLente.tsx —
+  // reutilizado tal cual, no copiado, para no arriesgar una constante
+  // clínica transcrita mal dos veces) se elige en el propio móvil; esta
+  // ruta solo delega en `elegirLente`, igual que ya hace la interfaz de
+  // escritorio: sigue siendo el único sitio donde una constante de la
+  // tabla se convierte en la del caso (D33), así que ninguna regla cambia.
   casos.post('/lente', async (req, res) => {
     try {
-      const { fabricante, modelo, constanteConocida } = req.body as {
+      const { fabricante, modelo, nombreEnEvo, nombreEnKane, constanteConocida } = req.body as {
         readonly fabricante?: string
         readonly modelo: string
+        readonly nombreEnEvo?: string
+        readonly nombreEnKane?: string
         readonly constanteConocida?: number
       }
       res.json(
-        await servicioDe(req).elegirLente(fabricante ?? '', modelo, undefined, undefined, constanteConocida),
+        await servicioDe(req).elegirLente(fabricante ?? '', modelo, nombreEnEvo, nombreEnKane, constanteConocida),
       )
     } catch (error) {
       res.status(estadoHttpDelError(error)).json({ error: mensajeDelError(error) })
