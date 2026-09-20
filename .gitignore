@@ -62,6 +62,16 @@ storageState*.json
 user-data-dir/
 .playwright-profile/
 
+# ── Datos del servidor (apps/server, Fase 2 del plan móvil) ───────────────
+# `VILAMAR_SERVER_DATOS` por defecto cae aquí si no se fija a otra ruta:
+# casos, documentos e informes de cada usuario, la lista de cuentas
+# (`usuarios.json`, con la contraseña hasheada — nunca al repositorio
+# aunque esté hasheada) y el secreto de firma de las sesiones.
+apps/server/datos-servidor/
+datos-servidor/
+usuarios.json
+secreto-sesion
+
 # ── Variables de entorno y credenciales ───────────────────────────────────
 .env
 .env.local
