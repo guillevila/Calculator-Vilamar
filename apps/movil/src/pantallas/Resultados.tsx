@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Calculadora, Caso, Lateralidad, OpcionLente, ResultadoCalculadora } from '@vilamar/domain'
-import { CALCULADORAS, claveResultado } from '@vilamar/domain'
+import { claveResultado } from '@vilamar/domain'
 
 import { api, ErrorApi } from '../api.js'
 
@@ -13,11 +13,16 @@ const NOMBRE: Record<Calculadora, string> = {
   BARRETT_TRUE_K_TORIC: 'Barrett True K Toric',
 }
 
-// Las tres de siempre, más la variante de Barrett con córnea posterior
-// medida (D45/D51) — la única «extra» que se puede pedir desde el móvil
-// (ver Calculo.tsx). Comprobar las cuatro siempre es inofensivo: si no se
-// pidió esa casilla, `claveResultado` no encuentra nada y no se enseña.
-const CALCULADORAS_A_ENSEÑAR: readonly Calculadora[] = [...CALCULADORAS, 'BARRETT_TORIC_CON_CARA_POSTERIOR']
+// Las cinco que se pueden pedir desde Calculo.tsx (D51). Comprobar las
+// cinco siempre es inofensivo: si una no se pidió, `claveResultado` no
+// encuentra nada y esa tarjeta no se enseña.
+const CALCULADORAS_A_ENSEÑAR: readonly Calculadora[] = [
+  'EVO_TORIC',
+  'EVO_TORIC_SIN_CARA_POSTERIOR',
+  'BARRETT_TORIC',
+  'BARRETT_TORIC_CON_CARA_POSTERIOR',
+  'KANE',
+]
 
 function aparatoDe(caso: Caso, lado: Lateralidad): string {
   return caso.ojos?.[lado]?.[0]?.aparato ?? 'Principal'

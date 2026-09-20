@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { Calculadora, Caso, Lateralidad } from '@vilamar/domain'
-import { CALCULADORAS } from '@vilamar/domain'
 import type { EstadoCalculo } from '@vilamar/casos'
 
 import { api, ErrorApi } from '../api.js'
 
 const NOMBRE: Record<Calculadora, string> = {
-  EVO_TORIC: 'EVO',
+  EVO_TORIC: 'EVO (con córnea posterior, si la hay)',
   BARRETT_TORIC: 'Barrett',
   KANE: 'Kane',
   EVO_TORIC_SIN_CARA_POSTERIOR: 'EVO (sin córnea posterior)',
@@ -15,21 +14,23 @@ const NOMBRE: Record<Calculadora, string> = {
 }
 
 /**
- * Si el caso trae PK1 o PK2 en algún ojo. EVO ya los usa sola, dentro de
- * `EVO_TORIC` (su ficha los lleva como opcionales, D45) — no hace falta
- * pedir nada aparte. Barrett es distinto: su calculadora normal (`BARRETT_TORIC`)
- * SIEMPRE usa un modelo teórico («Predicted PCA») y nunca mira estos datos;
- * la que sí los usa es una calculadora aparte, `BARRETT_TORIC_CON_CARA_POSTERIOR`
- * (D45/D51) — por eso solo esta se ofrece como casilla extra, y solo cuando
- * hay algo que medirle. Kane no tiene ningún campo de córnea posterior
- * (D51, comprobado en vivo): no se ofrece nunca.
+ * Las cinco casillas de siempre en el ordenador (D51, `PanelCalculo.tsx`):
+ * cada una se pide por su cuenta, ninguna se añade sola. `EVO_TORIC` ya usa
+ * PK1/PK2 en cuanto el ojo los tiene (D45, su ficha los lleva como
+ * opcionales) — `EVO_TORIC_SIN_CARA_POSTERIOR` es la misma EVO, pero SIN
+ * mandárselos, para poder comparar el efecto. Con Barrett es al revés:
+ * `BARRETT_TORIC` nunca los mira (usa siempre un modelo teórico), y
+ * `BARRETT_TORIC_CON_CARA_POSTERIOR` es la que sí. Kane no tiene ningún
+ * campo de córnea posterior (D51, comprobado en vivo): no tiene variante.
  */
-function tieneCaraPosterior(caso: Caso): boolean {
-  return (['OD', 'OS'] as const).some((l) => {
-    const medidas = caso.ojos?.[l]?.[0]?.medidas
-    return medidas?.PK1 !== undefined || medidas?.PK2 !== undefined
-  })
-}
+const OPCIONES_CALCULO: readonly Calculadora[] = [
+  'EVO_TORIC',
+  'EVO_TORIC_SIN_CARA_POSTERIOR',
+  'BARRETT_TORIC',
+  'BARRETT_TORIC_CON_CARA_POSTERIOR',
+  'KANE',
+]
+const ELEGIDAS_DE_PARTIDA: readonly Calculadora[] = ['EVO_TORIC', 'BARRETT_TORIC', 'KANE']
 
 export function Calculo({
   caso,
@@ -41,11 +42,7 @@ export function Calculo({
   readonly alTerminar: (caso: Caso) => void
 }): React.JSX.Element {
   const dosOjos = Boolean(caso.ojos?.OD && caso.ojos?.OS)
-  const conCaraPosterior = tieneCaraPosterior(caso)
-  const opciones: readonly Calculadora[] = conCaraPosterior
-    ? [...CALCULADORAS, 'BARRETT_TORIC_CON_CARA_POSTERIOR']
-    : CALCULADORAS
-  const [elegidas, setElegidas] = useState<readonly Calculadora[]>(CALCULADORAS)
+  const [elegidas, setElegidas] = useState<readonly Calculadora[]>(ELEGIDAS_DE_PARTIDA)
   const [ojoFiltro, setOjoFiltro] = useState<Lateralidad | 'TODOS'>('TODOS')
   const [calculando, setCalculando] = useState(false)
   const [progreso, setProgreso] = useState<EstadoCalculo | null>(null)
@@ -86,21 +83,13 @@ export function Calculo({
 
       <h3>Calculadoras</h3>
       <div className="pila">
-        {opciones.map((c) => (
+        {OPCIONES_CALCULO.map((c) => (
           <label key={c} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <input type="checkbox" checked={elegidas.includes(c)} onChange={() => alternar(c)} disabled={calculando} />
             {NOMBRE[c]}
           </label>
         ))}
       </div>
-
-      {conCaraPosterior && (
-        <div className="aviso info">
-          Este caso tiene córnea posterior medida. EVO ya la usa sola, dentro de «EVO» — no hace
-          falta marcar nada aparte. Barrett solo la usa si marcas «Barrett (con córnea posterior
-          medida)»; sin marcarla, Barrett calcula con su modelo teórico de siempre.
-        </div>
-      )}
 
       {elegidas.includes('KANE') && (
         <div className="aviso info">
