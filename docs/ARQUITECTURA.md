@@ -11,10 +11,11 @@
 
 ```
 ┌───────────────────────────┐   ┌───────────────────────────────────────┐
-│  apps/desktop             │   │  apps/server (Fase 1, sin probar aún) │
-│  renderer (React) ─IPC─▶  │   │  Express ─▶ ServicioCasos              │
-│  main (Node)              │   │  Playwright headless en vez de        │
-│  ficheros, navegador, PDF │   │  Electron — docs/PLAN-APP-MOVIL.md    │
+│  apps/desktop             │   │  apps/server (Fase 1, verificado con  │
+│  renderer (React) ─IPC─▶  │   │  EVO/Barrett/Kane reales, 20/09/2026) │
+│  main (Node)              │   │  Express ─▶ ServicioCasos              │
+│  ficheros, navegador, PDF │   │  Playwright en vez de Electron —      │
+│                            │   │  docs/PLAN-APP-MOVIL.md               │
 └─────────────┬──────────────┘   └───────────────┬───────────────────────┘
               │                                  │
               └────────────────┬─────────────────┘
@@ -688,7 +689,13 @@ biometría, nunca un dato identificativo, y no salen del ordenador. Solo
 > dónde vive el fichero. `apps/desktop/src/main/index.ts` sigue siendo
 > quien les da sus implementaciones de Electron (`imprimirPdf`,
 > `abrirNavegador`, `emitirProgreso`/`emitirCaso`); `apps/server` les da
-> las suyas (Playwright headless, Server-Sent Events).
+> las suyas (Playwright, Server-Sent Events). `apps/server/src/navegador.ts`
+> abre Chromium sin cabeza o con ventana según lo pida cada calculadora
+> (`requiereNavegadorVisible`) — igual que ya hacía `apps/desktop`; Barrett y
+> Kane la necesitan siempre (comprobado en vivo el 20/09/2026: el `iframe` de
+> Barrett no carga sin ventana, y Kane exige que una persona acepte su
+> licencia). En un VPS Linux sin monitor, «con ventana» exige una pantalla
+> virtual (`Xvfb` o similar) — pendiente de probar allí.
 
 - `almacen.ts` — ficheros JSON en `%APPDATA%\calculator-vilamar`. Sin base de
   datos, y es una decisión: un caso es un objeto pequeño, no hay consultas, y

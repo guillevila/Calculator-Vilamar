@@ -9,50 +9,84 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 20/09/2026 (2) · **Primera prueba real de
-`apps/server`: un caso completo, contra la web real de EVO, hasta un PDF
-de verdad — pero solo EVO, y solo en el portátil de empresa, con
-consentimiento informado del dueño (D91).** Con el fallo de compilación
-de la app de escritorio ya corregido (ver más abajo), se arrancó el
-servidor por primera vez en la vida de este código y se hizo, a mano
-por HTTP, exactamente lo que hará la futura PWA: crear un caso, escribir
-los diez campos de un ojo (AL, K1/K2 con sus ejes, ACD, refracción
-objetivo, constante A, SIA, eje de incisión — datos sintéticos,
-inventados para esta prueba, nunca de un paciente), confirmarlo y
-calcular. **EVO Toric funcionó de punta a punta contra la web real**:
-Chromium sin cabeza rellenó el formulario, `evoiolcalculator.com`
-devolvió su tabla completa de opciones con una recomendada, y
-`POST /casos/pdf` generó un PDF de verdad (3 páginas) con el mismo
-`@vilamar/report` de siempre, usando `page.pdf()` de Playwright en vez
-de Electron. Los datos y el PDF de la prueba se guardaron fuera de esta
-carpeta (en una carpeta temporal, no en el OneDrive del proyecto) y se
-borraron al terminar.
+**Última actualización:** 20/09/2026 (3) · **Las tres calculadoras
+—EVO, Barrett y Kane— funcionan ya desde `apps/server`, contra las
+webs reales, hasta el PDF.** Tras la primera prueba (solo EVO, más
+abajo), se investigó por qué Barrett y Kane no funcionaban con el
+Chromium sin cabeza:
 
-**Lo que esta prueba NO cubre, para no dar una sensación de avance que
-no es real:**
+- **Barrett**: el propio adaptador (`barrett.ts`) ya lo tenía
+  documentado y MEDIDO — con el navegador sin cabeza, el `iframe` de la
+  calculadora (que vive en otro dominio, con protección anti-robot) no
+  llega a cargar; con ventana, sí. No es un capricho de Playwright, es
+  cómo reacciona esa web.
+- **Kane**: además de necesitar ventana, exige que una PERSONA acepte su
+  acuerdo de licencia («I Agree») la primera vez — el programa no lo
+  acepta nunca en nombre de nadie, y tampoco resuelve la comprobación
+  anti-robot que a veces sale junto a él.
 
-- **Barrett y Kane, sin probar.** Ya se sabía antes de probar nada:
-  Barrett «no admite navegador sin ventana» (ficha en
-  `calculadoras.ts`) y Kane exige aceptar sus condiciones a mano la
-  primera vez — ninguna de las dos funciona con el Chromium SIN CABEZA
-  que usa `apps/server` hoy (`navegador.ts` lo avisa explícitamente).
-  Sin resolver: para un servidor de verdad hará falta otra solución
-  (un escritorio remoto para ese primer clic, por ejemplo).
-- **La carga de un documento (foto/PDF de un paciente) no se probó.**
-  Esta prueba escribió los datos a mano por la misma vía que usará el
-  cuestionario manual — el lector PROVISIONAL de `apps/server` (solo
-  PDF con texto nativo, sin OCR ni visión) sigue sin haberse probado
-  contra ningún documento real.
-- **Login, aislamiento por persona, `/eventos` (avisos en tiempo real)
-  y el propio VPS**: nada de esto se ha tocado. Sigue habiendo un único
+`apps/server/src/navegador.ts` tenía un fallo desde que se escribió:
+ignoraba el aviso de «necesito ventana visible» que ya mandaban Barrett
+y Kane, y siempre abría sin cabeza pasara lo que pasara — corregido
+para que abra con ventana de verdad cuando una calculadora lo pide,
+exactamente como ya hacía la app de escritorio. **«Ventana visible» no
+exige un monitor físico**: en este portátil (con sesión de escritorio)
+funcionó sin tocar nada más; en el VPS Linux, sin monitor, hará falta
+darle una pantalla virtual (`Xvfb` o equivalente) — mismo navegador,
+solo que nadie la mira en directo. Pendiente para cuando se despliegue
+de verdad allí.
+
+Con el arreglo puesto, segunda prueba real, mismo caso sintético de
+antes: **Barrett Toric funcionó de punta a punta** (tres opciones T2
+reales, 21.5 D recomendada). Para Kane, el dueño aceptó él mismo, con
+su propio clic, el acuerdo de licencia en una ventana real que se le
+abrió en pantalla — sin comprobación anti-robot esta vez — y **Kane
+también funcionó de punta a punta** (tabla tórica con tres opciones más
+las cinco esféricas). El PDF final generado con las tres calculadoras
+juntas: 5 páginas, válido. Otra vez con datos sintéticos, en una carpeta
+temporal fuera del proyecto, borrada al terminar — incluido el perfil
+de navegador con la aceptación de Kane, que no se conservó: habrá que
+repetir ese clic una vez más en el ordenador que acabe alojando el
+servidor de verdad (personal, y luego el VPS), y es un coste pequeño y
+esperado, no un fallo.
+
+Antes de esto — **20/09/2026 (2): primera prueba real de
+`apps/server`, pero solo EVO.** Un caso completo, contra la web real de
+EVO, hasta un PDF de verdad — con el fallo de compilación de la app de
+escritorio ya corregido (ver más abajo), se arrancó el servidor por
+primera vez en la vida de este código y se hizo, a mano por HTTP,
+exactamente lo que hará la futura PWA: crear un caso, escribir los diez
+campos de un ojo (AL, K1/K2 con sus ejes, ACD, refracción objetivo,
+constante A, SIA, eje de incisión — datos sintéticos, inventados para
+esta prueba, nunca de un paciente), confirmarlo y calcular. EVO Toric
+funcionó de punta a punta contra la web real: Chromium sin cabeza
+rellenó el formulario, `evoiolcalculator.com` devolvió su tabla
+completa de opciones con una recomendada, y `POST /casos/pdf` generó un
+PDF de verdad (3 páginas) con el mismo `@vilamar/report` de siempre,
+usando `page.pdf()` de Playwright en vez de Electron.
+
+**Lo que sigue sin cubrir, para no dar una sensación de avance que no
+es real:**
+
+- **La carga de un documento (foto/PDF de un paciente) no se ha
+  probado.** Las dos pruebas escribieron los datos a mano por la misma
+  vía que usará el cuestionario manual — el lector PROVISIONAL de
+  `apps/server` (solo PDF con texto nativo, sin OCR ni visión) sigue sin
+  probarse contra ningún documento real.
+- **Login, aislamiento por persona, `/eventos` (avisos en tiempo real) y
+  el propio VPS**: nada de esto se ha tocado. Sigue habiendo un único
   caso en memoria, como hoy en escritorio.
-- Esto fue en `localhost`, en el ordenador de pruebas — **no es una
+- **La pantalla virtual (Xvfb) del VPS, sin probar** — no se puede
+  probar aquí porque este portátil ya tiene pantalla de verdad y nunca
+  necesitó una virtual.
+- Todo esto fue en `localhost`, en el ordenador de pruebas — **no es una
   prueba de acceso desde el móvil**, solo de que el motor del servidor
-  funciona.
+  funciona con las tres calculadoras.
 
-**Un aviso sobre cómo se probó, no sobre el producto**: al terminar, la
-orden de parar el servidor en segundo plano dijo haberlo hecho pero el
-proceso y los tres Chromium que había abierto seguían vivos — hubo que
+**Un aviso sobre cómo se probó, no sobre el producto, repetido dos
+veces esta sesión**: al terminar cada prueba, la orden de parar el
+servidor en segundo plano dijo haberlo hecho, pero el proceso y los
+Chromium que había abierto seguían vivos las dos veces — hubo que
 matarlos a mano, comprobando antes cuáles eran los correctos para no
 tocar el navegador normal del propio ordenador. Lección registrada en
 `.claude/skills/lessons-learned/log.md` (20/09/2026), justo porque un

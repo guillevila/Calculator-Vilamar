@@ -6,6 +6,54 @@
 
 ---
 
+## 2026-09-20 (2) — Un aviso por consola no es lo mismo que respetar el contrato
+
+**Error o aprendizaje:** El primer esqueleto de `apps/server`
+(`navegador.ts`) tenía una función `abrirNavegadorServidor(conVentana, ...)`
+que RECIBÍA el parámetro `conVentana` —el mismo que ya usa
+`AdaptadorCalculadora.requiereNavegadorVisible` para pedir una ventana de
+verdad (Barrett y Kane lo declaran `true`, comprobado y documentado en sus
+propios adaptadores)— pero lo ignoraba por completo: siempre lanzaba
+`headless: true` y se limitaba a avisar por `console.warn` si alguien pedía
+`conVentana: true`. Con EVO (que no lo necesita) esto pasó desapercibido en
+la primera prueba real; al probar Barrett y Kane, los dos fallaron —Barrett
+porque su `iframe` nunca cargó, Kane porque nadie pudo ver ni pulsar su
+acuerdo de licencia—, exactamente el fallo que el propio comentario del
+fichero ya predecía como «limitación conocida, sin resolver».
+
+**Causa raíz:** Existía el CONTRATO (el parámetro, el flag
+`requiereNavegadorVisible`, hasta el aviso explicando el problema) pero no
+la IMPLEMENTACIÓN que lo cumple. Un `console.warn` que explica por qué algo
+no funciona se parece mucho a haberlo resuelto, y no lo es — es la misma
+familia que «documentar una limitación no es lo mismo que levantarla»
+(13/08/2026, sobre Kane sin cilindro) y que «un fichero de configuración que
+nadie lee» (11/08/2026, sobre el `.env`): la pieza que falta es siempre la
+que conecta la intención con el efecto.
+
+**Lección:**
+
+1. Cuando un parámetro o un flag existe pero la función lo ignora con un
+   aviso en vez de actuar sobre él, es una función A MEDIAS, no una función
+   con una limitación documentada — tratarlas igual (dando el esqueleto por
+   «escrito y correcto») esconde el hueco hasta que alguien prueba el camino
+   que sí lo necesita.
+2. La corrección aquí fue mínima una vez encontrada
+   (`headless: !conVentana`, igual que ya hacía `apps/desktop`) — el coste
+   real no estaba en escribirla, estaba en no haberla probado contra el caso
+   que la necesitaba (Barrett/Kane) antes de dar el esqueleto por terminado.
+3. **«Ventana visible» no es lo mismo que «hay un monitor físico»**: en un
+   servidor Linux sin pantalla, la solución no es imposible, es una pantalla
+   VIRTUAL (`Xvfb` o equivalente) — el navegador sigue siendo exactamente el
+   mismo, solo que nadie la mira en directo. Queda pendiente para cuando
+   `apps/server` se despliegue en el VPS de verdad.
+
+**Contexto:** Cualquier función que reciba un parámetro de otra capa
+(`conVentana`, `requiereNavegadorVisible`…) y cualquier sesión que retome un
+esqueleto escrito por otra sesión sin haberlo probado contra el caso más
+exigente.
+
+---
+
 ## 2026-09-20 — Parar el proceso del servidor no basta: Chromium se queda vivo detrás
 
 **Error o aprendizaje:** Primera prueba real de `apps/server` (D91): arrancó,
