@@ -4,6 +4,48 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.55] — 21/09/2026 (versión visible en pantalla: v1.21)
+
+feat(app): SIA, eje, target y constante se comparten en todo el caso; SIA y target se resaltan en rojo (D95).
+
+### Qué se pidió
+
+El dueño del proyecto: «entre tantos datos a veces se me pasa en uno de
+los ojos o en uno de los aparatos poner todas las cosas y luego al
+calcular no te calcula con todos los calculadores en todos los aparatos
+o los dos ojos por faltar algún dato». Pidió que SIA, eje del SIA, tipo
+de lente, target/constante y tipo de córnea (especial o no) se rellenen
+por defecto en el resto de aparatos y el otro ojo en cuanto se escriben
+una vez, y que target y SIA se vean en rojo como AL/K1/K2/ACD.
+
+### El cambio
+
+- `SIA`, `EJE_INCISION`, `REFRACCION_OBJETIVO` y `CONSTANTE_A`: un solo
+  bloque nuevo en `editarMedida()` los propaga a TODOS los datasets del
+  caso (cualquier ojo, cualquier aparato) que aún no tengan su propio
+  valor — antes solo heredaban del otro ojo con el mismo aparato, y solo
+  al crear el dataset; ahora también en una edición posterior.
+- «Tipo de lente» no necesitaba cambio: ya es un campo único del caso
+  (D33), no por ojo.
+- `situacionCorneal` (córnea especial, D67) se comparte solo entre los
+  aparatos del MISMO ojo — **nunca con el otro ojo**, a propósito: es una
+  característica clínica de cada ojo, y copiarla al lado equivocado
+  podría mandar un ojo normal a la calculadora equivocada.
+- `REFRACCION_OBJETIVO` y `SIA` añadidos a `CAMPOS_DESTACADOS`
+  (`camposNucleo.ts`): ahora se ven en rojo en el cuestionario manual,
+  igual que AL/K1/K2/ACD.
+
+### Verificado
+
+- 21 tests nuevos en `servicio-casos.editar-medida.test.ts`: los cuatro
+  campos compartidos (entre aparatos del mismo ojo, entre ojos con
+  aparatos de nombre distinto, que no pisan un valor ya puesto, que se
+  propagan en una edición posterior) y la situación corneal (cruza
+  aparatos del mismo ojo, nunca el otro ojo).
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`.
+
+---
+
 ## [1.15.54] — 20/09/2026 (versión visible en pantalla: v1.20)
 
 fix(app): el código de un caso nuevo ya no reutiliza un número usado antes por otro paciente (D94).

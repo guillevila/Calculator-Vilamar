@@ -745,7 +745,6 @@ export class ServicioCasos {
       valor === null ? sinMedida(ojo, campo) : corregirMedida(ojo, campo, valor, this.iso())
     let conElOjo = conOjo(caso, actualizado, this.iso())
     const ladosTocados: Lateralidad[] = [lado]
-    const otroLado: Lateralidad = lado === 'OD' ? 'OS' : 'OD'
 
     // El eje de K2 es, por definición clínica, el de K1 más 90° — las dos
     // queratometrías son perpendiculares entre sí (petición expresa del
@@ -764,91 +763,97 @@ export class ServicioCasos {
       }
     }
 
-    // La constante A es casi siempre la misma lente en los dos ojos
-    // (petición expresa del dueño, 02/09/2026). Se propaga sola entre los
-    // dos datasets del mismo aparato, en el sentido que corresponda según
-    // cuál se acaba de tocar — nunca pisa un valor que YA hubiera, venga de
-    // donde venga (a mano o del catálogo), así que borrarla en un ojo no la
-    // hace reaparecer sola.
-    if (campo === 'CONSTANTE_A' && valor !== null) {
-      // 1. Se acaba de escribir aquí: si el otro ojo ya tiene este mismo
-      //    aparato pero sin su propia constante, se copia hacia allí.
-      const otroOjo = ojoDe(conElOjo, otroLado, aparato)
-      if (
-        aparatosDe(conElOjo, otroLado).includes(aparato) &&
-        otroOjo.medidas.CONSTANTE_A === undefined
-      ) {
-        conElOjo = conOjo(conElOjo, corregirMedida(otroOjo, campo, valor, this.iso()), this.iso())
-        ladosTocados.push(otroLado)
-      }
-    } else if (campo !== 'CONSTANTE_A' && !yaExistiaElDataset && valor !== null) {
-      // 2. Se acaba de crear un dataset nuevo con este primer dato: si el
-      //    otro ojo ya tenía este mismo aparato CON su constante puesta, se
-      //    hereda aquí — solo en el momento de crearse, nunca en ediciones
-      //    posteriores (para no revivir una que la persona borró a propósito).
-      const constanteDelOtro = ojoDe(conElOjo, otroLado, aparato).medidas.CONSTANTE_A
-      if (constanteDelOtro !== undefined) {
-        conElOjo = conOjo(
-          conElOjo,
-          corregirMedida(
-            ojoDe(conElOjo, lado, aparato),
-            'CONSTANTE_A',
-            constanteDelOtro.valor,
-            this.iso(),
-          ),
-          this.iso(),
-        )
-      } else {
-        // 3. Ni siquiera el otro ojo la tiene: si ya se había elegido una
-        //    lente con constante conocida del catálogo (D69) ANTES de que
-        //    este dataset existiera, `elegirLente()` no pudo escribirla en
-        //    su momento —no había ojo al que engancharla—, así que se
-        //    aplica ahora, en el mismo movimiento que crea el dataset. Es
-        //    el caso real reportado por el dueño: elegir la lente antes de
-        //    escribir ningún dato del ojo.
-        const delCatalogo = conElOjo.lente?.constanteDelCatalogo
-        if (delCatalogo !== undefined) {
-          conElOjo = conOjo(
-            conElOjo,
-            conMedida(
-              ojoDe(conElOjo, lado, aparato),
-              crearMedida(
-                'CONSTANTE_A',
-                lado,
-                delCatalogo.valor,
-                { metodo: 'CATALOGO', registradoEn: this.iso() },
-                true,
-              ),
-            ),
-            this.iso(),
-          )
+    // SIA, eje de la incisión, refracción objetivo y constante A son casi
+    // siempre los mismos para TODO el caso —la misma visita, la misma
+    // lente, el mismo cirujano— así que escribir uno de estos cuatro campos
+    // en CUALQUIER dataset (cualquier ojo, cualquier aparato) lo rellena
+    // como valor de partida en TODOS los demás datasets del caso que
+    // todavía no tengan el suyo propio (petición expresa del dueño del
+    // proyecto, 21/09/2026: ampliado desde la versión anterior —15/09 y
+    // 02/09/2026—, que solo heredaba del otro ojo con el MISMO aparato, y
+    // solo en el instante de crear el dataset; con varios biómetros por ojo
+    // (D47), un aparato que ya existía o que se añade más tarde se quedaba
+    // sin el dato). Nunca pisa un valor que la persona ya haya escrito,
+    // aunque sea distinto — borrarlo en un dataset no lo hace reaparecer.
+    //
+    // `situacionCorneal` (D67) NO está en esta lista a propósito: es una
+    // característica clínica de CADA OJO —una córnea con LASIK/PRK/
+    // queratocono previo puede ser solo de uno de los dos—, así que
+    // copiarla al otro ojo podría mandar un ojo normal a la calculadora
+    // equivocada (Barrett True K Toric en vez de Barrett Toric, o al
+    // revés). Se comparte solo entre los aparatos del MISMO ojo, en
+    // `editarSituacionCorneal`, más abajo.
+    const CAMPOS_COMPARTIDOS_DEL_CASO: readonly CampoBiometrico[] = [
+      'SIA',
+      'EJE_INCISION',
+      'REFRACCION_OBJETIVO',
+      'CONSTANTE_A',
+    ]
+    if (CAMPOS_COMPARTIDOS_DEL_CASO.includes(campo) && valor !== null) {
+      for (const otroLadoIter of ['OD', 'OS'] as const) {
+        for (const otroAparato of aparatosDe(conElOjo, otroLadoIter)) {
+          if (otroLadoIter === lado && otroAparato === aparato) continue
+          const destino = ojoDe(conElOjo, otroLadoIter, otroAparato)
+          if (destino.medidas[campo] !== undefined) continue
+          conElOjo = conOjo(conElOjo, corregirMedida(destino, campo, valor, this.iso()), this.iso())
+          if (!ladosTocados.includes(otroLadoIter)) ladosTocados.push(otroLadoIter)
         }
       }
     }
 
-    // El SIA, su eje de incisión y el objetivo de refracción también suelen
-    // ser los mismos en los dos ojos de la misma visita (petición expresa
-    // del dueño del proyecto, 15/09/2026) — se heredan del otro ojo igual
-    // que la constante A (caso 2 de arriba): SOLO en el momento de crear el
-    // dataset nuevo, nunca en ediciones posteriores, y nunca pisando el
-    // campo que la persona acaba de escribir con este mismo `editarMedida`
-    // (si ese campo es uno de los tres, ya lleva el valor recién tecleado).
-    // La lente ya es del caso entero, no de cada ojo (D33), así que no hace
-    // falta copiarla aquí — «Lente» de la revisión ya la comparten los dos.
+    // El reparto de arriba solo empuja el campo que se acaba de escribir.
+    // Pero el primer dato de un dataset nuevo casi nunca es uno de los
+    // cuatro compartidos —normalmente es AL, al escribir la biometría—, así
+    // que hace falta también HEREDAR: en cuanto se crea un dataset, mirar
+    // si algún otro dataset del caso ya tiene alguno de los cuatro y
+    // copiarlo aquí, sin esperar a que la persona los vuelva a escribir.
+    const buscarValorCompartido = (campoCompartido: CampoBiometrico): number | undefined => {
+      for (const otroLadoIter of ['OD', 'OS'] as const) {
+        for (const otroAparato of aparatosDe(conElOjo, otroLadoIter)) {
+          if (otroLadoIter === lado && otroAparato === aparato) continue
+          const origen = ojoDe(conElOjo, otroLadoIter, otroAparato).medidas[campoCompartido]
+          if (origen !== undefined) return origen.valor
+        }
+      }
+      return undefined
+    }
     if (!yaExistiaElDataset && valor !== null) {
-      const CAMPOS_HEREDABLES_DEL_OTRO_OJO: readonly CampoBiometrico[] = [
-        'SIA',
-        'EJE_INCISION',
-        'REFRACCION_OBJETIVO',
-      ]
-      const otroOjoParaHeredar = ojoDe(conElOjo, otroLado, aparato)
-      for (const campoHeredable of CAMPOS_HEREDABLES_DEL_OTRO_OJO) {
-        if (campoHeredable === campo) continue
-        const delOtro = otroOjoParaHeredar.medidas[campoHeredable]
-        if (delOtro === undefined) continue
+      for (const campoCompartido of CAMPOS_COMPARTIDOS_DEL_CASO) {
+        if (campoCompartido === campo) continue
+        if (ojoDe(conElOjo, lado, aparato).medidas[campoCompartido] !== undefined) continue
+        const heredado = buscarValorCompartido(campoCompartido)
+        if (heredado === undefined) continue
         conElOjo = conOjo(
           conElOjo,
-          corregirMedida(ojoDe(conElOjo, lado, aparato), campoHeredable, delOtro.valor, this.iso()),
+          corregirMedida(ojoDe(conElOjo, lado, aparato), campoCompartido, heredado, this.iso()),
+          this.iso(),
+        )
+      }
+    }
+
+    // Ni este dataset ni ningún otro tienen todavía la constante A: si ya
+    // se había elegido una lente con constante conocida del catálogo (D69)
+    // ANTES de que este dataset existiera, `elegirLente()` no pudo
+    // escribirla en su momento —no había ojo al que engancharla—, así que
+    // se aplica ahora, en el mismo movimiento que crea el dataset. Es el
+    // caso real reportado por el dueño: elegir la lente antes de escribir
+    // ningún dato del ojo.
+    if (!yaExistiaElDataset && valor !== null) {
+      const constanteYaPuesta = ojoDe(conElOjo, lado, aparato).medidas.CONSTANTE_A
+      const delCatalogo = conElOjo.lente?.constanteDelCatalogo
+      if (constanteYaPuesta === undefined && delCatalogo !== undefined) {
+        conElOjo = conOjo(
+          conElOjo,
+          conMedida(
+            ojoDe(conElOjo, lado, aparato),
+            crearMedida(
+              'CONSTANTE_A',
+              lado,
+              delCatalogo.valor,
+              { metodo: 'CATALOGO', registradoEn: this.iso() },
+              true,
+            ),
+          ),
           this.iso(),
         )
       }
@@ -885,6 +890,15 @@ export class ServicioCasos {
    * Si este ojo tiene una córnea alterada por cirugía refractiva previa o
    * queratocono (D67, 02/09/2026). `undefined` la quita y vuelve a ser un
    * ojo normal.
+   *
+   * Al marcarla (nunca al quitarla), se copia también a los DEMÁS aparatos
+   * de este MISMO ojo que todavía no tengan la suya propia (petición
+   * expresa del dueño del proyecto, 21/09/2026: con varios biómetros por
+   * ojo, D47, había que marcarla aparato por aparato aunque fuera la misma
+   * córnea). **Nunca al otro ojo** — es una característica clínica de CADA
+   * ojo, no del caso: copiarla al otro lado podría mandar un ojo normal a
+   * Barrett True K Toric, o uno con córnea especial a Barrett Toric,
+   * exactamente el error que D67 existe para evitar.
    */
   editarSituacionCorneal(
     lado: Lateralidad,
@@ -893,8 +907,20 @@ export class ServicioCasos {
   ): Caso {
     const caso = this.exigirCaso()
     const ojo = ojoDe(caso, lado, aparato)
-    const actualizado = conSituacionCorneal(ojo, situacionCorneal)
-    return this.establecer(conOjo(caso, actualizado, this.iso()))
+    let actualizado = conOjo(caso, conSituacionCorneal(ojo, situacionCorneal), this.iso())
+    if (situacionCorneal !== undefined) {
+      for (const otroAparato of aparatosDe(actualizado, lado)) {
+        if (otroAparato === aparato) continue
+        const destino = ojoDe(actualizado, lado, otroAparato)
+        if (destino.situacionCorneal !== undefined) continue
+        actualizado = conOjo(
+          actualizado,
+          conSituacionCorneal(destino, situacionCorneal),
+          this.iso(),
+        )
+      }
+    }
+    return this.establecer(actualizado)
   }
 
   /**

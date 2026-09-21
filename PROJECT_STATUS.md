@@ -9,7 +9,20 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 20/09/2026 (4) · 🔴 **Fallo grave corregido: el
+**Última actualización:** 21/09/2026 · **SIA, eje, target y
+constante se rellenan solos en el resto de aparatos y el otro ojo, y
+target/SIA se ven en rojo como AL/K1/K2/ACD (D95).** Se le pasaba por
+alto al dueño rellenar estos campos en algún aparato u ojo, y el cálculo
+se quedaba incompleto sin avisar de un vistazo. Ahora escribirlos una vez
+en cualquier dataset los propaga, como valor de partida, a todos los
+demás que aún no los tengan — también en una edición posterior, no solo
+al crearse. La córnea especial (D67) queda fuera a propósito: solo se
+comparte entre aparatos del MISMO ojo, nunca con el otro, por ser un dato
+clínico de cada ojo. `pnpm lint && pnpm typecheck && pnpm test && pnpm
+build && pnpm test:e2e` en verde (841 tests unitarios; el único fallo de
+la suite es previo y no relacionado; 58/58 de interfaz).
+
+Antes de esto — **20/09/2026 (4): fallo grave corregido: el
 código de un caso nuevo podía repetirse y pisar el caso de otro paciente
 (D94).** El dueño notó que «Casos guardados» llevaba días sin enseñar
 nada nuevo — investigado mirando los ficheros reales en disco: entre el
