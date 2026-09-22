@@ -4,6 +4,53 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.56] — 22/09/2026 (versión visible en pantalla: v1.22)
+
+fix(domain): el criterio del cilindro de la estimación propia (D43) ya no descarta el cilindro 0 por su eje (D96).
+
+### Qué se pidió
+
+El dueño del proyecto, con un PDF real: «encontré un error cuando hay un
+cálculo en el que el cilindro es cero y el siguiente cilindro invierte el
+eje, el calculador recomienda el cilindro que invierte el eje en lugar de
+coger el de cero».
+
+### El fallo
+
+`estimarLenteRecomendada()` comparaba CADA escalón de cilindro contra el
+eje curvo de la córnea, por separado. En el caso real (Kane, OS, ZEISS
+IOLMaster 700): sin corregir (eje 6°), 0.90 D (eje 96°), 1.25 D (eje
+96°), eje curvo 137°. El cero quedaba a 49° de la córnea (fuera del
+margen de 45°) y se descartaba; 1.25 D quedaba a 41° (dentro) y se
+elegía — aunque 96° y 6° son casi perpendiculares: la opción elegida ya
+había invertido el eje respecto a no corregir nada.
+
+### El cambio
+
+El cilindro 0 es ahora siempre un punto de partida válido (no hay lente
+tórica puesta que pueda estar mal orientada). A partir de ahí, cada
+escalón se compara con el ANTERIOR ya aceptado, no con el eje curvo, y se
+para en cuanto el eje se aparta demasiado. Si la fila de menor cilindro
+no es cero (Barrett/EVO a veces solo dan una fila tórica), esa primera
+fila sigue comparándose con el eje curvo, a falta de otra referencia.
+
+### Hallazgo aparte, sin tocar
+
+En el mismo PDF, Barrett/ZEISS sale sin cilindro en nuestra estimación
+porque el adaptador de Barrett solo engancha el cilindro a la potencia
+que Barrett mismo ya destacó en su tabla — nunca ve las demás filas de su
+propia tabla (Non Toric, T3). Limitación del adaptador, no del criterio;
+señalada al dueño, pendiente de decidir si se aborda.
+
+### Verificado
+
+- Dos tests nuevos en `recomendacion.test.ts`: reproduce el caso real
+  exacto (elige cilindro 0), y un caso de control sin inversión (sigue
+  subiendo con normalidad).
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`.
+
+---
+
 ## [1.15.55] — 21/09/2026 (versión visible en pantalla: v1.21)
 
 feat(app): SIA, eje, target y constante se comparten en todo el caso; SIA y target se resaltan en rojo (D95).

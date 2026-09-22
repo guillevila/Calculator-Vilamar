@@ -41,11 +41,31 @@
  *    miopía. Por eso el código no busca «la primera que cumple el signo»:
  *    busca la de menor `Math.abs(refraccionPrevista)` entre las que cumplen
  *    el signo, válido para los dos criterios sin caso especial.
- *  - **Cilindro**: de menor a mayor cilindro, entre las opciones tóricas cuyo
- *    eje residual coincide con el eje curvo de la córnea (K más curva), la
- *    ÚLTIMA antes de que ese eje cambie de orientación — el mayor cilindro
- *    que no llega a invertir el astigmatismo residual. Este criterio NO
- *    cambia con la familia de lente.
+ *  - **Cilindro**: de menor a mayor cilindro, el mayor que no llega a
+ *    invertir el astigmatismo residual. **El cilindro 0 (sin corrección
+ *    tórica) es siempre un punto de partida válido** — no hay ninguna
+ *    lente tórica puesta, así que no hay ningún eje que pueda estar mal
+ *    orientado —; a partir de ahí, cada escalón se compara con el
+ *    ANTERIOR ya aceptado, no con el eje curvo de la córnea: lo que
+ *    importa es si el eje sigue girando en la misma orientación al subir
+ *    el cilindro, y en cuanto un escalón se aparta demasiado del anterior,
+ *    el eje ya ha cambiado de orientación y ahí se para. Si la fila de
+ *    menor cilindro NO es cero (Barrett y EVO a veces solo dan una fila
+ *    tórica, nunca «sin corregir»), esa primera fila se compara con el eje
+ *    curvo de la córnea, a falta de otra referencia de partida. Este
+ *    criterio NO cambia con la familia de lente.
+ *
+ *    ⚠️ **Comparar cada escalón contra el eje curvo de la córnea, en vez de
+ *    contra el escalón anterior, era el fallo real encontrado el
+ *    22/09/2026 con un PDF real (Kane, OS, ZEISS IOLMaster 700):** el
+ *    astigmatismo SIN corregir (cilindro 0, eje 6°) no estaba cerca del
+ *    eje curvo (137°), así que se descartaba — y el código se quedaba con
+ *    el cilindro más alto que SÍ coincidía con el eje curvo (1.25 D, eje
+ *    96°), que en realidad ya había invertido el eje respecto al cero (96°
+ *    y 6° son casi perpendiculares). El astigmatismo natural sin corregir
+ *    no tiene por qué alinearse con la K más curva —lo condiciona también
+ *    la incisión—, así que exigírselo descartaba precisamente la opción
+ *    de no tocar nada, que era la correcta.
  *
  * **Las dos partes se ordenan explícitamente antes de recorrerlas — nunca se
  * confía en el orden en que llega `opciones`.** Esto no es cosmético: EVO
@@ -200,11 +220,42 @@ export function estimarLenteRecomendada(
         o.cilindro !== undefined && o.ejeResidual !== undefined,
     )
     .sort((a, b) => a.cilindro - b.cilindro)
-  const conElMismoEje = toricas.filter(
-    (o) => separacionDeEjes(o.ejeResidual, ejeCurvo) < UMBRAL_MISMO_EJE,
-  )
-  const ultima = conElMismoEje[conElMismoEje.length - 1]
+  const primera = toricas[0]
+  if (!primera) return { esfera: elegidaEsfera.esfera, ...conRefraccion }
+
+  // El cilindro 0 (sin corrección tórica) es SIEMPRE un punto de partida
+  // válido: no hay ninguna lente tórica puesta, así que no hay ningún eje
+  // que pueda estar mal orientado. Compararlo contra el eje curvo de la
+  // córnea era el fallo real encontrado el 22/09/2026: el astigmatismo
+  // SIN corregir no tiene por qué alinearse con la K más curva —lo hace la
+  // incisión, entre otras cosas—, así que exigírselo descartaba el cero
+  // aunque fuera la opción correcta, y el código se quedaba con un cilindro
+  // MAYOR que en realidad ya había invertido el eje respecto al cero.
+  //
+  // Si la fila de menor cilindro NO es cero (Barrett y EVO a veces solo dan
+  // una fila tórica, nunca «sin corregir»), hace falta el eje curvo como
+  // referencia de partida — no hay otra forma de saber si esa única fila
+  // está bien orientada.
+  let ultima: (typeof toricas)[number] | undefined
+  if (primera.cilindro === 0) {
+    ultima = primera
+  } else if (ejeCurvo !== undefined && separacionDeEjes(primera.ejeResidual, ejeCurvo) < UMBRAL_MISMO_EJE) {
+    ultima = primera
+  }
   if (!ultima) return { esfera: elegidaEsfera.esfera, ...conRefraccion }
+
+  // A partir de ahí, cada escalón se compara con el ANTERIOR ya aceptado —
+  // no con el eje curvo— porque lo que importa es si el eje sigue girando
+  // en la misma orientación al subir el cilindro, no si coincide con la K.
+  // En cuanto un escalón se aparta más de `UMBRAL_MISMO_EJE`, el eje ya ha
+  // cambiado de orientación: se para ahí, sin mirar los cilindros más altos
+  // (que solo se alejan más del original, nunca vuelven a alinearse).
+  for (let i = 1; i < toricas.length; i++) {
+    const siguiente = toricas[i]
+    if (siguiente === undefined) continue
+    if (separacionDeEjes(siguiente.ejeResidual, ultima.ejeResidual) >= UMBRAL_MISMO_EJE) break
+    ultima = siguiente
+  }
 
   return {
     esfera: elegidaEsfera.esfera,

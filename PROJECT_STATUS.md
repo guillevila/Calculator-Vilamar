@@ -9,7 +9,23 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 21/09/2026 · **SIA, eje, target y
+**Última actualización:** 22/09/2026 · 🔴 **Fallo corregido en
+la estimación propia (D43): el criterio del cilindro podía saltarse la
+opción de no corregir nada y quedarse con una que ya había invertido el
+eje (D96).** El dueño lo encontró con un PDF real: sin corregir (eje 6°),
+0.90 D y 1.25 D (eje 96° los dos) — el criterio comparaba cada uno contra
+el eje de la córnea por separado, descartaba el cero por estar a 49° (el
+margen es 45°) y se quedaba con 1.25 D, que en realidad ya había girado
+el eje casi 90° respecto al cero. Corregido: el cilindro 0 es siempre un
+punto de partida válido, y cada escalón se compara ahora con el ANTERIOR,
+no con la córnea. Hallazgo aparte, sin tocar todavía: el adaptador de
+Barrett solo ve la fila de cilindro que Barrett mismo ya destacó, nunca
+las demás de su propia tabla — pendiente de decidir con el dueño. `pnpm
+lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e` en
+verde (843 tests unitarios; el único fallo de la suite es previo y no
+relacionado; 58/58 de interfaz).
+
+Antes de esto — **21/09/2026: SIA, eje, target y
 constante se rellenan solos en el resto de aparatos y el otro ojo, y
 target/SIA se ven en rojo como AL/K1/K2/ACD (D95).** Se le pasaba por
 alto al dueño rellenar estos campos en algún aparato u ojo, y el cálculo

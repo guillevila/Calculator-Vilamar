@@ -131,6 +131,52 @@ describe('estimarLenteRecomendada', () => {
     })
   })
 
+  /**
+   * Fallo real encontrado el 22/09/2026 con un PDF real (Kane, OS, ZEISS
+   * IOLMaster 700): cilindro 0 con eje 6°, luego 0.90 y 1.25 con eje 96° —
+   * el eje curvo de la córnea era 137°. El código viejo comparaba CADA
+   * escalón contra el eje curvo por separado: descartaba el cero (49° de
+   * separación, justo fuera del margen de 45°) y se quedaba con 1.25 D
+   * (41° de separación, sí entraba) — pisando la opción correcta con una
+   * que en realidad ya había invertido el eje respecto al cero (96° y 6°
+   * son casi perpendiculares).
+   */
+  it('cilindro 0 es siempre un punto de partida válido, aunque su propio eje no coincida con el eje curvo de la córnea', () => {
+    const ejeCurvo = 137
+    const opciones = [
+      opcion({ esfera: 24.5, refraccionPrevista: -0.25 }),
+      opcion({ cilindro: 0, ejeResidual: 6, cilindroResidual: 0.32, designacion: 'Non-toric' }),
+      opcion({ cilindro: 0.9, ejeResidual: 96, cilindroResidual: 0.29, designacion: 'T2' }),
+      opcion({ cilindro: 1.25, ejeResidual: 96, cilindroResidual: 0.52, designacion: 'T3' }),
+    ]
+    expect(estimarLenteRecomendada(opciones, ejeCurvo)).toEqual({
+      esfera: 24.5,
+      cilindro: 0,
+      eje: ejeCurvo,
+      refraccionPrevista: -0.25,
+      ejeResidual: 6,
+      cilindroResidual: 0.32,
+    })
+  })
+
+  it('con cilindro 0 SIN inversión en el siguiente escalón, sigue subiendo con normalidad', () => {
+    const ejeCurvo = 89
+    const opciones = [
+      opcion({ esfera: 21.5, refraccionPrevista: -0.06 }),
+      opcion({ cilindro: 0, ejeResidual: 85, designacion: 'Non-toric' }),
+      opcion({ cilindro: 1.0, ejeResidual: 88, designacion: 'T2' }),
+      opcion({ cilindro: 1.5, ejeResidual: 91, designacion: 'T3' }),
+      opcion({ cilindro: 2.25, ejeResidual: 179, designacion: 'T4' }),
+    ]
+    expect(estimarLenteRecomendada(opciones, ejeCurvo)).toEqual({
+      esfera: 21.5,
+      cilindro: 1.5,
+      eje: ejeCurvo,
+      refraccionPrevista: -0.06,
+      ejeResidual: 91,
+    })
+  })
+
   it('el cilindro residual de la opción elegida viaja con la estimación, cuando la calculadora lo da', () => {
     const opciones = [
       opcion({ esfera: 21.5, refraccionPrevista: -0.06 }),

@@ -72,7 +72,7 @@ if (app.isPackaged) {
  * este número es lo ÚLTIMO que se hace al cerrar un cambio en la aplicación
  * de escritorio, justo antes de avisar de que está listo para probar.
  */
-const VERSION_VISIBLE = '1.21'
+const VERSION_VISIBLE = '1.22'
 
 function versionDelProducto(): string {
   return VERSION_VISIBLE
