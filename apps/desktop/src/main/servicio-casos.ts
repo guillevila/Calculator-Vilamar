@@ -44,6 +44,7 @@ import {
   CARPETA_IMPORTADAS,
   casosCalculadosDeDoctor,
   COLUMNAS_COMPARATIVA,
+  datasetsActivosDe,
   datasetsDe,
   detectarDiscrepancias,
   casoNuevo as crearCasoNuevo,
@@ -52,6 +53,7 @@ import {
   confirmarTodas,
   conAparatoCaraPosterior,
   conAparatoRenombrado,
+  conExclusion,
   conSituacionCorneal,
   conMedida,
   conOjo,
@@ -924,6 +926,24 @@ export class ServicioCasos {
   }
 
   /**
+   * Deja este aparato fuera del cálculo y del informe, o lo vuelve a
+   * incluir (D100, 24/09/2026) — petición expresa del dueño del proyecto:
+   * con varios biómetros por ojo (D47), a veces se cargan fotos de un
+   * aparato que al final no interesa usar, y antes se calculaba con él
+   * igual, sacando en el PDF una hoja de «no se pudo calcular» por cada
+   * casilla vacía.
+   *
+   * No borra ningún dato: `datasetsActivosDe()` es lo único que deja de
+   * verlo, y solo lo usan `calcular()` y el informe. Se puede volver a
+   * incluir en cualquier momento, sin haber perdido nada mientras tanto.
+   */
+  editarExclusionAparato(lado: Lateralidad, aparato: string, excluido: boolean): Caso {
+    const caso = this.exigirCaso()
+    const ojo = ojoDe(caso, lado, aparato)
+    return this.establecer(conOjo(caso, conExclusion(ojo, excluido), this.iso()))
+  }
+
+  /**
    * Resuelve el sexo del paciente a partir de lo que traiga el documento.
    *
    * Por orden, y el orden es la fiabilidad:
@@ -1775,9 +1795,13 @@ export class ServicioCasos {
     // simplemente no sale, porque `anadirCasilla` omite lo que no tiene
     // resultado (D49).
     for (const ojo of ojosDelCaso(caso)) {
-      for (const aparato of aparatosDe(caso, ojo)) {
+      // Un aparato excluido (D100) no saca ninguna hoja en el informe —ni
+      // de captura, ni de «no se pudo calcular»—: es justo el motivo por
+      // el que se pidió poder excluirlo, no calcular con datos que no
+      // interesan.
+      for (const dataset of datasetsActivosDe(caso, ojo)) {
         for (const c of COLUMNAS_COMPARATIVA) {
-          anadirCasilla(c, ojo, aparato)
+          anadirCasilla(c, ojo, dataset.aparato)
         }
       }
     }

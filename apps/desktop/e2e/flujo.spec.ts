@@ -2046,3 +2046,76 @@ test('«Escribir los datos a mano» (D98): nunca reutiliza los datos de un caso 
   expect(casoB?.codigo, 'tiene que ser un caso NUEVO, no el A reutilizado').not.toBe(casoA?.codigo)
   expect(casoB?.ojos?.OD).toBeUndefined()
 })
+
+/**
+ * Fallo real reportado por el dueño del proyecto (24/09/2026): «hay veces
+ * que no interesa [un aparato] y aunque haya cogido las fotos de los dos
+ * aparatos no te deja eliminar uno y te calcula con los dos... mejor
+ * decidir si calcular con todos los aparatos o solo con alguno». Botón
+ * «Excluir»/«Incluir» por aparato (D100): no borra datos, solo lo saca del
+ * cálculo y del informe — se puede volver a incluir en cualquier momento.
+ */
+test('excluir un aparato (D100): desaparece del resumen antes de calcular, y se puede volver a incluir', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  // OD, aparato «Principal»: datos completos — el único que hace falta
+  // para poder confirmar el caso. El segundo aparato (Pentacam, más abajo)
+  // se deja adrede incompleto: excluido, no tiene por qué bloquear nada.
+  const datosPrincipal: [string, string][] = [
+    ['manual-campo-AL', '24.07'],
+    ['manual-campo-K1', '41.22'],
+    ['manual-campo-K1_EJE', '175'],
+    ['manual-campo-K2', '42.52'],
+    ['manual-campo-K2_EJE', '85'],
+    ['manual-campo-ACD', '3.18'],
+    ['manual-campo-REFRACCION_OBJETIVO', '0'],
+    ['manual-campo-SIA', '0.3'],
+    ['manual-campo-EJE_INCISION', '90'],
+    ['manual-campo-CONSTANTE_A', '119'],
+  ]
+  for (const [id, valor] of datosPrincipal) {
+    await ventana.getByTestId(id).fill(valor)
+    await ventana.getByTestId(id).press('Tab')
+  }
+
+  // OD, segundo aparato: «OCULUS Pentacam», con un solo dato — no hace
+  // falta más, porque se va a excluir.
+  await ventana.getByTestId('manual-anadir-aparato').click()
+  await ventana.getByTestId('manual-anadir-aparato-select').selectOption('OCULUS Pentacam')
+  await ventana.getByTestId('manual-anadir-aparato-confirmar').click()
+  await ventana.getByTestId('manual-campo-AL').fill('23.90')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  await ventana.getByTestId('identificacion-cirujano').fill('Dra. Exclusión E2E')
+  await ventana.getByTestId('identificacion-cirujano').press('Tab')
+  await ventana.getByTestId('identificacion-paciente').fill('Paciente Exclusión E2E')
+  await ventana.getByTestId('identificacion-paciente').press('Tab')
+
+  // Se excluye el Pentacam — la pestaña lo dice, y el propio caso lo guarda.
+  await ventana.getByTestId('alternar-exclusion-OCULUS Pentacam').click()
+  await expect(ventana.getByTestId('manual-aparato-OCULUS Pentacam')).toContainText('excluido')
+  await expect
+    .poll(async () => {
+      const c = await ventana.evaluate(() => window.vilamar?.casoActual())
+      return c?.ojos?.OD?.find((o) => o.aparato === 'OCULUS Pentacam')?.excluido
+    })
+    .toBe(true)
+
+  await ventana.getByTestId('manual-continuar').click()
+  await ventana.getByTestId('confirmar').click()
+
+  // Antes de calcular, el resumen de parámetros ya no enseña el aparato
+  // excluido — es la comprobación visual que hay justo antes del botón
+  // «Calcular», y era donde antes salía igual, con datos que no interesaban.
+  const resumen = ventana.getByTestId('resumen-parametros')
+  await expect(resumen).toContainText('Principal')
+  await expect(resumen).not.toContainText('OCULUS Pentacam')
+
+  // Se vuelve a los datos, se incluye otra vez, y reaparece.
+  await ventana.getByTestId('volver-a-revisar').click()
+  await ventana.getByTestId('alternar-exclusion-OCULUS Pentacam').click()
+  await expect(ventana.getByTestId('manual-aparato-OCULUS Pentacam')).not.toContainText('excluido')
+  await ventana.getByTestId('confirmar').click()
+  await expect(ventana.getByTestId('resumen-parametros')).toContainText('OCULUS Pentacam')
+})

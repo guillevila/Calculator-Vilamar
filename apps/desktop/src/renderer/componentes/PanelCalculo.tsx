@@ -21,14 +21,13 @@ import type { JSX } from 'react'
 
 import type { CampoBiometrico, Calculadora, Caso, Lateralidad } from '@vilamar/domain'
 import {
-  aparatosDe,
   camposDeCategoria,
   COLUMNAS_COMPARATIVA,
+  datasetsActivosDe,
   definicionDe,
   fichaDe,
   formatearConUnidad,
   nombreCortoLateralidad,
-  ojoDe,
   ojosDelCaso,
   resultadoDe,
   textoEstado,
@@ -110,9 +109,12 @@ function ResumenParametros({
   readonly caso: Caso
   readonly ojo: Lateralidad
 }): JSX.Element | null {
-  const datasets = aparatosDe(caso, ojo).map((aparato) => ({
-    aparato,
-    datos: ojoDe(caso, ojo, aparato),
+  // Solo los aparatos que de verdad se van a calcular (D100): uno excluido
+  // no tiene sentido comprobarlo aquí, porque no va a salir en el cálculo
+  // ni en el informe.
+  const datasets = datasetsActivosDe(caso, ojo).map((dataset) => ({
+    aparato: dataset.aparato,
+    datos: dataset,
   }))
   const campos = CAMPOS_RESUMEN.filter((campo) =>
     datasets.some(({ datos }) => valorDe(datos, campo) !== undefined),

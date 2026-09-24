@@ -341,6 +341,16 @@ export interface ApiVilamar {
     situacionCorneal: SituacionCornealEspecial | undefined,
   ) => Promise<Caso>
   /**
+   * Deja este aparato fuera del cálculo y del informe, o lo vuelve a
+   * incluir (D100, 24/09/2026). No borra ningún dato — reversible en
+   * cualquier momento.
+   */
+  readonly editarExclusionAparato: (
+    ojo: Lateralidad,
+    aparato: string,
+    excluido: boolean,
+  ) => Promise<Caso>
+  /**
    * Elige el modelo de lente y resuelve su constante A desde la tabla del informe.
    *
    * Devuelve los avisos junto al caso, y no solo el caso, porque lo importante de
@@ -487,6 +497,7 @@ export const CANALES = {
   renombrarAparato: 'vilamar:renombrar-aparato',
   editarAparatoCaraPosterior: 'vilamar:editar-aparato-cara-posterior',
   editarSituacionCorneal: 'vilamar:editar-situacion-corneal',
+  editarExclusionAparato: 'vilamar:editar-exclusion-aparato',
   elegirLente: 'vilamar:elegir-lente',
   elegirLenteSecundaria: 'vilamar:elegir-lente-secundaria',
   intercambiarLentes: 'vilamar:intercambiar-lentes',

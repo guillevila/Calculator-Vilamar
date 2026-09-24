@@ -27,6 +27,7 @@ import {
   compararOjo,
   fichaDe,
   nombreLateralidad,
+  ojoDe,
   ojosDelCaso,
   resultadoDe,
   textoEstado,
@@ -448,8 +449,10 @@ export function PanelResultados({
   // Las cinco casillas de siempre (D45/D48): Predicted y Measured PCA de EVO
   // y de Barrett, más Kane — la que no se haya pedido para este ojo y
   // aparato sale como «no calculada» en su columna, no desaparece. El PDF
-  // final (generar()) siempre junta TODOS los aparatos del ojo (decisión 3,
-  // D47) — este detalle en pantalla es solo para inspeccionar uno a la vez.
+  // final (generar()) junta todos los aparatos ACTIVOS del ojo (decisión 3,
+  // D47) — uno excluido (D100) no sale ahí, aunque siga eligible aquí para
+  // inspeccionarlo o volver a incluirlo. Este detalle en pantalla es solo
+  // para inspeccionar un aparato a la vez.
   const resultados: Partial<Record<Calculadora, ReturnType<typeof resultadoDe>>> = {}
   for (const c of COLUMNAS_COMPARATIVA) {
     const r = resultadoDe(caso, c, ojoActivo, aparatoActivo)
@@ -494,15 +497,23 @@ export function PanelResultados({
       {aparatos.length > 1 && (
         <div className="fila" style={{ marginBottom: 14 }}>
           <div className="selector-ojo">
-            {aparatos.map((a) => (
-              <button
-                key={a}
-                className={a === aparatoActivo ? 'activo' : ''}
-                onClick={() => onCambiarAparato(a)}
-              >
-                {a}
-              </button>
-            ))}
+            {aparatos.map((a) => {
+              // Excluido (D100) sigue eligible para inspeccionarlo o volver
+              // a incluirlo desde la pantalla de revisión — solo desaparece
+              // del cálculo y del informe, nunca de aquí.
+              const excluido = ojoDe(caso, ojoActivo, a).excluido === true
+              return (
+                <button
+                  key={a}
+                  className={a === aparatoActivo ? 'activo' : ''}
+                  onClick={() => onCambiarAparato(a)}
+                  style={excluido ? { opacity: 0.6 } : undefined}
+                  title={excluido ? 'Excluido del cálculo y del informe' : undefined}
+                >
+                  {excluido ? `${a} (excluido)` : a}
+                </button>
+              )
+            })}
           </div>
         </div>
       )}

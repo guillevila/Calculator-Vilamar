@@ -72,7 +72,7 @@ if (app.isPackaged) {
  * este número es lo ÚLTIMO que se hace al cerrar un cambio en la aplicación
  * de escritorio, justo antes de avisar de que está listo para probar.
  */
-const VERSION_VISIBLE = '1.24'
+const VERSION_VISIBLE = '1.25'
 
 function versionDelProducto(): string {
   return VERSION_VISIBLE
@@ -425,6 +425,9 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   )
   ipcMain.handle(CANALES.editarSituacionCorneal, (_e, ojo, aparato, situacionCorneal) =>
     s().editarSituacionCorneal(ojo, aparato, situacionCorneal),
+  )
+  ipcMain.handle(CANALES.editarExclusionAparato, (_e, ojo, aparato, excluido) =>
+    s().editarExclusionAparato(ojo, aparato, excluido),
   )
   ipcMain.handle(
     CANALES.elegirLente,

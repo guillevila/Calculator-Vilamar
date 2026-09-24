@@ -27,8 +27,8 @@ import type {
   Aviso,
 } from '@vilamar/domain'
 import {
-  aparatosDe,
   camposPresentes,
+  datasetsActivosDe,
   definicionDe,
   describirProcedencia,
   fichaDe,
@@ -1717,7 +1717,9 @@ export function generarHtmlInforme(datos: DatosInforme): string {
   // usado. Con un solo aparato por ojo no cambia nada de lo que ya había:
   // una hoja de biometría por ojo, como el informe siempre pudo enseñar.
   const hojasBiometria: Hoja[] = ojosDelInforme.flatMap((lado) => {
-    const aparatos = aparatosDe(caso, lado)
+    // Un aparato excluido (D100, 24/09/2026) no saca hoja de datos de
+    // entrada — es justo el motivo por el que se pidió poder excluirlo.
+    const aparatos = datasetsActivosDe(caso, lado).map((d) => d.aparato)
     return aparatos.map((aparato) => hojaBiometriaAparato(caso, lado, aparato, aparatos.length > 1))
   })
 
@@ -1734,8 +1736,10 @@ export function generarHtmlInforme(datos: DatosInforme): string {
           // Aparato a aparato (petición expresa del dueño, 27/08/2026): las
           // hojas ya llegan en ese orden desde `recopilarResultadosParaInforme`
           // — aquí solo se decide si hace falta la banda grande del aparato,
-          // que con uno solo no se pinta nunca.
-          const variosAparatos = aparatosDe(caso, r.ojo).length > 1
+          // que con uno solo no se pinta nunca. Cuenta solo los ACTIVOS
+          // (D100): con dos aparatos pero uno excluido, ya no hace falta la
+          // banda — solo va a salir uno.
+          const variosAparatos = datasetsActivosDe(caso, r.ojo).length > 1
           // El título es SOLO la calculadora, con su variante de córnea
           // posterior si aplica (p. ej. «Barrett Toric — con córnea
           // posterior medida») — nada más. El ojo y el aparato ya se ven

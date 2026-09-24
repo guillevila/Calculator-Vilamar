@@ -4,6 +4,48 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.59] — 24/09/2026 (versión visible en pantalla: v1.25)
+
+feat(app,domain,report): excluir un aparato del cálculo y del informe, sin borrar sus datos (D100).
+
+### Qué se pidió
+
+El dueño del proyecto: «hay veces que no interesa [usar un aparato] y
+aunque haya cogido las fotos de los dos aparatos no te deja eliminar uno
+y te calcula con los dos, y si no pones nada salen hojas en el PDF en
+blanco... mejor decidir si calcular con todos los aparatos o solo con
+alguno».
+
+### El diseño
+
+Se descartó el borrado permanente (la primera idea) a favor de un
+interruptor reversible: «Excluir»/«Incluir» junto a cada pestaña de
+aparato. No se pierde ninguna foto ya leída — solo deja de contar para
+el cálculo y el informe, y se puede volver a incluir en cualquier
+momento.
+
+### El cambio
+
+- `OjoBiometrico.excluido?: boolean` (dominio) y `datasetsActivosDe()`.
+- `editarExclusionAparato()` nuevo en `ServicioCasos`, con su canal IPC.
+- `planificarCaso()` nunca calcula un aparato excluido — ni con un
+  filtro explícito que lo pida por nombre.
+- El resumen de parámetros (antes de calcular) y el PDF —hojas de datos
+  de entrada Y de resultados— lo dejan fuera por completo.
+
+### Verificado
+
+- `bilateral.test.ts`: el plan de cálculo nunca incluye el excluido.
+- `servicio-casos.generar-pdf.test.ts`: el HTML del informe no lo
+  nombra en ningún sitio — este test encontró un SEGUNDO fallo real de
+  paso, en las hojas de «Datos de entrada» de `plantilla.ts`, que
+  tenían su propio bucle sin filtrar.
+- Un test de interfaz de punta a punta: excluir, comprobar que
+  desaparece, incluir de nuevo, comprobar que vuelve.
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`.
+
+---
+
 ## [1.15.58] — 24/09/2026 (versión visible en pantalla: v1.24)
 
 fix(app,domain): ya no se mezclan casos al empezar uno nuevo, y la constante A llega a todos los aparatos (D98, D99).

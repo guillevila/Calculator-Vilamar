@@ -253,6 +253,17 @@ export function aparatosDe(caso: Caso, lado: Lateralidad): readonly string[] {
   return datasetsDe(caso, lado).map((o) => o.aparato)
 }
 
+/**
+ * Los datasets de un ojo que SÍ cuentan para calcular y para el informe
+ * (D100, 24/09/2026) — los mismos que `datasetsDe`, menos los que la
+ * persona ha marcado como excluidos (`OjoBiometrico.excluido`). Un
+ * aparato excluido sigue existiendo, con sus datos intactos: solo se
+ * queda fuera de esto, no del caso.
+ */
+export function datasetsActivosDe(caso: Caso, lado: Lateralidad): readonly OjoBiometrico[] {
+  return datasetsDe(caso, lado).filter((o) => !o.excluido)
+}
+
 export function ojosDelCaso(caso: Caso): readonly Lateralidad[] {
   return (['OD', 'OS'] as const).filter((l) => datasetsDe(caso, l).length > 0)
 }

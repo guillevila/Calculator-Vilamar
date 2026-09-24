@@ -138,6 +138,20 @@ export interface OjoBiometrico {
    * ninguna calculadora distinta de las de siempre.
    */
   readonly situacionCorneal?: SituacionCornealEspecial
+  /**
+   * Este dataset se deja fuera del cálculo y del informe, a propósito
+   * (D100, 24/09/2026, petición expresa del dueño del proyecto): con varios
+   * biómetros por ojo (D47), a veces se cargan fotos de un aparato que al
+   * final no interesa usar — antes, se calculaba con él igual (y salía en
+   * el PDF una hoja de «no se pudo calcular» por cada casilla vacía), sin
+   * ninguna forma de decir «este no, gracias».
+   *
+   * `undefined`/`false` es el caso normal, con mucha diferencia el más
+   * habitual — incluido, como siempre. **No borra nada**: los datos siguen
+   * ahí, y se puede volver a incluir en cualquier momento. Nunca se pierde
+   * un dato solo porque, de momento, no se vaya a usar.
+   */
+  readonly excluido?: boolean
   readonly medidas: MapaMedidas
 }
 
@@ -273,6 +287,19 @@ export function conSituacionCorneal(
     return resto
   }
   return { ...ojo, situacionCorneal }
+}
+
+/**
+ * Marca (o desmarca) este dataset como excluido del cálculo y del informe
+ * (D100, 24/09/2026). No toca ninguna medida — es reversible sin más que
+ * volver a llamar a esto con `false`.
+ */
+export function conExclusion(ojo: OjoBiometrico, excluido: boolean): OjoBiometrico {
+  if (!excluido) {
+    const { excluido: _quitado, ...resto } = ojo
+    return resto
+  }
+  return { ...ojo, excluido }
 }
 
 /**

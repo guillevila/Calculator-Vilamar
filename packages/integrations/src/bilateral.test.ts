@@ -28,6 +28,7 @@ import {
   casoNuevo,
   confirmar,
   confirmarTodas,
+  conExclusion,
   conMedida,
   conOjo,
   conResultado,
@@ -227,6 +228,67 @@ describe('los dos ojos en el mismo ciclo', () => {
       expect(r[0]?.ojo).toBe(lado)
     })
   }
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Un aparato excluido no se calcula (D100, 24/09/2026)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('un aparato excluido no entra en el plan de cálculo', () => {
+  /** OD con DOS aparatos — «Principal» (de casoDosOjos) y «Pentacam», excluido. */
+  function casoConAparatoExcluido(): Caso {
+    let caso = casoDosOjos()
+    let pentacam = ojoVacio('OD', 'Pentacam')
+    for (const [campo, valor] of [
+      ['AL', 24.1],
+      ['K1', 41.0],
+      ['K1_EJE', 170],
+      ['K2', 42.4],
+      ['K2_EJE', 80],
+      ['ACD', 3.2],
+      ['REFRACCION_OBJETIVO', 0],
+      ['SIA', 0],
+      ['EJE_INCISION', 0],
+      ['CONSTANTE_A', 119],
+    ] as const) {
+      pentacam = conMedida(
+        pentacam,
+        crearMedida(campo, 'OD', valor, { metodo: 'MANUAL', registradoEn: CUANDO }),
+      )
+    }
+    pentacam = conExclusion(confirmarTodas(pentacam), true)
+    caso = conOjo(caso, pentacam, CUANDO)
+    return confirmar(caso, CUANDO)
+  }
+
+  it('no aparece en el plan, aunque no se pida ningún filtro de aparato', () => {
+    const plan = planificarCaso(casoConAparatoExcluido(), { calculadoras: ['EVO_TORIC'] })
+    const deOD = plan.filter((t) => t.ojo === 'OD')
+    expect(deOD.map((t) => t.aparato)).toEqual([APARATO_PRINCIPAL])
+  })
+
+  it('sigue sin aparecer aunque se pida su nombre explícitamente — la exclusión es un veto', () => {
+    const plan = planificarCaso(casoConAparatoExcluido(), {
+      calculadoras: ['EVO_TORIC'],
+      aparatos: ['Pentacam'],
+    })
+    expect(plan.filter((t) => t.ojo === 'OD')).toHaveLength(0)
+  })
+
+  it('volver a incluirlo (excluido: false) lo devuelve al plan', () => {
+    let caso = casoConAparatoExcluido()
+    const pentacam = ojoDe(caso, 'OD', 'Pentacam')
+    caso = conOjo(caso, conExclusion(pentacam, false), CUANDO)
+
+    const plan = planificarCaso(caso, { calculadoras: ['EVO_TORIC'] })
+    const deOD = plan.filter((t) => t.ojo === 'OD').map((t) => t.aparato)
+    expect(deOD).toContain('Pentacam')
+  })
+
+  it('no toca al otro ojo, que no tiene ningún aparato excluido', () => {
+    const plan = planificarCaso(casoConAparatoExcluido(), { calculadoras: ['EVO_TORIC'] })
+    expect(plan.filter((t) => t.ojo === 'OS')).toHaveLength(1)
+  })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════

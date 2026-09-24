@@ -42,7 +42,7 @@
 import type { Calculadora, Caso, Lateralidad, ResultadoCalculadora } from '@vilamar/domain'
 import {
   APARATO_PRINCIPAL,
-  aparatosDe,
+  datasetsActivosDe,
   explicarBloqueo,
   fichaDe,
   ojosDelCaso,
@@ -137,9 +137,11 @@ export function planificarCaso(
 
   return calculadoras.flatMap((calculadora) =>
     ojos.flatMap((ojo) => {
-      const aparatosDelOjo = aparatosDe(caso, ojo).filter(
-        (a) => opciones?.aparatos === undefined || opciones.aparatos.includes(a),
-      )
+      // Un aparato excluido (D100) nunca se calcula, se pida explícitamente
+      // o no: es un veto, no una preferencia de partida.
+      const aparatosDelOjo = datasetsActivosDe(caso, ojo)
+        .map((d) => d.aparato)
+        .filter((a) => opciones?.aparatos === undefined || opciones.aparatos.includes(a))
       return aparatosDelOjo.map((aparato) => ({ calculadora, ojo, aparato }))
     }),
   )

@@ -74,21 +74,54 @@ export function SelectorAparato({
     await onCambio()
   }
 
+  /**
+   * Deja este aparato fuera del cálculo y del informe, o lo vuelve a
+   * incluir (D100, 24/09/2026) — sin borrar ningún dato. Solo tiene
+   * sentido con dos aparatos o más: con uno solo, no habría nada más con
+   * lo que calcular.
+   */
+  async function alternarExclusion(aparato: string, excluidoAhora: boolean): Promise<void> {
+    await api().editarExclusionAparato(lado, aparato, !excluidoAhora)
+    await onCambio()
+  }
+
   return (
     <div className="fila" style={{ marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
       {aparatos.length > 1 && (
-        <div className="selector-ojo">
-          {aparatos.map((a) => (
-            <button
-              key={a}
-              type="button"
-              className={a === aparatoActivo ? 'activo' : ''}
-              onClick={() => onElegir(a)}
-              data-testid={`manual-aparato-${a}`}
-            >
-              {a}
-            </button>
-          ))}
+        <div className="selector-ojo" style={{ flexWrap: 'wrap' }}>
+          {aparatos.map((a) => {
+            const excluido = ojoDe(caso, lado, a).excluido === true
+            return (
+              <span
+                key={a}
+                className="fila"
+                style={{ gap: 2, alignItems: 'center', opacity: excluido ? 0.6 : 1 }}
+              >
+                <button
+                  type="button"
+                  className={a === aparatoActivo ? 'activo' : ''}
+                  onClick={() => onElegir(a)}
+                  data-testid={`manual-aparato-${a}`}
+                  title={excluido ? 'Excluido del cálculo y del informe' : undefined}
+                >
+                  {excluido ? `${a} (excluido)` : a}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void alternarExclusion(a, excluido)}
+                  data-testid={`alternar-exclusion-${a}`}
+                  title={
+                    excluido
+                      ? 'Volver a incluir este aparato en el cálculo y el informe'
+                      : 'Excluir este aparato del cálculo y del informe — no borra sus datos'
+                  }
+                  style={{ fontSize: 12, padding: '2px 6px' }}
+                >
+                  {excluido ? 'Incluir' : 'Excluir'}
+                </button>
+              </span>
+            )
+          })}
         </div>
       )}
       {aparatos.length <= 1 && (

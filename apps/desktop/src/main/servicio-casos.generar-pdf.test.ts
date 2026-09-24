@@ -221,3 +221,71 @@ describe('generarPdf — carpeta por doctor, con «Calculados» y «Datos previo
     expect(existsSync(join(raizDoctor, 'Calculados'))).toBe(true)
   })
 })
+
+/**
+ * Fallo real reportado por el dueño del proyecto (24/09/2026): con varios
+ * biómetros por ojo (D47), un aparato que al final no interesaba usar se
+ * calculaba igual, sacando en el PDF una hoja de «no se pudo calcular» por
+ * cada casilla vacía — sin ninguna forma de decir «este no, gracias».
+ * `editarExclusionAparato()` (D100) dejó ese aparato fuera del cálculo
+ * (`bilateral.test.ts` lo prueba a nivel de `planificarCaso`); aquí se
+ * comprueba que también desaparece del PDF, no solo del cálculo.
+ */
+describe('generarPdf — un aparato excluido (D100, 24/09/2026) no saca ninguna hoja', () => {
+  function servicioConImprimirEspiado(): {
+    servicio: InstanceType<typeof ServicioCasos>
+    imprimirPdf: ReturnType<typeof vi.fn>
+  } {
+    const imprimirPdf = vi.fn(() => Promise.resolve())
+    const dep: DependenciasServicio = {
+      carpetas: prepararCarpetas(raizTemporal()),
+      proveedor: {
+        nombre: 'test',
+        puedeCon: () => false,
+        extraer: () => Promise.reject(new Error('no usado')),
+      },
+      diagnosticador: { carpeta: '', guardar: () => Promise.resolve('') },
+      capturas: { carpeta: '', guardar: () => Promise.resolve(''), leer: () => null },
+      version: '0.0.0-test',
+      ahora: () => new Date('2026-09-24T10:00:00.000Z'),
+      abrirNavegador: () => Promise.resolve({ close: () => Promise.resolve() } as never),
+      imprimirPdf,
+      emitirProgreso: () => {},
+      emitirCaso: () => {},
+    }
+    return { servicio: new ServicioCasos(dep), imprimirPdf }
+  }
+
+  it('el HTML del informe no nombra al aparato excluido, en ningún sitio', async () => {
+    const { servicio, imprimirPdf } = servicioConImprimirEspiado()
+    servicio.nuevo()
+    servicio.establecerIdentificacion({ nombrePaciente: 'Paciente De Prueba' })
+    servicio.editarMedida('OD', 'AL', 24.0, 'IOLMaster')
+    servicio.editarMedida('OD', 'AL', 23.9, 'Pentacam Excluido')
+
+    await servicio.editarExclusionAparato('OD', 'Pentacam Excluido', true)
+    await servicio.calcular(['KANE'])
+    await servicio.generarPdf()
+
+    expect(imprimirPdf).toHaveBeenCalledTimes(1)
+    const html = imprimirPdf.mock.calls[0]?.[0] as string
+    expect(html).toContain('IOLMaster')
+    expect(html).not.toContain('Pentacam Excluido')
+  })
+
+  it('volver a incluirlo lo trae de vuelta al informe', async () => {
+    const { servicio, imprimirPdf } = servicioConImprimirEspiado()
+    servicio.nuevo()
+    servicio.establecerIdentificacion({ nombrePaciente: 'Paciente De Prueba' })
+    servicio.editarMedida('OD', 'AL', 24.0, 'IOLMaster')
+    servicio.editarMedida('OD', 'AL', 23.9, 'Pentacam Excluido')
+    await servicio.editarExclusionAparato('OD', 'Pentacam Excluido', true)
+
+    await servicio.editarExclusionAparato('OD', 'Pentacam Excluido', false)
+    await servicio.calcular(['KANE'])
+    await servicio.generarPdf()
+
+    const html = imprimirPdf.mock.calls[0]?.[0] as string
+    expect(html).toContain('Pentacam Excluido')
+  })
+})

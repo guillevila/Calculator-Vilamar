@@ -9,7 +9,19 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 24/09/2026 (2) · 🔴 **Dos fallos graves
+**Última actualización:** 24/09/2026 (3) · **Se puede excluir un
+aparato del cálculo y del informe, sin borrar sus datos (D100).** El
+dueño lo pidió tras encontrar que, con dos biómetros en un ojo, no había
+forma de decir «este no, gracias» — se calculaba con los dos igual, y
+salían hojas de más en el PDF. Botón «Excluir»/«Incluir» junto a cada
+pestaña de aparato: reversible, nunca borra nada. Al verificarlo se
+encontró un segundo fallo de paso — las hojas de «Datos de entrada» del
+PDF tenían su propio filtro sin aplicar, aparte del de resultados — y se
+corrigió también. `pnpm lint && pnpm typecheck && pnpm test && pnpm
+build && pnpm test:e2e` en verde (853 tests unitarios; el único fallo de
+la suite es previo y no relacionado; 61/61 de interfaz).
+
+Antes de esto — **24/09/2026 (2): dos fallos graves
 corregidos: empezar un caso nuevo podía mezclar los datos del caso
 anterior, y la constante A elegida no llegaba a todos los aparatos de
 un ojo con varios biómetros (D98, D99).** El dueño encontró los dos con
