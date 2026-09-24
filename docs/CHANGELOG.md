@@ -4,6 +4,83 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.58] — 24/09/2026 (versión visible en pantalla: v1.24)
+
+fix(app,domain): ya no se mezclan casos al empezar uno nuevo, y la constante A llega a todos los aparatos (D98, D99).
+
+### D98 — Empezar un caso nuevo podía mezclar los datos del anterior
+
+El dueño del proyecto, en el mismo mensaje que D97: «si he empezado un
+caso y terminado... y ahora cargo otro caso me aparecen los datos del
+caso anterior».
+
+El proceso principal guarda el caso «en curso» en una única variable
+(necesaria para que «Añadir otro biómetro» siga escribiendo en el mismo
+caso), pero cuatro caminos de la pantalla de inicio la reutilizaban sin
+mirar si ese caso ya estaba terminado: «Escribir los datos a mano»,
+cargar un documento (arrastrándolo o con «Elegir archivo»), y empezar un
+caso desde un aviso de la Bandeja con fotos. Arreglados los cuatro: se
+crea un caso limpio salvo que el actual siga siendo un borrador vacío
+(la Bandeja con fotos, siempre).
+
+Verificado con un test de interfaz que reproduce la secuencia exacta,
+comprobado primero contra el código sin arreglar (falla, con el dato
+del caso anterior) y después contra el arreglado.
+
+### D99 — La constante A elegida no llegaba a todos los aparatos
+
+El dueño, con un PDF real: «siempre que se elija una lente que salga la
+constante que está determinada, hay veces que no es así».
+
+`elegirLente()` y compañía escribían la constante solo en el aparato
+«Principal» — en un caso con varios biómetros por ojo (D47), los
+aparatos con nombre propio (ZEISS IOLMaster 700, OCULUS Pentacam...) se
+quedaban sin ella, aunque se hubiera elegido bien la lente. Corregido:
+se recorren todos los aparatos de cada ojo, no solo uno.
+
+Verificado con cuatro tests nuevos en `lente.test.ts`, comprobados
+primero contra el código sin arreglar (fallan, reproduciendo el PDF
+real) y después contra el arreglado.
+
+### Verificado (los dos)
+
+`pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`.
+
+---
+
+## [1.15.57] — 24/09/2026 (versión visible en pantalla: v1.23)
+
+fix(app): «Nuevo cálculo» ya vuelve de verdad al asistente principal desde Bandeja/Doctores/Laboratorios/Dashboard (D97).
+
+### Qué se pidió
+
+El dueño del proyecto: «si me voy a bandeja de casos y luego quiero
+volver atrás para abrir un cálculo nuevo no me deja, tengo que cerrar la
+aplicación y volver a entrar».
+
+### El fallo
+
+`nuevoCalculo()` creaba el caso nuevo de verdad, pero nunca cerraba
+`pantallaExtra` — el estado que decide si se enseña Bandeja de casos,
+Doctores, Laboratorios o el Dashboard, ANTES que el asistente principal
+y sin mirar en qué paso está el caso. La pantalla se quedaba encallada
+donde estuviera, aunque el caso nuevo ya existiera por detrás.
+
+### El cambio
+
+`setPantallaExtra(null)` al final de `nuevoCalculo()` — mismo patrón que
+ya usaban los botones «Volver» y el resto de acciones que abandonan esas
+pantallas.
+
+### Verificado
+
+- Test de interfaz nuevo que reproduce el flujo exacto (Bandeja de casos
+  → «Nuevo cálculo»), comprobado primero contra el código sin arreglar
+  (falla, tal cual lo describió el dueño) y después contra el arreglado.
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`.
+
+---
+
 ## [1.15.56] — 22/09/2026 (versión visible en pantalla: v1.22)
 
 fix(domain): el criterio del cilindro de la estimación propia (D43) ya no descarta el cilindro 0 por su eje (D96).

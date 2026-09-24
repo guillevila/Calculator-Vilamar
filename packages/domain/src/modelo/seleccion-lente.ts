@@ -19,8 +19,7 @@
 
 import type { CampoBiometrico } from './campos.js'
 import type { Caso, LenteElegida } from './caso.js'
-import { conOjo, ojosDelCaso, ojoDe } from './caso.js'
-import type { Lateralidad } from './lateralidad.js'
+import { conOjo, datasetsDe, ojosDelCaso } from './caso.js'
 import type { Emparejamiento, LenteDetectada } from './lente.js'
 import { describirLente, emparejarLente } from './lente.js'
 import { conMedida, crearMedida, obtener, sinMedida } from './medida.js'
@@ -157,32 +156,39 @@ export function elegirLente(
     return { ...quitarSiEraDeLaTabla(caso, base, cuando, avisos), avisos, emparejamiento }
   }
 
-  // Hay constante en el informe para esta lente. Se escribe en los ojos del caso.
+  // Hay constante en el informe para esta lente. Se escribe en TODOS los
+  // datasets del caso — los dos ojos, y dentro de cada uno TODOS sus
+  // aparatos (D47/D99): antes solo se escribía en `APARATO_PRINCIPAL`, así
+  // que un caso con varios biómetros por ojo —con aparatos que se llaman
+  // «ZEISS IOLMaster 700», «OCULUS Pentacam»…, nunca «Principal»— se
+  // quedaba con la constante en un dataset fantasma que no correspondía a
+  // ninguno de verdad, y los aparatos reales seguían sin ella.
   const constante = lente.constanteA
-  const conflictos: Lateralidad[] = []
+  let huboConflicto = false
   let resultado = caso
 
   for (const lado of ojosDelCaso(caso)) {
-    const ojo = ojoDe(resultado, lado)
-    const actual = obtener(ojo, 'CONSTANTE_A')
+    for (const dataset of datasetsDe(resultado, lado)) {
+      const actual = obtener(dataset, 'CONSTANTE_A')
 
-    // Lo escrito a mano no se pisa NUNCA, ni para «mejorarlo».
-    if (actual !== undefined && esManual(actual.procedencia)) {
-      conflictos.push(lado)
-      continue
+      // Lo escrito a mano no se pisa NUNCA, ni para «mejorarlo».
+      if (actual !== undefined && esManual(actual.procedencia)) {
+        huboConflicto = true
+        continue
+      }
+
+      resultado = conOjo(
+        resultado,
+        conMedida(
+          dataset,
+          crearMedida('CONSTANTE_A', lado, constante, procedenciaDeLaTabla(lente, cuando)),
+        ),
+        cuando,
+      )
     }
-
-    resultado = conOjo(
-      resultado,
-      conMedida(
-        ojo,
-        crearMedida('CONSTANTE_A', lado, constante, procedenciaDeLaTabla(lente, cuando)),
-      ),
-      cuando,
-    )
   }
 
-  if (conflictos.length > 0) {
+  if (huboConflicto) {
     avisos.push(
       `La constante A que hay la escribiste tú, así que no se ha cambiado. El informe da ` +
         `${constante.toFixed(2)} para «${lente.modelo}»: si quieres esa, bórrala y vuelve a elegir la lente.`,
@@ -237,19 +243,20 @@ function quitarSiEraDeLaTabla(
   if (anteriorTabla !== undefined) {
     let quitada = false
     for (const lado of ojosDelCaso(caso)) {
-      const ojo = ojoDe(resultado, lado)
-      const actual = obtener(ojo, 'CONSTANTE_A')
-      // Solo se quita si sigue siendo exactamente la que puso la tabla. Si alguien
-      // la ha cambiado por su cuenta, ya no es «la de la lente anterior».
-      if (
-        actual === undefined ||
-        esManual(actual.procedencia) ||
-        actual.valor !== anteriorTabla.valor
-      ) {
-        continue
+      for (const dataset of datasetsDe(resultado, lado)) {
+        const actual = obtener(dataset, 'CONSTANTE_A')
+        // Solo se quita si sigue siendo exactamente la que puso la tabla. Si alguien
+        // la ha cambiado por su cuenta, ya no es «la de la lente anterior».
+        if (
+          actual === undefined ||
+          esManual(actual.procedencia) ||
+          actual.valor !== anteriorTabla.valor
+        ) {
+          continue
+        }
+        resultado = conOjo(resultado, sinMedida(dataset, 'CONSTANTE_A'), cuando)
+        quitada = true
       }
-      resultado = conOjo(resultado, sinMedida(ojo, 'CONSTANTE_A'), cuando)
-      quitada = true
     }
     if (quitada) {
       avisos.push(
@@ -263,17 +270,18 @@ function quitarSiEraDeLaTabla(
   if (anteriorCatalogo !== undefined) {
     let quitada = false
     for (const lado of ojosDelCaso(resultado)) {
-      const ojo = ojoDe(resultado, lado)
-      const actual = obtener(ojo, 'CONSTANTE_A')
-      if (
-        actual === undefined ||
-        esManual(actual.procedencia) ||
-        actual.valor !== anteriorCatalogo.valor
-      ) {
-        continue
+      for (const dataset of datasetsDe(resultado, lado)) {
+        const actual = obtener(dataset, 'CONSTANTE_A')
+        if (
+          actual === undefined ||
+          esManual(actual.procedencia) ||
+          actual.valor !== anteriorCatalogo.valor
+        ) {
+          continue
+        }
+        resultado = conOjo(resultado, sinMedida(dataset, 'CONSTANTE_A'), cuando)
+        quitada = true
       }
-      resultado = conOjo(resultado, sinMedida(ojo, 'CONSTANTE_A'), cuando)
-      quitada = true
     }
     if (quitada) {
       avisos.push(
@@ -322,35 +330,38 @@ function aplicarConstanteDelCatalogo(
   // solo aplica la nueva.
   let resultado = caso
 
-  const conflictos: Lateralidad[] = []
+  // Mismo arreglo que en `elegirLente` (D99): se recorren TODOS los
+  // aparatos de cada ojo, no solo `APARATO_PRINCIPAL`.
+  let huboConflicto = false
   for (const lado of ojosDelCaso(resultado)) {
-    const ojo = ojoDe(resultado, lado)
-    const actual = obtener(ojo, 'CONSTANTE_A')
+    for (const dataset of datasetsDe(resultado, lado)) {
+      const actual = obtener(dataset, 'CONSTANTE_A')
 
-    if (actual !== undefined && esManual(actual.procedencia)) {
-      conflictos.push(lado)
-      continue
-    }
+      if (actual !== undefined && esManual(actual.procedencia)) {
+        huboConflicto = true
+        continue
+      }
 
-    resultado = conOjo(
-      resultado,
-      conMedida(
-        ojo,
-        crearMedida(
-          'CONSTANTE_A',
-          lado,
-          constanteConocida,
-          { metodo: 'CATALOGO', registradoEn: cuando },
-          // Ya verificada — no hace falta que nadie la confirme casilla a
-          // casilla, igual que un dato escrito a mano.
-          true,
+      resultado = conOjo(
+        resultado,
+        conMedida(
+          dataset,
+          crearMedida(
+            'CONSTANTE_A',
+            lado,
+            constanteConocida,
+            { metodo: 'CATALOGO', registradoEn: cuando },
+            // Ya verificada — no hace falta que nadie la confirme casilla a
+            // casilla, igual que un dato escrito a mano.
+            true,
+          ),
         ),
-      ),
-      cuando,
-    )
+        cuando,
+      )
+    }
   }
 
-  if (conflictos.length > 0) {
+  if (huboConflicto) {
     avisos.push(
       `La constante A que hay la escribiste tú, así que no se ha cambiado. El catálogo da ` +
         `${constanteConocida.toFixed(2)} para «${modelo}»: si quieres esa, bórrala y vuelve a elegir la lente.`,

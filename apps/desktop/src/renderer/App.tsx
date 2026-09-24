@@ -170,6 +170,14 @@ export function App(): JSX.Element {
     const c = await api().casoNuevo()
     setCaso(c)
     setPaso('INICIO')
+    // «Nuevo cálculo» es un botón de la cabecera, visible también desde
+    // Bandeja/Doctores/Laboratorios/Dashboard (`pantallaExtra`) — sin esto,
+    // el caso se creaba de verdad por detrás pero la pantalla se quedaba
+    // encallada en la que estuviera, porque esas pantallas se muestran
+    // ANTES que el asistente principal y no dependen de `paso`. Fallo real
+    // reportado por el dueño (24/09/2026): «si me voy a bandeja de casos y
+    // quiero volver a abrir un cálculo nuevo no me deja».
+    setPantallaExtra(null)
   }, [])
 
   /** Vuelve a abrir un caso guardado, tal y como se dejó. */
@@ -209,6 +217,17 @@ export function App(): JSX.Element {
         setPaso('CARGANDO')
         setOcupado(true)
         try {
+          // `cargarDocumentos()` añade siempre las fotos al caso que ya
+          // estuviera abierto en el proceso principal (`this.caso`) — es lo
+          // correcto para «Añadir otro biómetro» a un caso en curso, pero
+          // aquí se está EMPEZANDO uno nuevo desde la Bandeja. Sin este
+          // `casoNuevo()`, si el caso anterior seguía «abierto» (recién
+          // terminado, sin haber pasado por «Nuevo cálculo»), las fotos de
+          // este paciente se mezclaban dentro del caso del paciente
+          // anterior. Fallo real reportado por el dueño del proyecto
+          // (24/09/2026): «si he empezado un caso y terminado... y ahora
+          // cargo otro caso me aparecen los datos del caso anterior».
+          await api().casoNuevo()
           const archivos = entrada.rutasFotos.map((ruta) => ({
             nombre: ruta.split(/[\\/]/).pop() ?? 'foto',
             ruta,
@@ -269,6 +288,24 @@ export function App(): JSX.Element {
     [refrescarAvisos],
   )
 
+  /**
+   * `cargarDocumentos()` añade siempre las fotos al caso que ya estuviera
+   * abierto en el proceso principal («Añadir otro biómetro» depende de
+   * esto). Pero desde la pantalla de inicio —a la que también se vuelve
+   * pulsando hacia atrás en la barra de pasos (D64) desde un caso ya
+   * terminado— cargar un fichero nuevo tiene que empezar un caso limpio,
+   * no seguir mezclando datos en el que ya estuviera. Si el caso actual
+   * todavía es un borrador vacío (recién abierta la app, o recién pulsado
+   * «Nuevo cálculo»), no hace falta crear otro de más: cargar encima de un
+   * borrador vacío ya es, en la práctica, lo mismo que empezar uno nuevo.
+   * Fallo real reportado por el dueño del proyecto (24/09/2026): «si he
+   * empezado un caso y terminado... y ahora cargo otro caso me aparecen
+   * los datos del caso anterior».
+   */
+  const asegurarCasoNuevoSiHaceFalta = useCallback(async () => {
+    if (caso && caso.estado !== 'BORRADOR') await api().casoNuevo()
+  }, [caso])
+
   const cargarArchivos = useCallback(
     async (archivos: readonly ArchivoEntrante[]) => {
       if (archivos.length === 0) return
@@ -276,6 +313,7 @@ export function App(): JSX.Element {
       setPaso('CARGANDO')
       setOcupado(true)
       try {
+        await asegurarCasoNuevoSiHaceFalta()
         await aplicarCarga(await api().cargarDocumentos(archivos))
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
@@ -284,13 +322,14 @@ export function App(): JSX.Element {
         setOcupado(false)
       }
     },
-    [aplicarCarga],
+    [aplicarCarga, asegurarCasoNuevoSiHaceFalta],
   )
 
   const elegirYcargar = useCallback(async () => {
     setError(null)
     setOcupado(true)
     try {
+      await asegurarCasoNuevoSiHaceFalta()
       // El diálogo, la lectura y el análisis pasan enteros en el proceso
       // principal. Aquí solo llega el resultado.
       const r = await api().elegirYCargarDocumentos()
@@ -302,7 +341,7 @@ export function App(): JSX.Element {
     } finally {
       setOcupado(false)
     }
-  }, [aplicarCarga])
+  }, [aplicarCarga, asegurarCasoNuevoSiHaceFalta])
 
   /**
    * Empezar sin documento: todo a mano. Es un caso de uso legítimo.
@@ -313,7 +352,11 @@ export function App(): JSX.Element {
    */
   const empezarAMano = useCallback(async () => {
     setError(null)
-    const c = caso ?? (await api().casoNuevo())
+    // Mismo motivo que `asegurarCasoNuevoSiHaceFalta`: reutilizar `caso` sin
+    // mirar su estado hacía que «Escribir los datos a mano», pulsado tras
+    // terminar un caso (sin pasar por «Nuevo cálculo»), abriera el
+    // formulario con los datos del caso YA terminado, en vez de uno vacío.
+    const c = caso && caso.estado === 'BORRADOR' ? caso : await api().casoNuevo()
     setCaso(c)
     setPaso('MANUAL')
   }, [caso])

@@ -1982,3 +1982,67 @@ test('la lente a pedir (D93): se guarda con el caso, reabriéndolo desde «Casos
   expect(guardado.pedidosLente?.OD?.fabricante).toBe('Bausch & Lomb')
   expect(guardado.pedidosLente?.OD?.esfera).toBe(21.5)
 })
+
+/**
+ * Fallo real reportado por el dueño del proyecto (24/09/2026): «si me voy
+ * a bandeja de casos y luego quiero volver atrás para abrir un cálculo
+ * nuevo no me deja, tengo que cerrar la aplicación y volver a entrar».
+ * `nuevoCalculo()` creaba el caso de verdad por detrás, pero no cerraba
+ * `pantallaExtra` —la pantalla de Bandeja/Doctores/Laboratorios/Dashboard,
+ * que se enseña ANTES que el asistente principal y no depende de
+ * `paso`—, así que la persona se quedaba mirando la Bandeja sin ver nada
+ * distinto, aunque el caso nuevo ya existiera.
+ */
+test('«Nuevo cálculo» desde la Bandeja de casos (D97): vuelve de verdad al asistente principal', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('abrir-bandeja').click()
+  await expect(ventana.getByRole('heading', { name: 'Bandeja de casos' })).toBeVisible()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+
+  await expect(ventana.getByRole('heading', { name: 'Bandeja de casos' })).not.toBeVisible()
+  await expect(ventana.getByRole('button', { name: 'Escribir los datos a mano' })).toBeVisible()
+})
+
+/**
+ * Fallo real reportado por el dueño del proyecto (24/09/2026): «si he
+ * empezado un caso y terminado de la lista de pendientes y ahora cargo
+ * otro caso me aparecen los datos del caso anterior». Causa: el proceso
+ * principal guarda el caso «en curso» en una única variable (`this.caso`,
+ * en `ServicioCasos`) —necesaria para «Añadir otro biómetro», que sí
+ * tiene que seguir escribiendo en el mismo caso—, pero varios caminos de
+ * la pantalla de inicio la reutilizaban SIN mirar si ese caso ya estaba
+ * terminado: «Escribir los datos a mano» (`caso ?? casoNuevo()`), cargar
+ * un documento arrastrándolo o con «Elegir archivo», y empezar un caso
+ * desde un aviso de la Bandeja que ya trae fotos. Los cuatro se arreglan
+ * igual: si el caso en curso ya no es un borrador vacío, se crea uno
+ * limpio antes de seguir.
+ */
+test('«Escribir los datos a mano» (D98): nunca reutiliza los datos de un caso anterior ya terminado', async () => {
+  // Caso A: se carga un documento (basta con que exista, aunque esté
+  // vacío, para que el caso avance de BORRADOR a EN_REVISION — el estado
+  // real de un caso ya trabajado, no el de uno recién creado) y se le
+  // escribe un dato reconocible.
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  const rutaCasoA = join(carpetaDatos, 'caso-a-d98.jpeg')
+  writeFileSync(rutaCasoA, '')
+  await ventana.evaluate(
+    async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'caso-a-d98.jpeg', ruta }]),
+    rutaCasoA,
+  )
+  await ventana.evaluate(() => window.vilamar?.editarMedida('OD', 'AL', 24.07, 'Principal'))
+  const casoA = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(casoA?.estado, 'el caso A tiene que haber avanzado de BORRADOR').not.toBe('BORRADOR')
+
+  // La pantalla ya refleja el caso A (misma sincronización que usa el
+  // resto del fichero: esperar el código en la cabecera) — sin pasar por
+  // «Nuevo cálculo», que es justo lo que el dueño dice que no hacía.
+  await expect(ventana.locator('.caso', { hasText: casoA!.codigo })).toBeVisible()
+
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await expect(ventana.getByTestId('manual-campo-AL')).toHaveValue('')
+
+  const casoB = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(casoB?.codigo, 'tiene que ser un caso NUEVO, no el A reutilizado').not.toBe(casoA?.codigo)
+  expect(casoB?.ojos?.OD).toBeUndefined()
+})

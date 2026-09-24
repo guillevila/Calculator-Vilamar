@@ -455,6 +455,78 @@ describe('constante conocida del catálogo propio (D69, corregida 05/09/2026) �
   })
 })
 
+/**
+ * Fallo real reportado por el dueño del proyecto (24/09/2026), confirmado
+ * con un PDF real: un ojo con dos aparatos («ZEISS IOLMaster 700» y
+ * «OCULUS Pentacam», ninguno llamado «Principal») — al elegir la lente, la
+ * constante A solo se escribía en un dataset fantasma con `aparato:
+ * 'Principal'` que no correspondía a ninguno de los dos de verdad, y los
+ * dos aparatos reales se quedaban sin ella. `elegirLente()`, antes de
+ * D99, usaba `ojoDe(caso, lado)` —sin aparato, cae siempre en
+ * `APARATO_PRINCIPAL`— en vez de recorrer TODOS los aparatos del ojo.
+ */
+describe('la constante llega a TODOS los aparatos del ojo, no solo a "Principal" (D99, 24/09/2026)', () => {
+  /** Un caso con DOS aparatos en OD, ninguno llamado «Principal». */
+  function casoConDosAparatos(): Caso {
+    const base = casoConLentes()
+    const segundo = conMedida(
+      ojoVacio('OD', 'OCULUS Pentacam'),
+      crearMedida('AL', 'OD', 23.9, delInforme('AL')),
+    )
+    return conOjo(base, { ...segundo, lateralidad: 'OD' }, LUEGO)
+  }
+
+  function constantesDeLosAparatos(caso: Caso): Record<string, number | undefined> {
+    const salida: Record<string, number | undefined> = {}
+    for (const dataset of caso.ojos.OD ?? []) {
+      salida[dataset.aparato] = dataset.medidas.CONSTANTE_A?.valor
+    }
+    return salida
+  }
+
+  it('la constante de la tabla del informe llega a los dos aparatos', () => {
+    const caso = casoConDosAparatos()
+    const r = elegirLente(caso, { modelo: 'LUX SMART' }, LUEGO)
+    const porAparato = constantesDeLosAparatos(r.caso)
+    expect(porAparato['Principal']).toBe(118.5)
+    expect(porAparato['OCULUS Pentacam']).toBe(118.5)
+    // Y no se ha creado un tercer dataset fantasma para guardarla.
+    expect(r.caso.ojos.OD).toHaveLength(2)
+  })
+
+  it('la constante conocida del catálogo (D69) también llega a los dos aparatos', () => {
+    const caso = casoConDosAparatos()
+    const r = elegirLente(caso, { modelo: 'Alcon SN6ATx', constanteConocida: 119.1 }, LUEGO)
+    const porAparato = constantesDeLosAparatos(r.caso)
+    expect(porAparato['OCULUS Pentacam']).toBe(119.1)
+    expect(r.caso.ojos.OD).toHaveLength(2)
+  })
+
+  it('una constante escrita a mano en UN aparato no bloquea la del otro', () => {
+    let caso = casoConDosAparatos()
+    const pentacam = caso.ojos.OD?.find((o) => o.aparato === 'OCULUS Pentacam')
+    caso = conOjo(caso, corregirMedida(pentacam!, 'CONSTANTE_A', 117.0, LUEGO), LUEGO)
+
+    const r = elegirLente(caso, { modelo: 'LUX SMART' }, LUEGO)
+    const porAparato = constantesDeLosAparatos(r.caso)
+    // El aparato con el dato a mano se respeta...
+    expect(porAparato['OCULUS Pentacam']).toBe(117.0)
+    // ...pero el otro sí recibe la del informe: un conflicto en un aparato
+    // no puede dejar sin constante a los demás.
+    expect(porAparato['Principal']).toBe(118.5)
+  })
+
+  it('al cambiar de lente, se quita de los dos aparatos donde la puso la tabla — no se hereda de una lente a otra', () => {
+    const caso = casoConDosAparatos()
+    const conLuxSmart = elegirLente(caso, { modelo: 'LUX SMART' }, LUEGO).caso
+
+    const otra = elegirLente(conLuxSmart, { modelo: 'Alcon SA6ATx' }, LUEGO)
+    const porAparato = constantesDeLosAparatos(otra.caso)
+    expect(porAparato['Principal']).toBeUndefined()
+    expect(porAparato['OCULUS Pentacam']).toBeUndefined()
+  })
+})
+
 describe('dos lentes ambiguas no se emparejan solas', () => {
   const contradictorias = [lente('enVista MX60', 119.2), lente('enVista MX60', 118.9)]
 

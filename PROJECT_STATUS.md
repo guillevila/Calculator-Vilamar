@@ -9,7 +9,31 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 22/09/2026 · 🔴 **Fallo corregido en
+**Última actualización:** 24/09/2026 (2) · 🔴 **Dos fallos graves
+corregidos: empezar un caso nuevo podía mezclar los datos del caso
+anterior, y la constante A elegida no llegaba a todos los aparatos de
+un ojo con varios biómetros (D98, D99).** El dueño encontró los dos con
+uso real: «Escribir a mano»/cargar un documento/empezar desde la Bandeja
+tras terminar un caso arrastraban sus datos al nuevo; y con dos aparatos
+por ojo (D47), la constante de la lente solo llegaba al que se llama
+«Principal» — el resto se quedaba sin ella, aunque la lente estuviera
+bien elegida. Los dos, reproducidos primero con un test que falla contra
+el código viejo y confirma el fallo exacto, y verificados después contra
+el arreglado. `pnpm lint && pnpm typecheck && pnpm test && pnpm build &&
+pnpm test:e2e` en verde (847 tests unitarios; el único fallo de la suite
+es previo y no relacionado).
+
+Antes de esto — **24/09/2026 (1): fallo corregido: «Nuevo
+cálculo» se quedaba encallado en Bandeja de casos/Doctores/
+Laboratorios/Dashboard, sin volver al asistente principal (D97).** El
+caso nuevo se creaba de verdad por detrás, pero la pantalla no cambiaba
+—hacía falta cerrar la aplicación y volver a entrar. Arreglo de una
+línea, verificado reproduciendo el fallo exacto con un test antes de
+corregirlo. `pnpm lint && pnpm typecheck && pnpm test && pnpm build &&
+pnpm test:e2e` en verde (844 tests unitarios; el único fallo de la suite
+es previo y no relacionado; 59/59 de interfaz).
+
+Antes de esto — **22/09/2026: fallo corregido en
 la estimación propia (D43): el criterio del cilindro podía saltarse la
 opción de no corregir nada y quedarse con una que ya había invertido el
 eje (D96).** El dueño lo encontró con un PDF real: sin corregir (eje 6°),
