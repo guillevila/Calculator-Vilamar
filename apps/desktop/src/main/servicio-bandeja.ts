@@ -26,6 +26,21 @@
  * de «Importadas». Antes de esto, una subcarpeta se ignoraba del todo:
  * `buscarFotosNuevas()` solo miraba ficheros sueltos, nunca lo que hubiera
  * dentro de una carpeta — fallo real reportado por el dueño (17/09/2026).
+ *
+ * **Carpeta por doctor** (D102, 24/09/2026): cualquier subcarpeta de la raíz
+ * que no sea Alta/Normal/Baja/Importadas se trata como la carpeta de UN
+ * doctor — dentro puede tener sus propias Alta/Normal/Baja (mismo criterio
+ * de fichero-suelto-o-subcarpeta-de-paciente de siempre en cada una), o
+ * fotos/subcarpetas de paciente directamente dentro (cuentan como Normal).
+ * Se le crean las cuatro subcarpetas de siempre si no las tenía. El nombre
+ * de la carpeta del doctor viaja como `delegado` de cada aviso —así se ve
+ * en la Bandeja sin ningún cambio de interfaz—, y su archivo va a la
+ * «Importadas» de ESE doctor, nunca a la de la raíz. Antes de esto, la raíz
+ * solo miraba ficheros sueltos y sus tres subcarpetas de prioridad:
+ * cualquier otra subcarpeta —la de un doctor— se ignoraba del todo, y con
+ * ella, cualquier paciente que tuviera dentro. Fallo real reportado por el
+ * dueño (24/09/2026): con varios pacientes del mismo doctor sueltos en una
+ * sola carpeta, la app los juntaba en un único aviso como si fueran uno.
  */
 
 import { basename, extname, join } from 'node:path'
@@ -97,11 +112,24 @@ function rutaLibre(carpeta: string, nombreOriginal: string): string {
   return candidato
 }
 
+/** El nombre genérico de quien manda un aviso que no viene de la carpeta de ningún doctor en concreto. */
+const DELEGADO_SIN_DOCTOR = 'Carpeta de entrada'
+
+/** Los nombres reservados dentro de la carpeta de un doctor (D102): nunca se confunden con un paciente. */
+const NOMBRES_RESERVADOS: ReadonlySet<string> = new Set([
+  ...Object.values(NOMBRE_CARPETA_PRIORIDAD),
+  CARPETA_IMPORTADAS,
+])
+
 /** Un candidato a aviso nuevo: uno o varios ficheros que se mueven juntos a «Importadas». */
 interface CandidatoImportacion {
   readonly rutaOrigen: string
   readonly esCarpeta: boolean
   readonly prioridad: PrioridadBandeja
+  /** Quién manda el aviso — el nombre de la carpeta del doctor, o el genérico si no venía de ninguna (D102). */
+  readonly delegado: string
+  /** Dónde archivarlo — la «Importadas» del doctor si venía de su carpeta, o la de la raíz si no. */
+  readonly carpetaImportadas: string
   /** Solo cuando `esCarpeta`: los nombres de fichero que hay dentro, para reconstruir sus rutas tras moverla. */
   readonly archivosDentro: readonly string[]
 }
@@ -109,12 +137,16 @@ interface CandidatoImportacion {
 function candidatosDe(
   ubicacion: string,
   prioridad: PrioridadBandeja,
+  delegado: string,
+  carpetaImportadas: string,
 ): readonly CandidatoImportacion[] {
   const { archivos, subcarpetas } = listarEntradas(ubicacion)
   const deArchivos = archivos.map((nombre): CandidatoImportacion => ({
     rutaOrigen: join(ubicacion, nombre),
     esCarpeta: false,
     prioridad,
+    delegado,
+    carpetaImportadas,
     archivosDentro: [],
   }))
   const deSubcarpetas = subcarpetas.flatMap((nombre): readonly CandidatoImportacion[] => {
@@ -123,9 +155,68 @@ function candidatosDe(
     // Una subcarpeta vacía, o sin ninguna foto válida todavía, no genera
     // ningún aviso — se espera a que tenga algo que traer.
     if (dentro.length === 0) return []
-    return [{ rutaOrigen: rutaSub, esCarpeta: true, prioridad, archivosDentro: dentro }]
+    return [
+      {
+        rutaOrigen: rutaSub,
+        esCarpeta: true,
+        prioridad,
+        delegado,
+        carpetaImportadas,
+        archivosDentro: dentro,
+      },
+    ]
   })
   return [...deArchivos, ...deSubcarpetas]
+}
+
+/**
+ * Todo lo que hay en la carpeta de UN doctor (D102, 24/09/2026): sus fotos
+ * sueltas y sus subcarpetas de paciente directamente dentro (prioridad
+ * Normal, igual que en la raíz), más sus tres subcarpetas de prioridad
+ * (Alta/Normal/Baja), cada una con el mismo criterio de siempre —fichero
+ * suelto o subcarpeta de paciente—. Se le crean las cuatro subcarpetas de
+ * siempre (Alta/Normal/Baja/Importadas) si todavía no las tenía, igual
+ * que se hace al elegir la carpeta de entrada por primera vez.
+ */
+function candidatosDeDoctor(carpetaDoctor: string, delegado: string): readonly CandidatoImportacion[] {
+  for (const nombre of [...Object.values(NOMBRE_CARPETA_PRIORIDAD), CARPETA_IMPORTADAS]) {
+    mkdirSync(join(carpetaDoctor, nombre), { recursive: true })
+  }
+  const carpetaImportadas = join(carpetaDoctor, CARPETA_IMPORTADAS)
+
+  const { archivos, subcarpetas } = listarEntradas(carpetaDoctor)
+  const deArchivosSueltos = archivos.map((nombre): CandidatoImportacion => ({
+    rutaOrigen: join(carpetaDoctor, nombre),
+    esCarpeta: false,
+    prioridad: 'NORMAL',
+    delegado,
+    carpetaImportadas,
+    archivosDentro: [],
+  }))
+  const deSubcarpetasDePaciente = subcarpetas
+    .filter((nombre) => !NOMBRES_RESERVADOS.has(nombre))
+    .flatMap((nombre): readonly CandidatoImportacion[] => {
+      const rutaSub = join(carpetaDoctor, nombre)
+      const dentro = archivosValidos(rutaSub)
+      if (dentro.length === 0) return []
+      return [
+        {
+          rutaOrigen: rutaSub,
+          esCarpeta: true,
+          prioridad: 'NORMAL',
+          delegado,
+          carpetaImportadas,
+          archivosDentro: dentro,
+        },
+      ]
+    })
+  const deLasPrioridades = (
+    Object.entries(NOMBRE_CARPETA_PRIORIDAD) as [PrioridadBandeja, string][]
+  ).flatMap(([prioridad, carpeta]) =>
+    candidatosDe(join(carpetaDoctor, carpeta), prioridad, delegado, carpetaImportadas),
+  )
+
+  return [...deArchivosSueltos, ...deSubcarpetasDePaciente, ...deLasPrioridades]
 }
 
 export class ServicioBandeja {
@@ -218,40 +309,58 @@ export class ServicioBandeja {
   }
 
   /**
-   * Busca fotos nuevas en la carpeta de entrada (D84/D86): un fichero
-   * suelto en la raíz cuenta como prioridad Normal (para no perderlo si
-   * todavía no se clasificó); en Alta/Normal/Baja, con esa prioridad.
-   * Una SUBCARPETA (el nombre del paciente, típicamente) agrupa todas sus
-   * fotos en un solo aviso. Cada candidato —fichero o carpeta entera— se
-   * archiva en «Importadas» tal cual, así una segunda búsqueda no lo
-   * vuelve a traer, y se crea una entrada de bandeja enganchada a sus
-   * copias ya archivadas. Un fallo con UN candidato (por ejemplo, todavía
+   * Busca fotos nuevas en la carpeta de entrada (D84/D86/D102): un
+   * fichero suelto en la raíz cuenta como prioridad Normal (para no
+   * perderlo si todavía no se clasificó); en Alta/Normal/Baja, con esa
+   * prioridad. Una SUBCARPETA de la raíz que NO sea Alta/Normal/Baja/
+   * Importadas se trata como **la carpeta de un doctor** (D102,
+   * 24/09/2026): dentro puede tener sus propias fotos sueltas, sus
+   * propias subcarpetas de paciente, y sus propias Alta/Normal/Baja —
+   * exactamente la misma estructura que la raíz, un nivel más adentro—,
+   * y el nombre de esa carpeta se usa como delegado del aviso, en vez del
+   * genérico «Carpeta de entrada». Cada candidato —fichero o carpeta
+   * entera— se archiva en la «Importadas» que le toque (la del doctor, o
+   * la de la raíz) tal cual, así una segunda búsqueda no lo vuelve a
+   * traer, y se crea una entrada de bandeja enganchada a sus copias ya
+   * archivadas. Un fallo con UN candidato (por ejemplo, todavía
    * sincronizando desde OneDrive) no para el resto: se salta y sigue con
    * los demás.
    */
   buscarFotosNuevas(): readonly EntradaBandeja[] {
     const raiz = this.carpetaEntrada()
     if (!raiz) throw new Error('Todavía no has elegido una carpeta de entrada.')
-    const importadas = join(raiz, CARPETA_IMPORTADAS)
-    mkdirSync(importadas, { recursive: true })
+    const importadasRaiz = join(raiz, CARPETA_IMPORTADAS)
+    mkdirSync(importadasRaiz, { recursive: true })
 
-    // La raíz SOLO mira ficheros sueltos, nunca subcarpetas: «Alta»,
-    // «Normal», «Baja» e «Importadas» son subcarpetas suyas, y tratarlas
-    // como si fueran una carpeta de paciente cualquiera las agrupaba
-    // ENTERAS en un aviso —moviendo, por duplicado, lo que ya iba a mover
-    // el escaneo de cada prioridad de abajo— (fallo encontrado al escribir
-    // el test correspondiente, nunca llegó a manos del dueño). La
-    // agrupación por subcarpeta (D86) solo tiene sentido DENTRO de una
-    // prioridad ya elegida.
+    // La raíz solo mira ficheros sueltos y subcarpetas de doctor, nunca
+    // subcarpetas de paciente directamente: «Alta», «Normal», «Baja» e
+    // «Importadas» son subcarpetas suyas, y tratarlas como si fueran una
+    // carpeta de paciente cualquiera las agrupaba ENTERAS en un aviso
+    // —moviendo, por duplicado, lo que ya iba a mover el escaneo de cada
+    // prioridad de abajo— (fallo encontrado al escribir el test
+    // correspondiente, nunca llegó a manos del dueño). La agrupación por
+    // subcarpeta de paciente (D86) solo tiene sentido DENTRO de una
+    // prioridad ya elegida, o directamente dentro de la carpeta de un
+    // doctor (D102) — nunca en la raíz misma, donde una subcarpeta sin
+    // reconocer solo puede ser la de un doctor.
+    const { subcarpetas: subcarpetasRaiz } = listarEntradas(raiz)
+    const carpetasDeDoctor = subcarpetasRaiz.filter((nombre) => !NOMBRES_RESERVADOS.has(nombre))
+
     const candidatos: readonly CandidatoImportacion[] = [
       ...archivosValidos(raiz).map((nombre): CandidatoImportacion => ({
         rutaOrigen: join(raiz, nombre),
         esCarpeta: false,
         prioridad: 'NORMAL',
+        delegado: DELEGADO_SIN_DOCTOR,
+        carpetaImportadas: importadasRaiz,
         archivosDentro: [],
       })),
       ...(Object.entries(NOMBRE_CARPETA_PRIORIDAD) as [PrioridadBandeja, string][]).flatMap(
-        ([prioridad, carpeta]) => candidatosDe(join(raiz, carpeta), prioridad),
+        ([prioridad, carpeta]) =>
+          candidatosDe(join(raiz, carpeta), prioridad, DELEGADO_SIN_DOCTOR, importadasRaiz),
+      ),
+      ...carpetasDeDoctor.flatMap((nombreDoctor) =>
+        candidatosDeDoctor(join(raiz, nombreDoctor), nombreDoctor),
       ),
     ]
 
@@ -260,7 +369,7 @@ export class ServicioBandeja {
     for (const candidato of candidatos) {
       try {
         const nombreOriginal = basename(candidato.rutaOrigen)
-        const destino = rutaLibre(importadas, nombreOriginal)
+        const destino = rutaLibre(candidato.carpetaImportadas, nombreOriginal)
         renameSync(candidato.rutaOrigen, destino)
         const rutasFotos = candidato.esCarpeta
           ? candidato.archivosDentro.map((nombre) => join(destino, nombre))
@@ -270,7 +379,7 @@ export class ServicioBandeja {
           : nombreOriginal.slice(0, nombreOriginal.length - extname(nombreOriginal).length)
         nuevas.push({
           id: this.dep.nuevoId(),
-          delegado: 'Carpeta de entrada',
+          delegado: candidato.delegado,
           descripcion,
           prioridad: candidato.prioridad,
           notas: '',

@@ -4,6 +4,48 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.61] — 24/09/2026 (versión visible en pantalla: v1.27)
+
+feat(app): la carpeta de entrada admite una carpeta por doctor (D102).
+
+### Qué se pidió
+
+El dueño del proyecto: «quiero poder meter fotos de varios pacientes de un
+mismo doctor... creo una carpeta con el nombre del doctor y dentro meto las
+imágenes, pero si son de distintos pacientes la app las toma como si fuera
+uno solo... he probado a crear subcarpetas con el nombre de los pacientes...
+pero no lo detecta». Antes de construir se le preguntó si prefería la
+prioridad (Alta/Normal/Baja) dentro de la carpeta del doctor, o sustituida
+por ella; eligió mantener las dos juntas.
+
+### El cambio
+
+`buscarFotosNuevas()` ahora trata cualquier subcarpeta de la raíz que no sea
+Alta/Normal/Baja/Importadas como la carpeta de UN doctor: dentro puede tener
+sus propias Alta/Normal/Baja (mismo criterio de fichero-suelto-o-subcarpeta-
+de-paciente de siempre en cada una), o fotos/subcarpetas de paciente
+directamente dentro, que cuentan como Normal. Se le crean las cuatro
+subcarpetas de siempre si todavía no las tenía. El nombre de la carpeta del
+doctor viaja como `delegado` de cada aviso — columna que la Bandeja ya
+enseñaba, cero cambios de interfaz —, y su archivo va a la «Importadas» de
+ESE doctor, nunca a la de la raíz.
+
+### Verificado
+
+- Ocho tests nuevos en `servicio-bandeja.carpeta-entrada.test.ts`: dos
+  pacientes del mismo doctor en subcarpetas distintas nunca se mezclan; las
+  cuatro subcarpetas se crean solas; una foto o una subcarpeta de paciente
+  sueltas directamente en la carpeta del doctor cuentan como Normal; el
+  archivo va a la «Importadas» del doctor, no a la de la raíz; conviven sin
+  mezclarse fotos sin doctor y de varios doctores a la vez — comprobado
+  primero contra el código sin arreglar (los ocho fallan).
+- `pnpm lint && pnpm typecheck && pnpm test` — 864 tests en verde (el único
+  fallo es el de `.claude/hooks/block-subagent-external.test.mjs`, un
+  problema de sintaxis preexistente y ajeno a este cambio).
+- `pnpm build && pnpm test:e2e`.
+
+---
+
 ## [1.15.60] — 24/09/2026 (versión visible en pantalla: v1.26)
 
 feat(app): avisa si un archivo ya se había cargado antes en el caso (D101).

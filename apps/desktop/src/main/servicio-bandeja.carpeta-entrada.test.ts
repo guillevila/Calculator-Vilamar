@@ -182,3 +182,138 @@ describe('ServicioBandeja — carpeta de entrada (D84)', () => {
     expect(bandeja.find((e) => e.descripcion === 'Otro Paciente')?.rutasFotos).toHaveLength(1)
   })
 })
+
+/**
+ * Fallo real reportado por el dueño del proyecto (24/09/2026): «quiero
+ * poder meter fotos de varios pacientes de un mismo doctor... creo una
+ * carpeta con el nombre del doctor y dentro meto las imágenes, pero si son
+ * de distintos pacientes la app las toma como si fuera uno solo... he
+ * probado a crear subcarpetas con el nombre de los pacientes... pero no lo
+ * detecta». La raíz solo miraba ficheros sueltos, nunca subcarpetas —
+ * cualquier carpeta de doctor, con lo que fuera dentro, se ignoraba del
+ * todo. Confirmado con el dueño (D102): quiere la carpeta del doctor Y la
+ * de prioridad juntas, una dentro de la otra.
+ */
+describe('ServicioBandeja — carpeta de entrada, por doctor (D102, 24/09/2026)', () => {
+  it('una subcarpeta de la raíz que no es Alta/Normal/Baja/Importadas se trata como la carpeta de un doctor', () => {
+    const servicio = servicioDePrueba()
+    const entrada = raizTemporal()
+    servicio.configurarCarpetaEntrada(entrada)
+    const carpetaDoctor = join(entrada, 'Dr Rocha', 'Alta', 'paciente uno')
+    mkdirSync(carpetaDoctor, { recursive: true })
+    writeFileSync(join(carpetaDoctor, 'od.jpg'), 'foto od')
+
+    const bandeja = servicio.buscarFotosNuevas()
+    expect(bandeja).toHaveLength(1)
+    expect(bandeja[0]?.delegado).toBe('Dr Rocha')
+    expect(bandeja[0]?.descripcion).toBe('paciente uno')
+    expect(bandeja[0]?.prioridad).toBe('URGENTE')
+  })
+
+  it('dos pacientes del MISMO doctor, en subcarpetas de paciente distintas, salen como DOS avisos separados', () => {
+    const servicio = servicioDePrueba()
+    const entrada = raizTemporal()
+    servicio.configurarCarpetaEntrada(entrada)
+    const pacienteA = join(entrada, 'Dr Rocha', 'Normal', 'Paciente A')
+    const pacienteB = join(entrada, 'Dr Rocha', 'Normal', 'Paciente B')
+    mkdirSync(pacienteA, { recursive: true })
+    mkdirSync(pacienteB, { recursive: true })
+    writeFileSync(join(pacienteA, 'foto.jpg'), 'a')
+    writeFileSync(join(pacienteB, 'foto.jpg'), 'b')
+
+    const bandeja = servicio.buscarFotosNuevas()
+    expect(bandeja).toHaveLength(2)
+    expect(bandeja.every((e) => e.delegado === 'Dr Rocha')).toBe(true)
+    expect(bandeja.map((e) => e.descripcion).sort()).toEqual(['Paciente A', 'Paciente B'])
+    // Nunca mezcladas: cada aviso solo trae la foto de SU paciente.
+    expect(bandeja.find((e) => e.descripcion === 'Paciente A')?.rutasFotos).toHaveLength(1)
+    expect(bandeja.find((e) => e.descripcion === 'Paciente B')?.rutasFotos).toHaveLength(1)
+  })
+
+  it('crea Alta/Normal/Baja/Importadas dentro de la carpeta del doctor, igual que en la raíz', () => {
+    const servicio = servicioDePrueba()
+    const entrada = raizTemporal()
+    servicio.configurarCarpetaEntrada(entrada)
+    mkdirSync(join(entrada, 'Dra Marina'), { recursive: true })
+
+    servicio.buscarFotosNuevas()
+
+    const carpetaDoctor = join(entrada, 'Dra Marina')
+    expect(existsSync(join(carpetaDoctor, 'Alta'))).toBe(true)
+    expect(existsSync(join(carpetaDoctor, 'Normal'))).toBe(true)
+    expect(existsSync(join(carpetaDoctor, 'Baja'))).toBe(true)
+    expect(existsSync(join(carpetaDoctor, 'Importadas'))).toBe(true)
+  })
+
+  it('una foto suelta directamente en la carpeta del doctor (sin prioridad) cuenta como Normal', () => {
+    const servicio = servicioDePrueba()
+    const entrada = raizTemporal()
+    servicio.configurarCarpetaEntrada(entrada)
+    mkdirSync(join(entrada, 'Dr Handy'), { recursive: true })
+    writeFileSync(join(entrada, 'Dr Handy', 'suelta.jpg'), 'foto')
+
+    const bandeja = servicio.buscarFotosNuevas()
+    expect(bandeja).toHaveLength(1)
+    expect(bandeja[0]?.delegado).toBe('Dr Handy')
+    expect(bandeja[0]?.prioridad).toBe('NORMAL')
+  })
+
+  it('una subcarpeta de paciente directamente en la carpeta del doctor (sin prioridad) se agrupa igual', () => {
+    const servicio = servicioDePrueba()
+    const entrada = raizTemporal()
+    servicio.configurarCarpetaEntrada(entrada)
+    const carpetaPaciente = join(entrada, 'Dr Handy', 'Rafael Manzano')
+    mkdirSync(carpetaPaciente, { recursive: true })
+    writeFileSync(join(carpetaPaciente, 'od.jpg'), 'od')
+    writeFileSync(join(carpetaPaciente, 'os.jpg'), 'os')
+
+    const bandeja = servicio.buscarFotosNuevas()
+    expect(bandeja).toHaveLength(1)
+    expect(bandeja[0]?.delegado).toBe('Dr Handy')
+    expect(bandeja[0]?.descripcion).toBe('Rafael Manzano')
+    expect(bandeja[0]?.rutasFotos).toHaveLength(2)
+  })
+
+  it('se archiva en la «Importadas» del propio doctor, no en la de la raíz', () => {
+    const servicio = servicioDePrueba()
+    const entrada = raizTemporal()
+    servicio.configurarCarpetaEntrada(entrada)
+    mkdirSync(join(entrada, 'Dr Espejo', 'Alta'), { recursive: true })
+    writeFileSync(join(entrada, 'Dr Espejo', 'Alta', 'foto.jpg'), 'foto')
+
+    const bandeja = servicio.buscarFotosNuevas()
+    expect(bandeja[0]?.rutasFotos).toEqual([
+      join(entrada, 'Dr Espejo', 'Importadas', 'foto.jpg'),
+    ])
+    expect(existsSync(join(entrada, 'Importadas', 'foto.jpg'))).toBe(false)
+  })
+
+  it('conviven sin mezclarse: fotos sin doctor (raíz) y fotos de dos doctores distintos, cada una con su delegado', () => {
+    const servicio = servicioDePrueba()
+    const entrada = raizTemporal()
+    servicio.configurarCarpetaEntrada(entrada)
+    writeFileSync(join(entrada, 'Alta', 'sin-doctor.jpg'), 'foto')
+    mkdirSync(join(entrada, 'Dr Rocha', 'Baja'), { recursive: true })
+    writeFileSync(join(entrada, 'Dr Rocha', 'Baja', 'foto.jpg'), 'foto')
+    mkdirSync(join(entrada, 'Dra Marina', 'Normal'), { recursive: true })
+    writeFileSync(join(entrada, 'Dra Marina', 'Normal', 'foto.jpg'), 'foto')
+
+    const bandeja = servicio.buscarFotosNuevas()
+    expect(bandeja).toHaveLength(3)
+    expect(bandeja.find((e) => e.descripcion === 'sin-doctor')?.delegado).toBe('Carpeta de entrada')
+    expect(bandeja.find((e) => e.delegado === 'Dr Rocha')?.prioridad).toBe('BAJA')
+    expect(bandeja.find((e) => e.delegado === 'Dra Marina')?.prioridad).toBe('NORMAL')
+  })
+
+  it('buscar dos veces no duplica los avisos de un doctor, igual que en la raíz', () => {
+    const servicio = servicioDePrueba()
+    const entrada = raizTemporal()
+    servicio.configurarCarpetaEntrada(entrada)
+    mkdirSync(join(entrada, 'Dr Rocha', 'Alta'), { recursive: true })
+    writeFileSync(join(entrada, 'Dr Rocha', 'Alta', 'foto.jpg'), 'foto')
+
+    servicio.buscarFotosNuevas()
+    const segunda = servicio.buscarFotosNuevas()
+    expect(segunda).toHaveLength(1)
+  })
+})

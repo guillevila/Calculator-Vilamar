@@ -9,7 +9,20 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 24/09/2026 (4) · **Avisa si un archivo
+**Última actualización:** 24/09/2026 (5) · **La carpeta de entrada
+admite una carpeta por doctor (D102).** El dueño pidió poder meter fotos
+de varios pacientes de un mismo doctor sin que la app las juntara en un
+solo aviso; había probado a crear subcarpetas de paciente dentro de la
+carpeta del doctor, pero no se detectaban. Ahora cualquier subcarpeta de
+la raíz que no sea Alta/Normal/Baja/Importadas se trata como la carpeta
+de un doctor —con sus propias Alta/Normal/Baja dentro, o fotos/pacientes
+sueltos que cuentan como Normal—, y el nombre del doctor se ve en la
+columna «Delegado» de la Bandeja, sin ningún cambio de interfaz.
+`pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+en verde (864 tests unitarios; el único fallo de la suite es previo y no
+relacionado; 61/61 de interfaz).
+
+Antes de esto — **24/09/2026 (4): avisa si un archivo
 ya se había cargado antes en el caso (D101).** Investigando por qué el
 dueño creía que el eje de K1→K2 fallaba a veces (caso real CV-2026-0238)
 se encontró la causa de verdad: las mismas fotos se habían subido dos
