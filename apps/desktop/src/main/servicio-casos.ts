@@ -577,6 +577,23 @@ export class ServicioCasos {
 
       const avisos = [...resultado.avisos]
 
+      // El nombre de fichero puede cambiar —la misma foto, subida dos
+      // veces desde dos carpetas de doctor distintas, por ejemplo— pero
+      // el CONTENIDO no: `guardado.id` es un hash del propio archivo
+      // (D101, 24/09/2026, petición expresa del dueño del proyecto).
+      // Si ya había un documento con ese mismo contenido en este caso, se
+      // avisa —nunca se bloquea, puede ser aposta— porque, si no, la foto
+      // repetida entraba en silencio como un aparato «Otro» aparte, sin
+      // que nadie se enterara de que era la misma que ya estaba.
+      const duplicadoDe = caso.documentos.find((d) => d.id === guardado.id)
+      if (duplicadoDe !== undefined) {
+        avisos.push(
+          `«${archivo.nombre}» es el mismo archivo que «${duplicadoDe.nombre}», ya cargado en ` +
+            `este caso. Si no era aposta, puede que ahora haya un aparato «Otro» de más — revisa ` +
+            'la pestaña de aparatos de este ojo.',
+        )
+      }
+
       const rutaOrigenEntrada = rutaEnImportadas(this.dep.carpetas, archivo.ruta)
       caso = {
         ...caso,

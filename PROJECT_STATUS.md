@@ -9,7 +9,18 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 24/09/2026 (3) · **Se puede excluir un
+**Última actualización:** 24/09/2026 (4) · **Avisa si un archivo
+ya se había cargado antes en el caso (D101).** Investigando por qué el
+dueño creía que el eje de K1→K2 fallaba a veces (caso real CV-2026-0238)
+se encontró la causa de verdad: las mismas fotos se habían subido dos
+veces, desde dos carpetas de doctor distintas, creando un aparato «Otro»
+duplicado y sin eje. Ahora, al cargar un archivo con el mismo contenido
+que uno ya guardado en el caso, se avisa con el nombre del original —no
+bloquea, puede ser aposta. `pnpm lint && pnpm typecheck && pnpm test &&
+pnpm build && pnpm test:e2e` en verde (856 tests unitarios; el único
+fallo de la suite es previo y no relacionado; 61/61 de interfaz).
+
+Antes de esto — **24/09/2026 (3): se puede excluir un
 aparato del cálculo y del informe, sin borrar sus datos (D100).** El
 dueño lo pidió tras encontrar que, con dos biómetros en un ojo, no había
 forma de decir «este no, gracias» — se calculaba con los dos igual, y

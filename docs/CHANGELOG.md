@@ -4,6 +4,36 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.60] — 24/09/2026 (versión visible en pantalla: v1.26)
+
+feat(app): avisa si un archivo ya se había cargado antes en el caso (D101).
+
+### Qué se pidió
+
+A raíz de investigar el caso real CV-2026-0238 (el dueño pensaba que el
+relleno automático del eje K1→K2 fallaba a veces): las mismas fotos se
+habían cargado dos veces, desde dos carpetas de doctor distintas, creando
+un aparato «Otro» duplicado sin eje. El dueño pidió un aviso para la
+próxima vez.
+
+### El cambio
+
+`cargarDocumentos()` ya identifica cada archivo por un hash de su propio
+contenido (`guardarDocumento`, sha256) — solo hacía falta comparar ese
+hash con los de los documentos ya guardados en el caso. Si coincide, se
+avisa con el nombre del documento original. No bloquea nada: puede ser
+aposta (dos exámenes de verdad idénticos).
+
+### Verificado
+
+- Tres tests nuevos en `servicio-casos.cargar-documentos.test.ts`:
+  mismo contenido con otro nombre avisa y nombra el original; contenido
+  distinto no avisa aunque el nombre se parezca; el aviso no bloquea la
+  carga — comprobado primero contra el código sin arreglar.
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`.
+
+---
+
 ## [1.15.59] — 24/09/2026 (versión visible en pantalla: v1.25)
 
 feat(app,domain,report): excluir un aparato del cálculo y del informe, sin borrar sus datos (D100).

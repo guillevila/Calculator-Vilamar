@@ -239,3 +239,91 @@ describe('cargarDocumentos — dos fotos del mismo ojo, mismo aparato detectado 
     expect(datasetsOD.map((d) => d.aparato).sort()).toEqual(['Heidelberg ANTERION', 'Principal'])
   })
 })
+
+/**
+ * Fallo real reportado por el dueño del proyecto (24/09/2026, caso
+ * CV-2026-0238): las mismas fotos de un paciente se subieron dos veces
+ * —una vez desde la carpeta del doctor «hospital de madrid2», otra vez
+ * desde «hospital madrid 1»—, y la segunda vez no se reconoció el
+ * aparato tan bien como la primera, así que no se fusionó (D88, correcto
+ * en sí mismo) y creó un «Otro» duplicado, con los mismos datos pero sin
+ * el eje de K1/K2 —nadie lo había escrito ahí—. El dueño lo interpretó al
+ * principio como que el relleno automático del eje (D91) fallaba a
+ * veces; investigado a fondo, resultó ser esto. Pidió expresamente un
+ * aviso para la próxima vez.
+ */
+describe('cargarDocumentos — avisa si el archivo ya se había cargado antes en este caso (D101, 24/09/2026)', () => {
+  it('el mismo contenido, con OTRO nombre, avisa de cuál es el documento repetido', async () => {
+    const lector = lectorDePrueba([
+      resultadoDe(
+        'doc-1',
+        { dispositivo: 'DESCONOCIDO', confianza: 0, indicios: [] },
+        { AL: 24.0 },
+      ),
+      resultadoDe(
+        'doc-2',
+        { dispositivo: 'DESCONOCIDO', confianza: 0, indicios: [] },
+        { AL: 24.0 },
+      ),
+    ])
+    const servicio = servicioDePrueba(lector)
+    servicio.nuevo()
+
+    // Mismos bytes las dos veces — como la misma foto real, aunque llegue
+    // con un nombre de archivo distinto la segunda vez.
+    const mismosBytes = new Uint8Array([1, 2, 3])
+    await servicio.cargarDocumentos([{ nombre: 'hospital de madrid2/foto.jpg', datos: mismosBytes }])
+    const { resumenes } = await servicio.cargarDocumentos([
+      { nombre: 'hospital madrid 1/foto.jpg', datos: mismosBytes },
+    ])
+
+    expect(resumenes[0]?.avisos.join(' ')).toMatch(/mismo archivo que.*foto\.jpg.*ya cargado/i)
+  })
+
+  it('un archivo distinto (bytes distintos) no avisa de nada, aunque el nombre se parezca', async () => {
+    const lector = lectorDePrueba([
+      resultadoDe(
+        'doc-1',
+        { dispositivo: 'DESCONOCIDO', confianza: 0, indicios: [] },
+        { AL: 24.0 },
+      ),
+      resultadoDe(
+        'doc-2',
+        { dispositivo: 'DESCONOCIDO', confianza: 0, indicios: [] },
+        { AL: 24.5 },
+      ),
+    ])
+    const servicio = servicioDePrueba(lector)
+    servicio.nuevo()
+
+    await servicio.cargarDocumentos([{ nombre: 'foto.jpg', datos: new Uint8Array([1, 2, 3]) }])
+    const { resumenes } = await servicio.cargarDocumentos([
+      { nombre: 'foto.jpg', datos: new Uint8Array([4, 5, 6]) },
+    ])
+
+    expect(resumenes[0]?.avisos.join(' ')).not.toMatch(/ya cargado/i)
+  })
+
+  it('avisa, pero no bloquea: los datos se cargan igual, como un aparato aparte', async () => {
+    const lector = lectorDePrueba([
+      resultadoDe(
+        'doc-1',
+        { dispositivo: 'DESCONOCIDO', confianza: 0, indicios: [] },
+        { AL: 24.0 },
+      ),
+      resultadoDe(
+        'doc-2',
+        { dispositivo: 'DESCONOCIDO', confianza: 0, indicios: [] },
+        { AL: 24.0 },
+      ),
+    ])
+    const servicio = servicioDePrueba(lector)
+    servicio.nuevo()
+
+    const mismosBytes = new Uint8Array([1, 2, 3])
+    await servicio.cargarDocumentos([{ nombre: 'foto.jpg', datos: mismosBytes }])
+    const { caso } = await servicio.cargarDocumentos([{ nombre: 'foto-repetida.jpg', datos: mismosBytes }])
+
+    expect(datasetsDe(caso, 'OD').map((d) => d.aparato).sort()).toEqual(['Otro', 'Principal'])
+  })
+})
