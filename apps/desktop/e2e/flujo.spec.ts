@@ -2307,3 +2307,54 @@ test('renombrar un aparato (D106): con dos o más, cada pestaña se puede correg
   await ventana.getByTestId('manual-aparato-Pentacam de la clínica').click()
   await expect(ventana.getByTestId('manual-campo-AL')).toHaveValue('23.9')
 })
+
+/**
+ * Petición expresa del dueño del proyecto (29/09/2026): «cuando se meten a
+ * mano los datos se ve muy claro porque está en casillas de color los datos
+ * obligatorios... en cambio al meter los datos a través de una foto todo es
+ * mucho más lioso». Los mismos campos que `FormularioManual.tsx` destaca en
+ * rojo (`CAMPOS_DESTACADOS`) ahora llevan el mismo fondo en la pantalla de
+ * revisión (documento cargado), no solo un texto pequeño bajo la etiqueta.
+ *
+ * También pedido el mismo día: quitar la línea «Leído de: «...»» bajo cada
+ * dato —en el ejemplo que dio, aparecía literalmente repetida bajo K1 y
+ * bajo el eje de K1, porque los dos vienen de la misma línea del OCR—.
+ */
+test('la revisión (D107): los datos del núcleo se ven en color, igual que a mano, y ya no repite «Leído de»', async () => {
+  test.setTimeout(180_000)
+
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  await p.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <pre>OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+ACD (epi)      3.18 mm
+LT             4.53 mm
+CCT             530 um</pre>
+    </body>`)
+  const rutaPdf = join(carpetaDatos, 'd107-nucleo-en-color.pdf')
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.evaluate(
+    async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'd107-nucleo-en-color.pdf', ruta }]),
+    rutaPdf,
+  )
+  await ventana.getByTestId('paso-REVISION').click()
+
+  // AL es del núcleo (CAMPOS_DESTACADOS) y se ha leído bien: fila «obligatorio».
+  const filaAL = ventana.locator('tr', { has: ventana.getByTestId('campo-AL') })
+  await expect(filaAL).toHaveClass(/obligatorio/)
+
+  // LT no es del núcleo: su fila no lleva esa clase.
+  const filaLT = ventana.locator('tr', { has: ventana.getByTestId('campo-LT') })
+  await expect(filaLT).not.toHaveClass(/obligatorio/)
+
+  // La línea repetida bajo cada dato ya no aparece en ningún sitio.
+  await expect(ventana.getByText('Leído de:', { exact: false })).toHaveCount(0)
+})

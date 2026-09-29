@@ -4,6 +4,42 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.66] — 29/09/2026 (versión visible en pantalla: v1.32)
+
+feat(app): la revisión enseña los datos del núcleo en color y quita la línea repetida de evidencia (D107).
+
+### Qué se pidió
+
+El dueño del proyecto, con capturas de la pantalla real: «cuando se meten a
+mano los datos se ve muy claro porque está en casillas de color los datos
+obligatorios... en cambio al meter los datos a través de una foto todo es
+mucho más lioso»; y, sobre la línea «Leído de: «...»» bajo cada dato, «qué
+necesidad hay de ponerla... es una pérdida de espacio... quita todos los
+subtítulos que no se necesiten».
+
+### El cambio
+
+Los ocho campos del núcleo (`CAMPOS_DESTACADOS`: AL, K1 y su eje, K2 y su
+eje, ACD, objetivo de refracción, SIA) llevan ahora el mismo fondo rojo
+suave que ya tenían en el cuestionario manual — antes solo tenían un texto
+pequeño bajo la etiqueta. La línea de evidencia del OCR bajo cada fila
+desaparece: repetía lo que ya se ve en la columna Valor, y cuando el valor
+y su eje venían de la misma línea del documento (K1 y su eje, por ejemplo)
+salía literalmente duplicada. Se conservan «Leído originalmente: …» y la
+explicación de un dato derivado, que sirven para algo distinto.
+
+### Verificado
+
+- Un test de interfaz de punta a punta: AL (núcleo) sale con la fila
+  coloreada, LT (no núcleo) no; «Leído de:» no aparece en ningún sitio —
+  comprobado primero contra el código sin arreglar (falla) y después
+  contra el arreglado.
+- `pnpm lint && pnpm typecheck && pnpm test` — 877 tests en verde (el
+  único fallo es el previo y ajeno de siempre).
+- `pnpm build && pnpm test:e2e`.
+
+---
+
 ## [1.15.65] — 29/09/2026 (versión visible en pantalla: v1.31)
 
 feat(app): cualquier aparato se puede renombrar, tenga o no otros al lado (D106).

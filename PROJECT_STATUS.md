@@ -9,7 +9,19 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 29/09/2026 (4) · **Cualquier aparato se
+**Última actualización:** 29/09/2026 (5) · **La revisión enseña los
+datos del núcleo en color y quita la línea repetida de evidencia
+(D107).** El dueño comparó la pantalla de revisión (documento cargado)
+con el cuestionario manual: en el manual los datos obligatorios se ven
+claros, en color; en la revisión, no. Los ocho campos del núcleo llevan
+ahora el mismo fondo rojo que ya tenían a mano. También se quitó la
+línea «Leído de: «...»» bajo cada dato — repetía lo que ya se ve en la
+columna Valor, y con K1/K2 y su eje salía literalmente duplicada bajo
+los dos campos. `pnpm lint && pnpm typecheck && pnpm test && pnpm
+build && pnpm test:e2e` en verde (877 tests unitarios; el único fallo
+de la suite es previo y no relacionado; 65/65 de interfaz).
+
+Antes de esto — **29/09/2026 (4): cualquier aparato se
 puede renombrar, tenga o no otros al lado (D106).** El desplegable
 para renombrar un aparato solo existía mientras había uno solo; en
 cuanto se añadía un segundo, ninguna pestaña se podía renombrar, ni

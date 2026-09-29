@@ -348,6 +348,15 @@ table.revision tr.invalid {
 table.revision tr.warning {
   background: var(--ambar-suave);
 }
+/* Mismo fondo que `.campo-manual.obligatorio` en el cuestionario manual —
+   los datos que EVO, Barrett y Kane piden siempre (`CAMPOS_DESTACADOS`) se
+   ven igual de claros vengan de un documento o se escriban a mano (petición
+   expresa del dueño del proyecto, 29/09/2026). Solo se aplica cuando la fila
+   no es ya `invalid`/`warning`: un problema real sigue pesando más que «este
+   es de los importantes». */
+table.revision tr.obligatorio {
+  background: var(--rojo-suave);
+}
 
 /* Bandeja de casos: prioridad por color (petición expresa del dueño,
    16/09/2026) — Baja en verde, Normal en azul, Urgente en rojo, para

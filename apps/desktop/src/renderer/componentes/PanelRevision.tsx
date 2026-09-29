@@ -791,8 +791,26 @@ function FilaCampo({
     await onCambio()
   }
 
+  /**
+   * Los mismos seis-más-dos campos que el cuestionario manual destaca con
+   * fondo rojo (`campo-manual.obligatorio` en estilos.css) — aquí llevaban
+   * solo un texto pequeño bajo la etiqueta (`.exigencia`), sin ningún color
+   * que se viera de un vistazo. Petición expresa del dueño del proyecto
+   * (29/09/2026): «cuando se meten a mano los datos se ve muy claro porque
+   * está en casillas de color... en cambio al meter los datos a través de
+   * una foto todo es mucho más lioso» — las dos pantallas tienen que dar la
+   * misma señal visual, no solo el mismo texto (D65 ya lo pedía para la
+   * estructura; esto lo completa para el color).
+   */
+  const destacado = CAMPOS_DESTACADOS.includes(campo)
   const claseFila =
-    nivel === 'INVALID' ? 'invalid' : nivel === 'WARNING' || porComprobar ? 'warning' : ''
+    nivel === 'INVALID'
+      ? 'invalid'
+      : nivel === 'WARNING' || porComprobar
+        ? 'warning'
+        : destacado
+          ? 'obligatorio'
+          : ''
 
   return (
     <>
@@ -925,17 +943,6 @@ function FilaCampo({
           </td>
         </tr>
       ))}
-      {medida?.procedencia.evidencia && (
-        <tr>
-          <td colSpan={6}>
-            <div className="pie-nota" style={{ marginTop: 0 }}>
-              Leído de: «{medida.procedencia.evidencia.texto}»
-              {medida.procedencia.confianza !== undefined &&
-                ` · fiabilidad ${Math.round(medida.procedencia.confianza * 100)} %`}
-            </div>
-          </td>
-        </tr>
-      )}
     </>
   )
 }
