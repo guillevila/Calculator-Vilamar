@@ -9,7 +9,19 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 24/09/2026 (5) · **La carpeta de entrada
+**Última actualización:** 29/09/2026 · **Botón «Subir documento…» en
+la revisión, para el segundo aparato (D103).** El dueño reportó que,
+con un paciente de dos aparatos, tras subir la foto del primero y
+pulsar «Añadir otro biómetro», no había forma de subir la foto del
+segundo —ese botón solo dejaba escribirlo a mano—. La pantalla que
+sabía subir un documento solo existía en el primer paso del flujo, sin
+ningún camino de vuelta una vez el caso ya tenía datos. Nuevo botón,
+junto a «Añadir otro biómetro», que suma el documento al caso en curso
+sin tocar el primer aparato. `pnpm lint && pnpm typecheck && pnpm test
+&& pnpm build && pnpm test:e2e` en verde (864 tests unitarios; el único
+fallo de la suite es previo y no relacionado; 62/62 de interfaz).
+
+Antes de esto — **24/09/2026 (5): la carpeta de entrada
 admite una carpeta por doctor (D102).** El dueño pidió poder meter fotos
 de varios pacientes de un mismo doctor sin que la app las juntara en un
 solo aviso; había probado a crear subcarpetas de paciente dentro de la

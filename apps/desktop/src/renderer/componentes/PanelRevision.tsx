@@ -68,6 +68,8 @@ interface Props {
   readonly onCambio: () => Promise<void>
   readonly onConfirmar: () => void
   readonly ocupado: boolean
+  /** Sube un documento más al caso en curso, para un aparato nuevo (D103). */
+  readonly onSubirFoto: () => Promise<void>
 }
 
 type Discrepancia = Awaited<ReturnType<ApiVilamar['discrepanciasDe']>>[number]
@@ -149,6 +151,7 @@ export function PanelRevision({
   onCambio,
   onConfirmar,
   ocupado,
+  onSubirFoto,
 }: Props): JSX.Element {
   const ojos = ojosDelCaso(caso)
   const aparatos = aparatosDe(caso, ojoActivo)
@@ -372,6 +375,7 @@ export function PanelRevision({
         aparatoActivo={aparatoActivo}
         onElegir={onCambiarAparato}
         onCambio={onCambio}
+        onSubirFoto={onSubirFoto}
       />
 
       {/*

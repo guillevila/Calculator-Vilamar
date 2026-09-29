@@ -46,12 +46,15 @@ export function SelectorAparato({
   aparatoActivo,
   onElegir,
   onCambio,
+  onSubirFoto,
 }: {
   readonly caso: Caso
   readonly lado: Lateralidad
   readonly aparatoActivo: string
   readonly onElegir: (aparato: string) => void
   readonly onCambio: () => Promise<void>
+  /** Sube un documento más al caso en curso, para un aparato nuevo (D103). */
+  readonly onSubirFoto: () => Promise<void>
 }): JSX.Element {
   const [anadiendo, setAnadiendo] = useState(false)
   const [elegido, setElegido] = useState(APARATOS_CONOCIDOS[0] ?? '')
@@ -141,6 +144,16 @@ export function SelectorAparato({
           data-testid="manual-anadir-aparato"
         >
           + Añadir otro biómetro
+        </button>
+      )}
+      {!anadiendo && (
+        <button
+          type="button"
+          onClick={() => void onSubirFoto()}
+          data-testid="manual-subir-documento"
+          title="Sube una foto o un PDF de otro aparato, sin tocar los datos que ya tienes"
+        >
+          Subir documento…
         </button>
       )}
       {anadiendo && (

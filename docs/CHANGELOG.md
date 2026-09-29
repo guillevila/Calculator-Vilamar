@@ -4,6 +4,45 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.62] — 29/09/2026 (versión visible en pantalla: v1.28)
+
+feat(app): botón «Subir documento…» en la revisión, para el segundo aparato (D103).
+
+### Qué se pidió
+
+El dueño del proyecto: «si escojo un paciente con dos aparatos y subo una
+de las fotos de un aparato y luego le doy a añadir otro aparato no me
+deja subir más fotos».
+
+### El cambio
+
+La única pantalla que sabía subir un documento (`ZonaSoltar`) solo
+existía en el primer paso del flujo, y no había forma de volver a ella
+una vez el caso ya tenía un documento cargado. Así que «Añadir otro
+biómetro», en la pantalla de revisión, solo dejaba escribir el aparato
+nuevo a mano — nunca subirle una foto. Nuevo botón «Subir documento…»
+junto a él, que reutiliza el mismo `cargarDocumentos()` de siempre (ya
+sabía sumar un documento al caso abierto sin pisar el anterior, desde
+D47): solo hacía falta el camino para llegar a él. A propósito, este
+camino nunca pasa por el guardián que crea un caso nuevo (D98): ese
+guardián es para empezar limpio desde la pantalla inicial, y aquí se
+está sumando a un caso en curso adrede.
+
+### Verificado
+
+- Un test de interfaz de punta a punta: dos documentos reales (ANTERION
+  y OCULUS Pentacam, cada uno con su propio PDF sintético) cargados en
+  dos llamadas separadas al mismo caso — las dos pestañas de aparato
+  conviven con sus propios datos, sin que el segundo pise al primero —
+  comprobado primero contra el código sin arreglar (el botón no existe,
+  el test falla) y después contra el arreglado.
+- `pnpm lint && pnpm typecheck && pnpm test` — 864 tests en verde (el
+  único fallo es el de `.claude/hooks/block-subagent-external.test.mjs`,
+  preexistente y ajeno a este cambio).
+- `pnpm build && pnpm test:e2e`.
+
+---
+
 ## [1.15.61] — 24/09/2026 (versión visible en pantalla: v1.27)
 
 feat(app): la carpeta de entrada admite una carpeta por doctor (D102).

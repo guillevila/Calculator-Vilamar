@@ -38,6 +38,8 @@ interface Props {
   readonly caso: Caso
   readonly onCambio: () => Promise<void>
   readonly onContinuar: () => void
+  /** Sube un documento más al caso en curso, para un aparato nuevo (D103). */
+  readonly onSubirFoto: () => Promise<void>
 }
 
 /** Un grupo de campos, en el orden en que se pidieron. */
@@ -135,7 +137,12 @@ const GRUPOS: readonly GrupoDeCampos[] = [
   },
 ]
 
-export function FormularioManual({ caso, onCambio, onContinuar }: Props): JSX.Element {
+export function FormularioManual({
+  caso,
+  onCambio,
+  onContinuar,
+  onSubirFoto,
+}: Props): JSX.Element {
   const [ladoActivo, setLadoActivo] = useState<Lateralidad>('OD')
   // El aparato activo es por ojo: cambiar de OD a OS no tiene por qué
   // conservar el mismo biómetro seleccionado en el otro. Pero mientras el
@@ -227,6 +234,7 @@ export function FormularioManual({ caso, onCambio, onContinuar }: Props): JSX.El
             setAparatoPorOjo((previo) => ({ ...previo, [ladoActivo]: aparato }))
           }
           onCambio={onCambio}
+          onSubirFoto={onSubirFoto}
         />
       </div>
 

@@ -344,6 +344,40 @@ export function App(): JSX.Element {
   }, [aplicarCarga, asegurarCasoNuevoSiHaceFalta])
 
   /**
+   * Sube un documento MÁS al caso que ya está abierto, sin tocar los datos
+   * que ya tuviera (D103, 29/09/2026). A propósito, NUNCA llama a
+   * `asegurarCasoNuevoSiHaceFalta()`: a diferencia de `cargarArchivos`/
+   * `elegirYcargar` —pensadas para EMPEZAR, desde la pantalla inicial—,
+   * aquí se está trabajando un caso en curso adrede, y `cargarDocumentos()`
+   * en el proceso principal ya sabe sumar el documento nuevo al caso que
+   * tenga abierto (D47) sin pisar nada.
+   *
+   * Antes de esto no había ningún camino de vuelta a «Elegir archivo» una
+   * vez pasada la pantalla inicial: pulsar «+ Añadir otro biómetro» en la
+   * revisión solo dejaba escribir ese aparato a mano. Fallo real reportado
+   * por el dueño del proyecto (29/09/2026): con un paciente de dos
+   * aparatos, tras subir la foto del primero y pulsar «Añadir otro
+   * biómetro», no había forma de subir la foto del segundo.
+   */
+  const subirMasDocumentos = useCallback(async () => {
+    setError(null)
+    setOcupado(true)
+    try {
+      const r = await api().elegirYCargarDocumentos()
+      if (r) {
+        setCaso(r.caso)
+        setResumenes((previos) => [...previos, ...r.resumenes])
+        await refrescarAvisos()
+        setPaso('REVISION')
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setOcupado(false)
+    }
+  }, [refrescarAvisos])
+
+  /**
    * Empezar sin documento: todo a mano. Es un caso de uso legítimo.
    *
    * Va al cuestionario simplificado (`FormularioManual`, paso `MANUAL`), no
@@ -586,6 +620,7 @@ export function App(): JSX.Element {
                     void refrescarAvisos()
                     setPaso('REVISION')
                   }}
+                  onSubirFoto={subirMasDocumentos}
                 />
               )}
 
@@ -616,6 +651,7 @@ export function App(): JSX.Element {
                     }}
                     onConfirmar={() => void confirmar()}
                     ocupado={ocupado}
+                    onSubirFoto={subirMasDocumentos}
                   />
                 </>
               )}

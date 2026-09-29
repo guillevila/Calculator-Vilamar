@@ -1312,6 +1312,92 @@ ACD (epi)      3.10 mm</pre>
 })
 
 /**
+ * Fallo real reportado por el dueño del proyecto (29/09/2026): con un
+ * paciente de dos aparatos, tras subir la foto del primero y pulsar
+ * «Añadir otro biómetro» en la revisión, no había ninguna forma de subir
+ * la foto del segundo — ese botón solo dejaba escribirlo a mano. Antes de
+ * D103, la única pantalla que sabía subir un documento (`ZonaSoltar`) solo
+ * existía en el primer paso, al que además no había forma de volver una
+ * vez el caso tenía un documento cargado.
+ *
+ * El diálogo nativo de «Elegir archivo» no se puede pilotar desde aquí, así
+ * que esta prueba comprueba lo mismo que comprobaría tras elegir el
+ * fichero en ese diálogo: que un segundo documento, cargado por el mismo
+ * canal (`cargarDocumentos`) que usa el botón nuevo, se SUMA al caso que ya
+ * está en revisión —sin pisar el primer aparato— y que el botón que antes
+ * no existía («Subir documento…») está ahí para llegar a él.
+ */
+test('«Subir documento…» en la revisión añade un segundo aparato al caso en curso, sin perder el primero (D103)', async () => {
+  test.setTimeout(180_000)
+
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+
+  const p1 = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  await p1.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <pre>OD
+AL            23.90 mm
+K1            41.00 D @ 10
+K2            42.50 D @ 100
+ACD (epi)      3.10 mm</pre>
+    </body>`)
+  const rutaAnterion = join(carpetaDatos, 'd103-primer-aparato.pdf')
+  await p1.pdf({ path: rutaAnterion, format: 'A4', printBackground: true })
+  await p1.close()
+
+  const p2 = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  await p2.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>OCULUS PENTACAM</h1>
+    <pre>OD
+AL            24.30 mm
+K1            41.80 D @ 5
+K2            43.10 D @ 95
+ACD (epi)      3.05 mm</pre>
+    </body>`)
+  const rutaPentacam = join(carpetaDatos, 'd103-segundo-aparato.pdf')
+  await p2.pdf({ path: rutaPentacam, format: 'A4', printBackground: true })
+  await p2.close()
+  await nav.close()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+
+  // Primer aparato — mismo canal que usa la app al arrastrar un fichero.
+  await ventana.evaluate(
+    async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'd103-primer-aparato.pdf', ruta }]),
+    rutaAnterion,
+  )
+  await ventana.getByTestId('paso-REVISION').click()
+
+  const aparatoOriginal = (await ventana.evaluate(() => window.vilamar?.casoActual()))?.ojos?.OD
+    ?.[0]?.aparato
+  expect(aparatoOriginal, 'el primer documento no ha creado ningún dataset para OD').toBeTruthy()
+
+  // El botón que antes no existía: antes de D103 no había ninguna forma de
+  // subir una foto más una vez pasada la pantalla inicial.
+  await expect(ventana.getByTestId('manual-subir-documento')).toBeVisible()
+
+  // Segundo aparato — mismo canal que usaría el diálogo real tras elegir el
+  // fichero; lo que se comprueba es que se suma al caso EN CURSO en vez de
+  // reemplazarlo, que es justo lo que hacía falta y no había manera de
+  // disparar desde la pantalla de revisión.
+  await ventana.evaluate(
+    async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'd103-segundo-aparato.pdf', ruta }]),
+    rutaPentacam,
+  )
+
+  // Los dos aparatos conviven —ahora sí hay pestañas— y ninguno pisa al otro.
+  await expect(ventana.getByTestId(`manual-aparato-${aparatoOriginal}`)).toBeVisible()
+  await expect(ventana.getByTestId('manual-aparato-OCULUS Pentacam')).toBeVisible()
+
+  await ventana.getByTestId(`manual-aparato-${aparatoOriginal}`).click()
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('23.9')
+
+  await ventana.getByTestId('manual-aparato-OCULUS Pentacam').click()
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('24.3')
+})
+
+/**
  * Pregunta expresa del dueño del proyecto (06/09/2026): ¿el nombre del
  * paciente y del doctor funcionan igual entrando por «cargar un documento»
  * que por «escribir a mano»? Las dos vías aterrizan en la MISMA
