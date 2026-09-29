@@ -43,6 +43,13 @@ export interface OpcionesInforme {
    * Sin especificarlo, se recopilan todos los ojos del caso, como antes.
    */
   readonly soloOjo?: Lateralidad
+  /**
+   * Si la estimación propia (D43) se enseña bajo cada captura y en su
+   * propio cuadro de tarjetas, o solo en la tabla comparativa detallada del
+   * final (D105, 29/09/2026). `true` por defecto: cualquier llamada antigua
+   * que no lo especifique ve el informe exactamente como antes de D105.
+   */
+  readonly incluirEstimacionCompleta?: boolean
 }
 
 /**
@@ -100,5 +107,6 @@ export function recopilarInforme(caso: Caso, opciones: OpcionesInforme): DatosIn
     avisos,
     ausenciasRelevantes,
     resultados: opciones.resultados ?? [],
+    incluirEstimacionCompleta: opciones.incluirEstimacionCompleta ?? true,
   }
 }

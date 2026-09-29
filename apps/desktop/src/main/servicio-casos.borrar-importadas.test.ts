@@ -126,7 +126,7 @@ describe('generarPdf — borra de «Importadas» la foto ya archivada en «Datos
     })
     await servicio.cargarDocumentos([{ nombre: 'foto.jpg', ruta: rutaFoto }])
 
-    await servicio.generarPdf()
+    await servicio.generarPdf(true)
 
     expect(existsSync(rutaFoto), 'la foto sigue en Importadas tras calcular').toBe(false)
     const datosPrevios = join(
@@ -156,7 +156,7 @@ describe('generarPdf — borra de «Importadas» la foto ya archivada en «Datos
     })
     await servicio.cargarDocumentos([{ nombre: 'foto-elegida-a-mano.jpg', ruta: rutaFoto }])
 
-    await servicio.generarPdf()
+    await servicio.generarPdf(true)
 
     expect(existsSync(rutaFoto), 'un fichero fuera de Importadas no debe borrarse nunca').toBe(true)
   })
@@ -185,7 +185,7 @@ describe('generarPdf — borra de «Importadas» la foto ya archivada en «Datos
       { nombre: 'foto2.jpg', ruta: foto2 },
     ])
 
-    await servicio.generarPdf()
+    await servicio.generarPdf(true)
 
     expect(existsSync(foto1)).toBe(false)
     expect(existsSync(foto2)).toBe(false)

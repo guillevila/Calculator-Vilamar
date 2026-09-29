@@ -9,7 +9,47 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 29/09/2026 · **Botón «Subir documento…» en
+**Última actualización:** 29/09/2026 (4) · **Cualquier aparato se
+puede renombrar, tenga o no otros al lado (D106).** El desplegable
+para renombrar un aparato solo existía mientras había uno solo; en
+cuanto se añadía un segundo, ninguna pestaña se podía renombrar, ni
+para corregir un nombre que el reconocimiento automático hubiera
+puesto mal. Nuevo botón «✎» junto a cada pestaña, con el mismo editor
+de siempre; si el nombre choca con el de otro aparato del mismo ojo,
+se avisa junto al editor, que se queda abierto para corregirlo, sin
+perder ningún dato. `pnpm lint && pnpm typecheck && pnpm test && pnpm
+build && pnpm test:e2e` en verde (877 tests unitarios; el único fallo
+de la suite es previo y no relacionado; 64/64 de interfaz).
+
+Antes de esto — **29/09/2026 (3): la estimación propia
+(D43) se reduce a la tabla final, con un interruptor para recuperar el
+resto (D105).** El dueño pidió quitar la estimación de debajo de cada
+captura y del cuadro de tarjetas, manteniendo siempre la tabla
+comparativa detallada del final con el mismo criterio — y, en vez de
+borrar el código, una casilla nueva en la pantalla de resultados
+(«Incluir la estimación propia bajo cada captura y en un cuadro de
+tarjetas», apagada por defecto) para recuperar las dos cosas cuando
+haga falta. La tabla final explica ahora, arriba del todo, el criterio
+exacto con el que se elige cada lente. `pnpm lint && pnpm typecheck &&
+pnpm test && pnpm build && pnpm test:e2e` en verde (877 tests
+unitarios; el único fallo de la suite es previo y no relacionado;
+63/63 de interfaz).
+
+Antes de esto — **29/09/2026 (2): la carpeta de entrada
+reconoce al doctor también DENTRO de Alta/Normal/Baja (D104).** El
+dueño reportó, con capturas de su OneDrive real, que dos pacientes del
+mismo doctor —cada uno en su propia subcarpeta dentro de
+`Alta/dra sagrario/`— no se reconocían. D102 solo esperaba la carpeta
+del doctor FUERA de Alta/Normal/Baja; en la práctica el dueño organiza
+al revés (prioridad fuera, doctor dentro), y esa combinación no
+generaba ningún aviso. Corregido: `candidatosDe()` ahora mira un nivel
+más adentro cuando una subcarpeta de una prioridad no tiene fotos
+sueltas, por si es la de un doctor con pacientes dentro. `pnpm lint &&
+pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e` en verde
+(869 tests unitarios; el único fallo de la suite es previo y no
+relacionado; 62/62 de interfaz).
+
+Antes de esto — **29/09/2026 (1): botón «Subir documento…» en
 la revisión, para el segundo aparato (D103).** El dueño reportó que,
 con un paciente de dos aparatos, tras subir la foto del primero y
 pulsar «Añadir otro biómetro», no había forma de subir la foto del

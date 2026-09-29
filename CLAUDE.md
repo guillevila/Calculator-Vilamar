@@ -32,7 +32,9 @@ Está en la constitución, pero se repite aquí porque es lo que define el produ
 - **No acepta términos ni rodea protecciones** en nombre del usuario.
 - **Compara, pero no recomienda.** No dice qué lente implantar. **Única
   excepción, estrecha y siempre marcada como «no vinculante»**: una
-  estimación propia, con un criterio clínico fijo y explícito, bajo cada
-  captura de pantalla y en un cuadro final opcional (D43, ver
-  `SYSTEM_VISION.md`) — pedida expresamente por el dueño del proyecto
-  después de que se le avisara de que es justo lo que esta regla evita.
+  estimación propia, con un criterio clínico fijo y explícito, siempre en
+  la tabla comparativa detallada del informe —y, si se marca la casilla
+  antes de generar el PDF, también bajo cada captura de pantalla y en un
+  cuadro de tarjetas (D43/D105, ver `SYSTEM_VISION.md`) — pedida
+  expresamente por el dueño del proyecto después de que se le avisara de
+  que es justo lo que esta regla evita.

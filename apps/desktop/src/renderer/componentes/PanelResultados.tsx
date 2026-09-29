@@ -445,6 +445,11 @@ export function PanelResultados({
   const [rutas, setRutas] = useState<readonly { ojo: Lateralidad; ruta: string }[]>([])
   const [generando, setGenerando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Apagado por defecto (D105, 29/09/2026): petición expresa del dueño del
+  // proyecto para dejar de enseñar la estimación propia (D43) bajo cada
+  // captura y en su cuadro de tarjetas — la tabla comparativa detallada del
+  // final la sigue llevando siempre, pase lo que pase con esta casilla.
+  const [incluirEstimacionCompleta, setIncluirEstimacionCompleta] = useState(false)
 
   // Las cinco casillas de siempre (D45/D48): Predicted y Measured PCA de EVO
   // y de Barrett, más Kane — la que no se haya pedido para este ojo y
@@ -464,7 +469,7 @@ export function PanelResultados({
     setGenerando(true)
     setError(null)
     try {
-      const r = await api().generarPdf()
+      const r = await api().generarPdf(incluirEstimacionCompleta)
       setRutas(r.rutas)
     } catch (e) {
       setError(
@@ -685,6 +690,21 @@ export function PanelResultados({
             ))}
           </div>
         )}
+        <label className="fila" style={{ gap: 8, alignItems: 'center', marginBottom: 12 }}>
+          <input
+            type="checkbox"
+            checked={incluirEstimacionCompleta}
+            onChange={(e) => setIncluirEstimacionCompleta(e.target.checked)}
+            data-testid="incluir-estimacion-completa"
+          />
+          <span>
+            Incluir la estimación propia bajo cada captura y en un cuadro de tarjetas
+            <span className="pie-nota" style={{ display: 'block' }}>
+              La tabla comparativa detallada del final, con el mismo criterio, se enseña siempre —
+              esta casilla solo añade las otras dos.
+            </span>
+          </span>
+        </label>
         <div className="fila derecha">
           {rutas.length > 0 && (
             <button onClick={() => void api().abrirCarpetaInformes()}>Abrir la carpeta</button>

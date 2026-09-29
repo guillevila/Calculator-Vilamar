@@ -412,7 +412,11 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
         { calculadora: 'BARRETT_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
         { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 23.0 } },
       ])
-      const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))
+      // Hasta el CIERRE de esta hoja, no hasta el `<footer>` legal del final
+      // del documento (D105, 29/09/2026): la tabla comparativa detallada,
+      // que viene justo después, sí explica el criterio con «más cercana».
+      const inicio = h.indexOf('Comparación orientativa')
+      const cuadro = h.slice(inicio, h.indexOf('<section class="hoja">', inicio + 1))
       expect(cuadro.toLowerCase()).not.toContain('más cercana')
       expect(cuadro.toLowerCase()).not.toContain('más adecuada')
     })
@@ -531,6 +535,109 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
       const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))
       expect(cuadro).toContain('EVO Toric (IOLMaster 700)')
       expect(cuadro).toContain('EVO Toric (ANTERION)')
+    })
+  })
+
+  describe('D105 (29/09/2026): el interruptor «incluirEstimacionCompleta»', () => {
+    function htmlConInterruptor(
+      resultados: readonly (Omit<ResultadoInforme, 'aparato'> & { readonly aparato?: string })[],
+      opciones: { readonly incluirEstimacionCompleta: boolean; readonly modeloLente?: string },
+    ): string {
+      const caso = confirmar(
+        conOjo(
+          {
+            ...casoNuevo('c1', 'CV-2026-0042', CUANDO),
+            ...(opciones.modeloLente ? { lente: { modelo: opciones.modeloLente } } : {}),
+          },
+          confirmarTodas(ojoVacio('OD')),
+          CUANDO,
+        ),
+        CUANDO,
+      )
+      const conAparato = resultados.map((r) => ({ ...r, aparato: r.aparato ?? APARATO_PRINCIPAL }))
+      return generarHtmlInforme(
+        recopilarInforme(caso, {
+          version: '0.1.0',
+          generadoEn: CUANDO,
+          resultados: conAparato,
+          incluirEstimacionCompleta: opciones.incluirEstimacionCompleta,
+        }),
+      )
+    }
+
+    const DOS_ESTIMACIONES: readonly (Omit<ResultadoInforme, 'aparato'> & {
+      readonly aparato?: string
+    })[] = [
+      {
+        calculadora: 'EVO_TORIC',
+        ojo: 'OD',
+        dataUri: 'data:image/png;base64,QUFB',
+        recomendada: { esfera: 21.5, cilindro: 1, ejeResidual: 81 },
+      },
+      { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 22.0 } },
+    ]
+
+    it('con el interruptor apagado, no hay estimación debajo de la captura ni cuadro de tarjetas', () => {
+      const h = htmlConInterruptor(DOS_ESTIMACIONES, { incluirEstimacionCompleta: false })
+      expect(h).toContain('<img src="data:image/png;base64,QUFB"')
+      expect(h).not.toContain('Estimación del Resumen de calculadores')
+      expect(h).not.toContain('Comparación orientativa')
+    })
+
+    it('con el interruptor encendido, se comporta exactamente como antes de D105: las dos cosas aparecen', () => {
+      const h = htmlConInterruptor(DOS_ESTIMACIONES, { incluirEstimacionCompleta: true })
+      expect(h).toContain('Estimación del Resumen de calculadores')
+      expect(h).toContain('Comparación orientativa')
+    })
+
+    it('con el interruptor apagado, la tabla comparativa detallada del final SIGUE saliendo, con la misma lente', () => {
+      const h = htmlConInterruptor(DOS_ESTIMACIONES, { incluirEstimacionCompleta: false })
+      expect(h).toContain('Tabla comparativa detallada')
+      const tabla = h.slice(
+        h.indexOf('Tabla comparativa detallada'),
+        h.indexOf('</table>', h.indexOf('Tabla comparativa detallada')),
+      )
+      expect(tabla).toContain('21.50 D')
+      expect(tabla).toContain('22.00 D')
+    })
+
+    it('la tabla comparativa detallada explica el criterio fijo arriba, con «primera negativa» para la mayoría de lentes', () => {
+      const h = htmlConInterruptor(DOS_ESTIMACIONES, { incluirEstimacionCompleta: false })
+      const tabla = h.slice(
+        h.indexOf('Tabla comparativa detallada'),
+        h.indexOf('<table', h.indexOf('Tabla comparativa detallada')),
+      )
+      expect(tabla).toContain('refracción prevista negativa')
+      expect(tabla).not.toContain('refracción prevista positiva')
+    })
+
+    it('con una lente de la familia Lux (D52), el criterio explicado es «primera positiva»', () => {
+      const h = htmlConInterruptor(DOS_ESTIMACIONES, {
+        incluirEstimacionCompleta: false,
+        modeloLente: 'B&L LuxSmart',
+      })
+      const tabla = h.slice(
+        h.indexOf('Tabla comparativa detallada'),
+        h.indexOf('<table', h.indexOf('Tabla comparativa detallada')),
+      )
+      expect(tabla).toContain('refracción prevista positiva')
+      expect(tabla).not.toContain('refracción prevista negativa')
+    })
+
+    it('sin especificar el interruptor, `recopilarInforme` sigue viendo el informe completo de siempre', () => {
+      const caso = confirmar(
+        conOjo(casoNuevo('c1', 'CV-2026-0042', CUANDO), confirmarTodas(ojoVacio('OD')), CUANDO),
+        CUANDO,
+      )
+      const h = generarHtmlInforme(
+        recopilarInforme(caso, {
+          version: '0.1.0',
+          generadoEn: CUANDO,
+          resultados: DOS_ESTIMACIONES.map((r) => ({ ...r, aparato: APARATO_PRINCIPAL })),
+        }),
+      )
+      expect(h).toContain('Estimación del Resumen de calculadores')
+      expect(h).toContain('Comparación orientativa')
     })
   })
 
@@ -751,6 +858,7 @@ describe('el origen de cada dato en el PDF', () => {
       avisos: [],
       ausenciasRelevantes: [],
       resultados: [],
+      incluirEstimacionCompleta: true,
     })
   }
 

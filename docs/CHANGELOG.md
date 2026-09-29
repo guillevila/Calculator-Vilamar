@@ -4,6 +4,127 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.65] — 29/09/2026 (versión visible en pantalla: v1.31)
+
+feat(app): cualquier aparato se puede renombrar, tenga o no otros al lado (D106).
+
+### Qué se pidió
+
+El dueño del proyecto: «hay que añadir el poder editar el nombre del
+aparato con que se mide siempre a pesar de que automáticamente coja los
+datos de la foto... que se pueda cambiar y editar por si se equivoca o se
+quiere añadir».
+
+### El cambio
+
+El desplegable para renombrar un aparato solo existía con UNO —el caso de
+«Principal»—; en cuanto había dos o más y aparecían las pestañas, ninguna
+se podía renombrar, ni para corregir un nombre que el reconocimiento
+automático hubiera puesto mal. Nuevo botón «✎» junto a cada pestaña, que
+abre el mismo editor de siempre (aparatos conocidos + «Otro» con texto
+libre). El mecanismo de renombrar ya existía desde D47/D88 — solo le
+faltaba un botón que lo alcanzara con dos aparatos o más. Si el nombre
+nuevo choca con el de otro aparato del mismo ojo, se rechaza y el aviso se
+enseña junto al propio editor, que se queda abierto para corregirlo, sin
+perder ningún dato.
+
+### Verificado
+
+- Un test de interfaz de punta a punta: con dos aparatos, se renombra uno
+  sin perder su dato; intentar el nombre del otro se rechaza con aviso
+  visible y el dato sigue intacto — comprobado primero contra el código
+  sin arreglar (no hay ningún botón, el test falla) y después contra el
+  arreglado.
+- `pnpm lint && pnpm typecheck && pnpm test` — 877 tests en verde (el
+  único fallo es el previo y ajeno de siempre).
+- `pnpm build && pnpm test:e2e`.
+
+---
+
+## [1.15.64] — 29/09/2026 (versión visible en pantalla: v1.30)
+
+feat(app,report): la estimación propia (D43) se reduce a la tabla final, con un interruptor para recuperar el resto (D105).
+
+### Qué se pidió
+
+El dueño del proyecto: quitar la estimación propia de debajo de cada
+captura y del cuadro de tarjetas, pero mantener siempre la tabla
+comparativa detallada del final, con el mismo criterio de siempre —y, en
+vez de borrar el código sin más, un interruptor antes de generar el PDF
+para poder recuperarlo cuando haga falta.
+
+### El cambio
+
+`DatosInforme` gana `incluirEstimacionCompleta: boolean` — `true` por
+defecto en `recopilarInforme()`, para que cualquier llamada antigua siga
+viendo el informe completo de siempre. Con él en `false` (el nuevo valor
+por defecto de la casilla en pantalla): la línea «Estimación del Resumen
+de calculadores» desaparece de debajo de cada captura, y el cuadro de
+tarjetas («Comparación orientativa») no se genera. La tabla comparativa
+detallada del final NUNCA depende de este interruptor: la sigue llevando
+siempre, con el mismo criterio — y ahora explica, arriba del todo, en qué
+consiste ese criterio: «la primera esfera con refracción prevista
+negativa, la más cercana a cero» para la mayoría de lentes, o «…positiva…»
+para la familia Lux (D52).
+
+Nueva casilla «Incluir la estimación propia bajo cada captura y en un
+cuadro de tarjetas» en la pantalla de resultados, apagada por defecto,
+justo antes del botón «Generar PDF» — se elige cada vez, PDF a PDF.
+
+### Verificado
+
+- Seis tests nuevos en `plantilla.test.ts`: con el interruptor apagado, ni
+  la línea ni el cuadro aparecen, pero la tabla final sí, con la misma
+  lente; con el criterio explicado correctamente según la familia de la
+  lente (negativa/positiva); con el interruptor encendido, se comporta
+  exactamente como antes de D105; sin especificarlo, `recopilarInforme`
+  sigue viendo el informe completo de siempre.
+- Dos tests nuevos en `servicio-casos.generar-pdf.test.ts`, de punta a
+  punta con el HTML real que genera el proceso principal.
+- Un test de interfaz que comprueba que la casilla existe, empieza apagada
+  y se puede marcar.
+- Todos comprobados primero contra el código sin arreglar (fallan) y
+  después contra el arreglado.
+- `pnpm lint && pnpm typecheck && pnpm test` — 877 tests en verde (el
+  único fallo es el previo y ajeno de siempre).
+- `pnpm build && pnpm test:e2e`.
+
+---
+
+## [1.15.63] — 29/09/2026 (versión visible en pantalla: v1.29)
+
+fix(app): la carpeta de entrada reconoce al doctor también DENTRO de Alta/Normal/Baja (D104).
+
+### Qué se pidió
+
+El dueño del proyecto, con capturas de su OneDrive real: dos pacientes
+del mismo doctor, cada uno en su propia subcarpeta dentro de
+`IOL ENTRADA/Alta/dra sagrario/`, no se reconocían — «no me los
+reconoce».
+
+### El cambio
+
+D102 esperaba la carpeta del doctor FUERA de Alta/Normal/Baja, con la
+prioridad dentro. En la práctica, el dueño organiza al revés: la
+prioridad fuera (como ya hacía desde D84), el doctor dentro de ella.
+`candidatosDe()` —la función que ya mira cada Alta/Normal/Baja— antes
+daba una subcarpeta por vacía en cuanto no tenía fotos sueltas
+directamente dentro, sin mirar más adentro; ahora, en ese caso,
+comprueba si a su vez tiene subcarpetas de paciente, y si las tiene, su
+propio nombre pasa a ser el delegado de cada una.
+
+### Verificado
+
+- Cinco tests nuevos en `servicio-bandeja.carpeta-entrada.test.ts`,
+  reproduciendo la estructura exacta reportada — comprobado primero
+  contra el código sin arreglar (tres de los cinco fallan, con cero
+  avisos, igual que reportó el dueño) y después contra el arreglado.
+- `pnpm lint && pnpm typecheck && pnpm test` — 869 tests en verde (el
+  único fallo es el previo y ajeno de siempre).
+- `pnpm build && pnpm test:e2e`.
+
+---
+
 ## [1.15.62] — 29/09/2026 (versión visible en pantalla: v1.28)
 
 feat(app): botón «Subir documento…» en la revisión, para el segundo aparato (D103).

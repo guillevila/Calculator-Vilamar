@@ -98,7 +98,8 @@ const api: ApiVilamar = {
   reintentar: (calculadora, ojo) => ipcRenderer.invoke(CANALES.reintentar, calculadora, ojo),
   cancelarCalculo: () => ipcRenderer.invoke(CANALES.cancelarCalculo),
 
-  generarPdf: () => ipcRenderer.invoke(CANALES.generarPdf),
+  generarPdf: (incluirEstimacionCompleta) =>
+    ipcRenderer.invoke(CANALES.generarPdf, incluirEstimacionCompleta),
   abrirCarpetaInformes: () => ipcRenderer.invoke(CANALES.abrirCarpetaInformes),
 
   alProgresar: (escucha) => {

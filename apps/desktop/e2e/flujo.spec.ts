@@ -804,7 +804,7 @@ test('el PDF se guarda en una carpeta por doctor y, dentro, una por paciente (D8
 
   // No hace falta ningún cálculo real para generar el PDF: el informe dice
   // «no calculado» donde no haya resultado, y eso no es lo que se prueba aquí.
-  const resultado = await ventana.evaluate(() => window.vilamar?.generarPdf())
+  const resultado = await ventana.evaluate(() => window.vilamar?.generarPdf(true))
   const ruta = resultado?.rutas[0]?.ruta ?? ''
   expect(ruta, 'no ha generado ningún PDF').not.toBe('')
 
@@ -835,7 +835,7 @@ test('el PDF se guarda en «Sin doctor» cuando el caso no tiene ninguno asignad
   await ventana.getByTestId('manual-campo-AL').fill('24.00')
   await ventana.getByTestId('manual-campo-AL').press('Tab')
 
-  const resultado = await ventana.evaluate(() => window.vilamar?.generarPdf())
+  const resultado = await ventana.evaluate(() => window.vilamar?.generarPdf(true))
   const ruta = resultado?.rutas[0]?.ruta ?? ''
   expect(ruta, 'no ha generado ningún PDF').not.toBe('')
   expect(ruta).toContain(join('Sin doctor', 'Calculados', 'Paciente Sin Doctor E2E'))
@@ -1446,7 +1446,7 @@ ACD (epi)      3.18 mm</pre></body>`)
 
   // Y llega hasta el PDF de verdad, en la carpeta con su nombre — igual
   // que por la vía manual (ver la prueba de la carpeta por paciente).
-  const resultado = await ventana.evaluate(() => window.vilamar?.generarPdf())
+  const resultado = await ventana.evaluate(() => window.vilamar?.generarPdf(true))
   const ruta = resultado?.rutas[0]?.ruta ?? ''
   expect(ruta).toContain(join('Paciente Del Documento', 'Ojo derecho (OD)'))
   expect(statSync(ruta).size).toBeGreaterThan(0)
@@ -2204,4 +2204,106 @@ test('excluir un aparato (D100): desaparece del resumen antes de calcular, y se 
   await expect(ventana.getByTestId('manual-aparato-OCULUS Pentacam')).not.toContainText('excluido')
   await ventana.getByTestId('confirmar').click()
   await expect(ventana.getByTestId('resumen-parametros')).toContainText('OCULUS Pentacam')
+})
+
+/**
+ * Petición expresa del dueño del proyecto (29/09/2026): poder elegir, antes
+ * de cada PDF, si se incluye la estimación propia (D43) bajo cada captura y
+ * en su cuadro de tarjetas — apagado por defecto (D105). Lo que de verdad
+ * cambia en el HTML según esta casilla ya está probado a fondo, con el
+ * proceso principal real, en `servicio-casos.generar-pdf.test.ts`; esta
+ * prueba comprueba solo lo que le toca a la interfaz: que la casilla existe
+ * en la pantalla de resultados, que empieza apagada, y que se puede marcar.
+ *
+ * Se llega a la pantalla de resultados con un caso «terminado» escrito
+ * directamente en disco —mismo atajo que ya usa esta suite en D85/D93, para
+ * no depender de una calculadora real— y reabierto desde «Casos guardados».
+ */
+test('el PDF (D105): la casilla de la estimación completa existe, empieza apagada y se puede marcar', async () => {
+  const codigo = 'CV-TEST-ESTIMACION-COMPLETA'
+  const rutaCaso = join(carpetaDatos, 'casos', `${codigo}.json`)
+  writeFileSync(
+    rutaCaso,
+    JSON.stringify({
+      id: 'test-estimacion-completa',
+      codigo,
+      estado: 'COMPLETADO',
+      creadoEn: '2026-09-29T10:00:00.000Z',
+      actualizadoEn: '2026-09-29T10:00:00.000Z',
+      documentos: [],
+      ojos: {},
+      resultados: {},
+      nombreCirujano: 'Dra. Estimación E2E',
+    }),
+    'utf8',
+  )
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('tarjeta-casos-guardados').getByRole('button').click()
+  await expect(ventana.getByTestId('tabla-casos-guardados')).toBeVisible()
+  const fila = ventana.locator('tr', { hasText: codigo })
+  await fila.getByRole('button', { name: 'Abrir' }).click()
+
+  const casilla = ventana.getByTestId('incluir-estimacion-completa')
+  await expect(casilla).toBeVisible()
+  await expect(casilla).not.toBeChecked()
+
+  await casilla.check()
+  await expect(casilla).toBeChecked()
+})
+
+/**
+ * Petición expresa del dueño del proyecto (29/09/2026): «hay que añadir el
+ * poder editar el nombre del aparato con que se mide siempre a pesar de que
+ * automáticamente coja los datos de la foto... que se pueda cambiar y
+ * editar por si se equivoca». Antes de D106, renombrar un aparato solo era
+ * posible con UN aparato (el desplegable de «Principal»); en cuanto había
+ * dos o más, las pestañas no tenían ninguna forma de cambiarles el nombre
+ * — ni siquiera para corregir uno que el reconocimiento automático hubiera
+ * puesto mal.
+ */
+test('renombrar un aparato (D106): con dos o más, cada pestaña se puede corregir, y un choque de nombres avisa sin perder nada', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  await ventana.getByTestId('manual-campo-AL').fill('24.07')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  // Segundo aparato, con un dato propio para comprobar que no se pierde al renombrar.
+  await ventana.getByTestId('manual-anadir-aparato').click()
+  await ventana.getByTestId('manual-anadir-aparato-select').selectOption('OCULUS Pentacam')
+  await ventana.getByTestId('manual-anadir-aparato-confirmar').click()
+  await ventana.getByTestId('manual-campo-AL').fill('23.90')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  // Ahora hay dos pestañas — antes de D106, ninguna se podía renombrar.
+  await expect(ventana.getByTestId('renombrar-aparato-OCULUS Pentacam')).toBeVisible()
+
+  await ventana.getByTestId('renombrar-aparato-OCULUS Pentacam').click()
+  await ventana.getByTestId('renombrar-aparato-OCULUS Pentacam-select').selectOption('Otro')
+  await ventana
+    .getByTestId('renombrar-aparato-OCULUS Pentacam-nombre')
+    .fill('Pentacam de la clínica')
+  await ventana.getByTestId('renombrar-aparato-OCULUS Pentacam-nombre').press('Enter')
+
+  // La pestaña vieja desaparece, la nueva la sustituye, y el dato sigue ahí.
+  await expect(ventana.getByTestId('manual-aparato-OCULUS Pentacam')).toHaveCount(0)
+  await expect(ventana.getByTestId('manual-aparato-Pentacam de la clínica')).toBeVisible()
+  await ventana.getByTestId('manual-aparato-Pentacam de la clínica').click()
+  await expect(ventana.getByTestId('manual-campo-AL')).toHaveValue('23.9')
+
+  // Intentar renombrarlo al nombre que YA usa el otro aparato del mismo ojo
+  // se rechaza —invariante 12, D47— y se avisa, sin perder el dato.
+  await ventana.getByTestId('renombrar-aparato-Pentacam de la clínica').click()
+  await ventana.getByTestId('renombrar-aparato-Pentacam de la clínica-select').selectOption('Otro')
+  await ventana.getByTestId('renombrar-aparato-Pentacam de la clínica-nombre').fill('Principal')
+  await ventana.getByTestId('renombrar-aparato-Pentacam de la clínica-nombre').press('Enter')
+
+  // El editor se queda abierto con el aviso —para poder corregir el nombre
+  // sin volver a pulsar «✎»—, y el aparato NO se ha tocado.
+  await expect(ventana.getByTestId('error-renombrar-aparato')).toBeVisible()
+  await ventana.getByTestId('renombrar-aparato-Pentacam de la clínica-cancelar').click()
+  await expect(ventana.getByTestId('manual-aparato-Pentacam de la clínica')).toBeVisible()
+  await ventana.getByTestId('manual-aparato-Pentacam de la clínica').click()
+  await expect(ventana.getByTestId('manual-campo-AL')).toHaveValue('23.9')
 })

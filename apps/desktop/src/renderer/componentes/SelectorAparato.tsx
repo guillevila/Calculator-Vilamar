@@ -78,6 +78,35 @@ export function SelectorAparato({
   }
 
   /**
+   * Renombrar CUALQUIER aparato de la pestaña, no solo el único que hay
+   * antes de añadir un segundo (D106, 29/09/2026): el nombre lo pone el
+   * reconocimiento automático del documento, y el dueño necesita poder
+   * corregirlo si se ha equivocado, o simplemente ponerle el nombre real
+   * en vez de «Otro»/«Otro (2)». `conAparatoRenombrado` (dominio) ya
+   * rechaza chocar con el nombre de otro aparato del mismo ojo — ese
+   * rechazo se enseña aquí mismo, junto al editor, en vez de perderse.
+   */
+  const [renombrandoAparato, setRenombrandoAparato] = useState<string | null>(null)
+  const [errorRenombre, setErrorRenombre] = useState<string | null>(null)
+
+  async function renombrarCualquiera(aparatoViejo: string, nombreNuevo: string): Promise<void> {
+    const limpio = nombreNuevo.trim()
+    if (limpio === '' || limpio === aparatoViejo) {
+      setRenombrandoAparato(null)
+      return
+    }
+    try {
+      await api().renombrarAparato(lado, aparatoViejo, limpio)
+      if (aparatoViejo === aparatoActivo) onElegir(limpio)
+      setRenombrandoAparato(null)
+      setErrorRenombre(null)
+      await onCambio()
+    } catch (e) {
+      setErrorRenombre(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  /**
    * Deja este aparato fuera del cálculo y del informe, o lo vuelve a
    * incluir (D100, 24/09/2026) — sin borrar ningún dato. Solo tiene
    * sentido con dos aparatos o más: con uno solo, no habría nada más con
@@ -91,9 +120,29 @@ export function SelectorAparato({
   return (
     <div className="fila" style={{ marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
       {aparatos.length > 1 && (
-        <div className="selector-ojo" style={{ flexWrap: 'wrap' }}>
+        <div className="selector-ojo" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
           {aparatos.map((a) => {
             const excluido = ojoDe(caso, lado, a).excluido === true
+            if (renombrandoAparato === a) {
+              return (
+                <span key={a} className="fila" style={{ gap: 4, alignItems: 'center' }}>
+                  <EditorNombreAparato
+                    valorActual={a}
+                    onElegir={(nombreNuevo) => void renombrarCualquiera(a, nombreNuevo)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRenombrandoAparato(null)
+                      setErrorRenombre(null)
+                    }}
+                    data-testid={`renombrar-aparato-${a}-cancelar`}
+                  >
+                    Cancelar
+                  </button>
+                </span>
+              )
+            }
             return (
               <span
                 key={a}
@@ -111,6 +160,18 @@ export function SelectorAparato({
                 </button>
                 <button
                   type="button"
+                  onClick={() => {
+                    setErrorRenombre(null)
+                    setRenombrandoAparato(a)
+                  }}
+                  data-testid={`renombrar-aparato-${a}`}
+                  title="Cambiar el nombre de este aparato — por ejemplo, si el reconocimiento automático se ha equivocado"
+                  style={{ fontSize: 12, padding: '2px 6px' }}
+                >
+                  ✎
+                </button>
+                <button
+                  type="button"
                   onClick={() => void alternarExclusion(a, excluido)}
                   data-testid={`alternar-exclusion-${a}`}
                   title={
@@ -125,6 +186,15 @@ export function SelectorAparato({
               </span>
             )
           })}
+          {errorRenombre && (
+            <span
+              className="aviso error"
+              style={{ fontSize: 12, padding: '2px 8px' }}
+              data-testid="error-renombrar-aparato"
+            >
+              {errorRenombre}
+            </span>
+          )}
         </div>
       )}
       {aparatos.length <= 1 && (
@@ -260,6 +330,65 @@ function SelectorAparatoPrincipal({
         />
       )}
     </div>
+  )
+}
+
+/**
+ * El mismo desplegable de siempre —aparatos conocidos + «Otro» con texto
+ * libre—, en miniatura, para renombrar UN aparato concreto de la lista de
+ * pestañas (D106, 29/09/2026). No decide él solo si aplica el cambio: se
+ * limita a avisar con `onElegir` en cuanto hay un nombre nuevo de verdad —
+ * quien lo usa decide qué hacer con el error si `renombrarAparato` lo
+ * rechaza (mismo aparato de otro ojo, D47, invariante 12).
+ */
+function EditorNombreAparato({
+  valorActual,
+  onElegir,
+}: {
+  readonly valorActual: string
+  readonly onElegir: (nombreNuevo: string) => void
+}): JSX.Element {
+  const [modoOtro, setModoOtro] = useState(() => !APARATOS_CONOCIDOS.includes(valorActual))
+  const [otro, setOtro] = useState(() =>
+    APARATOS_CONOCIDOS.includes(valorActual) ? '' : valorActual,
+  )
+
+  return (
+    <span className="fila" style={{ gap: 4, alignItems: 'center' }}>
+      <select
+        value={modoOtro ? 'Otro' : valorActual}
+        onChange={(e) => {
+          if (e.target.value === 'Otro') {
+            setModoOtro(true)
+            setOtro('')
+            return
+          }
+          setModoOtro(false)
+          onElegir(e.target.value)
+        }}
+        data-testid={`renombrar-aparato-${valorActual}-select`}
+      >
+        {APARATOS_CONOCIDOS.map((n) => (
+          <option key={n} value={n}>
+            {n}
+          </option>
+        ))}
+        <option value="Otro">Otro…</option>
+      </select>
+      {modoOtro && (
+        <input
+          value={otro}
+          placeholder="Nombre del aparato"
+          onChange={(e) => setOtro(e.target.value)}
+          onBlur={() => onElegir(otro)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onElegir(otro)
+          }}
+          style={{ width: 160 }}
+          data-testid={`renombrar-aparato-${valorActual}-nombre`}
+        />
+      )}
+    </span>
   )
 }
 

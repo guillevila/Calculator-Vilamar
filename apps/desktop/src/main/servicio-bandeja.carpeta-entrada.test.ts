@@ -317,3 +317,85 @@ describe('ServicioBandeja — carpeta de entrada, por doctor (D102, 24/09/2026)'
     expect(segunda).toHaveLength(1)
   })
 })
+
+/**
+ * Fallo real reportado por el dueño del proyecto (29/09/2026), con
+ * capturas de su OneDrive real: organiza al revés de lo que D102 esperaba
+ * —Alta/Normal/Baja FUERA, la carpeta del doctor DENTRO de la prioridad
+ * que toque, con una subcarpeta por paciente dentro de esa—. Ejemplo
+ * exacto que reportó: `IOL ENTRADA/Alta/dra sagrario/{maricarmen,
+ * inmaculada}`, cada una con sus propias fotos. «No me los reconoce».
+ */
+describe('ServicioBandeja — carpeta de entrada, doctor DENTRO de una prioridad (D104, 29/09/2026)', () => {
+  it('dos pacientes de un mismo doctor, cada uno en su propia subcarpeta dentro de Alta, salen como DOS avisos separados', () => {
+    const servicio = servicioDePrueba()
+    const entrada = raizTemporal()
+    servicio.configurarCarpetaEntrada(entrada)
+    const maricarmen = join(entrada, 'Alta', 'dra sagrario', 'maricarmen')
+    const inmaculada = join(entrada, 'Alta', 'dra sagrario', 'inmaculada')
+    mkdirSync(maricarmen, { recursive: true })
+    mkdirSync(inmaculada, { recursive: true })
+    writeFileSync(join(maricarmen, 'foto.jpg'), 'foto de maricarmen')
+    writeFileSync(join(inmaculada, 'foto.jpg'), 'foto de inmaculada')
+
+    const bandeja = servicio.buscarFotosNuevas()
+    expect(bandeja).toHaveLength(2)
+    expect(bandeja.every((e) => e.delegado === 'dra sagrario')).toBe(true)
+    expect(bandeja.every((e) => e.prioridad === 'URGENTE')).toBe(true)
+    expect(bandeja.map((e) => e.descripcion).sort()).toEqual(['inmaculada', 'maricarmen'])
+    // Nunca mezcladas: cada aviso solo trae la foto de SU paciente.
+    expect(bandeja.find((e) => e.descripcion === 'maricarmen')?.rutasFotos).toHaveLength(1)
+    expect(bandeja.find((e) => e.descripcion === 'inmaculada')?.rutasFotos).toHaveLength(1)
+  })
+
+  it('funciona igual en Normal y en Baja, no solo en Alta', () => {
+    const servicio = servicioDePrueba()
+    const entrada = raizTemporal()
+    servicio.configurarCarpetaEntrada(entrada)
+    mkdirSync(join(entrada, 'Normal', 'Dr Handy', 'Rafael'), { recursive: true })
+    writeFileSync(join(entrada, 'Normal', 'Dr Handy', 'Rafael', 'foto.jpg'), 'foto')
+    mkdirSync(join(entrada, 'Baja', 'Dr Handy', 'Sonia'), { recursive: true })
+    writeFileSync(join(entrada, 'Baja', 'Dr Handy', 'Sonia', 'foto.jpg'), 'foto')
+
+    const bandeja = servicio.buscarFotosNuevas()
+    expect(bandeja).toHaveLength(2)
+    expect(bandeja.find((e) => e.descripcion === 'Rafael')?.prioridad).toBe('NORMAL')
+    expect(bandeja.find((e) => e.descripcion === 'Sonia')?.prioridad).toBe('BAJA')
+    expect(bandeja.every((e) => e.delegado === 'Dr Handy')).toBe(true)
+  })
+
+  it('no rompe el caso de siempre: una subcarpeta de paciente CON fotos sueltas directamente dentro de Alta sigue sin doctor', () => {
+    const servicio = servicioDePrueba()
+    const entrada = raizTemporal()
+    servicio.configurarCarpetaEntrada(entrada)
+    mkdirSync(join(entrada, 'Alta', 'Paciente Directo'), { recursive: true })
+    writeFileSync(join(entrada, 'Alta', 'Paciente Directo', 'foto.jpg'), 'foto')
+
+    const bandeja = servicio.buscarFotosNuevas()
+    expect(bandeja).toHaveLength(1)
+    expect(bandeja[0]?.delegado).toBe('Carpeta de entrada')
+    expect(bandeja[0]?.descripcion).toBe('Paciente Directo')
+  })
+
+  it('una carpeta de doctor sin ningún paciente dentro (vacía o con subcarpetas vacías) no genera ningún aviso', () => {
+    const servicio = servicioDePrueba()
+    const entrada = raizTemporal()
+    servicio.configurarCarpetaEntrada(entrada)
+    mkdirSync(join(entrada, 'Alta', 'dra sagrario', 'paciente-sin-fotos'), { recursive: true })
+
+    const bandeja = servicio.buscarFotosNuevas()
+    expect(bandeja).toHaveLength(0)
+  })
+
+  it('buscar dos veces no duplica los avisos de un doctor dentro de una prioridad', () => {
+    const servicio = servicioDePrueba()
+    const entrada = raizTemporal()
+    servicio.configurarCarpetaEntrada(entrada)
+    mkdirSync(join(entrada, 'Alta', 'dra sagrario', 'maricarmen'), { recursive: true })
+    writeFileSync(join(entrada, 'Alta', 'dra sagrario', 'maricarmen', 'foto.jpg'), 'foto')
+
+    servicio.buscarFotosNuevas()
+    const segunda = servicio.buscarFotosNuevas()
+    expect(segunda).toHaveLength(1)
+  })
+})

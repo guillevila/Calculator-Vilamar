@@ -1622,8 +1622,17 @@ export class ServicioCasos {
    * ojo)—. «Datos previos» solo tiene sentido si el caso vino de un
    * documento cargado (`cargarDocumentos`); un caso escrito a mano no
    * tiene ningún original que archivar.
+   *
+   * **`incluirEstimacionCompleta`** (D105, 29/09/2026): si es `false`, el
+   * PDF no lleva la estimación propia (D43) bajo cada captura ni en su
+   * cuadro de tarjetas — la tabla comparativa detallada del final la sigue
+   * llevando siempre, con el mismo criterio, así que nunca desaparece del
+   * todo. La persona lo elige cada vez, justo antes de generar, con la
+   * casilla de la pantalla de resultados.
    */
-  async generarPdf(): Promise<{ rutas: readonly { ojo: Lateralidad; ruta: string }[] }> {
+  async generarPdf(
+    incluirEstimacionCompleta: boolean,
+  ): Promise<{ rutas: readonly { ojo: Lateralidad; ruta: string }[] }> {
     const caso = this.exigirCaso()
     const todosLosResultados = this.recopilarResultadosParaInforme(caso)
     const marca = this.iso().replace(/[:.]/g, '-').slice(0, 19)
@@ -1645,6 +1654,7 @@ export class ServicioCasos {
         generadoEn: this.iso(),
         resultados: todosLosResultados.filter((r) => r.ojo === ojo),
         soloOjo: ojo,
+        incluirEstimacionCompleta,
       })
       const html = generarHtmlInforme(datos)
       // Dentro de la carpeta del doctor: una por paciente y, dentro, una

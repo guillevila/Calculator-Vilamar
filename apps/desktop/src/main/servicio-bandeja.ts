@@ -41,6 +41,20 @@
  * ella, cualquier paciente que tuviera dentro. Fallo real reportado por el
  * dueño (24/09/2026): con varios pacientes del mismo doctor sueltos en una
  * sola carpeta, la app los juntaba en un único aviso como si fueran uno.
+ *
+ * **Doctor dentro de una prioridad** (D104, 29/09/2026): el dueño, en la
+ * práctica, organiza al revés de lo que D102 esperaba —Alta/Normal/Baja
+ * FUERA, la carpeta del doctor DENTRO de la prioridad que toque, con una
+ * subcarpeta por paciente dentro de esa—. `candidatosDe()` (la que ya mira
+ * cada Alta/Normal/Baja de la raíz) ahora comprueba, para cada subcarpeta
+ * sin fotos sueltas directamente dentro, si a su vez tiene subcarpetas de
+ * paciente —mismo criterio, un nivel más adentro— antes de darla por
+ * vacía; si las tiene, su propio nombre pasa a ser el delegado de cada
+ * paciente que traiga. Antes de esto esa subcarpeta no generaba NINGÚN
+ * aviso —ni siquiera uno mezclado—: como no tenía fotos sueltas, se daba
+ * por vacía sin mirar más adentro. Fallo real reportado por el dueño
+ * (29/09/2026), con capturas de su OneDrive real (`IOL ENTRADA/Alta/dra
+ * sagrario/{maricarmen,inmaculada}`): «no me los reconoce».
  */
 
 import { basename, extname, join } from 'node:path'
@@ -152,19 +166,43 @@ function candidatosDe(
   const deSubcarpetas = subcarpetas.flatMap((nombre): readonly CandidatoImportacion[] => {
     const rutaSub = join(ubicacion, nombre)
     const dentro = archivosValidos(rutaSub)
-    // Una subcarpeta vacía, o sin ninguna foto válida todavía, no genera
-    // ningún aviso — se espera a que tenga algo que traer.
-    if (dentro.length === 0) return []
-    return [
-      {
-        rutaOrigen: rutaSub,
-        esCarpeta: true,
-        prioridad,
-        delegado,
-        carpetaImportadas,
-        archivosDentro: dentro,
-      },
-    ]
+    if (dentro.length > 0) {
+      return [
+        {
+          rutaOrigen: rutaSub,
+          esCarpeta: true,
+          prioridad,
+          delegado,
+          carpetaImportadas,
+          archivosDentro: dentro,
+        },
+      ]
+    }
+    // Sin fotos sueltas dentro: puede que ESTA subcarpeta sea, a su vez, la
+    // de un doctor —con una subcarpeta por paciente dentro de ella— (D104,
+    // 29/09/2026): la prioridad ya viene fijada por dónde se está mirando
+    // (Alta/Normal/Baja), así que solo hace falta el mismo criterio de
+    // fichero-suelto-o-subcarpeta-de-paciente un nivel más adentro, y su
+    // propio nombre pasa a ser el delegado de cada paciente que tenga
+    // dentro. Si tampoco hay nada ahí, sigue sin generar ningún aviso —una
+    // subcarpeta vacía, o sin ninguna foto válida todavía, espera a que
+    // tenga algo que traer.
+    const { subcarpetas: subcarpetasDePaciente } = listarEntradas(rutaSub)
+    return subcarpetasDePaciente.flatMap((nombrePaciente): readonly CandidatoImportacion[] => {
+      const rutaPaciente = join(rutaSub, nombrePaciente)
+      const fotosPaciente = archivosValidos(rutaPaciente)
+      if (fotosPaciente.length === 0) return []
+      return [
+        {
+          rutaOrigen: rutaPaciente,
+          esCarpeta: true,
+          prioridad,
+          delegado: nombre,
+          carpetaImportadas,
+          archivosDentro: fotosPaciente,
+        },
+      ]
+    })
   })
   return [...deArchivos, ...deSubcarpetas]
 }

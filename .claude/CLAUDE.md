@@ -331,12 +331,15 @@ cualquier consideración técnica:
   y siempre marcada como «no vinculante»**: una estimación propia con un
   criterio clínico fijo y explícito («la primera esfera con refracción
   prevista negativa; el cilindro tórico más alto que sigue compartiendo el
-  eje curvo»), enseñada bajo cada captura y en un cuadro final opcional —
-  nunca en el lugar de lo que la calculadora respondió de verdad, que sigue
-  siendo la captura de pantalla sin interpretar. Decisión D43 en
-  `SYSTEM_VISION.md`: pedida expresamente por el dueño del proyecto después
-  de un pushback explícito, aceptando la condición de que sea opcional y no
-  vinculante.
+  eje curvo» — invertido para la familia Lux, D52), enseñada SIEMPRE en la
+  tabla comparativa detallada del final del informe y, solo si se marca la
+  casilla correspondiente antes de generar el PDF (apagada por defecto,
+  D105), también bajo cada captura y en un cuadro de tarjetas — nunca en el
+  lugar de lo que la calculadora respondió de verdad, que sigue siendo la
+  captura de pantalla sin interpretar. Decisión D43 en `SYSTEM_VISION.md`:
+  pedida expresamente por el dueño del proyecto después de un pushback
+  explícito, aceptando la condición de que sea opcional y no vinculante;
+  matizada por D105 (29/09/2026) a petición del propio dueño.
 
 ---
 

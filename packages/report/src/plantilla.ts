@@ -20,6 +20,7 @@ import type {
   CampoBiometrico,
   Caso,
   Comparativa,
+  CriterioEsfera,
   DatoComparativo,
   Lateralidad,
   Medida,
@@ -28,6 +29,7 @@ import type {
 } from '@vilamar/domain'
 import {
   camposPresentes,
+  criterioEsferaPara,
   datasetsActivosDe,
   definicionDe,
   describirProcedencia,
@@ -100,6 +102,14 @@ export interface DatosInforme {
   }[]
   /** Lo que se enseña de cada casilla intentada, en el orden en que se enseñan. */
   readonly resultados: readonly ResultadoInforme[]
+  /**
+   * Si la estimación propia (D43) se enseña también bajo cada captura y en
+   * su propio cuadro de tarjetas, o solo en la tabla comparativa detallada
+   * del final —que la lleva siempre, sin excepción— (D105, 29/09/2026).
+   * `true` por defecto (`recopilarInforme`): cualquier llamada antigua que
+   * no lo especifique sigue viendo el informe exactamente como antes.
+   */
+  readonly incluirEstimacionCompleta: boolean
 }
 
 /** Escapa el texto para que nada de lo que venga de fuera pueda inyectar HTML. */
@@ -1553,6 +1563,19 @@ const TONOS_APARATO: readonly { readonly fondo: string; readonly borde: string }
 ]
 
 /**
+ * El criterio fijo de la esfera (D43/D52), en palabras llanas — para
+ * explicarlo junto a la tabla comparativa detallada (D105, 29/09/2026): es
+ * la única hoja que sigue llevando la estimación propia cuando el resto del
+ * informe no la incluye, así que es la que tiene que decir, sin más rodeo,
+ * con qué criterio se ha elegido cada lente de esta tabla.
+ */
+function criterioEsferaTexto(criterio: CriterioEsfera): string {
+  return criterio === 'PRIMERA_POSITIVA'
+    ? 'la primera esfera con refracción prevista positiva, la más cercana a cero'
+    : 'la primera esfera con refracción prevista negativa, la más cercana a cero'
+}
+
+/**
  * La tabla comparativa detallada (petición expresa del dueño, 27/08/2026):
  * una fila por casilla intentada, con el aparato, la calculadora, el ojo, la
  * lente de la estimación propia (D43) y sus residuales — para verlo todo
@@ -1563,6 +1586,12 @@ const TONOS_APARATO: readonly { readonly fondo: string; readonly borde: string }
  * propia hoja, con su captura sin interpretar. Esto es una lectura rápida
  * ADEMÁS, marcada igual que el resto de estimaciones propias — opcional y
  * no vinculante (D43).
+ *
+ * **Es la ÚNICA hoja que sigue llevando la estimación propia cuando
+ * `incluirEstimacionCompleta` es `false`** (D105, 29/09/2026): por eso, a
+ * diferencia de las demás, explica arriba del todo el criterio con el que
+ * se ha elegido cada lente — antes ese criterio solo se explicaba en el
+ * cuadro de tarjetas (`hojaResumenFinal`), que con D105 puede no aparecer.
  */
 function tablaComparativaDetallada(
   caso: Caso,
@@ -1571,6 +1600,8 @@ function tablaComparativaDetallada(
 ): Hoja | undefined {
   const deEsteOjo = resultados.filter((r) => r.ojo === ojo)
   if (deEsteOjo.length === 0) return undefined
+
+  const criterio = criterioEsferaPara(caso.lente?.modelo)
 
   // El orden de aparición es el mismo con el que ya salen las hojas
   // (aparato a aparato): así el color de una fila coincide con el bloque de
@@ -1609,6 +1640,12 @@ function tablaComparativaDetallada(
     apunte: 'No vinculante',
     refExtra: ` · ${ojo}`,
     cuerpo: `<p class="aviso-no-vinculante">
+      La lente de esta tabla es una estimación propia del Resumen de calculadores, con un criterio fijo y el
+      mismo para todas las calculadoras: <strong>${esc(criterioEsferaTexto(criterio))}</strong>, y el cilindro
+      tórico más alto que sigue compartiendo el eje corneal curvo — o el primero, antes de que el eje cambie
+      de orientación.
+    </p>
+    <p class="aviso-no-vinculante">
       Un vistazo a todo lo calculado para ${esc(nombreLateralidad(ojo))}: aparato, calculadora, la lente de
       la estimación propia del Resumen de calculadores <strong>(no vinculante)</strong>, y la refracción y el
       astigmatismo que se prevé que queden. No sustituye a ninguna calculadora: el detalle exacto de cada
@@ -1703,9 +1740,19 @@ function hojaResumenFinal(
  * su propio aviso explicando por qué. Si algún ojo tiene más de una
  * estimación, el informe cierra con un cuadro comparativo de ese ojo,
  * siempre marcado como opcional y no vinculante.
+ *
+ * **`datos.incluirEstimacionCompleta`** (D105, 29/09/2026): si es `false`,
+ * la estimación propia deja de enseñarse bajo cada captura y como su propio
+ * cuadro de tarjetas — las capturas se enseñan igual, tal cual, solas. La
+ * tabla comparativa detallada del final (`tablaComparativaDetallada`) sigue
+ * llevándola SIEMPRE, con el mismo criterio de siempre, y explica ella
+ * misma ese criterio en su propia hoja: es la única parte del informe de la
+ * que este interruptor no depende. Petición expresa del dueño del proyecto:
+ * mantener el criterio fijo, no vinculante, sin repetirlo en cada captura
+ * ni en un cuadro aparte — solo en la tabla final, que ya lo llevaba.
  */
 export function generarHtmlInforme(datos: DatosInforme): string {
-  const { caso } = datos
+  const { caso, incluirEstimacionCompleta } = datos
 
   // Qué ojo(s) cubre este informe concreto — en el flujo real siempre uno
   // (`generarPdf()` llama a esto una vez por ojo, D47), pero no se supone:
@@ -1775,7 +1822,7 @@ export function generarHtmlInforme(datos: DatosInforme): string {
               r.dataUri
                 ? `<div class="captura"><img src="${esc(r.dataUri)}" alt="Captura de ${esc(nombre)}, ${esc(r.ojo)}"></div>`
                 : `<p class="captura-ausente">No se pudo guardar la captura de pantalla de este resultado.</p>`
-            }${lenteRecomendadaTexto(r.recomendada)}`,
+            }${incluirEstimacionCompleta ? lenteRecomendadaTexto(r.recomendada) : ''}`,
             pie: `Captura sin editar de la pantalla de resultado de ${esc(nombre)}.`,
           }
         })
@@ -1798,7 +1845,13 @@ export function generarHtmlInforme(datos: DatosInforme): string {
   const hojas = [
     ...hojasBiometria,
     ...hojasPorCasilla,
-    ...ojosConVariasEstimaciones.map((ojo) => hojaResumenFinal(caso, ojo, datos.resultados)),
+    // El cuadro de tarjetas (D105, 29/09/2026): solo si se ha pedido la
+    // estimación completa. La tabla comparativa detallada de más abajo
+    // (`hojasDetalle`) sigue llevando la estimación propia SIEMPRE, sin
+    // excepción — es la única hoja que no depende de este interruptor.
+    ...(incluirEstimacionCompleta
+      ? ojosConVariasEstimaciones.map((ojo) => hojaResumenFinal(caso, ojo, datos.resultados))
+      : []),
     ...hojasDetalle,
   ]
 

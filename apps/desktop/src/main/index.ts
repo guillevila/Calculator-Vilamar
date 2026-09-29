@@ -72,7 +72,7 @@ if (app.isPackaged) {
  * este número es lo ÚLTIMO que se hace al cerrar un cambio en la aplicación
  * de escritorio, justo antes de avisar de que está listo para probar.
  */
-const VERSION_VISIBLE = '1.28'
+const VERSION_VISIBLE = '1.31'
 
 function versionDelProducto(): string {
   return VERSION_VISIBLE
@@ -441,7 +441,9 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   ipcMain.handle(CANALES.calcular, (_e, calculadoras, filtro) => s().calcular(calculadoras, filtro))
   ipcMain.handle(CANALES.reintentar, (_e, calculadora, ojo) => s().reintentar(calculadora, ojo))
   ipcMain.handle(CANALES.cancelarCalculo, () => s().cancelarCalculo())
-  ipcMain.handle(CANALES.generarPdf, () => s().generarPdf())
+  ipcMain.handle(CANALES.generarPdf, (_e, incluirEstimacionCompleta: boolean) =>
+    s().generarPdf(incluirEstimacionCompleta),
+  )
   ipcMain.handle(CANALES.abrirCarpetaInformes, () => shell.openPath(carpetas.informes))
 }
 
