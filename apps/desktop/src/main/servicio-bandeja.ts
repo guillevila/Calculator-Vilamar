@@ -55,10 +55,27 @@
  * por vacía sin mirar más adentro. Fallo real reportado por el dueño
  * (29/09/2026), con capturas de su OneDrive real (`IOL ENTRADA/Alta/dra
  * sagrario/{maricarmen,inmaculada}`): «no me los reconoce».
+ *
+ * **La carpeta de grupo/doctor de D104 se borra sola en cuanto se vacía**
+ * (D108, 30/09/2026): `buscarFotosNuevas()` mueve la subcarpeta de CADA
+ * paciente a «Importadas», pero antes de esto nunca tocaba la carpeta que
+ * la contenía —«Alta/dra Claudia», por ejemplo—, así que se quedaba vacía
+ * en su sitio para siempre, acumulándose cada vez que se creaba una nueva
+ * para el paciente siguiente. Cada candidato que sale de una subcarpeta
+ * de paciente (D104) lleva su `carpetaGrupo`; tras mover todos,
+ * `limpiarCarpetasDeGrupoUsadas()` borra las que se han quedado sin
+ * nada dentro. A propósito, NUNCA barre Alta/Normal/Baja enteras
+ * buscando cualquier subcarpeta vacía —eso borraría también una
+ * subcarpeta de paciente (D86) creada a mano que todavía espera su
+ * primera foto, indistinguible a simple vista de una de grupo ya
+ * vaciada—: solo mira las carpetas que ESTA búsqueda, ahora mismo,
+ * acaba de vaciar de verdad. Fallo real reportado por el dueño
+ * (30/09/2026), confirmado mirando su OneDrive real: tres carpetas de
+ * doctor en Alta, ya vacías por dentro, seguían ahí.
  */
 
 import { basename, extname, join } from 'node:path'
-import { existsSync, mkdirSync, readdirSync, renameSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, renameSync, rmdirSync, statSync } from 'node:fs'
 
 import type { EntradaBandeja, PrioridadBandeja } from '@vilamar/domain'
 import { CARPETA_IMPORTADAS, NOMBRE_CARPETA_PRIORIDAD, ordenarBandeja } from '@vilamar/domain'
@@ -146,6 +163,14 @@ interface CandidatoImportacion {
   readonly carpetaImportadas: string
   /** Solo cuando `esCarpeta`: los nombres de fichero que hay dentro, para reconstruir sus rutas tras moverla. */
   readonly archivosDentro: readonly string[]
+  /**
+   * Solo cuando este candidato salió de una subcarpeta de paciente DENTRO
+   * de una de grupo/doctor (D104): la carpeta de grupo en sí, para poder
+   * borrarla si se queda vacía tras mover a todos sus pacientes (D108,
+   * 30/09/2026). `undefined` en cualquier otro candidato — nunca se limpia
+   * una carpeta que no sea, de verdad, una de estas.
+   */
+  readonly carpetaGrupo?: string
 }
 
 function candidatosDe(
@@ -200,6 +225,7 @@ function candidatosDe(
           delegado: nombre,
           carpetaImportadas,
           archivosDentro: fotosPaciente,
+          carpetaGrupo: rutaSub,
         },
       ]
     })
@@ -255,6 +281,32 @@ function candidatosDeDoctor(carpetaDoctor: string, delegado: string): readonly C
   )
 
   return [...deArchivosSueltos, ...deSubcarpetasDePaciente, ...deLasPrioridades]
+}
+
+/**
+ * Borra las carpetas de grupo/doctor de D104 que se han quedado sin nada
+ * dentro tras mover a todos sus pacientes a «Importadas» (D108,
+ * 30/09/2026) — si no, se acumulan para siempre, una por cada doctor que
+ * se haya usado alguna vez. Se llama DESPUÉS de mover todos los
+ * candidatos, con la lista exacta de carpetas de grupo que de verdad se
+ * han usado en esta búsqueda (`carpetaGrupo` de cada candidato movido).
+ *
+ * A propósito, NUNCA barre Alta/Normal/Baja enteras buscando cualquier
+ * subcarpeta vacía: eso borraría también una subcarpeta de paciente
+ * (D86) que el dueño ha creado a mano y todavía no tiene ninguna foto
+ * dentro —«espera a que tenga algo que traer», la misma regla de
+ * siempre—, que a simple vista es indistinguible de una de grupo ya
+ * vaciada. Solo se toca una carpeta si ESTA búsqueda, ahora mismo, acaba
+ * de sacarle su último paciente.
+ */
+function limpiarCarpetasDeGrupoUsadas(carpetasGrupo: ReadonlySet<string>): void {
+  for (const rutaGrupo of carpetasGrupo) {
+    try {
+      if (readdirSync(rutaGrupo).length === 0) rmdirSync(rutaGrupo)
+    } catch (e) {
+      console.error(`[carpeta de entrada] no se pudo limpiar ${rutaGrupo}`, e)
+    }
+  }
 }
 
 export class ServicioBandeja {
@@ -404,11 +456,13 @@ export class ServicioBandeja {
 
     const actuales = leerBandeja(this.dep.carpetas)
     const nuevas: EntradaBandeja[] = []
+    const carpetasGrupoUsadas = new Set<string>()
     for (const candidato of candidatos) {
       try {
         const nombreOriginal = basename(candidato.rutaOrigen)
         const destino = rutaLibre(candidato.carpetaImportadas, nombreOriginal)
         renameSync(candidato.rutaOrigen, destino)
+        if (candidato.carpetaGrupo) carpetasGrupoUsadas.add(candidato.carpetaGrupo)
         const rutasFotos = candidato.esCarpeta
           ? candidato.archivosDentro.map((nombre) => join(destino, nombre))
           : [destino]
@@ -433,6 +487,7 @@ export class ServicioBandeja {
 
     const siguientes = [...actuales, ...nuevas]
     guardarBandeja(this.dep.carpetas, siguientes)
+    limpiarCarpetasDeGrupoUsadas(carpetasGrupoUsadas)
     return ordenarBandeja(siguientes)
   }
 

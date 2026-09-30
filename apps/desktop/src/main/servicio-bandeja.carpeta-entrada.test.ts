@@ -399,3 +399,82 @@ describe('ServicioBandeja — carpeta de entrada, doctor DENTRO de una prioridad
     expect(segunda).toHaveLength(1)
   })
 })
+
+/**
+ * Fallo real reportado por el dueño del proyecto (30/09/2026), confirmado
+ * mirando su OneDrive real: tres carpetas de doctor en Alta —«dra
+ * Claudia», «dra patricia», «vicente mtnez»—, cada una ya vacía por
+ * dentro (todos sus pacientes se habían movido a Importadas hacía días),
+ * seguían ahí sin más. «Se van acumulando».
+ */
+describe('ServicioBandeja — la carpeta de grupo/doctor se limpia sola al vaciarse (D108, 30/09/2026)', () => {
+  it('la carpeta de doctor desaparece en cuanto se mueve a su único paciente', () => {
+    const servicio = servicioDePrueba()
+    const entrada = raizTemporal()
+    servicio.configurarCarpetaEntrada(entrada)
+    mkdirSync(join(entrada, 'Alta', 'dra Claudia', 'brenda'), { recursive: true })
+    writeFileSync(join(entrada, 'Alta', 'dra Claudia', 'brenda', 'foto.jpg'), 'foto')
+
+    servicio.buscarFotosNuevas()
+
+    expect(existsSync(join(entrada, 'Alta', 'dra Claudia'))).toBe(false)
+    expect(existsSync(join(entrada, 'Alta'))).toBe(true)
+  })
+
+  it('con varios pacientes, la carpeta de doctor desaparece solo cuando el ÚLTIMO se mueve', () => {
+    const servicio = servicioDePrueba()
+    const entrada = raizTemporal()
+    servicio.configurarCarpetaEntrada(entrada)
+    mkdirSync(join(entrada, 'Alta', 'dra Claudia', 'brenda'), { recursive: true })
+    writeFileSync(join(entrada, 'Alta', 'dra Claudia', 'brenda', 'foto.jpg'), 'foto')
+    mkdirSync(join(entrada, 'Alta', 'dra Claudia', 'carmen'), { recursive: true })
+    writeFileSync(join(entrada, 'Alta', 'dra Claudia', 'carmen', 'foto.jpg'), 'foto')
+
+    servicio.buscarFotosNuevas()
+
+    expect(existsSync(join(entrada, 'Alta', 'dra Claudia'))).toBe(false)
+  })
+
+  it('si todavía queda un paciente sin fotos válidas dentro, la carpeta de doctor NO se borra', () => {
+    const servicio = servicioDePrueba()
+    const entrada = raizTemporal()
+    servicio.configurarCarpetaEntrada(entrada)
+    mkdirSync(join(entrada, 'Alta', 'dra Claudia', 'brenda'), { recursive: true })
+    writeFileSync(join(entrada, 'Alta', 'dra Claudia', 'brenda', 'foto.jpg'), 'foto')
+    // «carmen» todavía no tiene ninguna foto válida — puede que se esté
+    // sincronizando desde el móvil todavía.
+    mkdirSync(join(entrada, 'Alta', 'dra Claudia', 'carmen'), { recursive: true })
+
+    servicio.buscarFotosNuevas()
+
+    expect(existsSync(join(entrada, 'Alta', 'dra Claudia'))).toBe(true)
+    expect(existsSync(join(entrada, 'Alta', 'dra Claudia', 'carmen'))).toBe(true)
+  })
+
+  it('la carpeta de un doctor DIRECTAMENTE en la raíz (D102) no se toca — solo se limpian las de dentro de una prioridad', () => {
+    const servicio = servicioDePrueba()
+    const entrada = raizTemporal()
+    servicio.configurarCarpetaEntrada(entrada)
+    mkdirSync(join(entrada, 'Dr Rocha', 'Alta', 'paciente1'), { recursive: true })
+    writeFileSync(join(entrada, 'Dr Rocha', 'Alta', 'paciente1', 'foto.jpg'), 'foto')
+
+    servicio.buscarFotosNuevas()
+
+    // Su paciente se movió a SU Importadas, pero la carpeta del doctor en
+    // la raíz sigue existiendo — es su hogar permanente, no una de grupo.
+    expect(existsSync(join(entrada, 'Dr Rocha'))).toBe(true)
+    expect(existsSync(join(entrada, 'Dr Rocha', 'Alta', 'paciente1'))).toBe(false)
+  })
+
+  it('una carpeta que nunca ha tenido ningún paciente dentro no se toca — solo se limpian las que ESTA búsqueda acaba de vaciar', () => {
+    const servicio = servicioDePrueba()
+    const entrada = raizTemporal()
+    servicio.configurarCarpetaEntrada(entrada)
+    mkdirSync(join(entrada, 'Alta', 'dra vacia'), { recursive: true })
+
+    expect(() => servicio.buscarFotosNuevas()).not.toThrow()
+    // Nunca fue la carpeta de grupo de ningún candidato: se deja tal cual,
+    // igual que una subcarpeta de paciente (D86) que todavía no tiene foto.
+    expect(existsSync(join(entrada, 'Alta', 'dra vacia'))).toBe(true)
+  })
+})

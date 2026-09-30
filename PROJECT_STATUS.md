@@ -9,7 +9,23 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 29/09/2026 (5) · **La revisión enseña los
+**Última actualización:** 30/09/2026 · **La carpeta de grupo/doctor
+de D104 se borra sola en cuanto se queda vacía (D108).** El dueño
+reportó que las carpetas que crea en Alta/Normal/Baja (una por doctor,
+con sus pacientes dentro) se quedaban ahí, vacías, acumulándose —
+confirmado mirando su OneDrive real: tres carpetas de doctor ya vacías
+por dentro seguían en Alta. De paso se comprobó que la otra mitad de su
+petición —que «Importadas» se limpie sola una vez calculado el caso—
+ya funcionaba desde D89. Ahora, tras mover a todos los pacientes de una
+búsqueda, se borran las carpetas de grupo que se han quedado sin nada
+dentro — nunca se barre Alta/Normal/Baja entera, para no borrar también
+una subcarpeta de paciente que todavía espera su primera foto. `pnpm
+lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e` en
+verde (882 tests unitarios; el único fallo de la suite es previo y no
+relacionado; 65/65 de interfaz — este cambio no toca la interfaz, así
+que la cuenta no sube).
+
+Antes de esto — **29/09/2026 (5): la revisión enseña los
 datos del núcleo en color y quita la línea repetida de evidencia
 (D107).** El dueño comparó la pantalla de revisión (documento cargado)
 con el cuestionario manual: en el manual los datos obligatorios se ven

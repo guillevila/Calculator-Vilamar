@@ -4,6 +4,51 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.67] — 30/09/2026 (versión visible en pantalla: v1.33)
+
+fix(app): la carpeta de grupo/doctor de D104 se borra sola en cuanto se queda vacía (D108).
+
+### Qué se pidió
+
+El dueño del proyecto: «las carpetas creadas se quedan en la carpeta de
+alta urgencia y no desaparecen, por lo que se van acumulando. Lo mismo
+sucede con las importadas, una vez usados los datos deberían borrarse».
+
+### Investigado antes de tocar nada
+
+Mirando su OneDrive real: tres carpetas de doctor en Alta («dra Claudia»,
+«dra patricia», «vicente mtnez»), ya vacías por dentro —sus pacientes
+llevaban días en «Importadas», algunos ya calculados y archivados en
+«Datos previos»—, seguían ahí. La segunda mitad de la petición —que
+«Importadas» se limpie sola una vez calculado el caso— ya funcionaba
+desde D89: se confirmó que los pacientes ya calculados habían
+desaparecido de «Importadas» correctamente.
+
+### El cambio
+
+`buscarFotosNuevas()` movía la subcarpeta de cada paciente a
+«Importadas», pero nunca tocaba la carpeta de grupo/doctor que la
+contenía (D104), así que se quedaba vacía en su sitio para siempre.
+Ahora, tras mover todos los pacientes de una búsqueda, se borran las
+carpetas de grupo que se han quedado sin nada dentro — nunca se barre
+Alta/Normal/Baja entera buscando cualquier subcarpeta vacía, porque eso
+borraría también una subcarpeta de paciente (D86) creada a mano que
+todavía espera su primera foto.
+
+### Verificado
+
+- Cinco tests nuevos: una carpeta de doctor desaparece con su único
+  paciente; con varios, solo al mover el último; si queda un paciente sin
+  fotos válidas, no se toca; una carpeta de doctor en la raíz (D102) no se
+  toca nunca; una carpeta que nunca tuvo ningún paciente se deja tal cual
+  — comprobados primero contra el código sin arreglar (dos de los cinco
+  fallan, reproduciendo el fallo exacto) y después contra el arreglado.
+- `pnpm lint && pnpm typecheck && pnpm test` — 882 tests en verde (el
+  único fallo es el previo y ajeno de siempre).
+- `pnpm build && pnpm test:e2e`.
+
+---
+
 ## [1.15.66] — 29/09/2026 (versión visible en pantalla: v1.32)
 
 feat(app): la revisión enseña los datos del núcleo en color y quita la línea repetida de evidencia (D107).
