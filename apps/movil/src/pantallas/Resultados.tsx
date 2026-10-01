@@ -87,12 +87,19 @@ export function Resultados({
         compara, no elige por ti.
       </div>
 
-      {!descargas ? (
-        <button className="boton" disabled={generando} onClick={() => void generarPdf()}>
-          {generando ? 'Generando el PDF…' : 'Generar PDF'}
-        </button>
-      ) : (
-        <div className="pila">
+      {/*
+        El botón se queda siempre visible, incluso con los enlaces ya
+        generados: generarPdf() solo saca el PDF de los ojos que YA están
+        calculados (ver D89 en servicio-casos.ts) y se puede llamar las
+        veces que haga falta sin coste para lo que ya existía. Antes,
+        esconder el botón tras la primera vez obligaba a salir de la
+        pantalla y volver para poder generarlo otra vez — y como
+        generarPdf() no distingue un ojo del otro, eso se sentía como
+        «me obliga a rehacer los dos» cuando solo faltaba uno (pedido
+        expreso del dueño del proyecto, 02/10/2026).
+      */}
+      {descargas && (
+        <div className="pila" style={{ marginBottom: 8 }}>
           {descargas.map((d) => (
             <a key={d.ojo} className="boton" style={{ textAlign: 'center' }} href={d.descarga} download>
               Descargar PDF — {d.ojo}
@@ -100,6 +107,9 @@ export function Resultados({
           ))}
         </div>
       )}
+      <button className="boton" disabled={generando} onClick={() => void generarPdf()}>
+        {generando ? 'Generando el PDF…' : descargas ? 'Generar de nuevo' : 'Generar PDF'}
+      </button>
 
       <div style={{ height: 12 }} />
       <div style={{ display: 'flex', gap: 8 }}>
