@@ -4,6 +4,125 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.70] — 01/10/2026 (versión visible en pantalla: v1.36)
+
+fix(domain,integrations,report): una variante de córnea posterior nunca se planifica para un aparato sin PK1/PK2 (D111).
+
+### Qué se pidió
+
+El dueño del proyecto: «cuando un aparato tiene datos de cara posterior y
+otro no, y se pide calcular EVO con posterior y Barrett con datos de
+posterior, el pdf que sale en el aparato que no tiene datos de posterior
+repite el cálculo con estimada y ocupa espacio».
+
+### El cambio
+
+Con dos aparatos del mismo ojo, uno con córnea posterior medida (PK1/PK2)
+y otro sin ella, pedir «EVO Toric sin cara posterior» o «Barrett Toric
+con cara posterior» generaba también esas casillas para el aparato SIN
+esos datos — sin córnea posterior que añadir o quitar, calculaban
+exactamente lo mismo que su calculadora base, sin comparar nada de
+verdad, y el PDF sacaba una hoja de más por cada una.
+
+Nueva `tieneCaraPosterior(ojo)` en el dominio, compartida entre
+`planificarCaso()` (para decidir si tiene sentido planificar la
+variante) y la plantilla del informe (para el título de cada hoja, que
+ya existía con su propio criterio separado — ahora es el mismo). Las
+calculadoras base (EVO Toric, Barrett Toric, Kane) no se filtran: no
+dependen de la córnea posterior para tener sentido.
+
+### Verificado
+
+- Cuatro tests nuevos en `bilateral.test.ts`: cada variante solo se
+  planifica para el aparato que sí tiene PK1/PK2; las calculadoras base
+  se siguen planificando para los dos; con los dos aparatos teniendo
+  córnea posterior, las dos variantes se planifican para los dos —
+  comprobados primero contra el código sin arreglar (los dos tests
+  centrales fallan, reproduciendo el fallo exacto) y después contra el
+  arreglado.
+- `pnpm lint && pnpm typecheck && pnpm test` — 887 tests en verde (el
+  único fallo es el previo y ajeno de siempre).
+- `pnpm build && pnpm test:e2e`.
+
+---
+
+## [1.15.69] — 30/09/2026 (versión visible en pantalla: v1.35)
+
+fix(report): corrige D109 — vuelve el párrafo que explica el criterio, solo en la tabla comparativa detallada (D110).
+
+### Qué se pidió
+
+El dueño del proyecto, inmediatamente después de D109: «perdón, vuelve a
+incluir solo el párrafo explicando el resumen el criterio».
+
+### El cambio
+
+Se interpretó como el párrafo de `tablaComparativaDetallada` que nombra
+el criterio explícitamente («la primera esfera con refracción prevista
+negativa, la más cercana a cero», o «positiva» para la familia Lux) — no
+el del cuadro de tarjetas, que solo menciona «un criterio fijo» sin
+decir cuál. Es ahora el único párrafo de prosa de todo el informe, aparte
+del aviso legal del final; todo lo demás que D109 quitó se queda fuera.
+
+### Verificado
+
+- Dos tests ajustados/nuevos en `plantilla.test.ts`: la tabla vuelve a
+  llevar el párrafo, pero el resto de lo quitado por D109 sigue fuera; el
+  criterio explicado cambia con la familia de lente, igual que antes de
+  D109.
+- `pnpm lint && pnpm typecheck && pnpm test` — 883 tests en verde (el
+  único fallo es el previo y ajeno de siempre).
+- `pnpm build && pnpm test:e2e`.
+
+---
+
+## [1.15.68] — 30/09/2026 (versión visible en pantalla: v1.34)
+
+feat(report): el informe se reduce a un único párrafo de aviso legal, al final (D109).
+
+### Qué se pidió
+
+El dueño del proyecto: «quiero que quites todos los textos excepto este
+[el párrafo legal del organizador de cálculos]... los demás textos
+advirtiendo de los resúmenes etc quítalos».
+
+### Antes de tocar nada
+
+Se le avisó de que varios de esos textos llevan la etiqueta «no
+vinculante», condición escrita en la propia constitución del proyecto
+para que exista la excepción D43 (la estimación propia). Se le preguntó
+explícitamente qué hacer con esa etiqueta y con el segundo párrafo del
+pie legal (privacidad). Confirmó: la etiqueta se queda, corta, pegada al
+valor; el párrafo de privacidad se quita también.
+
+### El cambio
+
+Se quitan todos los avisos en prosa que explicaban el criterio o el
+alcance de la estimación propia: bajo cada captura (si está activada),
+en el cuadro de tarjetas, y los dos párrafos que D105 había añadido el
+día anterior sobre la tabla comparativa detallada. También se quita el
+segundo párrafo del pie legal («no contiene el nombre, la fecha de
+nacimiento…»). La etiqueta corta «No vinculante» se conserva siempre —en
+la cabecera de cada hoja que corresponda, y pegada al valor bajo cada
+captura—, porque sigue siendo la condición de la excepción D43. Se
+actualizó CLAUDE.md y .claude/CLAUDE.md para reflejar la nueva forma de
+la excepción.
+
+### Verificado
+
+- Tres tests nuevos en `plantilla.test.ts`: el pie legal es un único
+  párrafo, sin la frase de privacidad; ni el cuadro de tarjetas ni la
+  línea bajo la captura llevan ya prosa explicativa; la tabla comparativa
+  detallada no explica el criterio en prosa aunque siga llevando los
+  datos — comprobados primero contra el código sin arreglar (los tres
+  fallan) y después contra el arreglado.
+- Tests existentes ajustados donde asumían la prosa ahora eliminada.
+- `pnpm lint && pnpm typecheck && pnpm test` — 882 tests en verde (el
+  único fallo es el previo y ajeno de siempre).
+- `pnpm build && pnpm test:e2e`.
+
+---
+
 ## [1.15.67] — 30/09/2026 (versión visible en pantalla: v1.33)
 
 fix(app): la carpeta de grupo/doctor de D104 se borra sola en cuanto se queda vacía (D108).

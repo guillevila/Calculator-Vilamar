@@ -9,7 +9,46 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 30/09/2026 · **La carpeta de grupo/doctor
+**Última actualización:** 01/10/2026 · **Una variante de córnea
+posterior nunca se planifica para un aparato sin PK1/PK2 (D111).** Con
+dos aparatos del mismo ojo, uno con córnea posterior medida y otro sin
+ella, pedir «EVO con posterior» y «Barrett con posterior» generaba
+también esas casillas para el aparato SIN esos datos — calculaban
+exactamente lo mismo que su base, sin comparar nada, y el PDF sacaba
+una hoja de más por cada una. Nueva `tieneCaraPosterior(ojo)` en el
+dominio, compartida entre la planificación del cálculo y el título de
+cada hoja del informe (antes cada uno tenía su propio criterio
+separado). `pnpm lint && pnpm typecheck && pnpm test && pnpm build &&
+pnpm test:e2e` en verde (887 tests unitarios; el único fallo de la
+suite es previo y no relacionado; 65/65 de interfaz — este cambio no
+toca la interfaz, así que la cuenta no sube).
+
+Antes de esto — **30/09/2026 (3): corrige D109: vuelve el
+párrafo que explica el criterio, solo en la tabla comparativa
+detallada (D110).** Inmediatamente después de D109, el dueño pidió
+recuperar «el párrafo explicando el resumen el criterio» — se
+interpretó como el párrafo de la tabla comparativa detallada que nombra
+el criterio explícitamente, no el del cuadro de tarjetas. Es ahora el
+único párrafo de prosa de todo el informe, aparte del aviso legal del
+final. `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm
+test:e2e` en verde (883 tests unitarios; el único fallo de la suite es
+previo y no relacionado; 65/65 de interfaz).
+
+Antes de esto — **30/09/2026 (2): el informe se reduce a
+un único párrafo de aviso legal, al final (D109).** El dueño pidió
+quitar todos los avisos del informe salvo el párrafo legal final —
+incluidas las explicaciones del criterio de la estimación propia (bajo
+cada captura, en el cuadro de tarjetas, en la tabla comparativa
+detallada) y el segundo párrafo del pie legal, el de privacidad. Antes
+de tocar nada se avisó de que la etiqueta «no vinculante» es una
+condición de la constitución del proyecto (D43): el dueño confirmó que
+se queda, corta, pegada al valor, sin el párrafo que la explicaba.
+Actualizada también la constitución (CLAUDE.md) para reflejarlo. `pnpm
+lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e` en
+verde (882 tests unitarios; el único fallo de la suite es previo y no
+relacionado; 65/65 de interfaz).
+
+Antes de esto — **30/09/2026 (1): la carpeta de grupo/doctor
 de D104 se borra sola en cuanto se queda vacía (D108).** El dueño
 reportó que las carpetas que crea en Alta/Normal/Baja (una por doctor,
 con sus pacientes dentro) se quedaban ahí, vacías, acumulándose —

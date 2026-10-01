@@ -339,7 +339,11 @@ cualquier consideración técnica:
   captura de pantalla sin interpretar. Decisión D43 en `SYSTEM_VISION.md`:
   pedida expresamente por el dueño del proyecto después de un pushback
   explícito, aceptando la condición de que sea opcional y no vinculante;
-  matizada por D105 (29/09/2026) a petición del propio dueño.
+  matizada por D105 (29/09/2026) a petición del propio dueño. El resto de
+  avisos en prosa del informe se redujeron a un único párrafo legal final
+  (D109, 30/09/2026) — salvo este, el de la tabla comparativa detallada,
+  que el dueño pidió recuperar el mismo día (D110): es el único párrafo
+  de prosa que queda en todo el informe, aparte del legal.
 
 ---
 

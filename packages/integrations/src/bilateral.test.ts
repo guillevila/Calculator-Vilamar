@@ -291,6 +291,92 @@ describe('un aparato excluido no entra en el plan de cálculo', () => {
   })
 })
 
+/**
+ * Fallo real reportado por el dueño del proyecto (01/10/2026): con dos
+ * aparatos del mismo ojo, uno con córnea posterior medida (PK1/PK2) y
+ * otro sin ella, pedir «EVO con posterior» y «Barrett con posterior»
+ * sacaba también esas dos casillas para el aparato SIN esos datos — como
+ * no hay córnea posterior que añadir o quitar, calculaban exactamente lo
+ * mismo que su base, sin comparar nada de verdad, y el PDF sacaba una
+ * hoja de más por cada una. «El pdf que sale en el aparato que no tiene
+ * datos de posterior repite el cálculo con estimada y ocupa espacio».
+ */
+describe('D111 (01/10/2026): una variante de córnea posterior nunca se planifica sin PK1/PK2', () => {
+  /** OD con DOS aparatos: «Principal» (de casoDosOjos, SIN PK1/PK2) y «Pentacam», CON PK1/PK2. */
+  function casoConUnAparatoSinCaraPosterior(): Caso {
+    let caso = casoDosOjos()
+    let pentacam = ojoVacio('OD', 'Pentacam')
+    for (const [campo, valor] of [
+      ['AL', 24.1],
+      ['K1', 41.0],
+      ['K1_EJE', 170],
+      ['K2', 42.4],
+      ['K2_EJE', 80],
+      ['ACD', 3.2],
+      ['REFRACCION_OBJETIVO', 0],
+      ['SIA', 0],
+      ['EJE_INCISION', 0],
+      ['CONSTANTE_A', 119],
+      ['PK1', 6.1],
+      ['PK2', 6.3],
+    ] as const) {
+      pentacam = conMedida(
+        pentacam,
+        crearMedida(campo, 'OD', valor, { metodo: 'MANUAL', registradoEn: CUANDO }),
+      )
+    }
+    pentacam = confirmarTodas(pentacam)
+    caso = conOjo(caso, pentacam, CUANDO)
+    return confirmar(caso, CUANDO)
+  }
+
+  it('«EVO Toric sin cara posterior» solo se planifica para el aparato que SÍ tiene PK1/PK2', () => {
+    const plan = planificarCaso(casoConUnAparatoSinCaraPosterior(), {
+      calculadoras: ['EVO_TORIC_SIN_CARA_POSTERIOR'],
+    })
+    const deOD = plan.filter((t) => t.ojo === 'OD').map((t) => t.aparato)
+    expect(deOD).toEqual(['Pentacam'])
+    expect(deOD).not.toContain(APARATO_PRINCIPAL)
+  })
+
+  it('«Barrett Toric con cara posterior» solo se planifica para el aparato que SÍ tiene PK1/PK2', () => {
+    const plan = planificarCaso(casoConUnAparatoSinCaraPosterior(), {
+      calculadoras: ['BARRETT_TORIC_CON_CARA_POSTERIOR'],
+    })
+    const deOD = plan.filter((t) => t.ojo === 'OD').map((t) => t.aparato)
+    expect(deOD).toEqual(['Pentacam'])
+    expect(deOD).not.toContain(APARATO_PRINCIPAL)
+  })
+
+  it('las calculadoras BASE (no variante) se siguen planificando para los dos aparatos', () => {
+    const plan = planificarCaso(casoConUnAparatoSinCaraPosterior(), {
+      calculadoras: ['EVO_TORIC', 'BARRETT_TORIC', 'KANE'],
+    })
+    const deOD = plan.filter((t) => t.ojo === 'OD').map((t) => t.aparato)
+    expect(deOD.filter((a) => a === APARATO_PRINCIPAL)).toHaveLength(3)
+    expect(deOD.filter((a) => a === 'Pentacam')).toHaveLength(3)
+  })
+
+  it('con los dos aparatos teniendo córnea posterior, las dos variantes se planifican para los dos', () => {
+    let caso = casoConUnAparatoSinCaraPosterior()
+    let principal = ojoDe(caso, 'OD', APARATO_PRINCIPAL)
+    for (const [campo, valor] of [
+      ['PK1', 6.0],
+      ['PK2', 6.2],
+    ] as const) {
+      principal = conMedida(
+        principal,
+        crearMedida(campo, 'OD', valor, { metodo: 'MANUAL', registradoEn: CUANDO }),
+      )
+    }
+    caso = conOjo(caso, confirmarTodas(principal), CUANDO)
+
+    const plan = planificarCaso(caso, { calculadoras: ['BARRETT_TORIC_CON_CARA_POSTERIOR'] })
+    const deOD = plan.filter((t) => t.ojo === 'OD').map((t) => t.aparato)
+    expect(deOD.sort()).toEqual([APARATO_PRINCIPAL, 'Pentacam'].sort())
+  })
+})
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  2-4 · A cada ojo, los suyos
 // ═══════════════════════════════════════════════════════════════════════════

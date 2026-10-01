@@ -244,6 +244,21 @@ export function valorDe(ojo: OjoBiometrico, campo: CampoBiometrico): number | un
 }
 
 /**
+ * Si este dataset tiene de verdad córnea posterior medida (PK1 o PK2) —
+ * D111, 01/10/2026. Antes solo se usaba para decidir el título de cada
+ * hoja del informe (`hayCaraPosteriorEn`, en `@vilamar/report`); ahora
+ * también para decidir si tiene sentido PLANIFICAR una variante de
+ * córnea posterior (`EVO_TORIC_SIN_CARA_POSTERIOR`,
+ * `BARRETT_TORIC_CON_CARA_POSTERIOR`) para este aparato en concreto — sin
+ * este dato, esa variante calcula exactamente lo mismo que su base, y
+ * sacaba una hoja de más en el PDF sin ninguna diferencia real que
+ * mostrar.
+ */
+export function tieneCaraPosterior(ojo: OjoBiometrico): boolean {
+  return valorDe(ojo, 'PK1') !== undefined || valorDe(ojo, 'PK2') !== undefined
+}
+
+/**
  * Coloca una medida en el ojo.
  *
  * Comprueba que la medida sea de ESE ojo. Mezclar OD y OS es el error que más

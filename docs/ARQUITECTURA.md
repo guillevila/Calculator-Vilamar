@@ -980,14 +980,22 @@ Ninguna de las dos partes se inventa si el criterio no señala nada: sin una
 opción con refracción negativa no hay esfera; sin eje curvo, o sin ninguna
 opción tórica que lo comparta, no hay cilindro.
 
-**Se enseña siempre como lo que es.** La línea bajo cada captura dice
-«Estimación de Calculator Vilamar (no vinculante)», nunca «lente
-recomendada» a secas. El cuadro final (`hojaResumenFinal`, una hoja por ojo
-con más de una estimación) lleva un aviso imposible de no ver y marca la que
-se aleja menos de las otras dos por su esfera como «Más cercana entre las
-tres» — nunca «la elegida». Ninguna de las dos sustituye a la captura de
-pantalla de encima, que sigue siendo, sin interpretar, lo que la calculadora
-respondió de verdad.
+**Se enseña siempre como lo que es.** Bajo cada captura, la línea dice
+«Estimación del Resumen de calculadores (no vinculante)», nunca «lente
+recomendada» a secas — pero solo aparece si se marca la casilla
+«Incluir la estimación propia…» antes de generar el PDF (apagada por
+defecto, D105, 29/09/2026). Lo mismo el cuadro final de tarjetas
+(`hojaResumenFinal`, una hoja por ojo con más de una estimación): la
+etiqueta «No vinculante» sigue ahí, en la cabecera de la hoja, pero el
+párrafo que antes explicaba el criterio se quitó (D109, 30/09/2026,
+petición expresa del dueño: reducir el informe a un único aviso legal
+al final). La tabla comparativa detallada del final SÍ se enseña
+siempre, con el mismo dato — y es la ÚNICA hoja de todo el informe que
+SÍ explica el criterio en prosa (`criterioEsferaTexto`): D110, el mismo
+día, lo trajo de vuelta ahí, a petición expresa del dueño, tras
+comprobar que D109 se lo había quitado también a ella. Ninguna de las
+tres sustituye a la captura de pantalla de encima, que sigue siendo, sin
+interpretar, lo que la calculadora respondió de verdad.
 
 ---
 

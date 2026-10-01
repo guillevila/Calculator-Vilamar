@@ -45,11 +45,14 @@ import {
   datasetsActivosDe,
   explicarBloqueo,
   fichaDe,
+  ojoDe,
   ojosDelCaso,
   prepararEntradas,
   resultadoDe,
   resultadoVacio,
   sePuedeReintentar,
+  tieneCaraPosterior,
+  VARIANTE_CARA_POSTERIOR,
 } from '@vilamar/domain'
 import type { Browser, BrowserContext } from 'playwright'
 
@@ -97,6 +100,20 @@ export function crearAdaptadores(): Readonly<Record<Calculadora, AdaptadorCalcul
 }
 
 /**
+ * Las calculadoras que solo tienen sentido cuando el dataset tiene de
+ * verdad córnea posterior medida (D111, 01/10/2026): tanto
+ * `EVO_TORIC_SIN_CARA_POSTERIOR` (compara con/sin quitarla) como
+ * `BARRETT_TORIC_CON_CARA_POSTERIOR` (compara con/sin añadirla) calculan
+ * EXACTAMENTE lo mismo que su calculadora base cuando el aparato no tiene
+ * PK1 ni PK2 — no hay ninguna córnea posterior que quitar o añadir—, así
+ * que planificarlas ahí no compara nada: solo repite el mismo resultado
+ * en una hoja de más.
+ */
+const CALCULADORAS_VARIANTE_CARA_POSTERIOR: ReadonlySet<Calculadora> = new Set(
+  Object.values(VARIANTE_CARA_POSTERIOR).map((v) => v.calculadora),
+)
+
+/**
  * Una casilla del cálculo: qué web, para qué ojo y de qué aparato.
  *
  * Es la unidad de todo lo que hace este fichero — planificar, ejecutar y
@@ -121,6 +138,15 @@ export interface TareaCalculo {
  * dentro de cada ojo, cada aparato/biómetro que ese ojo tenga (D47). Un caso
  * de un solo ojo y un solo aparato produce las mismas tareas que antes de
  * D47; no se inventa el que falta.
+ *
+ * **Una variante de córnea posterior nunca se planifica para un aparato sin
+ * PK1/PK2** (D111, 01/10/2026): con dos aparatos del mismo ojo, uno con
+ * córnea posterior medida y otro sin ella, pedir «EVO con posterior» y
+ * «Barrett con posterior» generaba también esas dos casillas para el
+ * aparato SIN esos datos — calculaban exactamente lo mismo que su base,
+ * sin comparar nada de verdad, y el PDF sacaba una hoja de más por cada
+ * una. El resto de calculadoras (las bases, y Kane) no se filtran: no
+ * dependen de tener córnea posterior para tener sentido.
  */
 export function planificarCaso(
   caso: Caso,
@@ -142,6 +168,11 @@ export function planificarCaso(
       const aparatosDelOjo = datasetsActivosDe(caso, ojo)
         .map((d) => d.aparato)
         .filter((a) => opciones?.aparatos === undefined || opciones.aparatos.includes(a))
+        .filter(
+          (aparato) =>
+            !CALCULADORAS_VARIANTE_CARA_POSTERIOR.has(calculadora) ||
+            tieneCaraPosterior(ojoDe(caso, ojo, aparato)),
+        )
       return aparatosDelOjo.map((aparato) => ({ calculadora, ojo, aparato }))
     }),
   )

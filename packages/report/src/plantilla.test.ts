@@ -239,14 +239,13 @@ function sinSaltos(h: string): string {
 /**
  * El cuerpo del informe, sin el pie ni el contenido opaco de las capturas.
  *
- * El pie NOMBRA los datos que el informe no lleva («no contiene el nombre, la
- * fecha de nacimiento ni el número de historia»). Esa frase tiene que estar, así
- * que la comprobación de privacidad mira el resto del documento: lo que importa
- * es que no aparezca ningún dato identificativo, no que no se nombre la idea.
+ * Se sigue descartando el pie aunque, desde D109 (30/09/2026), ya no nombre
+ * ningún dato excluido — por si algún día vuelve a llevar uno.
  *
  * El base64 de una captura es contenido binario opaco: puede contener por azar
- * cualquier subcadena, incluidas las que busca esa comprobación, sin que haya
- * ningún dato identificativo real. Se descarta del barrido antes de buscar.
+ * cualquier subcadena, incluidas las que busca la comprobación de privacidad,
+ * sin que haya ningún dato identificativo real. Se descarta del barrido antes
+ * de buscar.
  */
 function cuerpoSinPie(h: string): string {
   const i = h.indexOf('<footer')
@@ -401,7 +400,7 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
         { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 22.0 } },
       ])
       expect(h).toContain('Comparación orientativa')
-      expect(h).toContain('opcional y no vinculante')
+      expect(h).toContain('No vinculante')
       expect(h).toContain('EVO Toric')
       expect(h).toContain('Kane')
     })
@@ -412,9 +411,10 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
         { calculadora: 'BARRETT_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
         { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 23.0 } },
       ])
-      // Hasta el CIERRE de esta hoja, no hasta el `<footer>` legal del final
-      // del documento (D105, 29/09/2026): la tabla comparativa detallada,
-      // que viene justo después, sí explica el criterio con «más cercana».
+      // Hasta el CIERRE de esta hoja, no hasta el `<footer>` legal del
+      // final del documento — aunque desde D109 (30/09/2026) ninguna hoja
+      // explica ya el criterio en prosa, sigue siendo la forma correcta
+      // de acotar «solo este cuadro», no todo lo que viene después.
       const inicio = h.indexOf('Comparación orientativa')
       const cuadro = h.slice(inicio, h.indexOf('<section class="hoja">', inicio + 1))
       expect(cuadro.toLowerCase()).not.toContain('más cercana')
@@ -541,17 +541,10 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
   describe('D105 (29/09/2026): el interruptor «incluirEstimacionCompleta»', () => {
     function htmlConInterruptor(
       resultados: readonly (Omit<ResultadoInforme, 'aparato'> & { readonly aparato?: string })[],
-      opciones: { readonly incluirEstimacionCompleta: boolean; readonly modeloLente?: string },
+      opciones: { readonly incluirEstimacionCompleta: boolean },
     ): string {
       const caso = confirmar(
-        conOjo(
-          {
-            ...casoNuevo('c1', 'CV-2026-0042', CUANDO),
-            ...(opciones.modeloLente ? { lente: { modelo: opciones.modeloLente } } : {}),
-          },
-          confirmarTodas(ojoVacio('OD')),
-          CUANDO,
-        ),
+        conOjo(casoNuevo('c1', 'CV-2026-0042', CUANDO), confirmarTodas(ojoVacio('OD')), CUANDO),
         CUANDO,
       )
       const conAparato = resultados.map((r) => ({ ...r, aparato: r.aparato ?? APARATO_PRINCIPAL }))
@@ -599,29 +592,6 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
       )
       expect(tabla).toContain('21.50 D')
       expect(tabla).toContain('22.00 D')
-    })
-
-    it('la tabla comparativa detallada explica el criterio fijo arriba, con «primera negativa» para la mayoría de lentes', () => {
-      const h = htmlConInterruptor(DOS_ESTIMACIONES, { incluirEstimacionCompleta: false })
-      const tabla = h.slice(
-        h.indexOf('Tabla comparativa detallada'),
-        h.indexOf('<table', h.indexOf('Tabla comparativa detallada')),
-      )
-      expect(tabla).toContain('refracción prevista negativa')
-      expect(tabla).not.toContain('refracción prevista positiva')
-    })
-
-    it('con una lente de la familia Lux (D52), el criterio explicado es «primera positiva»', () => {
-      const h = htmlConInterruptor(DOS_ESTIMACIONES, {
-        incluirEstimacionCompleta: false,
-        modeloLente: 'B&L LuxSmart',
-      })
-      const tabla = h.slice(
-        h.indexOf('Tabla comparativa detallada'),
-        h.indexOf('<table', h.indexOf('Tabla comparativa detallada')),
-      )
-      expect(tabla).toContain('refracción prevista positiva')
-      expect(tabla).not.toContain('refracción prevista negativa')
     })
 
     it('sin especificar el interruptor, `recopilarInforme` sigue viendo el informe completo de siempre', () => {
@@ -755,6 +725,82 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
   })
 })
 
+/**
+ * Petición expresa del dueño del proyecto (30/09/2026): quitar todos los
+ * avisos del informe salvo el párrafo legal del final — incluida la
+ * segunda mitad de ese párrafo, la de privacidad («no contiene el
+ * nombre...»). La etiqueta «No vinculante» se queda, pero como apunte
+ * corto en la cabecera de cada hoja o pegada al valor bajo cada captura,
+ * nunca ya como un párrafo de prosa.
+ *
+ * Corregido el mismo día (D110): el dueño pidió recuperar justo UNO de
+ * los párrafos quitados — el que explica el criterio de la esfera, en la
+ * tabla comparativa detallada. Es la única excepción; todo lo demás de
+ * D109 se queda fuera.
+ */
+describe('D109/D110 (30/09/2026): el informe se reduce al mínimo, con una única excepción', () => {
+  it('el pie legal es UN solo párrafo, exactamente el que pidió el dueño — nada de privacidad aparte', () => {
+    const h = htmlSimple([
+      { calculadora: 'EVO_TORIC', ojo: 'OD', dataUri: 'data:image/png;base64,QUFB' },
+    ])
+    const pie = h.slice(h.indexOf('<footer'))
+    const parrafos = pie.match(/<p>/g) ?? []
+    expect(parrafos).toHaveLength(1)
+    expect(sinSaltos(pie)).toMatch(/organizador de cálculos/i)
+    expect(sinSaltos(pie)).not.toMatch(/no contiene el nombre/i)
+  })
+
+  it('con el interruptor encendido, ni el cuadro de tarjetas ni la línea bajo la captura llevan ya prosa explicativa — solo la etiqueta corta', () => {
+    const h = htmlSimple([
+      { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
+      { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 22.0 } },
+    ])
+    expect(h).not.toContain('calculada con un criterio fijo')
+    expect(h).not.toContain('quien opera')
+    expect(h).not.toContain('decide con el detalle de cada calculadora')
+  })
+
+  it('D110: la tabla comparativa detallada SÍ vuelve a explicar el criterio en prosa — la única excepción de D109', () => {
+    const h = htmlSimple([
+      { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5, refraccionPrevista: -0.1 } },
+      { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 22.0 } },
+    ])
+    expect(h).toContain('Tabla comparativa detallada')
+    expect(h).toContain('refracción prevista negativa')
+    // Pero el resto de la prosa que D109 quitó del cuadro de tarjetas y
+    // del pie legal no vuelve — D110 solo trajo de vuelta este párrafo.
+    expect(h).not.toContain('Un vistazo a todo lo calculado')
+    expect(h).not.toContain('calculada con un criterio fijo')
+  })
+
+  it('D110: el criterio explicado varía con la familia de lente (D52) — «primera positiva» para la familia Lux', () => {
+    const caso = confirmar(
+      conOjo(
+        { ...casoNuevo('c1', 'CV-2026-0042', CUANDO), lente: { modelo: 'B&L LuxSmart' } },
+        confirmarTodas(ojoVacio('OD')),
+        CUANDO,
+      ),
+      CUANDO,
+    )
+    const h = generarHtmlInforme(
+      recopilarInforme(caso, {
+        version: '0.1.0',
+        generadoEn: CUANDO,
+        resultados: [
+          {
+            calculadora: 'EVO_TORIC',
+            ojo: 'OD',
+            aparato: APARATO_PRINCIPAL,
+            recomendada: { esfera: 21.5, refraccionPrevista: 0.1 },
+          },
+        ],
+      }),
+    )
+    expect(h).toContain('refracción prevista positiva')
+    expect(h).not.toContain('refracción prevista negativa')
+  })
+})
+
 describe('privacidad del documento', () => {
   it('el cuerpo del informe no contiene campos de identificación de paciente', () => {
     const cuerpo = cuerpoSinPie(html()).toLowerCase()
@@ -769,10 +815,6 @@ describe('privacidad del documento', () => {
     ]) {
       expect(cuerpo, `el informe menciona «${prohibido}»`).not.toContain(prohibido)
     }
-  })
-
-  it('dice explícitamente que no lleva datos identificativos', () => {
-    expect(sinSaltos(html())).toMatch(/no contiene el nombre, la fecha de nacimiento ni/i)
   })
 
   it('el caso se identifica solo por su código local', () => {

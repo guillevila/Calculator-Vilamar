@@ -343,6 +343,7 @@ describe('generarPdf — el interruptor de la estimación completa (D105, 29/09/
     expect(html).not.toContain('Estimación del Resumen de calculadores')
     expect(html).not.toContain('Comparación orientativa')
     expect(html).toContain('Tabla comparativa detallada')
+    // D110 (30/09/2026): el único párrafo de prosa que sigue en el informe.
     expect(html).toContain('refracción prevista negativa')
   })
 

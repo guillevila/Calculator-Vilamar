@@ -46,6 +46,7 @@ import {
   describirDiscrepancia,
   discrepanciasDeConstante,
   textoEstado,
+  tieneCaraPosterior,
 } from '@vilamar/domain'
 
 /**
@@ -1299,7 +1300,7 @@ const ESTILOS = `
   .lente-recomendada strong { font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace; }
   .no-vinculante { font-size: 8.5pt; color: var(--gris); font-style: italic; }
 
-  /* El cuadro final — vistoso a propósito, y con el aviso de "no vinculante" imposible de no ver. */
+  /* El único párrafo de prosa que D110 (30/09/2026) trajo de vuelta tras D109 — explica el criterio de la tabla final. */
   .aviso-no-vinculante {
     background: #FFF7E6; border: 1px solid #F0C36D; border-radius: 6px;
     padding: 10px 14px; font-size: 9pt; line-height: 1.5; color: #6B4E00; margin-bottom: 16px;
@@ -1482,10 +1483,13 @@ const CLASE_TARJETA: Record<Calculadora, string> = {
   BARRETT_TRUE_K_TORIC: 'barrett',
 }
 
-/** Si ese dataset concreto (ojo × aparato) tiene algo de córnea posterior medida. */
+/**
+ * Si ese dataset concreto (ojo × aparato) tiene algo de córnea posterior
+ * medida — mismo criterio que usa `planificarCaso()` para decidir si
+ * tiene sentido pedirle una variante de córnea posterior (D111).
+ */
 function hayCaraPosteriorEn(caso: Caso, ojo: Lateralidad, aparato: string): boolean {
-  const medidas = ojoDe(caso, ojo, aparato).medidas
-  return medidas.PK1 !== undefined || medidas.PK2 !== undefined
+  return tieneCaraPosterior(ojoDe(caso, ojo, aparato))
 }
 
 /**
@@ -1564,10 +1568,11 @@ const TONOS_APARATO: readonly { readonly fondo: string; readonly borde: string }
 
 /**
  * El criterio fijo de la esfera (D43/D52), en palabras llanas — para
- * explicarlo junto a la tabla comparativa detallada (D105, 29/09/2026): es
- * la única hoja que sigue llevando la estimación propia cuando el resto del
- * informe no la incluye, así que es la que tiene que decir, sin más rodeo,
- * con qué criterio se ha elegido cada lente de esta tabla.
+ * explicarlo junto a la tabla comparativa detallada. Vuelto a añadir en
+ * D110 (30/09/2026): D109 lo había quitado junto con el resto de la prosa
+ * del informe, pero el dueño pidió recuperar justo este, el que explica el
+ * criterio del Resumen de calculadores — el único de los que se quitaron
+ * que sí vuelve.
  */
 function criterioEsferaTexto(criterio: CriterioEsfera): string {
   return criterio === 'PRIMERA_POSITIVA'
@@ -1587,11 +1592,10 @@ function criterioEsferaTexto(criterio: CriterioEsfera): string {
  * ADEMÁS, marcada igual que el resto de estimaciones propias — opcional y
  * no vinculante (D43).
  *
- * **Es la ÚNICA hoja que sigue llevando la estimación propia cuando
- * `incluirEstimacionCompleta` es `false`** (D105, 29/09/2026): por eso, a
- * diferencia de las demás, explica arriba del todo el criterio con el que
- * se ha elegido cada lente — antes ese criterio solo se explicaba en el
- * cuadro de tarjetas (`hojaResumenFinal`), que con D105 puede no aparecer.
+ * **Es la ÚNICA hoja que explica el criterio en prosa** (D109 quitó esa
+ * prosa de todo el informe el 30/09/2026; D110, el mismo día, la trajo de
+ * vuelta aquí, y solo aquí, a petición expresa del dueño — el resto de
+ * avisos en prosa que D109 quitó se quedan fuera).
  */
 function tablaComparativaDetallada(
   caso: Caso,
@@ -1645,12 +1649,6 @@ function tablaComparativaDetallada(
       tórico más alto que sigue compartiendo el eje corneal curvo — o el primero, antes de que el eje cambie
       de orientación.
     </p>
-    <p class="aviso-no-vinculante">
-      Un vistazo a todo lo calculado para ${esc(nombreLateralidad(ojo))}: aparato, calculadora, la lente de
-      la estimación propia del Resumen de calculadores <strong>(no vinculante)</strong>, y la refracción y el
-      astigmatismo que se prevé que queden. No sustituye a ninguna calculadora: el detalle exacto de cada
-      una, con su captura sin interpretar, sigue en las hojas de encima.
-    </p>
     <table class="tabla-detallada">
       <thead>
         <tr>
@@ -1668,9 +1666,13 @@ function tablaComparativaDetallada(
  * El cuadro final: todas las estimaciones de ese ojo, lado a lado — cada
  * calculadora (y sus variantes de córnea posterior, D45, cuando el ojo las
  * tiene) con la suya, sin señalar ninguna como la más adecuada. Marcado
- * siempre, sin excepción, como opcional y no vinculante (D43). No sustituye
- * a ninguna calculadora ni dice qué implantar; es una lectura rápida de algo
- * que ya está, con más detalle, en las hojas de encima.
+ * siempre, sin excepción, como opcional y no vinculante (D43) — con la
+ * etiqueta «No vinculante» en el `apunte` de la cabecera, no en un párrafo
+ * aparte (D109, 30/09/2026 le quitó la prosa explicativa que tenía desde
+ * D43: el dueño pidió reducir el informe al mínimo de avisos, manteniendo
+ * la etiqueta en sí). No sustituye a ninguna calculadora ni dice qué
+ * implantar; es una lectura rápida de algo que ya está, con más detalle,
+ * en las hojas de encima.
  */
 function hojaResumenFinal(
   caso: Caso,
@@ -1716,13 +1718,7 @@ function hojaResumenFinal(
     titulo: `Comparación orientativa · ${nombreLateralidad(ojo)}`,
     apunte: 'No vinculante',
     refExtra: ` · ${ojo}`,
-    cuerpo: `<p class="aviso-no-vinculante">
-      Esto es una estimación propia del Resumen de calculadores, calculada con un criterio fijo y
-      el mismo para todas las calculadoras — no es lo que ninguna de ellas ha destacado, ni
-      una recomendación clínica. <strong>Es opcional y no vinculante</strong>: quien opera
-      decide con el detalle de cada calculadora, en las hojas de encima.
-    </p>
-    <div class="tarjetas-resumen">${tarjetas}</div>`,
+    cuerpo: `<div class="tarjetas-resumen">${tarjetas}</div>`,
     pie: `Cuadro comparativo orientativo de ${esc(nombreLateralidad(ojo))}. No sustituye a ninguna calculadora.`,
   }
 }
@@ -1745,11 +1741,22 @@ function hojaResumenFinal(
  * la estimación propia deja de enseñarse bajo cada captura y como su propio
  * cuadro de tarjetas — las capturas se enseñan igual, tal cual, solas. La
  * tabla comparativa detallada del final (`tablaComparativaDetallada`) sigue
- * llevándola SIEMPRE, con el mismo criterio de siempre, y explica ella
- * misma ese criterio en su propia hoja: es la única parte del informe de la
- * que este interruptor no depende. Petición expresa del dueño del proyecto:
- * mantener el criterio fijo, no vinculante, sin repetirlo en cada captura
- * ni en un cuadro aparte — solo en la tabla final, que ya lo llevaba.
+ * llevándola SIEMPRE, con el mismo criterio de siempre: es la única parte
+ * del informe de la que este interruptor no depende.
+ *
+ * **Avisos reducidos al mínimo** (D109, 30/09/2026): todo el informe lleva
+ * un único párrafo de aviso legal, al final (`PIE_LEGAL`) — petición
+ * expresa del dueño del proyecto, que pidió quitar toda la demás prosa
+ * explicando el criterio de la estimación propia o el alcance del informe.
+ * La etiqueta «No vinculante» se conserva, pero solo como apunte corto en
+ * la cabecera de cada hoja que corresponda, o pegada al valor bajo cada
+ * captura — nunca ya como un párrafo aparte, salvo la ÚNICA excepción de
+ * abajo.
+ *
+ * **Salvo una** (D110, mismo día): el párrafo que explica el criterio de
+ * la esfera, en `tablaComparativaDetallada`, volvió — a petición expresa
+ * del dueño, después de D109. Es el único párrafo de prosa que queda en
+ * todo el informe, aparte del aviso legal del final.
  */
 export function generarHtmlInforme(datos: DatosInforme): string {
   const { caso, incluirEstimacionCompleta } = datos
@@ -1989,11 +1996,18 @@ export function generarHtmlInformeDetallado(datos: DatosInforme): string {
 }
 
 /**
- * El aviso legal y el de privacidad, al final del documento.
+ * El aviso legal, al final del documento — reducido a un único párrafo
+ * (D109, 30/09/2026), petición expresa del dueño del proyecto: quitar
+ * todos los avisos del informe salvo este. El segundo párrafo que había
+ * antes («este documento no contiene el nombre, la fecha de nacimiento…»)
+ * se quitó también, a petición suya: la protección real —que esos datos
+ * nunca lleguen al documento— no depende de decirlo aquí, vive en el
+ * modelo de datos (D23, D44).
  *
- * Va en un `<footer>` a propósito: la comprobación de que el informe no lleva datos
- * identificativos recorre el cuerpo SIN el pie, y la frase que nombra los datos
- * excluidos tiene que quedar fuera de ese recorrido para no darla por encontrada.
+ * Va en un `<footer>` a propósito: la comprobación de que el informe no
+ * lleva datos identificativos recorre el cuerpo SIN el pie — sigue siendo
+ * así aunque ahora este párrafo no nombre ningún dato excluido, por si
+ * algún día vuelve a llevar uno.
  */
 const PIE_LEGAL = `<footer class="principal">
     <p>
@@ -2007,10 +2021,5 @@ const PIE_LEGAL = `<footer class="principal">
       <strong>No está destinado a servir de instrucción médica ni quirúrgica.</strong> La
       decisión de qué lente implantar, y el análisis de cada resultado mostrado, son
       <strong>responsabilidad exclusiva del oftalmólogo</strong> que opera.
-    </p>
-    <p>
-      Este documento <strong>no contiene el nombre, la fecha de nacimiento ni el número
-      de historia</strong> del paciente: el caso se identifica solo por su código local.
-      Se ha generado en este ordenador, sin enviar nada a ningún servidor.
     </p>
   </footer>`
