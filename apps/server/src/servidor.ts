@@ -22,7 +22,7 @@
  */
 
 import { existsSync } from 'node:fs'
-import { relative } from 'node:path'
+import { join, relative } from 'node:path'
 
 import express, { type Express, type NextFunction, type Request, type Response } from 'express'
 import multer from 'multer'
@@ -276,6 +276,23 @@ export function crearServidor(
 
     req.on('close', desuscribir)
   })
+
+  // La PWA ya compilada (`pnpm --filter @vilamar/movil build`), servida por
+  // este mismo servidor — mismo origen, sin proxy de Vite (ver la cabecera
+  // de `apps/movil/vite.config.ts`). Solo en producción: en desarrollo la
+  // carpeta no existe (el móvil se sirve con su propio `vite dev`) y este
+  // bloque simplemente no se activa, sin romper nada.
+  const distMovil = process.env['VILAMAR_MOVIL_DIST'] ?? join(process.cwd(), '..', 'movil', 'dist')
+  if (existsSync(distMovil)) {
+    app.use(express.static(distMovil))
+    // Es una SPA sin rutas propias en la URL (todo pasa por estado de React,
+    // no por el navegador) — cualquier GET que no sea ni un fichero estático
+    // ni una ruta de /casos*//eventos (ya resueltas arriba) cae aquí, y se
+    // sirve el mismo index.html para que React arranque igual.
+    app.get('*', (_req, res) => {
+      res.sendFile(join(distMovil, 'index.html'))
+    })
+  }
 
   return app
 }
