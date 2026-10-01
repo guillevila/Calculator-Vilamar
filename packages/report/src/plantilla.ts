@@ -1266,30 +1266,13 @@ const ESTILOS = `
   .captura { display: flex; justify-content: center; align-items: flex-start; margin-top: 10px; }
   .captura img { max-width: 100%; max-height: 210mm; object-fit: contain; border: 1px solid var(--linea); border-radius: 4px; }
   .captura-ausente { color: var(--gris); font-style: italic; margin-top: 10px; }
-  .lente-recomendada { margin-top: 16px; font-size: 11pt; text-align: center; }
-  .lente-recomendada strong { font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace; }
-  .no-vinculante { font-size: 8.5pt; color: var(--gris); font-style: italic; }
 
-  /* El cuadro final — vistoso a propósito, y con el aviso de "no vinculante" imposible de no ver. */
+  /* La caja de aviso de la tabla comparativa detallada — "no vinculante" imposible de no ver. */
   .aviso-no-vinculante {
     background: #FFF7E6; border: 1px solid #F0C36D; border-radius: 6px;
     padding: 10px 14px; font-size: 9pt; line-height: 1.5; color: #6B4E00; margin-bottom: 16px;
   }
   .aviso-no-vinculante strong { color: #4A3600; }
-  .tarjetas-resumen { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-  .tarjeta-resumen {
-    flex: 1 1 0; min-width: 46mm; max-width: 60mm; border-radius: 8px; padding: 12px;
-    text-align: center; border: 2px solid transparent; color: #fff;
-  }
-  .tarjeta-resumen.evo { background: #12506E; }
-  .tarjeta-resumen.barrett { background: #7A3E9D; }
-  .tarjeta-resumen.kane { background: #1B7F5E; }
-  .tarjeta-nombre { font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.85; }
-  .tarjeta-valor {
-    margin-top: 6px; font-size: 12pt; font-weight: 600;
-    font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace;
-  }
-  .tarjeta-sin-dato { margin-top: 6px; font-size: 9pt; font-style: italic; opacity: 0.85; }
 
   /*
    * El aparato, EN GRANDE, en cada hoja de un ojo con más de un biómetro
@@ -1418,40 +1401,6 @@ ${cuerpoDelDocumento}
 </html>`
 }
 
-/**
- * Una línea con la estimación PROPIA de Calculator Vilamar (D43) — nunca la
- * opción que la calculadora haya destacado, aunque coincidan. Se dice así en
- * el propio texto, para que no se confunda con lo que dice la web: eso sigue
- * siendo, sin interpretar, la captura de pantalla de encima.
- */
-function lenteRecomendadaTexto(recomendada: ResultadoInforme['recomendada']): string {
-  if (!recomendada) return ''
-  const partes = [`${recomendada.esfera.toFixed(2)} D`]
-  if (recomendada.cilindro !== undefined)
-    partes.push(`Cilindro ${recomendada.cilindro.toFixed(2)} D`)
-  // El eje que se enseña es el RESIDUAL —el que la propia calculadora dice
-  // que quedaría con esta opción—, no `recomendada.eje` (el meridiano
-  // corneal curvo, fijo, que usa el criterio para ELEGIR la fila, no para
-  // mostrarla). Fallo real encontrado el 01/09/2026 con un PDF real: el eje
-  // corneal es el mismo para las cinco casillas de un ojo —salía «Eje 0°»
-  // repetido cinco veces—, mientras que el que cada calculadora publica
-  // varía por calculadora y por córnea posterior sí/no, que es la
-  // información que de verdad distingue una casilla de otra.
-  if (recomendada.ejeResidual !== undefined) {
-    partes.push(`Eje ${recomendada.ejeResidual.toFixed(0)}°`)
-  }
-  return `<p class="lente-recomendada">Estimación del Resumen de calculadores <span class="no-vinculante">(no vinculante)</span>: <strong>${esc(partes.join(' · '))}</strong></p>`
-}
-
-/** Clase CSS de cada calculadora, solo para las tarjetas del cuadro final. */
-const CLASE_TARJETA: Record<Calculadora, string> = {
-  EVO_TORIC: 'evo',
-  EVO_TORIC_SIN_CARA_POSTERIOR: 'evo',
-  BARRETT_TORIC: 'barrett',
-  BARRETT_TORIC_CON_CARA_POSTERIOR: 'barrett',
-  KANE: 'kane',
-  BARRETT_TRUE_K_TORIC: 'barrett',
-}
 
 /** Si ese dataset concreto (ojo × aparato) tiene algo de córnea posterior medida. */
 function hayCaraPosteriorEn(caso: Caso, ojo: Lateralidad, aparato: string): boolean {
@@ -1603,69 +1552,6 @@ function tablaComparativaDetallada(
 }
 
 /**
- * El cuadro final: todas las estimaciones de ese ojo, lado a lado — cada
- * calculadora (y sus variantes de córnea posterior, D45, cuando el ojo las
- * tiene) con la suya, sin señalar ninguna como la más adecuada. Marcado
- * siempre, sin excepción, como opcional y no vinculante (D43). No sustituye
- * a ninguna calculadora ni dice qué implantar; es una lectura rápida de algo
- * que ya está, con más detalle, en las hojas de encima.
- */
-function hojaResumenFinal(
-  caso: Caso,
-  ojo: Lateralidad,
-  resultados: readonly ResultadoInforme[],
-): Hoja {
-  const deEsteOjo = resultados.filter((r) => r.ojo === ojo)
-  // Con un solo aparato (el caso de antes de D47) el nombre no cambia. Con
-  // varios, cada tarjeta dice de cuál es — si no, dos tarjetas de «EVO
-  // Toric» de aparatos distintos serían indistinguibles.
-  const variosAparatos = new Set(deEsteOjo.map((r) => r.aparato)).size > 1
-
-  const tarjetas = deEsteOjo
-    .map((r) => {
-      const base = tituloCalculadoraInforme(
-        r.calculadora,
-        hayCaraPosteriorEn(caso, r.ojo, r.aparato),
-      )
-      const nombre = variosAparatos ? `${base} (${r.aparato})` : base
-      const color = CLASE_TARJETA[r.calculadora]
-      if (!r.recomendada) {
-        return `<div class="tarjeta-resumen ${color}">
-      <div class="tarjeta-nombre">${esc(nombre)}</div>
-      <div class="tarjeta-sin-dato">Sin estimación para este ojo</div>
-    </div>`
-      }
-      const partes = [`${r.recomendada.esfera.toFixed(2)} D`]
-      if (r.recomendada.cilindro !== undefined) {
-        partes.push(`Cil. ${r.recomendada.cilindro.toFixed(2)} D`)
-      }
-      // Eje RESIDUAL, no el corneal fijo — mismo motivo que en `lenteRecomendadaTexto`.
-      if (r.recomendada.ejeResidual !== undefined) {
-        partes.push(`Eje ${r.recomendada.ejeResidual.toFixed(0)}°`)
-      }
-      return `<div class="tarjeta-resumen ${color}">
-      <div class="tarjeta-nombre">${esc(nombre)}</div>
-      <div class="tarjeta-valor">${esc(partes.join(' · '))}</div>
-    </div>`
-    })
-    .join('\n')
-
-  return {
-    titulo: `Comparación orientativa · ${nombreLateralidad(ojo)}`,
-    apunte: 'No vinculante',
-    refExtra: ` · ${ojo}`,
-    cuerpo: `<p class="aviso-no-vinculante">
-      Esto es una estimación propia del Resumen de calculadores, calculada con un criterio fijo y
-      el mismo para todas las calculadoras — no es lo que ninguna de ellas ha destacado, ni
-      una recomendación clínica. <strong>Es opcional y no vinculante</strong>: quien opera
-      decide con el detalle de cada calculadora, en las hojas de encima.
-    </p>
-    <div class="tarjetas-resumen">${tarjetas}</div>`,
-    pie: `Cuadro comparativo orientativo de ${esc(nombreLateralidad(ojo))}. No sustituye a ninguna calculadora.`,
-  }
-}
-
-/**
  * El informe simplificado: una hoja por casilla intentada, y nada más.
  *
  * Petición expresa del dueño del proyecto (25/08/2026): antes se enseñaba
@@ -1738,19 +1624,10 @@ export function generarHtmlInforme(datos: DatosInforme): string {
               r.dataUri
                 ? `<div class="captura"><img src="${esc(r.dataUri)}" alt="Captura de ${esc(nombre)}, ${esc(r.ojo)}"></div>`
                 : `<p class="captura-ausente">No se pudo guardar la captura de pantalla de este resultado.</p>`
-            }${lenteRecomendadaTexto(r.recomendada)}`,
+            }`,
             pie: `Captura sin editar de la pantalla de resultado de ${esc(nombre)}.`,
           }
         })
-
-  // El cuadro final enseña todas las casillas del caso — las tres
-  // calculadoras y, si el ojo tiene córnea posterior medida (D45), también
-  // sus variantes de EVO y Barrett — y solo si ese ojo tiene más de una
-  // estimación que poner una al lado de otra.
-  const ojosConVariasEstimaciones = ojosDelCaso(caso).filter(
-    (ojo) =>
-      datos.resultados.filter((r) => r.ojo === ojo && r.recomendada !== undefined).length > 1,
-  )
 
   // La tabla comparativa detallada (petición expresa del dueño, 27/08/2026):
   // solo tiene sentido con al menos un resultado intentado.
@@ -1758,12 +1635,7 @@ export function generarHtmlInforme(datos: DatosInforme): string {
     .map((ojo) => tablaComparativaDetallada(caso, ojo, datos.resultados))
     .filter((h): h is Hoja => h !== undefined)
 
-  const hojas = [
-    ...hojasBiometria,
-    ...hojasPorCasilla,
-    ...ojosConVariasEstimaciones.map((ojo) => hojaResumenFinal(caso, ojo, datos.resultados)),
-    ...hojasDetalle,
-  ]
+  const hojas = [...hojasBiometria, ...hojasPorCasilla, ...hojasDetalle]
 
   return documentoDeHojas(caso, datos.version, datos.generadoEn, hojas)
 }

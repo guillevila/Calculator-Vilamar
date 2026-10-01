@@ -288,24 +288,16 @@ function htmlSimple(
 }
 
 describe('el informe simplificado (generarHtmlInforme)', () => {
-  it('una casilla con éxito lleva la imagen y la lente recomendada', () => {
+  it('una casilla con éxito lleva la imagen de la captura, sin interpretar', () => {
     const h = htmlSimple([
       {
         calculadora: 'EVO_TORIC',
         ojo: 'OD',
         dataUri: 'data:image/png;base64,QUFB',
-        // `eje` (el meridiano corneal, fijo) es a propósito distinto de
-        // `ejeResidual` (el que enseña el informe) — ver el fallo real
-        // documentado en `recomendacion.ts`, 01/09/2026.
         recomendada: { esfera: 21.5, cilindro: 1, eje: 40, ejeResidual: 81 },
       },
     ])
     expect(h).toContain('<img src="data:image/png;base64,QUFB"')
-    expect(h).toContain('Estimación del Resumen de calculadores')
-    expect(h).toContain('no vinculante')
-    expect(h).toContain('21.50 D')
-    expect(h).toContain('Cilindro 1.00 D')
-    expect(h).toContain('Eje 81°')
   })
 
   it('una casilla con resultado pero sin captura legible explica la ausencia, sin inventar una imagen', () => {
@@ -375,151 +367,6 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
     ]) {
       expect(cuerpo, `el informe menciona «${prohibido}»`).not.toContain(prohibido)
     }
-  })
-
-  describe('el cuadro comparativo final (D43)', () => {
-    it('con una sola estimación no hay nada que comparar: no sale el cuadro', () => {
-      const h = htmlSimple([{ calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } }])
-      expect(h).not.toContain('Comparación orientativa')
-    })
-
-    it('con dos o más estimaciones del mismo ojo, sale el cuadro con el aviso de no vinculante', () => {
-      const h = htmlSimple([
-        { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
-        { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 22.0 } },
-      ])
-      expect(h).toContain('Comparación orientativa')
-      expect(h).toContain('opcional y no vinculante')
-      expect(h).toContain('EVO Toric')
-      expect(h).toContain('Kane')
-    })
-
-    it('no señala ninguna como la más adecuada: solo enseña el valor de cada una', () => {
-      const h = htmlSimple([
-        { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
-        { calculadora: 'BARRETT_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
-        { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 23.0 } },
-      ])
-      const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))
-      expect(cuadro.toLowerCase()).not.toContain('más cercana')
-      expect(cuadro.toLowerCase()).not.toContain('más adecuada')
-    })
-
-    it('no confunde esto con lo que ha destacado la calculadora: nunca dice "ha elegido"', () => {
-      const h = htmlSimple([
-        { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
-        { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 22.0 } },
-      ])
-      // Solo el propio cuadro, sin el pie legal común (que sí menciona «implanta» al
-      // hablar de las calculadoras externas, y no es lo que se está comprobando aquí).
-      const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))
-      expect(cuadro.toLowerCase()).not.toContain('recomendamos')
-      expect(cuadro.toLowerCase()).not.toContain('debes')
-      expect(cuadro.toLowerCase()).not.toContain('implanta')
-      expect(cuadro.toLowerCase()).not.toContain('ha elegido')
-    })
-
-    it('el eje que enseña es el residual de cada calculadora, no el meridiano corneal fijo (fallo real, 01/09/2026)', () => {
-      // Caso real: el meridiano corneal («eje») es el mismo para todo el
-      // ojo — aquí 0°, repetido en las cinco casillas de un PDF real—,
-      // mientras que el eje que cada calculadora dice que quedaría
-      // («ejeResidual») varía. Enseñar `eje` (como hacía el fallo) daba
-      // «Eje 0°» cinco veces seguidas, sin ninguna información real.
-      const h = htmlSimple([
-        {
-          calculadora: 'EVO_TORIC',
-          ojo: 'OD',
-          recomendada: { esfera: 29.5, eje: 0, ejeResidual: 94 },
-        },
-        {
-          calculadora: 'BARRETT_TORIC',
-          ojo: 'OD',
-          recomendada: { esfera: 28.5, eje: 0, ejeResidual: 4 },
-        },
-        { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 29.0, eje: 0, ejeResidual: 5 } },
-      ])
-      const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))
-      expect(cuadro).toContain('Eje 94°')
-      expect(cuadro).toContain('Eje 4°')
-      expect(cuadro).toContain('Eje 5°')
-      expect(cuadro).not.toContain('Eje 0°')
-    })
-
-    it('la tabla comparativa detallada también enseña el eje residual, no el corneal fijo', () => {
-      const h = htmlSimple([
-        {
-          calculadora: 'EVO_TORIC',
-          ojo: 'OD',
-          recomendada: { esfera: 29.5, eje: 0, ejeResidual: 94 },
-        },
-        { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 29.0, eje: 0, ejeResidual: 5 } },
-      ])
-      const inicio = h.indexOf('Tabla comparativa detallada')
-      const tabla = h.slice(inicio, h.indexOf('</table>', inicio))
-      expect(tabla).toContain('94°')
-      expect(tabla).toContain('5°')
-      expect(tabla).not.toContain('0°')
-    })
-
-    it('un ojo sin ninguna estimación (todo fallos) no saca cuadro', () => {
-      const h = htmlSimple([
-        { calculadora: 'EVO_TORIC', ojo: 'OD', fallo: 'Falta la constante A.' },
-        { calculadora: 'KANE', ojo: 'OD', fallo: 'Falta el sexo.' },
-      ])
-      expect(h).not.toContain('Comparación orientativa')
-    })
-
-    it('D45: la variante «sin córnea posterior» SÍ cuenta para el cuadro, con su propia tarjeta', () => {
-      const h = htmlSimple([
-        { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
-        { calculadora: 'EVO_TORIC_SIN_CARA_POSTERIOR', ojo: 'OD', recomendada: { esfera: 22.0 } },
-      ])
-      // Dos estimaciones para este ojo — la base y su variante —, así que sí
-      // hay algo que poner una al lado de otra.
-      expect(h).toContain('Comparación orientativa')
-      const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))
-      expect(cuadro).toContain('EVO Toric — estimado')
-      expect(cuadro).toContain('22.00 D')
-    })
-
-    it('D45: con las tres de verdad Y la variante, el cuadro saca las cinco tarjetas', () => {
-      const h = htmlSimple([
-        { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
-        { calculadora: 'EVO_TORIC_SIN_CARA_POSTERIOR', ojo: 'OD', recomendada: { esfera: 30.0 } },
-        { calculadora: 'BARRETT_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
-        { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 21.5 } },
-      ])
-      const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))
-      expect(cuadro).toContain('EVO Toric')
-      expect(cuadro).toContain('EVO Toric — estimado')
-      expect(cuadro).toContain('Barrett Toric')
-      expect(cuadro).toContain('Kane')
-      expect(cuadro).toContain('30.00 D')
-    })
-
-    it('D47: con un solo aparato, la tarjeta no menciona ningún nombre de aparato', () => {
-      const h = htmlSimple([
-        { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
-        { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 21.5 } },
-      ])
-      expect(h).toContain('<div class="tarjeta-nombre">EVO Toric</div>')
-      expect(h).toContain('<div class="tarjeta-nombre">Kane</div>')
-    })
-
-    it('D47: con dos aparatos del mismo ojo, cada tarjeta dice de cuál es', () => {
-      const h = htmlSimple([
-        {
-          calculadora: 'EVO_TORIC',
-          ojo: 'OD',
-          aparato: 'IOLMaster 700',
-          recomendada: { esfera: 21.5 },
-        },
-        { calculadora: 'EVO_TORIC', ojo: 'OD', aparato: 'ANTERION', recomendada: { esfera: 22.0 } },
-      ])
-      const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))
-      expect(cuadro).toContain('EVO Toric (IOLMaster 700)')
-      expect(cuadro).toContain('EVO Toric (ANTERION)')
-    })
   })
 
   it('D45: una casilla de la variante «sin córnea posterior» dice «estimado» en su título (petición del dueño, 27/08/2026)', () => {
