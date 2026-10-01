@@ -4,6 +4,52 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.53] — 02/10/2026 (sin cambio en la app de escritorio; no aplica «versión visible en pantalla»)
+
+fix(movil, server): tres fallos encontrados en la primera prueba real desde
+un móvil, y la PWA ya se puede servir compilada para un despliegue de
+verdad.
+
+### Qué se pidió
+
+Probar en vivo, desde un móvil real, el lector con IA conectado ayer al
+servidor. La primera prueba falló en tres sitios distintos, cada uno
+diagnosticado y corregido en el momento con el dueño del proyecto.
+
+### El cambio
+
+- `apps/server/src/index.ts`: al arrancar, imprime si el lector de visión
+  queda ACTIVO o no (sin imprimir nunca la clave) — encontró que la clave
+  del `.env` del dueño había quedado duplicada (`ANTHROPIC_API_KEY=ANTHROPIC_API_KEY=...`)
+  al copiarla a mano.
+- `apps/movil/vite.config.ts`: añade `server.host: true`. Sin esto, Vite solo
+  escucha en `localhost` — ni el móvil ni el propio ordenador por su IP de
+  red podían conectar, con un «conexión rechazada» sin ninguna pista.
+- `apps/server/src/servidor.ts` + `apps/movil/src/api.ts` + `Datos.tsx`: nueva
+  ruta `POST /casos/ojo/confirmar` y, en el móvil, la misma casilla «he
+  comparado cada dato» + botón «Confirmar todo» que ya tiene el escritorio.
+  Sin esto, los datos leídos de una foto no tenían forma de confirmarse y
+  `confirmarTodo()` los rechazaba en bloque, a propósito.
+- `apps/server/src/servidor.ts`: sirve la PWA ya compilada
+  (`pnpm --filter @vilamar/movil build`, carpeta configurable con
+  `VILAMAR_MOVIL_DIST`) — pieza que faltaba por completo para poder
+  desplegar en un VPS de verdad.
+
+### Verificado
+
+- Las tres correcciones, probadas de nuevo en vivo desde un móvil real tras
+  cada una, hasta completar el recorrido entero: foto → lectura con IA →
+  revisión → confirmación → cálculo.
+- El build de producción de la PWA, probado con un servidor real apuntando
+  a él (`GET /` sirve el HTML compilado; las rutas de la API no se ven
+  afectadas).
+- `pnpm lint && pnpm typecheck && pnpm test` en verde (830 tests; el fallo
+  de la suite es el mismo previo y sin relación).
+- **No verificado**: nada de esto se ha probado todavía en un Linux sin
+  pantalla (el VPS que se va a alquilar) — Playwright necesita una pantalla
+  virtual (Xvfb) para Barrett y Kane, mencionada como pendiente desde hace
+  semanas en `apps/server/src/navegador.ts`.
+
 ## [1.15.52] — 01/10/2026 (sin cambio en la app de escritorio; no aplica «versión visible en pantalla»)
 
 feat(server): el lector con IA (visión) ya lee documentos también desde el

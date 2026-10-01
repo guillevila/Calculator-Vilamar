@@ -9,7 +9,54 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 01/10/2026 · **El lector con IA
+**Última actualización:** 02/10/2026 · **VALIDADO EN VIVO desde un móvil
+real: foto → lectura con IA → revisión → confirmación → cálculo.** Tras
+conectar el lector de visión al servidor (ver la entrada de ayer, más
+abajo), la primera prueba real encontró y corrigió tres fallos
+distintos, todos ya en `master`-rama `feature/app-movil-servidor` y
+probados de nuevo hasta que funcionó de punta a punta:
+
+- **La clave de Anthropic quedó duplicada al copiarla** (`ANTHROPIC_API_KEY=ANTHROPIC_API_KEY=sk-ant-...`
+  en el `.env`) — error de quien la escribió, no del programa, pero sin
+  ningún aviso que lo señalara. Se añadió un mensaje al arrancar el
+  servidor (`apps/server/src/index.ts`) que dice, sin imprimir nunca la
+  clave, si el lector de visión queda ACTIVO o no — para poder
+  comprobarlo sin adivinar la próxima vez.
+- **El servidor de desarrollo de la PWA (`apps/movil`) no escuchaba en
+  la red** — le faltaba `server.host: true` en `vite.config.ts`. Antes
+  había funcionado porque alguien añadió `--host` a mano al arrancarlo,
+  sin que quedara documentado en ningún sitio; a la primera vez que se
+  arrancó sin ese detalle, el móvil (y hasta el propio ordenador, por su
+  IP de red) recibía «conexión rechazada». Corregido en el propio
+  fichero, ya no depende de acordarse.
+- **Los datos leídos de una foto se quedaban sin forma de confirmarse**:
+  `confirmarTodo()` rechaza a propósito en bloque lo leído por una
+  máquina (no se da por bueno sin que una persona lo compare), pero el
+  móvil no tenía la ruta HTTP ni el botón para dar ese «sí, lo he
+  mirado» — a diferencia del escritorio, que lo pide desde el
+  06/09/2026. Añadida la ruta `POST /casos/ojo/confirmar` y, en
+  `Datos.tsx`, la misma casilla + botón «Confirmar todo» que ya usa el
+  escritorio, por ojo y aparato.
+
+De paso, aprovechando que el dueño va a alquilar un VPS para probar
+fuera de casa: **`apps/server` ya sabe servir la PWA compilada**
+(`pnpm --filter @vilamar/movil build`), algo que antes no existía en
+ningún sitio — el servidor de desarrollo de Vite no vale para
+producción, así que sin esto un VPS no tendría forma de enseñar la app
+al móvil. Probado con un build real: `GET /` sirve el HTML compilado y
+las rutas de la API no se han visto afectadas.
+
+**Sigue sin probar, y es justo lo próximo que toca**: todo lo de
+arriba se ha probado en la WiFi de casa, en un Windows normal. El VPS
+que se va a alquilar es Linux, sin pantalla — y Playwright necesita una
+pantalla real para Barrett (el iframe no renderiza igual sin ella) y
+Kane (hay que ver el diálogo de condiciones la primera vez). Eso exige
+una pantalla virtual (Xvfb), que `apps/server/src/navegador.ts` ya
+menciona como pendiente desde hace semanas y **nadie ha probado
+todavía**. Es el mayor riesgo del despliegue al VPS — ver la guía
+aparte que se ha preparado para el dueño.
+
+Antes de esto — **01/10/2026: El lector con IA
 (`vision-claude.ts`) ya está disponible también en `apps/server`, no
 solo en el escritorio — CONSTRUIDO, no probado todavía contra el
 servidor real.** Hasta ahora `apps/server` solo sabía leer la capa de
