@@ -184,6 +184,23 @@ export function crearServidor(
     }
   })
 
+  // Confirma de golpe TODO el dataset (ojo + aparato) que se está mirando
+  // ahora mismo — nunca el caso entero a ciegas. Es lo único que desbloquea
+  // `confirmarTodo()` cuando los datos vienen de una foto/PDF (VISION u
+  // OCR): esos se quedan sin confirmar campo a campo hasta que una persona
+  // dé este paso explícito (`confirmarTodoElOjo`, en @vilamar/casos).
+  casos.post('/ojo/confirmar', async (req, res) => {
+    try {
+      const { ojo, aparato } = req.body as {
+        readonly ojo: Parameters<ServicioCasos['confirmarTodoElOjo']>[0]
+        readonly aparato?: string
+      }
+      res.json(await servicioDe(req).confirmarTodoElOjo(ojo, aparato))
+    } catch (error) {
+      res.status(estadoHttpDelError(error)).json({ error: mensajeDelError(error) })
+    }
+  })
+
   casos.post('/confirmar', async (req, res) => {
     try {
       res.json(await servicioDe(req).confirmarTodo())

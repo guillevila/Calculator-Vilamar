@@ -84,6 +84,13 @@ export const api = {
   }): Promise<Caso> =>
     peticion('/casos/lente', { method: 'POST', headers: jsonHeaders, body: JSON.stringify(datos) }),
 
+  confirmarTodoElOjo: (ojo: Lateralidad, aparato?: string): Promise<Caso> =>
+    peticion('/casos/ojo/confirmar', {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ ojo, aparato }),
+    }),
+
   confirmarTodo: (): Promise<Caso> => peticion('/casos/confirmar', { method: 'POST' }),
 
   calcular: (

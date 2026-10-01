@@ -20,6 +20,11 @@ import { MODELOS_DE_LAS_CALCULADORAS } from '../../../desktop/src/renderer/catal
 const CAMPOS_BIOMETRIA: readonly CampoBiometrico[] = ['AL', 'K1', 'K1_EJE', 'K2', 'K2_EJE', 'ACD', 'LT', 'CCT', 'WTW']
 const CAMPOS_CARA_POSTERIOR: readonly CampoBiometrico[] = ['PK1', 'PK1_EJE', 'PK2', 'PK2_EJE']
 const CAMPOS_LENTE: readonly CampoBiometrico[] = ['REFRACCION_OBJETIVO', 'SIA', 'EJE_INCISION', 'CONSTANTE_A']
+const TODOS_LOS_CAMPOS_MOSTRADOS: readonly CampoBiometrico[] = [
+  ...CAMPOS_BIOMETRIA,
+  ...CAMPOS_CARA_POSTERIOR,
+  ...CAMPOS_LENTE,
+]
 
 /** El valor de partida de un campo, cuando todavía no hay medida (D38/D46). */
 const VALOR_POR_DEFECTO: Partial<Record<CampoBiometrico, string>> = {
@@ -111,6 +116,19 @@ export function Datos({
   const aparato = aparatoPorOjo[lado] ?? aparatosDelOjo[0] ?? APARATO_PRINCIPAL
   const ojo = ojoDe(caso, lado, aparato)
 
+  // Datos leídos de una foto/PDF (VISION u OCR) que nadie ha comparado
+  // todavía con el informe — `confirmarTodo()` los deja sin confirmar a
+  // propósito (no se da por bueno en bloque lo que ha leído una máquina).
+  // Solo del ojo/aparato que se está mirando ahora mismo, igual que en el
+  // escritorio: revisar OD no debería obligar a haber mirado ya OS.
+  const porComprobarAqui = TODOS_LOS_CAMPOS_MOSTRADOS.filter(
+    (c) => ojo.medidas[c]?.confirmadoPorUsuario === false,
+  )
+  const [heComprobadoTodo, setHeComprobadoTodo] = useState(false)
+  useEffect(() => {
+    setHeComprobadoTodo(false)
+  }, [lado, aparato])
+
   function cambiarLado(nuevo: Lateralidad): void {
     setLado(nuevo)
     setAñadiendoAparato(false)
@@ -187,6 +205,16 @@ export function Datos({
         setModeloLenteLocal(caso.lente?.modelo ?? '') // si falla, deshace el cambio visual
       }
     })()
+  }
+
+  async function confirmarTodoElOjo(): Promise<void> {
+    setError(null)
+    try {
+      alCambiar(await api.confirmarTodoElOjo(lado, aparato))
+      setHeComprobadoTodo(false)
+    } catch (err) {
+      setError(err instanceof ErrorApi ? err.message : 'No se ha podido confirmar este ojo.')
+    }
   }
 
   async function confirmar(): Promise<void> {
@@ -336,6 +364,32 @@ export function Datos({
           />
         ))}
       </div>
+
+      {porComprobarAqui.length > 0 && (
+        <div className="aviso atencion" style={{ marginTop: 16 }}>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontWeight: 400 }}>
+            <input
+              type="checkbox"
+              checked={heComprobadoTodo}
+              onChange={(e) => setHeComprobadoTodo(e.target.checked)}
+              style={{ marginTop: 3 }}
+            />
+            <span>
+              He comparado cada uno de los {porComprobarAqui.length}{' '}
+              {porComprobarAqui.length === 1 ? 'dato leído' : 'datos leídos'} de{' '}
+              {lado === 'OD' ? 'ojo derecho (OD)' : 'ojo izquierdo (OS)'} con el informe original.
+            </span>
+          </label>
+          <button
+            className="boton secundario"
+            disabled={!heComprobadoTodo}
+            onClick={() => void confirmarTodoElOjo()}
+            style={{ marginTop: 10 }}
+          >
+            Confirmar todo — {lado}
+          </button>
+        </div>
+      )}
 
       <div style={{ height: 12 }} />
       <button
