@@ -91,6 +91,16 @@ export function Datos({
   const [lado, setLado] = useState<Lateralidad>('OD')
   const [nombrePaciente, setNombrePaciente] = useState(caso.nombrePaciente ?? '')
   const [nombreCirujano, setNombreCirujano] = useState(caso.nombreCirujano ?? '')
+  // Estado local «optimista» — igual que en `CampoNumero`: el desplegable
+  // cambia de inmediato al tocarlo, sin esperar a que vuelva la respuesta
+  // del servidor. Sin esto, en Safari de iPhone el `<select>` se quedaba
+  // «colgado» mostrando la opción vieja hasta que algo forzaba un repintado
+  // (el dueño lo reportó: tenía que darle a «atrás» para verlo actualizado) —
+  // el dato SÍ se guardaba bien, solo la pantalla tardaba en reflejarlo.
+  const [modeloLenteLocal, setModeloLenteLocal] = useState(caso.lente?.modelo ?? '')
+  useEffect(() => {
+    setModeloLenteLocal(caso.lente?.modelo ?? '')
+  }, [caso.lente?.modelo])
   const [aparatoPorOjo, setAparatoPorOjo] = useState<Partial<Record<Lateralidad, string>>>({})
   const [añadiendoAparato, setAñadiendoAparato] = useState(false)
   const [nombreNuevoAparato, setNombreNuevoAparato] = useState('')
@@ -157,22 +167,26 @@ export function Datos({
     }
   }
 
-  async function elegirLenteCatalogo(modelo: string): Promise<void> {
+  function elegirLenteCatalogo(modelo: string): void {
+    setModeloLenteLocal(modelo) // se ve al instante, no espera a la red
     if (!modelo) return
     const encontrada = MODELOS_DE_LAS_CALCULADORAS.find((m) => m.modelo === modelo)
-    try {
-      alCambiar(
-        await api.elegirLente({
-          fabricante: encontrada?.fabricante ?? '',
-          modelo,
-          nombreEnEvo: encontrada?.nombreEnEvo,
-          nombreEnKane: encontrada?.nombreEnKane,
-          constanteConocida: encontrada?.constanteConocida,
-        }),
-      )
-    } catch (err) {
-      setError(err instanceof ErrorApi ? err.message : 'No se ha podido elegir la lente.')
-    }
+    void (async () => {
+      try {
+        alCambiar(
+          await api.elegirLente({
+            fabricante: encontrada?.fabricante ?? '',
+            modelo,
+            nombreEnEvo: encontrada?.nombreEnEvo,
+            nombreEnKane: encontrada?.nombreEnKane,
+            constanteConocida: encontrada?.constanteConocida,
+          }),
+        )
+      } catch (err) {
+        setError(err instanceof ErrorApi ? err.message : 'No se ha podido elegir la lente.')
+        setModeloLenteLocal(caso.lente?.modelo ?? '') // si falla, deshace el cambio visual
+      }
+    })()
   }
 
   async function confirmar(): Promise<void> {
@@ -227,7 +241,7 @@ export function Datos({
       </div>
       <div className="campo">
         <label htmlFor="lente">Modelo de lente</label>
-        <select id="lente" value={caso.lente?.modelo ?? ''} onChange={(e) => void elegirLenteCatalogo(e.target.value)}>
+        <select id="lente" value={modeloLenteLocal} onChange={(e) => elegirLenteCatalogo(e.target.value)}>
           <option value="">— Elegir de la lista —</option>
           {MODELOS_DE_LAS_CALCULADORAS.map((m) => (
             <option key={m.modelo} value={m.modelo}>
