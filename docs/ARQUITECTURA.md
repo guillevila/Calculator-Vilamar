@@ -58,6 +58,16 @@ dónde corre (imprimir el PDF, abrir el navegador, avisar a la interfaz).
 | `@vilamar/desktop`      | Electron, la interfaz y las implementaciones concretas de escritorio  | —                                                         |
 | `@vilamar/server`       | Express y las implementaciones de servidor (Fase 1, escrito pero sin probar en producción) | —                                                         |
 
+> **01/10/2026:** `@vilamar/extraction` incluye también el lector con IA
+> (`src/vision/vision-claude.ts`, antes solo en `apps/desktop`). Vivía en el
+> escritorio porque nació allí, no porque dependiera de Electron — no tenía
+> ninguna dependencia de eso. Se movió para que `apps/server` lo reutilice
+> igual que ya reutiliza `@vilamar/casos`: una sola transcripción de las
+> reglas clínicas de lectura, no dos que puedan divergir. Cada aplicación
+> sigue decidiendo por su cuenta DÓNDE busca `ANTHROPIC_API_KEY` (su propio
+> `.env`, cada una con su propio `ajustes.ts` — son quince líneas sin lógica
+> de negocio, no vale la pena compartirlas como paquete).
+
 ### Las tres reglas estructurales
 
 1. **`packages/domain` es puro.** Se prueba sin navegador, sin disco y sin

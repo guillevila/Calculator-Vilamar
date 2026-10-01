@@ -59,9 +59,6 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@anthropic-ai/sdk':
-        specifier: ^0.116.0
-        version: 0.116.0
       pdfjs-dist:
         specifier: ^4.9.155
         version: 4.10.38
@@ -205,6 +202,9 @@ importers:
 
   packages/extraction:
     dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.116.0
+        version: 0.116.0
       '@vilamar/domain':
         specifier: workspace:*
         version: link:../domain

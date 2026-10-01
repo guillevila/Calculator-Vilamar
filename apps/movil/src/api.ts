@@ -8,6 +8,7 @@
  * entrado.
  */
 
+import type { ResumenExtraccion } from '@vilamar/casos'
 import type { Calculadora, Caso, CampoBiometrico, Lateralidad, ResultadoCalculadora, Sexo } from '@vilamar/domain'
 
 export interface CuentaEntrada {
@@ -48,7 +49,9 @@ export const api = {
 
   nuevoCaso: (): Promise<Caso> => peticion('/casos', { method: 'POST' }),
 
-  cargarDocumentos: (archivos: readonly File[]) => {
+  cargarDocumentos: (
+    archivos: readonly File[],
+  ): Promise<{ caso: Caso; resumenes: readonly ResumenExtraccion[] }> => {
     const datos = new FormData()
     for (const archivo of archivos) datos.append('documentos', archivo)
     return peticion('/casos/documentos', { method: 'POST', body: datos })

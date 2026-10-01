@@ -4,6 +4,54 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.52] — 01/10/2026 (sin cambio en la app de escritorio; no aplica «versión visible en pantalla»)
+
+feat(server): el lector con IA (visión) ya lee documentos también desde el
+móvil, no solo desde el escritorio.
+
+### Qué se pidió
+
+El dueño pidió, de la lista de diferencias entre escritorio y móvil, empezar
+por la más importante: que una foto subida desde el móvil se lea de verdad
+con un modelo de visión (su propia clave de pago de Anthropic), no solo el
+texto nativo de un PDF — que era lo único que sabía leer `apps/server`.
+
+### El cambio
+
+- `vision-claude.ts` y `precios.ts` se mueven de
+  `apps/desktop/src/main/extraccion/` a `packages/extraction/src/vision/`.
+  No tenían ninguna dependencia de Electron — vivían ahí porque nacieron ahí,
+  no por necesidad. Ahora los exporta `@vilamar/extraction`, que ya usan las
+  dos aplicaciones.
+- `apps/server/src/dependencias.ts` construye `crearLectorVision()` y lo pasa
+  a `ServicioCasos`, igual que hace `apps/desktop`. La lógica de
+  `ServicioCasos` que cae al lector local si la IA no está disponible o
+  falla (`leerDocumento`) no se ha tocado — ya existía y ya era correcta.
+- `apps/server/src/ajustes.ts` (nuevo, copia del de escritorio): carga un
+  `.env` con `ANTHROPIC_API_KEY` desde la carpeta de datos del servidor o
+  desde donde se arranque. Sin esto, poner la clave en un `.env` no habría
+  hecho nada.
+- `apps/movil/src/pantallas/Inicio.tsx`: tras subir una foto o PDF, ya no se
+  pasa directo a la pantalla de datos. Se enseña primero qué aparato se ha
+  reconocido, qué ojos se han separado y los avisos del lector (incluido
+  cualquier «revisa esto con cuidado»), con un botón «Revisar los datos»
+  antes de seguir. Sin esto, el móvil habría violado la regla de «avisa y
+  bloquea; corrige la persona» en cuanto la lectura con IA empezara a
+  funcionar de verdad — en el escritorio ya existía (`Avisos.tsx`).
+- `apps/desktop/package.json` deja de depender directamente de
+  `@anthropic-ai/sdk` (ahora lo trae `@vilamar/extraction`); `scripts/comparar-lectores.ts`
+  actualizado a los nuevos imports y rutas.
+
+### Verificado
+
+- `pnpm install && pnpm lint && pnpm typecheck && pnpm test` en verde (830
+  tests unitarios; el único fallo de la suite, `block-subagent-external.test.mjs`,
+  es previo y sin relación).
+- **No verificado todavía**: arrancar `apps/server` de verdad con una clave
+  real y leer una foto real de un paciente desde un móvil. Eso es trabajo
+  del ordenador que hace de servidor, con su propio `.env` — pendiente de
+  que el dueño lo pruebe.
+
 ## [1.15.51] — 20/09/2026 (sin cambio en la app de escritorio; no aplica «versión visible en pantalla»)
 
 feat(server): primer esqueleto del servidor Node para el acceso desde el

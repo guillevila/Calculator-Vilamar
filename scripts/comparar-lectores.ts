@@ -41,22 +41,13 @@ import { join } from 'node:path'
 
 import type { CampoBiometrico, Lateralidad } from '@vilamar/domain'
 import { valorDe } from '@vilamar/domain'
-import type { DocumentoEntrada, ResultadoExtraccion } from '@vilamar/extraction'
-import { extraerDocumento } from '@vilamar/extraction'
+import type { DocumentoEntrada, Esfuerzo, ResultadoExtraccion, Uso } from '@vilamar/extraction'
+import { aResultado, coste, enCentimos, extraerDocumento, pedirLectura, ANOTADO_EL, TARIFAS } from '@vilamar/extraction'
 
 import { crearLectorPdf } from '../apps/desktop/src/main/extraccion/lector-pdf.js'
 import { crearMotorOcr } from '../apps/desktop/src/main/extraccion/ocr.js'
-import {
-  coste,
-  enCentimos,
-  TARIFAS,
-  ANOTADO_EL,
-} from '../apps/desktop/src/main/extraccion/precios.js'
-import type { Uso } from '../apps/desktop/src/main/extraccion/precios.js'
 import { ProveedorDocumentos } from '../apps/desktop/src/main/extraccion/proveedor.js'
 import { crearRasterizador } from '../apps/desktop/src/main/extraccion/rasterizador.js'
-import type { Esfuerzo } from '../apps/desktop/src/main/extraccion/vision-claude.js'
-import { aResultado, pedirLectura } from '../apps/desktop/src/main/extraccion/vision-claude.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Lo que pone el informe. Es la verdad contra la que se cuenta.
@@ -507,7 +498,7 @@ async function main(): Promise<void> {
     if (masBarato.modelo !== null) {
       console.log('')
       console.log(
-        `    Para usarlo, en vision-claude.ts:  MODELO = '${masBarato.modelo}'` +
+        `    Para usarlo, en packages/extraction/src/vision/vision-claude.ts:  MODELO = '${masBarato.modelo}'` +
           (masBarato.esfuerzo ? `  ·  ESFUERZO = '${masBarato.esfuerzo}'` : ''),
       )
     }
@@ -529,7 +520,7 @@ function tokens(uso: Uso): string {
 // de la comparación sería tirar el gasto ya hecho.
 for (const c of CONTENDIENTES) {
   if (c.modelo !== null && !TARIFAS[c.modelo]) {
-    throw new Error(`Falta la tarifa de «${c.modelo}» en precios.ts.`)
+    throw new Error(`Falta la tarifa de «${c.modelo}» en packages/extraction/src/vision/precios.ts.`)
   }
 }
 

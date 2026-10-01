@@ -31,6 +31,7 @@ function raizTemporal(): string {
 afterEach(() => {
   delete process.env['VILAMAR_SERVER_DATOS']
   delete process.env['VILAMAR_SERVER_INFORMES']
+  delete process.env['ANTHROPIC_API_KEY']
   while (rutasTemporales.length > 0) {
     const raiz = rutasTemporales.pop()
     if (raiz) rmSync(raiz, { recursive: true, force: true })
@@ -83,12 +84,23 @@ describe('crearDependenciasServidor', () => {
     const dep = crearDependenciasServidor(carpetas, crearEmisorEventos())
 
     expect(dep.version).toBe(VERSION_SERVIDOR)
-    expect(dep.lectorVision).toBeUndefined()
+    // Se construye siempre; sin ANTHROPIC_API_KEY en el entorno se declara
+    // no disponible y ServicioCasos cae al proveedor de PDF.
+    expect(dep.lectorVision?.disponible()).toBe(false)
     expect(typeof dep.ahora).toBe('function')
     expect(typeof dep.abrirNavegador).toBe('function')
     expect(typeof dep.imprimirPdf).toBe('function')
     expect(typeof dep.emitirProgreso).toBe('function')
     expect(typeof dep.emitirCaso).toBe('function')
     expect(dep.proveedor.nombre).toBe('servidor (provisional: solo PDF con texto)')
+  })
+
+  it('con ANTHROPIC_API_KEY en el entorno, el lector de visión se declara disponible', () => {
+    process.env['ANTHROPIC_API_KEY'] = 'sk-ant-de-mentira'
+    const raiz = raizTemporal()
+    const carpetas = carpetasDeUsuario({ datos: raiz }, 'usuario-ana')
+    const dep = crearDependenciasServidor(carpetas, crearEmisorEventos())
+
+    expect(dep.lectorVision?.disponible()).toBe(true)
   })
 })

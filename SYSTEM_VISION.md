@@ -397,7 +397,9 @@ Anthropic tres cosas y ninguna más:
 1. **El documento tal y como lo subió el usuario**, en base64: el PDF o la imagen,
    sin recortar y sin modificar.
 2. **Las instrucciones de transcripción**, que son fijas y están a la vista en
-   `instrucciones()`, en `apps/desktop/src/main/extraccion/vision-claude.ts`.
+   `instrucciones()`, en `packages/extraction/src/vision/vision-claude.ts`
+   (compartido entre escritorio y servidor desde el 01/10/2026 — antes vivía
+   solo en `apps/desktop`).
 3. **El catálogo de campos** que se pueden devolver, generado desde el dominio.
 
 No se envía el código del caso, ni el nombre del fichero, ni resultados
@@ -413,6 +415,15 @@ se invoca aquí de forma explícita, no por omisión.
 De ahí que el lector **venga apagado** (D26) y que encenderlo sea la decisión
 abierta O8: exige valorar el encargado de tratamiento, qué lleva impreso el
 informe que se sube y la política de retención del proveedor.
+
+**Ampliación del 01/10/2026, sin cerrar O8:** el mismo lector ya se puede
+encender también en `apps/server`, con su propia clave en su propio `.env`
+(antes solo existía en el escritorio del dueño). El riesgo de fondo no
+cambia —sigue siendo el mismo documento viajando a la misma API—, pero el
+ORDENADOR desde el que viaja ya no tiene por qué ser siempre el propio del
+dueño: puede ser el ordenador personal que hoy hace de servidor, o, si se
+alquila uno, un VPS de un tercero. Quien decida encender la IA en
+`apps/server` hereda la misma pregunta de O8, aplicada a esa máquina.
 
 Con el lector apagado —el estado por defecto— **el programa no manda nada a
 internet** salvo lo que las tres calculadoras necesitan: datos biométricos y un

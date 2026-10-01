@@ -28,8 +28,17 @@
  * —con lo que lleve escrito— viaja a la API de Anthropic. Son datos de salud.
  * Por eso está **apagado mientras no haya una clave configurada**: sin
  * `ANTHROPIC_API_KEY` este lector se declara no disponible y la aplicación usa
- * el OCR local, como hasta ahora. Encenderlo es una decisión del usuario, no un
- * comportamiento por defecto.
+ * el OCR o la lectura de texto local, como hasta ahora. Encenderlo es una
+ * decisión del usuario, no un comportamiento por defecto.
+ *
+ * ── Un solo lector, dos aplicaciones ────────────────────────────────────────
+ *
+ * Vive en `@vilamar/extraction` (y no en `apps/desktop`, donde nació) para que
+ * tanto la aplicación de escritorio como el servidor (`apps/server`) lean con
+ * el mismo criterio clínico y el mismo modelo — no dos transcripciones que
+ * puedan divergir. Cada aplicación decide por su cuenta DÓNDE busca la clave
+ * (su propio `.env`); esta pieza solo mira `ANTHROPIC_API_KEY` en
+ * `process.env`, sea quien sea quien la haya puesto ahí.
  */
 
 import Anthropic from '@anthropic-ai/sdk'

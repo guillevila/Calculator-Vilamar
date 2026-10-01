@@ -9,7 +9,43 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 20/09/2026 (4) · **Fase 2 del plan móvil:
+**Última actualización:** 01/10/2026 · **El lector con IA
+(`vision-claude.ts`) ya está disponible también en `apps/server`, no
+solo en el escritorio — CONSTRUIDO, no probado todavía contra el
+servidor real.** Hasta ahora `apps/server` solo sabía leer la capa de
+texto nativa de un PDF (`lector-pdf-provisional.ts`); cualquier foto o
+PDF escaneado subido desde el móvil se rechazaba con «el servidor
+todavía no sabe leer imágenes». El lector de visión (el mismo que ya
+funcionaba en escritorio, con la clave de Anthropic del dueño) vivía
+solo en `apps/desktop/src/main/extraccion/`, atado a esa app. Se ha
+movido a `@vilamar/extraction` (`src/vision/`, sin nada de Electron en
+sus dependencias) para que las dos aplicaciones lean con el mismo
+criterio y el mismo modelo, y `apps/server` ya lo construye y lo pasa a
+`ServicioCasos` igual que el escritorio — con su propio `.env`
+(`apps/server/src/ajustes.ts`, copia del de escritorio) para que el
+dueño pueda poner su `ANTHROPIC_API_KEY` en el ordenador que haga de
+servidor sin tocar variables de entorno a mano. Como `ServicioCasos` ya
+sabía caer al lector local si la IA no está disponible o falla
+(`leerDocumento`, sin cambios), no ha hecho falta tocar esa lógica.
+
+De paso, se ha cerrado un hueco que esto dejaba visible: la app móvil
+subía la foto y pasaba derecha a la pantalla de datos sin enseñar nada
+de lo que el lector había encontrado o avisado — en el escritorio eso
+se ve en `Avisos.tsx` antes de poder tocar nada. Ahora `Inicio.tsx` del
+móvil enseña, por cada documento, el aparato reconocido, qué ojos se
+han separado y los avisos tal cual (incluido cualquier «revisa esto a
+mano»), con un botón «Revisar los datos» antes de seguir — nadie entra
+a la pantalla de datos sin haber visto primero qué ha leído la máquina.
+
+**Qué está probado y qué no:** `pnpm lint && pnpm typecheck && pnpm
+test` en verde (830 tests; el único fallo de la suite — un hook sin
+relación — ya estaba antes de esta sesión). **Lo que NO se ha probado
+todavía es justo lo que importa**: arrancar `apps/server` de verdad con
+una clave real y subir una foto real desde un móvil. Eso es trabajo
+para el ordenador que hace de servidor, con el `.env` puesto allí —
+pendiente de que el dueño lo pruebe.
+
+Antes de esto — **20/09/2026 (4): Fase 2 del plan móvil:
 login por persona, con una carpeta de casos y un perfil de navegador
 propios para cada usuario — probado en vivo, sin tocar ninguna
 calculadora real.** Hasta ahora `apps/server` tenía un único

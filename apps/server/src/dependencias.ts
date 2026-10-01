@@ -3,14 +3,14 @@
  * (`@vilamar/casos`) para correr aquí, en un servidor Node, en vez de en la
  * app de escritorio.
  *
- * De las nueve piezas, cinco se reutilizan tal cual porque ya eran Node puro
- * (`diagnosticador`, `capturas`, `ahora`) o se han vuelto a escribir para el
- * servidor por una razón concreta y documentada en su propio fichero
- * (`proveedor` — ver `lector-pdf-provisional.ts`, provisional; `abrirNavegador`
- * — ver `navegador.ts`; `imprimirPdf` — ver `pdf.ts`; `emitirProgreso`/
- * `emitirCaso` — ver `eventos.ts`). `lectorVision` se deja sin configurar
- * todavía: el lector con IA vive en la app de escritorio y no se ha movido
- * en esta sesión.
+ * De las nueve piezas, seis se reutilizan tal cual porque ya eran Node puro
+ * (`diagnosticador`, `capturas`, `ahora`, `lectorVision` — ver
+ * `@vilamar/extraction`, compartido con la app de escritorio) o se han
+ * vuelto a escribir para el servidor por una razón concreta y documentada en
+ * su propio fichero (`proveedor` — ver `lector-pdf-provisional.ts`,
+ * provisional para lo que `lectorVision` no cubre; `abrirNavegador` — ver
+ * `navegador.ts`; `imprimirPdf` — ver `pdf.ts`; `emitirProgreso`/
+ * `emitirCaso` — ver `eventos.ts`).
  */
 
 import {
@@ -20,6 +20,7 @@ import {
   type Carpetas,
   type DependenciasServicio,
 } from '@vilamar/casos'
+import { crearLectorVision } from '@vilamar/extraction'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -75,8 +76,13 @@ export function crearDependenciasServidor(
   return {
     carpetas,
     proveedor: new ProveedorPdfProvisional(),
-    // Sin lector de visión todavía — ver la cabecera de este fichero.
-    lectorVision: undefined,
+    // Se construye siempre, haya clave o no: así una persona puede ver «hay
+    // un lector mejor y está apagado» en vez de un comportamiento distinto
+    // sin explicación. Sin ANTHROPIC_API_KEY en el entorno (o en el `.env`
+    // que carga `ajustes.ts`), se declara no disponible y cae al proveedor
+    // de arriba — que para una foto o un PDF escaneado significa avisar que
+    // el servidor todavía no sabe leerlo.
+    lectorVision: crearLectorVision(),
     diagnosticador: crearDiagnosticador(carpetas.diagnostico),
     capturas: crearAlmacenCapturas(carpetas.capturas),
     version: VERSION_SERVIDOR,

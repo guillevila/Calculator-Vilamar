@@ -15,7 +15,6 @@
     "start": "electron out/main/index.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.116.0",
     "pdfjs-dist": "^4.9.155",
     "playwright": "^1.49.1",
     "tesseract.js": "^5.1.1"
