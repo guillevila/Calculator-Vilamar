@@ -206,6 +206,21 @@ export function prepararEntradas(
     if (m !== undefined) valores[campo] = m.valor
   }
 
+  // La córnea posterior medida (PK1/PK1_EJE/PK2/PK2_EJE) solo tiene sentido
+  // como las cuatro juntas — un meridiano sin su eje no es una medida. Con
+  // solo algunas, EVO y Barrett (D58) se quedan con su panel a medias y no
+  // devuelven ningún resultado, sin avisar de por qué (fallo real,
+  // 01/10/2026). `validarOjo()` ya explica esto en pantalla
+  // (`CORNEA_POSTERIOR_INCOMPLETA`); aquí solo se evita mandar lo incompleto.
+  const CORNEA_POSTERIOR = ['PK1', 'PK1_EJE', 'PK2', 'PK2_EJE'] as const
+  const corneaPosteriorPresentes = CORNEA_POSTERIOR.filter((c) => valores[c] !== undefined)
+  if (
+    corneaPosteriorPresentes.length > 0 &&
+    corneaPosteriorPresentes.length < CORNEA_POSTERIOR.length
+  ) {
+    for (const campo of CORNEA_POSTERIOR) delete valores[campo]
+  }
+
   return {
     ok: true,
     entradas: {

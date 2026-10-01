@@ -296,6 +296,71 @@ describe('Invariante 5 — cada K conserva su eje', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
+describe('Córnea posterior medida: las cuatro juntas, o ninguna (01/10/2026)', () => {
+  it('avisa si falta uno de los cuatro campos (PK1/PK1_EJE/PK2/PK2_EJE)', () => {
+    let ojo = ojoVacio('OD')
+    ojo = conMedida(ojo, crearMedida('PK1', 'OD', 5.8, EXTRAIDO))
+    ojo = conMedida(ojo, crearMedida('PK1_EJE', 'OD', 5, EXTRAIDO))
+    ojo = conMedida(ojo, crearMedida('PK2', 'OD', 6.8, EXTRAIDO))
+    // Sin PK2_EJE — el caso real que disparó este arreglo.
+    const aviso = validarOjo(ojo).find((a) => a.codigo === 'CORNEA_POSTERIOR_INCOMPLETA')
+    expect(aviso).toBeDefined()
+    expect(aviso?.mensaje).toContain('K2')
+  })
+
+  it('con los cuatro, no avisa', () => {
+    let ojo = ojoVacio('OD')
+    ojo = conMedida(ojo, crearMedida('PK1', 'OD', 5.8, EXTRAIDO))
+    ojo = conMedida(ojo, crearMedida('PK1_EJE', 'OD', 5, EXTRAIDO))
+    ojo = conMedida(ojo, crearMedida('PK2', 'OD', 6.8, EXTRAIDO))
+    ojo = conMedida(ojo, crearMedida('PK2_EJE', 'OD', 95, EXTRAIDO))
+    expect(validarOjo(ojo).find((a) => a.codigo === 'CORNEA_POSTERIOR_INCOMPLETA')).toBeUndefined()
+  })
+
+  it('sin ninguno, tampoco avisa — un ojo sin córnea posterior medida es normal', () => {
+    expect(
+      validarOjo(ojoVacio('OD')).find((a) => a.codigo === 'CORNEA_POSTERIOR_INCOMPLETA'),
+    ).toBeUndefined()
+  })
+
+  it('prepararEntradas no manda un subconjunto incompleto a EVO — fallo real, 01/10/2026', () => {
+    let ojo = odCompleto()
+    ojo = conMedida(ojo, crearMedida('PK1', 'OD', 5.8, EXTRAIDO))
+    ojo = conMedida(ojo, crearMedida('PK1_EJE', 'OD', 5, EXTRAIDO))
+    ojo = conMedida(ojo, crearMedida('PK2', 'OD', 6.8, EXTRAIDO))
+    // Sin PK2_EJE.
+    ojo = confirmarTodas(ojo)
+    const caso = confirmar(casoCon([ojo]), CUANDO)
+    const r = prepararEntradas(caso, 'EVO_TORIC', 'OD')
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.entradas.valores.PK1).toBeUndefined()
+      expect(r.entradas.valores.PK1_EJE).toBeUndefined()
+      expect(r.entradas.valores.PK2).toBeUndefined()
+      expect(r.entradas.valores.PK2_EJE).toBeUndefined()
+    }
+  })
+
+  it('prepararEntradas sí manda los cuatro cuando están completos', () => {
+    let ojo = odCompleto()
+    ojo = conMedida(ojo, crearMedida('PK1', 'OD', 5.8, EXTRAIDO))
+    ojo = conMedida(ojo, crearMedida('PK1_EJE', 'OD', 5, EXTRAIDO))
+    ojo = conMedida(ojo, crearMedida('PK2', 'OD', 6.8, EXTRAIDO))
+    ojo = conMedida(ojo, crearMedida('PK2_EJE', 'OD', 95, EXTRAIDO))
+    ojo = confirmarTodas(ojo)
+    const caso = confirmar(casoCon([ojo]), CUANDO)
+    const r = prepararEntradas(caso, 'EVO_TORIC', 'OD')
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.entradas.valores.PK1).toBe(5.8)
+      expect(r.entradas.valores.PK1_EJE).toBe(5)
+      expect(r.entradas.valores.PK2).toBe(6.8)
+      expect(r.entradas.valores.PK2_EJE).toBe(95)
+    }
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
 describe('Invariante 6 — no se inventan campos', () => {
   it('si falta el WTW, no aparece un 12.0 de la nada', () => {
     const ojo = odCompleto()
