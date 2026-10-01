@@ -23,6 +23,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    // Sin esto, Vite solo escucha en localhost: el propio ordenador puede
+    // abrirlo, pero el móvil (en la misma WiFi, por su IP) no llega nunca —
+    // ni avisa de por qué, simplemente rechaza la conexión.
+    host: true,
     proxy: {
       '/login': DESTINO,
       '/logout': DESTINO,
