@@ -276,6 +276,29 @@ export class AdaptadorEvoToric implements AdaptadorCalculadora {
     if (opcionLasik !== undefined) {
       await pagina.selectOption(SEL.lasik, { label: opcionLasik })
     }
+
+    // Fallo real reportado por el dueño del proyecto (02/10/2026): con
+    // PK1/PK2 presentes, EVO a veces se quedaba con el eje de la córnea
+    // posterior en blanco —comprobado con una captura de diagnóstico real:
+    // PK1, su eje y PK2 bien escritos, PK2 Axis vacío— y «Calculate» no
+    // hacía nada visible: ni calculaba ni avisaba de que faltaba nada, así
+    // que el adaptador se quedaba esperando el resultado hasta agotar el
+    // tiempo. Repetía a veces y otras no —un reintento manual solía
+    // funcionar—, lo que apunta a una carrera con algún script de la propia
+    // web, no a un fallo determinista de este programa. No hace falta saber
+    // la causa exacta para evitarlo: se vuelve a comprobar el eje de cada
+    // PK justo antes de pulsar «Calculate», cuando cualquier otro script de
+    // la página ya ha tenido tiempo de reaccionar a los cambios anteriores,
+    // y se vuelve a escribir si no se quedó puesto.
+    for (const campo of ['PK1_EJE', 'PK2_EJE'] as const) {
+      const valor = valoresParaEvo[campo]
+      if (valor === undefined) continue
+      const esperado = valor.toFixed(0)
+      const actual = await pagina.inputValue(CAMPOS[campo].selector).catch(() => '')
+      if (actual !== esperado) {
+        await pagina.fill(CAMPOS[campo].selector, esperado)
+      }
+    }
   }
 
   /** Elige el modelo si esta web lo tiene en su lista. Devuelve si lo encontró. */

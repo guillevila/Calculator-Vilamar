@@ -9,7 +9,40 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 01/10/2026 · **Una variante de córnea
+**Última actualización:** 02/10/2026 (2) · **EVO a veces no se lanza, y
+D112 no es toda la explicación (D113).** D112 (ver abajo) arregla un
+fallo real del eje de PK1/PK2 — pero el mismo día, con una captura suya
+de la pantalla de resultados, el dueño corrigió que el síntoma le ha
+pasado también en sus últimos tres casos SIN ningún dato de córnea
+posterior, donde D112 no puede ser la causa. Investigado antes de tocar
+nada: ni hay ninguna carpeta de diagnóstico de hoy, ni Chromium dejó
+ningún volcado de fallo — la tarea no deja detrás ninguno de los
+rastros que ya existen. **No se ha adivinado un segundo arreglo.** Se
+ha añadido `registro-calculo.log` (en la carpeta de datos de la app):
+una línea por cada fase y resultado de cada casilla, para que la
+próxima vez que ocurra, se vea si la tarea llegó a empezar y hasta
+dónde llegó antes de quedarse callada. **El síntoma sigue sin
+explicación real** — este registro es el primer paso para conseguirla,
+no la solución. `pnpm lint && pnpm typecheck && pnpm test` en verde
+(892 tests unitarios; el único fallo de la suite es previo y no
+relacionado) — sin `pnpm test:e2e`, sin verificación en vivo: el fallo
+es intermitente y no se ha conseguido reproducir bajo demanda.
+
+Antes de esto — **02/10/2026 (1): EVO vuelve a comprobar el
+eje de la córnea posterior justo antes de calcular (D112).** El dueño
+reportó que EVO a veces no se lanzaba, y que reintentar «EVO Toric»
+no funcionaba mientras que «EVO Toric sin cara posterior» sí.
+Investigado con un registro de diagnóstico real guardado por la propia
+app al fallar: el formulario tenía PK1, su eje y PK2 bien escritos,
+pero el eje de PK2 vacío — «sin cara posterior» nunca toca ese campo,
+de ahí que solo fallara la otra. `rellenar()` ahora vuelve a comprobar
+el eje de cada PK al final, justo antes de pulsar «Calculate», y lo
+reescribe si no se ha quedado puesto. Verificado contra la web real con
+datos sintéticos (`pnpm live evo`): cálculo correcto de punta a punta.
+Es un arreglo real, pero —como se corrigió el mismo día— no el único
+fallo detrás del síntoma (ver D113 arriba).
+
+Antes de esto — **01/10/2026: una variante de córnea
 posterior nunca se planifica para un aparato sin PK1/PK2 (D111).** Con
 dos aparatos del mismo ojo, uno con córnea posterior medida y otro sin
 ella, pedir «EVO con posterior» y «Barrett con posterior» generaba

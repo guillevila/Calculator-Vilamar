@@ -6,6 +6,7 @@
  * Playwright: todo pasa por aquí, con `contextIsolation` puesto.
  */
 
+import { appendFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -72,7 +73,7 @@ if (app.isPackaged) {
  * este número es lo ÚLTIMO que se hace al cerrar un cambio en la aplicación
  * de escritorio, justo antes de avisar de que está listo para probar.
  */
-const VERSION_VISIBLE = '1.36'
+const VERSION_VISIBLE = '1.37'
 
 function versionDelProducto(): string {
   return VERSION_VISIBLE
@@ -255,8 +256,28 @@ function crearVentana(): void {
   ventana.focus()
 }
 
+/**
+ * Registro de ejecución de cálculo (D113, 02/10/2026): un hilo de texto, uno
+ * por línea, de cada cambio de fase y de cada resultado que llega durante un
+ * cálculo. Existe porque el dueño del proyecto reportó que EVO a veces «no
+ * se lanza» —ni siquiera llega a fallar con un aviso— y ese caso concreto no
+ * deja ningún rastro en el diagnóstico de D112: ese solo se guarda cuando el
+ * adaptador SÍ llega a lanzarse y falla dentro. La próxima vez que ocurra,
+ * este registro dirá si la tarea llegó a empezar (fase NAVEGANDO) y hasta
+ * dónde llegó antes de quedarse callada.
+ */
+function registrar(carpetas: ReturnType<typeof prepararCarpetas>, linea: string): void {
+  try {
+    const ruta = join(carpetas.raiz, 'registro-calculo.log')
+    appendFileSync(ruta, `${new Date().toISOString()} ${linea}\n`)
+  } catch {
+    // Un fallo escribiendo el registro no puede tirar el cálculo.
+  }
+}
+
 function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   const version = versionDelProducto()
+  const ultimoEstadoPorCasilla = new Map<string, string>()
 
   // Antes que nada: si hay un `.env`, se carga. Tiene que ir aquí arriba porque
   // el lector de visión mira `ANTHROPIC_API_KEY` al construirse, y una clave
@@ -285,8 +306,22 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
     ahora: () => new Date(),
     abrirNavegador: (conVentana) => abrirNavegador(conVentana, carpetas.sesiones),
     imprimirPdf,
-    emitirProgreso: (estado: EstadoCalculo) => enviarAlaInterfaz(CANALES.progreso, estado),
-    emitirCaso: (caso) => enviarAlaInterfaz(CANALES.casoCambiado, caso),
+    emitirProgreso: (estado: EstadoCalculo) => {
+      registrar(
+        carpetas,
+        `progreso ${estado.calculadora} ${estado.ojo} fase=${estado.fase} "${estado.mensaje}"`,
+      )
+      enviarAlaInterfaz(CANALES.progreso, estado)
+    },
+    emitirCaso: (caso) => {
+      for (const [clave, resultado] of Object.entries(caso.resultados)) {
+        if (ultimoEstadoPorCasilla.get(clave) !== resultado.estado) {
+          ultimoEstadoPorCasilla.set(clave, resultado.estado)
+          registrar(carpetas, `resultado ${clave} -> ${resultado.estado}`)
+        }
+      }
+      enviarAlaInterfaz(CANALES.casoCambiado, caso)
+    },
   })
 
   const doctores = new ServicioDoctores({ carpetas, nuevoId })

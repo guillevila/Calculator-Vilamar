@@ -4,6 +4,93 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.72] — 02/10/2026 (versión visible en pantalla: v1.37)
+
+feat(app): registro de ejecución de cálculo, para investigar fallos de EVO que D112 no explica (D113).
+
+### Qué se pidió
+
+El mismo día que D112, con una captura de la pantalla de resultados: el
+dueño del proyecto corrigió que el síntoma («EVO Toric» no se lanza y hay
+que reintentarlo) le ha pasado en sus últimos tres casos SIN ningún dato
+de córnea posterior — «no es que faltara alguno, es que no había
+ninguno». El arreglo de D112 (el eje de PK1/PK2 en blanco) no puede ser
+la causa de estos tres, porque ese campo nunca llega a rellenarse si no
+hay córnea posterior que mandar.
+
+### Investigado antes de escribir nada
+
+Ni `diagnostico/` tiene ninguna carpeta de hoy (el sitio donde EVO guarda
+una captura automática cuando falla dentro de su propio `try`/`catch`),
+ni `sesion-navegador/Crashpad/reports` tiene ningún volcado reciente (el
+sitio donde Chromium guardaría un volcado si el navegador se cayera). La
+tarea, sea lo que sea que le pasa, no deja detrás ninguno de los rastros
+que ya existen — así que antes de poder arreglar nada de verdad, hace
+falta uno nuevo.
+
+### El cambio
+
+Un fichero de texto nuevo, `registro-calculo.log`, en la misma carpeta de
+datos de la aplicación: una línea por cada cambio de fase de cada casilla
+y por cada resultado que llega, con su hora exacta. La próxima vez que
+«EVO Toric» se quede sin lanzar, este registro dirá si la tarea llegó a
+empezar (debería aparecer «fase=NAVEGANDO») y hasta dónde llegó antes de
+quedarse callada — la diferencia entre «nunca se intentó» y «se quedó a
+mitad» apunta a causas muy distintas.
+
+**No es un arreglo.** Es el primer paso honesto: investigar con evidencia
+real antes de adivinar un segundo arreglo que podría no servir de nada,
+igual que el primero no sirvió para este caso.
+
+### Verificado
+
+- `pnpm lint && pnpm typecheck && pnpm test` — 892 tests en verde (el
+  único fallo es el previo y ajeno de siempre).
+- No se ha podido verificar en vivo porque el fallo es intermitente y no
+  se ha conseguido reproducir bajo demanda — se sabrá si sirve la próxima
+  vez que ocurra.
+
+---
+
+## [1.15.71] — 02/10/2026 (versión visible en pantalla: v1.37)
+
+fix(integrations): EVO vuelve a comprobar el eje de la córnea posterior justo antes de calcular (D112).
+
+### Qué se pidió
+
+El dueño del proyecto: «sigue sin lanzarse EVO... salta primero Kane y
+no sale, y si le doy a reintentar ya va» — y, más preciso: con «EVO
+Toric» y «EVO Toric sin cara posterior» como dos casillas distintas,
+reintentar la primera no funcionaba y la segunda sí.
+
+### Investigado antes de tocar nada
+
+Un registro de diagnóstico real que la propia app había guardado el día
+anterior al fallar EVO (captura automática): el formulario tenía PK1, su
+eje y PK2 bien escritos, pero «PK2 Axis» vacío. «EVO Toric sin cara
+posterior» nunca toca ese campo —su ficha no incluye PK1/PK2—, lo que
+explica por qué esa variante nunca falla así y la otra sí.
+
+### El cambio
+
+`rellenar()` ya escribía los cuatro campos de córnea posterior en el
+orden de siempre, pero algo de la propia web de EVO —no identificado con
+certeza, probablemente una carrera con algún script suyo— podía dejar
+el eje en blanco otra vez justo antes de enviar el formulario. EVO
+entonces no calculaba nada, sin avisar de qué faltaba, y el adaptador se
+quedaba esperando el resultado hasta agotar el tiempo. Ahora, al final
+de `rellenar()`, se vuelve a leer el valor de cada eje y se vuelve a
+escribir si no coincide con el que se le pidió.
+
+### Verificado
+
+- Contra la web real con datos sintéticos (`pnpm live evo`): cálculo
+  correcto de punta a punta, con la córnea posterior incluida.
+- `pnpm lint && pnpm typecheck && pnpm test` — 892 tests en verde (el
+  único fallo es el previo y ajeno de siempre).
+
+---
+
 ## [1.15.70] — 01/10/2026 (versión visible en pantalla: v1.36)
 
 fix(domain,integrations,report): una variante de córnea posterior nunca se planifica para un aparato sin PK1/PK2 (D111).
