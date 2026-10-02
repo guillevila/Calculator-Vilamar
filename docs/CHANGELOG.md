@@ -4,6 +4,57 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.73] — 02/10/2026 (versión visible en pantalla: v1.37)
+
+fix(integrations): una variante de córnea posterior pedida sola ya no se queda sin planificar (D114, corrige D111).
+
+### Qué se pidió
+
+Nada directamente — se encontró investigando el registro nuevo de D113,
+con un caso real del mismo día (`CV-2026-0289`, sin ningún dato de córnea
+posterior) que el dueño del proyecto reportó: «solo salta EVO al darle a
+reiniciar, EVO a la primera solo salta Kane».
+
+### Investigado antes de tocar nada
+
+El registro `registro-calculo.log` lo dejó claro: Kane calculaba los dos
+ojos y, después, 21 segundos de silencio total — ni un «NAVEGANDO» de
+EVO, ni un resultado, ni un error — hasta que el dueño pulsó «Reintentar
+EVO Toric», que entonces sí funcionó. Eso no es un cálculo que se cuelga:
+es una tarea que nunca se llegó a pedir.
+
+La causa, mirando `PanelCalculo.tsx`: la pantalla de cálculo marca por
+defecto `EVO_TORIC_SIN_CARA_POSTERIOR` («EVO Toric — Predicted PCA»), NO
+`EVO_TORIC`. D111 (01/10/2026, de ayer mismo) hizo que esa variante —y
+`BARRETT_TORIC_CON_CARA_POSTERIOR`— solo se planifiquen para un aparato
+que SÍ tenga córnea posterior medida. Con un caso sin ningún dato de
+córnea posterior y la variante pedida SOLA (sin su calculadora base
+`EVO_TORIC`, que nadie había seleccionado), ese filtro la dejaba en CERO
+aparatos: la casilla no calculaba nada y tampoco avisaba de que faltara
+nada, porque no fallaba — simplemente no se planificaba.
+
+### El cambio
+
+`planificarCaso()`, en `packages/integrations/src/orquestador.ts`: el
+filtro de D111 ya no puede vaciar del todo la lista de aparatos de un
+ojo. Si quitar los aparatos sin córnea posterior no dejara ninguno, se
+calcula con todos los que había — no hay nada que comparar, pero tampoco
+motivo para no dar ningún resultado a una casilla que sí se pidió. Sigue
+excluyendo correctamente al aparato sin córnea posterior cuando hay OTRO
+del mismo ojo que sí la tiene, que es el caso real que D111 arregló.
+
+### Verificado
+
+Tres tests nuevos en `bilateral.test.ts` (D114): los dos primeros
+reproducen el síntoma exacto contra el código de D111 sin corregir — la
+variante pedida sola, sin córnea posterior, planifica `[]` en vez de
+`['Principal']` — y pasan con el arreglo; el tercero confirma que D111
+sigue funcionando cuando sí hay un segundo aparato con córnea posterior.
+`pnpm lint && pnpm typecheck && pnpm test && pnpm build` en verde (895
+tests unitarios; el único fallo de la suite es previo y no relacionado).
+
+---
+
 ## [1.15.72] — 02/10/2026 (versión visible en pantalla: v1.37)
 
 feat(app): registro de ejecución de cálculo, para investigar fallos de EVO que D112 no explica (D113).

@@ -377,6 +377,58 @@ describe('D111 (01/10/2026): una variante de córnea posterior nunca se planific
   })
 })
 
+describe('D114 (02/10/2026): una variante pedida SOLA, sin córnea posterior en ningún aparato, no se queda sin planificar', () => {
+  // `casoDosOjos()` no tiene PK1/PK2 en ningún aparato — es el caso real que
+  // se reportó: «EVO Toric — Predicted PCA» (`EVO_TORIC_SIN_CARA_POSTERIOR`)
+  // es una de las tres casillas marcadas por defecto en la pantalla de
+  // cálculo, y con el filtro de D111 sin esta corrección, un caso sin
+  // córnea posterior la dejaba sin ningún aparato que planificar — la
+  // casilla se quedaba muda, sin resultado y sin error, hasta reintentarla.
+  it('«EVO Toric sin cara posterior» pedida sola SÍ se planifica si es el único aparato del ojo', () => {
+    const plan = planificarCaso(casoDosOjos(), { calculadoras: ['EVO_TORIC_SIN_CARA_POSTERIOR'] })
+    const deOD = plan.filter((t) => t.ojo === 'OD').map((t) => t.aparato)
+    expect(deOD).toEqual([APARATO_PRINCIPAL])
+  })
+
+  it('«Barrett Toric con cara posterior» pedida sola SÍ se planifica si es el único aparato del ojo', () => {
+    const plan = planificarCaso(casoDosOjos(), {
+      calculadoras: ['BARRETT_TORIC_CON_CARA_POSTERIOR'],
+    })
+    const deOD = plan.filter((t) => t.ojo === 'OD').map((t) => t.aparato)
+    expect(deOD).toEqual([APARATO_PRINCIPAL])
+  })
+
+  it('con un segundo aparato que SÍ tiene córnea posterior, la variante sigue excluyendo al que no la tiene (D111 no se pierde)', () => {
+    let caso = casoDosOjos()
+    let pentacam = ojoVacio('OD', 'Pentacam')
+    for (const [campo, valor] of [
+      ['AL', 24.1],
+      ['K1', 41.0],
+      ['K1_EJE', 170],
+      ['K2', 42.4],
+      ['K2_EJE', 80],
+      ['ACD', 3.2],
+      ['REFRACCION_OBJETIVO', 0],
+      ['SIA', 0],
+      ['EJE_INCISION', 0],
+      ['CONSTANTE_A', 119],
+      ['PK1', 6.1],
+      ['PK2', 6.3],
+    ] as const) {
+      pentacam = conMedida(
+        pentacam,
+        crearMedida(campo, 'OD', valor, { metodo: 'MANUAL', registradoEn: CUANDO }),
+      )
+    }
+    caso = conOjo(caso, confirmarTodas(pentacam), CUANDO)
+    caso = confirmar(caso, CUANDO)
+
+    const plan = planificarCaso(caso, { calculadoras: ['EVO_TORIC_SIN_CARA_POSTERIOR'] })
+    const deOD = plan.filter((t) => t.ojo === 'OD').map((t) => t.aparato)
+    expect(deOD).toEqual(['Pentacam'])
+  })
+})
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  2-4 · A cada ojo, los suyos
 // ═══════════════════════════════════════════════════════════════════════════

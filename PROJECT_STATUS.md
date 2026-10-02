@@ -9,7 +9,27 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 02/10/2026 (2) · **EVO a veces no se lanza, y
+**Última actualización:** 02/10/2026 (3) · **Encontrada la causa real de
+«EVO no se lanza»: una variante pedida sola se quedaba sin ningún
+aparato que planificar (D114, corrige D111).** El registro de D113
+(ver abajo) lo dejó ver con un caso real del mismo día: Kane calculaba y
+luego 21 segundos de silencio total, sin ni un «NAVEGANDO» de EVO, hasta
+que el dueño pulsó «Reintentar EVO Toric» — eso no es un cálculo
+colgado, es una tarea que nunca se pidió. La causa: la pantalla de
+cálculo marca por defecto `EVO_TORIC_SIN_CARA_POSTERIOR` («EVO Toric —
+Predicted PCA»), no `EVO_TORIC`; D111 (de ayer) hizo que esa variante
+solo se planifique para un aparato con córnea posterior medida — y con
+un caso SIN ningún dato de córnea posterior, pedida sola, eso la dejaba
+en CERO aparatos, sin resultado y sin error. Arreglado en
+`planificarCaso()`: el filtro de D111 ya no puede vaciar del todo la
+lista de un ojo. **Este sí es el arreglo del síntoma que describió el
+dueño** — a diferencia de D112/D113, esta vez con la causa exacta
+reproducida en un test antes de corregirla. `pnpm lint && pnpm
+typecheck && pnpm test && pnpm build` en verde (895 tests unitarios; el
+único fallo de la suite es previo y no relacionado) — sin
+`pnpm test:e2e`: no toca la interfaz, solo la planificación.
+
+Antes de esto — **02/10/2026 (2): EVO a veces no se lanza, y
 D112 no es toda la explicación (D113).** D112 (ver abajo) arregla un
 fallo real del eje de PK1/PK2 — pero el mismo día, con una captura suya
 de la pantalla de resultados, el dueño corrigió que el síntoma le ha
@@ -17,16 +37,10 @@ pasado también en sus últimos tres casos SIN ningún dato de córnea
 posterior, donde D112 no puede ser la causa. Investigado antes de tocar
 nada: ni hay ninguna carpeta de diagnóstico de hoy, ni Chromium dejó
 ningún volcado de fallo — la tarea no deja detrás ninguno de los
-rastros que ya existen. **No se ha adivinado un segundo arreglo.** Se
-ha añadido `registro-calculo.log` (en la carpeta de datos de la app):
-una línea por cada fase y resultado de cada casilla, para que la
-próxima vez que ocurra, se vea si la tarea llegó a empezar y hasta
-dónde llegó antes de quedarse callada. **El síntoma sigue sin
-explicación real** — este registro es el primer paso para conseguirla,
-no la solución. `pnpm lint && pnpm typecheck && pnpm test` en verde
-(892 tests unitarios; el único fallo de la suite es previo y no
-relacionado) — sin `pnpm test:e2e`, sin verificación en vivo: el fallo
-es intermitente y no se ha conseguido reproducir bajo demanda.
+rastros que ya existen. Se añadió `registro-calculo.log` (en la carpeta
+de datos de la app): una línea por cada fase y resultado de cada
+casilla. Fue justo ese registro el que, con el siguiente caso real, dio
+la causa de verdad (ver D114 arriba).
 
 Antes de esto — **02/10/2026 (1): EVO vuelve a comprobar el
 eje de la córnea posterior justo antes de calcular (D112).** El dueño

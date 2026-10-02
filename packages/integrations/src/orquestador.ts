@@ -139,14 +139,29 @@ export interface TareaCalculo {
  * de un solo ojo y un solo aparato produce las mismas tareas que antes de
  * D47; no se inventa el que falta.
  *
- * **Una variante de córnea posterior nunca se planifica para un aparato sin
- * PK1/PK2** (D111, 01/10/2026): con dos aparatos del mismo ojo, uno con
- * córnea posterior medida y otro sin ella, pedir «EVO con posterior» y
- * «Barrett con posterior» generaba también esas dos casillas para el
- * aparato SIN esos datos — calculaban exactamente lo mismo que su base,
- * sin comparar nada de verdad, y el PDF sacaba una hoja de más por cada
- * una. El resto de calculadoras (las bases, y Kane) no se filtran: no
- * dependen de tener córnea posterior para tener sentido.
+ * **Una variante de córnea posterior no planifica un aparato sin PK1/PK2
+ * SI queda otro que sí la tiene** (D111, 01/10/2026; corregido en D114,
+ * 02/10/2026): con dos aparatos del mismo ojo, uno con córnea posterior
+ * medida y otro sin ella, pedir «EVO con posterior» y «Barrett con
+ * posterior» generaba también esas dos casillas para el aparato SIN esos
+ * datos — calculaban exactamente lo mismo que su base, sin comparar nada
+ * de verdad, y el PDF sacaba una hoja de más por cada una.
+ *
+ * **D114**: esa regla, aplicada sin más, dejaba la casilla COMPLETAMENTE
+ * VACÍA —ni un resultado, ni un error, nada que reintentar— cuando la
+ * variante se pide SOLA (sin su calculadora base) y el único aparato del
+ * ojo no tiene córnea posterior: el caso más común, porque
+ * «EVO Toric — Predicted PCA» (`EVO_TORIC_SIN_CARA_POSTERIOR`) es una de
+ * las tres casillas marcadas por defecto en la pantalla de cálculo. Un
+ * día después de D111 un caso real sin ningún dato de córnea posterior se
+ * quedó así: Kane calculaba, EVO no aparecía ni como fallo, y solo
+ * «Reintentar» —que vuelve a planificar sin este filtro de por medio, al
+ * pedir la casilla explícita— lo arreglaba. Por eso el filtro ahora NUNCA
+ * vacía del todo la lista de un ojo: si quitar los aparatos sin córnea
+ * posterior no dejara ninguno, se calcula con todos — no hay nada que
+ * comparar, pero tampoco hay motivo para no dar ningún resultado. El
+ * resto de calculadoras (las bases, y Kane) no se filtran: no dependen de
+ * tener córnea posterior para tener sentido.
  */
 export function planificarCaso(
   caso: Caso,
@@ -168,12 +183,19 @@ export function planificarCaso(
       const aparatosDelOjo = datasetsActivosDe(caso, ojo)
         .map((d) => d.aparato)
         .filter((a) => opciones?.aparatos === undefined || opciones.aparatos.includes(a))
-        .filter(
-          (aparato) =>
-            !CALCULADORAS_VARIANTE_CARA_POSTERIOR.has(calculadora) ||
-            tieneCaraPosterior(ojoDe(caso, ojo, aparato)),
-        )
-      return aparatosDelOjo.map((aparato) => ({ calculadora, ojo, aparato }))
+
+      const aparatosAPlanificar = CALCULADORAS_VARIANTE_CARA_POSTERIOR.has(calculadora)
+        ? (() => {
+            const conCaraPosterior = aparatosDelOjo.filter((aparato) =>
+              tieneCaraPosterior(ojoDe(caso, ojo, aparato)),
+            )
+            // Ver D114 arriba: si ESTE filtro dejara la casilla a cero,
+            // mejor no aplicarlo que devolver un silencio total.
+            return conCaraPosterior.length > 0 ? conCaraPosterior : aparatosDelOjo
+          })()
+        : aparatosDelOjo
+
+      return aparatosAPlanificar.map((aparato) => ({ calculadora, ojo, aparato }))
     }),
   )
 }
