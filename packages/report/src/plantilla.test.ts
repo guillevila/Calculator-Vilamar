@@ -15,6 +15,7 @@ import {
   corregirMedida,
   confirmar,
   confirmarTodas,
+  conAparatoRenombrado,
   conMedida,
   conOjo,
   conResultado,
@@ -957,5 +958,35 @@ describe('el origen de cada dato en el PDF', () => {
     // Los sumandos siguen en el informe como medidas propias.
     expect(html).toContain('2.65')
     expect(html).toContain('530')
+  })
+
+  /**
+   * Fallo real (D114, 02/10/2026): la hoja de biometría se construía con
+   * `ojoDe(caso, l)`, que sin tercer argumento busca el aparato literalmente
+   * llamado «Principal». En cuanto el único aparato de un ojo se renombra
+   * —el propio desplegable ya lo permite desde D47—, esa búsqueda dejaba de
+   * encontrarlo y la hoja salía vacía, en silencio, sin ningún aviso.
+   */
+  it('la hoja de biometría no se vacía si el único aparato del ojo se ha renombrado (D114, 02/10/2026)', () => {
+    const ojo = confirmarTodas(conMedida(ojoVacio('OD'), crearMedida('AL', 'OD', 24.07, DEL_PDF)))
+    let caso = confirmar(
+      conOjo(casoNuevo('c-origen', 'CV-2026-0100', CUANDO), ojo, CUANDO),
+      CUANDO,
+    )
+    caso = conAparatoRenombrado(caso, 'OD', APARATO_PRINCIPAL, 'Heidelberg ANTERION', CUANDO)
+
+    const html = generarHtmlInformeDetallado({
+      caso,
+      version: '0.0.0',
+      generadoEn: CUANDO,
+      comparativas: [],
+      avisos: [],
+      ausenciasRelevantes: [],
+      resultados: [],
+      incluirEstimacionCompleta: false,
+    })
+
+    expect(html).toContain('Biometría confirmada')
+    expect(html).toContain('24.07')
   })
 })

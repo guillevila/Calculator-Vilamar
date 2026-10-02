@@ -17,7 +17,7 @@ import {
   camposQueFaltan,
   COLUMNAS_COMPARATIVA,
   compararOjo,
-  ojoDe,
+  ojoPrincipalDe,
   ojosDelCaso,
   resultadoDe,
   validarOjo,
@@ -82,7 +82,7 @@ export function recopilarInforme(caso: Caso, opciones: OpcionesInforme): DatosIn
     return compararOjo(ojo, resultados as never, orden)
   })
 
-  const avisos: Aviso[] = ojos.flatMap((ojo) => [...validarOjo(ojoDe(caso, ojo))])
+  const avisos: Aviso[] = ojos.flatMap((ojo) => [...validarOjo(ojoPrincipalDe(caso, ojo))])
 
   // Qué le faltaba a cada calculadora. Solo se cuenta si de verdad se intentó o
   // si el dato es obligatorio para ella: enumerar todos los opcionales ausentes

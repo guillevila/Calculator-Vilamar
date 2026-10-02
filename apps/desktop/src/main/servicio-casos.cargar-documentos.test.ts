@@ -17,7 +17,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import type { DispositivoDetectado } from '@vilamar/domain'
+import type { DispositivoDetectado, Lateralidad } from '@vilamar/domain'
 import { datasetsDe } from '@vilamar/domain'
 import type { DocumentoEntrada, LectorVision, ResultadoExtraccion } from '@vilamar/extraction'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -97,6 +97,34 @@ function resultadoDe(
     avisos: [],
     proveedor: 'test',
     metodo: 'VISION',
+  }
+}
+
+/** Igual que `resultadoDe()`, pero para el ojo que se le pida, no siempre OD. */
+function resultadoDeOjo(
+  documentoId: string,
+  lateralidad: Lateralidad,
+  dispositivo: DispositivoDetectado,
+  campos: Readonly<Record<string, number>>,
+): ResultadoExtraccion {
+  const base = resultadoDe(documentoId, dispositivo, campos)
+  const datosOD = base.ojos.OD
+  return {
+    ...base,
+    explicacionOjos: `una sola sección, se asume ${lateralidad}`,
+    ojos: {
+      [lateralidad]: {
+        ...datosOD,
+        lateralidad,
+        medidas: Object.fromEntries(
+          Object.entries(datosOD?.medidas ?? {}).map(([campo, medida]) => [
+            campo,
+            { ...medida, ojo: lateralidad },
+          ]),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ) as any,
+      },
+    },
   }
 }
 
@@ -180,8 +208,13 @@ describe('cargarDocumentos — dos fotos del mismo ojo, mismo aparato detectado 
 
       const datasetsOD = datasetsDe(caso, 'OD')
       expect(datasetsOD).toHaveLength(2)
-      expect(datasetsOD.map((d) => d.aparato).sort()).toEqual(['Otro', 'Principal'])
-      expect(datasetsOD.find((d) => d.aparato === 'Principal')?.medidas.AL?.valor).toBe(24.0)
+      // D115 (02/10/2026): el primer documento sin reconocer de un ojo ya
+      // no se llama «Principal» — se asume «ZEISS IOLMaster 700» (el
+      // aparato por defecto, aquí sin ningún otro ojo del que copiar).
+      expect(datasetsOD.map((d) => d.aparato).sort()).toEqual(['Otro', 'ZEISS IOLMaster 700'])
+      expect(datasetsOD.find((d) => d.aparato === 'ZEISS IOLMaster 700')?.medidas.AL?.valor).toBe(
+        24.0,
+      )
       expect(datasetsOD.find((d) => d.aparato === 'Otro')?.medidas.AL?.valor).toBe(24.5)
     },
   )
@@ -214,7 +247,11 @@ describe('cargarDocumentos — dos fotos del mismo ojo, mismo aparato detectado 
     ])
 
     const datasetsOD = datasetsDe(caso, 'OD')
-    expect(datasetsOD.map((d) => d.aparato).sort()).toEqual(['Otro', 'Otro (2)', 'Principal'])
+    expect(datasetsOD.map((d) => d.aparato).sort()).toEqual([
+      'Otro',
+      'Otro (2)',
+      'ZEISS IOLMaster 700',
+    ])
   })
 
   it('dos fotos de aparatos REALMENTE distintos siguen creando dos datasets separados', async () => {
@@ -236,7 +273,13 @@ describe('cargarDocumentos — dos fotos del mismo ojo, mismo aparato detectado 
 
     const datasetsOD = datasetsDe(caso, 'OD')
     expect(datasetsOD).toHaveLength(2)
-    expect(datasetsOD.map((d) => d.aparato).sort()).toEqual(['Heidelberg ANTERION', 'Principal'])
+    // D115: el primer documento reconocido de un ojo ya lleva el nombre real
+    // del aparato desde el principio, no «Principal» — aquí coincide con el
+    // mismo nombre que ya usaba la suposición por defecto.
+    expect(datasetsOD.map((d) => d.aparato).sort()).toEqual([
+      'Heidelberg ANTERION',
+      'ZEISS IOLMaster 700',
+    ])
   })
 })
 
@@ -324,6 +367,74 @@ describe('cargarDocumentos — avisa si el archivo ya se había cargado antes en
     await servicio.cargarDocumentos([{ nombre: 'foto.jpg', datos: mismosBytes }])
     const { caso } = await servicio.cargarDocumentos([{ nombre: 'foto-repetida.jpg', datos: mismosBytes }])
 
-    expect(datasetsDe(caso, 'OD').map((d) => d.aparato).sort()).toEqual(['Otro', 'Principal'])
+    expect(datasetsDe(caso, 'OD').map((d) => d.aparato).sort()).toEqual([
+      'Otro',
+      'ZEISS IOLMaster 700',
+    ])
+  })
+})
+
+/**
+ * D115 (02/10/2026): petición expresa del dueño del proyecto — si una foto
+ * identifica claramente el aparato, se usa ese nombre desde el PRIMER
+ * documento de un ojo, no solo desde el segundo en adelante (antes, D47);
+ * si no lo identifica, se asume el mismo aparato que ya tenga el OTRO ojo
+ * del caso («en el 99,9% de las veces es así»), y solo si tampoco hay nada
+ * de qué partir, se asume «ZEISS IOLMaster 700».
+ */
+describe('cargarDocumentos — el nombre del primer aparato de un ojo (D115, 02/10/2026)', () => {
+  it('un aparato RECONOCIDO se llama como él desde el primer documento, no «Principal»', async () => {
+    const lector = lectorDePrueba([
+      resultadoDe('doc-1', { dispositivo: 'PENTACAM', confianza: 0.9, indicios: [] }, { AL: 24.0 }),
+    ])
+    const servicio = servicioDePrueba(lector)
+    servicio.nuevo()
+
+    const { caso } = await servicio.cargarDocumentos([
+      { nombre: 'pentacam.pdf', datos: new Uint8Array([1, 2, 3]) },
+    ])
+
+    expect(datasetsDe(caso, 'OD').map((d) => d.aparato)).toEqual(['OCULUS Pentacam'])
+  })
+
+  it('sin reconocer el aparato, el segundo ojo copia el nombre que ya tiene el primero', async () => {
+    const lector = lectorDePrueba([
+      resultadoDeOjo(
+        'doc-1',
+        'OD',
+        { dispositivo: 'PENTACAM', confianza: 0.9, indicios: [] },
+        { AL: 24.0 },
+      ),
+      resultadoDeOjo(
+        'doc-2',
+        'OS',
+        { dispositivo: 'DESCONOCIDO', confianza: 0, indicios: [] },
+        { AL: 23.5 },
+      ),
+    ])
+    const servicio = servicioDePrueba(lector)
+    servicio.nuevo()
+
+    await servicio.cargarDocumentos([{ nombre: 'pentacam-od.pdf', datos: new Uint8Array([1, 2, 3]) }])
+    const { caso } = await servicio.cargarDocumentos([
+      { nombre: 'sin-reconocer-os.jpg', datos: new Uint8Array([4, 5, 6]) },
+    ])
+
+    expect(datasetsDe(caso, 'OD').map((d) => d.aparato)).toEqual(['OCULUS Pentacam'])
+    expect(datasetsDe(caso, 'OS').map((d) => d.aparato)).toEqual(['OCULUS Pentacam'])
+  })
+
+  it('sin reconocer el aparato y sin ningún otro ojo del que copiar, se asume «ZEISS IOLMaster 700»', async () => {
+    const lector = lectorDePrueba([
+      resultadoDe('doc-1', { dispositivo: 'DESCONOCIDO', confianza: 0, indicios: [] }, { AL: 24.0 }),
+    ])
+    const servicio = servicioDePrueba(lector)
+    servicio.nuevo()
+
+    const { caso } = await servicio.cargarDocumentos([
+      { nombre: 'sin-reconocer.jpg', datos: new Uint8Array([1, 2, 3]) },
+    ])
+
+    expect(datasetsDe(caso, 'OD').map((d) => d.aparato)).toEqual(['ZEISS IOLMaster 700'])
   })
 })

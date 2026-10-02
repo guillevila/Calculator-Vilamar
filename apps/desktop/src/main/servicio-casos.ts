@@ -80,6 +80,7 @@ import {
   nombreLateralidad,
   NOMBRE_DISPOSITIVO,
   ojoDe,
+  ojoPrincipalDe,
   ojosDelCaso,
   resultadoDe,
   sinMedida,
@@ -672,31 +673,41 @@ export class ServicioCasos {
         }
 
         const previos = datasetsDe(caso, lateralidad)
-        // El PRIMER documento de un ojo se queda con `APARATO_PRINCIPAL` —
-        // igual que antes de D47—, para que un caso de un solo documento no
-        // note ningún cambio: todo lo que lee ese dataset con `ojoDe(caso,
-        // ojo)` sin más (la revisión, el cálculo) lo sigue encontrando donde
-        // siempre. Solo cuando YA HABÍA algo para ese ojo se etiqueta el
-        // dataset nuevo con el aparato que el propio documento dice ser
-        // (D47, 27/08/2026) — no hace falta preguntarle nada a nadie, ya se
-        // ha detectado al leerlo — para que los dos convivan distinguibles
-        // en vez de que uno pise al otro. Esto cubre tanto un documento que
-        // llega en una llamada posterior como uno de un dispositivo
-        // distinto dentro del mismo lote (el `if` de arriba ya se ha hecho
-        // cargo del caso de mismo dispositivo reconocido, que se fusiona).
+        // El nombre del PRIMER documento de un ojo (D115, 02/10/2026,
+        // corrige D47): antes se quedaba siempre en `APARATO_PRINCIPAL`
+        // aunque el documento dijera claramente qué aparato era — ya no
+        // hace falta esa cautela, porque `ojoPrincipalDe()` (D114) encuentra
+        // el aparato de un ojo sea cual sea su nombre, así que nombrarlo
+        // bien desde el principio no rompe nada.
         //
-        // Cuando el dispositivo NO se reconoce, no se usa el texto genérico
-        // «Informe no reconocido» tal cual —un segundo documento sin
-        // reconocer pisaría al primero, porque los dos pedirían el mismo
-        // nombre—: se le da un nombre libre, «Otro»/«Otro (2)»/…, para que
-        // la persona lo renombre a mano con el aparato real (D88 corregido,
-        // 17/09/2026).
+        //  1. Si el documento SÍ dice qué aparato es, ese nombre manda
+        //     siempre — es evidencia real, no una suposición.
+        //  2. Si no, y el OTRO ojo de este mismo caso ya tiene un aparato,
+        //     se usa su mismo nombre: petición expresa del dueño del
+        //     proyecto (02/10/2026) — en el 99,9% de los casos reales los
+        //     dos ojos se miden con el mismo aparato, así que adivinar
+        //     cualquier otra cosa sería peor que copiar el que ya hay.
+        //  3. Si tampoco hay nada de qué partir, se asume «ZEISS IOLMaster
+        //     700» — el aparato más habitual del dueño del proyecto — en
+        //     vez de un «Principal» genérico que no significa nada y que
+        //     había que cambiar a mano siempre. Sigue siendo una
+        //     suposición, así que el nombre queda ahí para corregirlo con
+        //     un clic si no es el que tocaba.
+        //
+        // Solo cuando YA HABÍA algo para ESTE ojo (`previos.length > 0`) se
+        // mantiene la lógica de siempre: el aparato que el documento dice
+        // ser, o un nombre libre si no se reconoce, para que los dos
+        // convivan distinguibles en vez de que uno pise al otro.
+        const otraLateralidad: Lateralidad = lateralidad === 'OD' ? 'OS' : 'OD'
+        const aparatoDelOtroOjo = datasetsDe(caso, otraLateralidad)[0]?.aparato
         const aparato =
-          previos.length === 0
-            ? APARATO_PRINCIPAL
-            : resultado.dispositivo.dispositivo === 'DESCONOCIDO'
+          previos.length > 0
+            ? resultado.dispositivo.dispositivo === 'DESCONOCIDO'
               ? nombreAparatoLibreParaDesconocido(previos)
               : NOMBRE_DISPOSITIVO[resultado.dispositivo.dispositivo]
+            : resultado.dispositivo.dispositivo !== 'DESCONOCIDO'
+              ? NOMBRE_DISPOSITIVO[resultado.dispositivo.dispositivo]
+              : (aparatoDelOtroOjo ?? NOMBRE_DISPOSITIVO.IOLMASTER_700)
         const yaHabiaEseAparato = previos.some((o) => o.aparato === aparato)
         if (yaHabiaEseAparato) {
           avisos.push(
@@ -1346,7 +1357,7 @@ export class ServicioCasos {
   validar(): readonly Aviso[] {
     const caso = this.caso
     if (!caso) return []
-    return ojosDelCaso(caso).flatMap((l) => [...validarOjo(ojoDe(caso, l))])
+    return ojosDelCaso(caso).flatMap((l) => [...validarOjo(ojoPrincipalDe(caso, l))])
   }
 
   /**

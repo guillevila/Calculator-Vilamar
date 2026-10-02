@@ -4,6 +4,93 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.74] — 02/10/2026 (versión visible en pantalla: v1.37)
+
+fix(domain,report,app): el primer aparato de un ojo ya no depende de llamarse «Principal»; por defecto, el mismo aparato en los dos ojos (D114, D115).
+
+### Qué se pidió
+
+El dueño del proyecto: «otro pequeño cambio por defecto tanto manual
+como si subo una foto y no se distingue que aparato es pon por elección
+por defecto IOLMaster y ya yo lo cambiaré, pero si la foto distingue cuál
+es cámbialo automáticamente... y otra cosa importante, siempre por
+defecto pon el mismo aparato en los dos ojos, si no ya lo cambio manual
+pero es así en el 99,9% de las veces».
+
+### Investigado antes de tocar nada
+
+«Principal» no es solo lo que se ve en pantalla: varios sitios del
+programa —la hoja de biometría del PDF, la validación de datos
+pendientes— usaban `ojoDe(caso, lado)` sin indicar el aparato, que busca
+literalmente el que se llama «Principal». Cambiar el nombre por defecto
+a ciegas habría dejado esas hojas en blanco para casi todos los casos.
+
+Peor: esto confirmó que **ya existía un fallo real**, sin que nadie lo
+hubiera provocado todavía — en cuanto alguien renombra el único aparato
+de un ojo (el propio desplegable ya lo permite desde D47), esas mismas
+búsquedas dejan de encontrarlo, y la hoja de biometría de ese ojo
+desaparece del PDF en silencio.
+
+### El cambio
+
+**D114** (la base, primero): nueva `ojoPrincipalDe(caso, lado)` en el
+dominio — encuentra el primer aparato de un ojo sea cual sea su nombre,
+en vez de asumir que es literalmente «Principal». Reemplaza el patrón
+peligroso en `validar()` (servicio-casos.ts), los avisos del informe
+(`recopilar.ts`) y tres hojas de la plantilla del PDF (`plantilla.ts`).
+
+**D115** (la petición de hoy, ya sin ese riesgo): nueva regla, en orden,
+para el primer aparato de un ojo —tanto a mano como por documento—:
+
+1. Si el documento identifica el aparato, se usa su nombre real desde el
+   PRIMER documento (antes, D47 lo dejaba en «Principal» hasta el
+   segundo documento del mismo ojo).
+2. Si no lo identifica (a mano, o una foto que no se reconoce) y el OTRO
+   ojo del caso YA tiene un aparato, se copia su mismo nombre.
+3. Si tampoco hay nada de qué partir, se asume «ZEISS IOLMaster 700».
+
+En la pantalla manual, esto sale solo: `aparatoActivo` empieza en
+«ZEISS IOLMaster 700» y, al cambiar de ojo sin haber escrito nada
+todavía, se queda con el que ya hubiera —el mismo mecanismo que ya
+protegía «Añadir otro biómetro» de deshacerse solo.
+
+**El cambio de nombre por defecto rompió 7 pruebas de interfaz** — una
+señal real, no ruido: antes, `aparatoActivo` (en `App.tsx`) y el nombre
+real coincidían siempre por casualidad, porque los dos eran literalmente
+«Principal». En cuanto el nombre pudo ser otro, tres sitios donde el
+caso cambia desde FUERA de la pantalla —cargar un documento
+(`aplicarCarga`), reabrir un caso guardado (`abrirCasoGuardado`), subir
+otro biómetro (`subirMasDocumentos`)— se quedaban mirando el nombre
+viejo. Arreglado con una función compartida, `ojoYAparatoCorrectos()`,
+llamada en los tres sitios; y el efecto que protege «Añadir otro
+biómetro» a medio escribir (no corrige mientras se está en la pantalla
+de revisión, a propósito) ya no bloquea esa corrección cuando el ojo no
+tenía NINGÚN aparato todavía — ahí no hay nada a medio escribir que
+proteger.
+
+### Verificado
+
+- `ojoPrincipalDe()`: nuevo test en `invariantes.test.ts` — encuentra el
+  aparato de un ojo aunque se haya renombrado.
+- La hoja de biometría del PDF: nuevo test en `plantilla.test.ts` —
+  reproducido primero contra el código sin arreglar (sale en blanco) y
+  comprobado después con el arreglo.
+- El nombre del primer aparato: tres tests nuevos en
+  `servicio-casos.cargar-documentos.test.ts` — reconocido → nombre real;
+  sin reconocer con el otro ojo ya puesto → copia su nombre; sin nada de
+  qué partir → IOLMaster — los tres comprobados primero contra el código
+  sin arreglar (fallan, con «Principal») y después con el arreglado.
+- Cuatro tests existentes de `cargar-documentos.test.ts` actualizados:
+  esperaban «Principal» donde ahora hay un nombre real.
+- Un test de interfaz (`flujo.spec.ts`) actualizado por el mismo motivo
+  — y renombrado un target de prueba a un aparato distinto, para seguir
+  probando un renombrado de verdad.
+- `pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+  en verde — 900 tests unitarios (el único fallo es el previo y ajeno de
+  siempre) y 65/65 de interfaz.
+
+---
+
 ## [1.15.73] — 02/10/2026 (versión visible en pantalla: v1.37)
 
 fix(integrations): una variante de córnea posterior pedida sola ya no se queda sin planificar (D114, corrige D111).

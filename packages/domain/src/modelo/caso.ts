@@ -285,6 +285,25 @@ export function ojoDe(
 }
 
 /**
+ * El PRIMER aparato de verdad que tenga este ojo, sea cual sea su nombre.
+ *
+ * Existe porque `ojoDe(caso, lado)` sin tercer argumento cae en
+ * `APARATO_PRINCIPAL` ('Principal') — y eso solo encuentra algo cuando el
+ * aparato todavía se llama literalmente así. D99 (24/09/2026) ya encontró un
+ * fallo real de este tipo en `elegirLente()`: con dos aparatos, ninguno
+ * llamado «Principal», la constante A solo se escribía en un dataset
+ * fantasma. D114 (02/10/2026) encontró el mismo patrón, sin haberlo
+ * provocado nadie todavía: en cuanto el único aparato de un ojo se renombra
+ * (el propio desplegable ya lo permite desde D47), `ojoDe(caso, lado)` deja
+ * de encontrarlo y el PDF pierde la hoja de biometría de ese ojo en
+ * silencio. Esta función es el arreglo general: coge el primero que haya,
+ * se llame como se llame, y solo cae a un ojo vacío cuando no hay ninguno.
+ */
+export function ojoPrincipalDe(caso: Caso, lado: Lateralidad): OjoBiometrico {
+  return datasetsDe(caso, lado)[0] ?? ojoVacio(lado)
+}
+
+/**
  * Las calculadoras a mostrar en la comparativa, en orden.
  *
  * Desde el 28/08/2026, cada variante de córnea posterior (D45: EVO

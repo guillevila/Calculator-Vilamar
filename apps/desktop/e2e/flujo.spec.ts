@@ -453,15 +453,20 @@ CCT             530 um</pre></body>`)
  * Reproducción del fallo reportado por el dueño (06/09/2026, caso real
  * CV-2026-0117): tras usar «Confirmar todo» con muchos datos, la pantalla
  * quedó con todos los campos en blanco. La diferencia con la prueba anterior
- * —que sí pasa— es que en el caso real el aparato del primer dataset de un
- * ojo empieza siempre como `APARATO_PRINCIPAL` («Principal», D47) y el dueño
- * lo había RENOMBRADO a mano al nombre real del biómetro («Heidelberg
- * ANTERION») antes de confirmar. Esta prueba repite exactamente esa
- * secuencia: cargar el documento (que crea el dataset como «Principal»),
- * renombrarlo, y solo entonces confirmar todo — con más campos que la
- * prueba anterior, para acercarse al caso real de 34 datos.
+ * —que sí pasa— es que en el caso real el dueño había RENOMBRADO a mano el
+ * aparato del primer dataset antes de confirmar. Esta prueba repite esa
+ * secuencia: cargar el documento, renombrar el aparato, y solo entonces
+ * confirmar todo — con más campos que la prueba anterior, para acercarse al
+ * caso real de 34 datos.
+ *
+ * Desde D115 (02/10/2026) el primer aparato de un documento RECONOCIDO ya
+ * se llama como el aparato real desde el principio («Heidelberg ANTERION»,
+ * no «Principal») — así que aquí se renombra a un nombre distinto
+ * («OCULUS Pentacam», sin que eso signifique que el documento lo sea: es
+ * solo el gesto mecánico de renombrar) para seguir probando un renombrado
+ * de verdad, no uno que no cambia nada.
  */
-test('confirmar todo de golpe DESPUÉS de renombrar el aparato de "Principal" al nombre real: no debe borrar nada', async () => {
+test('confirmar todo de golpe DESPUÉS de renombrar el aparato: no debe borrar nada', async () => {
   test.setTimeout(180_000)
 
   const { chromium } = await import('playwright')
@@ -498,15 +503,18 @@ WTW            11.80 mm</pre></body>`)
   await expect(ventana.getByTestId('comprobar-ACD')).toBeVisible()
 
   const antesDeRenombrar = await ventana.evaluate(() => window.vilamar?.casoActual())
-  expect(antesDeRenombrar?.ojos?.OD?.[0]?.aparato).toBe('Principal')
+  // D115: el documento se reconoce como ANTERION, así que el aparato ya
+  // lleva su nombre real desde el primer momento, no «Principal».
+  expect(antesDeRenombrar?.ojos?.OD?.[0]?.aparato).toBe('Heidelberg ANTERION')
   expect(antesDeRenombrar?.ojos?.OD?.[0]?.medidas?.AL?.valor).toBeCloseTo(24.07, 2)
 
-  // El gesto exacto del dueño: elegir el nombre real del biómetro en el
-  // desplegable de «Principal» — RENOMBRA el dataset que ya hay, no crea uno.
-  await ventana.getByTestId('manual-aparato-principal-select').selectOption('Heidelberg ANTERION')
+  // El gesto exacto del dueño: elegir otro nombre en el desplegable —
+  // RENOMBRA el dataset que ya hay, no crea uno. Se elige uno distinto del
+  // que ya tiene para que sea un renombrado de verdad.
+  await ventana.getByTestId('manual-aparato-principal-select').selectOption('OCULUS Pentacam')
 
   const trasRenombrar = await ventana.evaluate(() => window.vilamar?.casoActual())
-  expect(trasRenombrar?.ojos?.OD?.[0]?.aparato).toBe('Heidelberg ANTERION')
+  expect(trasRenombrar?.ojos?.OD?.[0]?.aparato).toBe('OCULUS Pentacam')
   expect(
     trasRenombrar?.ojos?.OD?.[0]?.medidas?.AL?.valor,
     'el renombrado ya ha borrado datos',
@@ -521,7 +529,7 @@ WTW            11.80 mm</pre></body>`)
 
   const trasConfirmar = await ventana.evaluate(() => window.vilamar?.casoActual())
   const ojoTrasConfirmar = trasConfirmar?.ojos?.OD?.[0]
-  expect(ojoTrasConfirmar?.aparato).toBe('Heidelberg ANTERION')
+  expect(ojoTrasConfirmar?.aparato).toBe('OCULUS Pentacam')
   for (const [campo, esperado] of Object.entries({
     AL: 24.07,
     K1: 41.22,

@@ -41,6 +41,7 @@ import {
   textoDeOrigen,
   loAportaElCirujano,
   ojoDe,
+  ojoPrincipalDe,
   ojosDelCaso,
   origenDe,
   describirDiscrepancia,
@@ -648,7 +649,7 @@ function bandaDeLente(datos: DatosInforme): string {
   const { caso } = datos
   const lente = caso.lente
   const primerOjo = ojosDelCaso(caso)[0]
-  const ojo = primerOjo ? ojoDe(caso, primerOjo) : undefined
+  const ojo = primerOjo ? ojoPrincipalDe(caso, primerOjo) : undefined
   const constante = ojo?.medidas.CONSTANTE_A
   const objetivo = ojo?.medidas.REFRACCION_OBJETIVO
 
@@ -1934,7 +1935,7 @@ export function generarHtmlInformeDetallado(datos: DatosInforme): string {
       titulo: `${c.ojo} · ${nombreLateralidad(c.ojo)}`,
       apunte: 'Resultado por calculadora',
       refExtra: ` · ${c.ojo}`,
-      cuerpo: `${diagramaDeEje(c, ojoDe(caso, c.ojo))}
+      cuerpo: `${diagramaDeEje(c, ojoPrincipalDe(caso, c.ojo))}
   ${tablaComparativa(c)}`,
       pie: `Los valores son los devueltos por cada web, sin transformación. Una casilla
       con «Ver alternativas» significa que la calculadora ha devuelto varias y no ha
@@ -1968,8 +1969,8 @@ export function generarHtmlInformeDetallado(datos: DatosInforme): string {
       titulo: `Biometría confirmada · ${nombreLateralidad(l)}`,
       apunte: 'Cada dato, con su origen',
       refExtra: ` · ${l}`,
-      cuerpo: `${figuraBiometrica(ojoDe(caso, l))}
-  ${seccionEntradas(caso, ojoDe(caso, l))}`,
+      cuerpo: `${figuraBiometrica(ojoPrincipalDe(caso, l))}
+  ${seccionEntradas(caso, ojoPrincipalDe(caso, l))}`,
       pie: `«Del informe» lo leyó el programa del documento. «Derivado del informe» lo
       calculó a partir de otros datos suyos, y lleva la cuenta escrita. «Aportado» y
       «Corregido» los escribió una persona. Un dato que falta se dice como ausente:

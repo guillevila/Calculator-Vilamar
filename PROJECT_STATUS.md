@@ -9,7 +9,32 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 02/10/2026 (3) · **Encontrada la causa real de
+**Última actualización:** 02/10/2026 (4) · **El primer aparato de un ojo
+ya no depende de llamarse «Principal» a ciegas; por defecto, el mismo
+aparato en los dos ojos (D114, D115).** Petición del dueño: por defecto,
+«ZEISS IOLMaster 700» si no se distingue el aparato (a mano o por foto
+sin reconocer), el nombre real desde el primer documento si SÍ se
+distingue, y el mismo aparato que el otro ojo si éste ya lo tiene.
+Investigado antes de tocar nada: «Principal» no es solo lo que se ve en
+pantalla — el PDF y la validación de datos daban por hecho en varios
+sitios que el primer aparato de un ojo se llama literalmente así, y eso
+**ya era un fallo real** en cuanto alguien renombraba su único aparato
+(el PDF perdía esa hoja en silencio). Arreglado primero en el dominio
+(`ojoPrincipalDe()`, D114) y luego la petición de hoy (D115), ya sin ese
+riesgo. Al cambiar el nombre por defecto, aparecieron 7 pruebas de
+interfaz rotas — la pantalla dejaba de encontrar datos recién cargados
+mientras estaba en la pantalla de revisión, porque antes «Principal»
+coincidía siempre por casualidad. Investigado y corregido en
+`App.tsx`: tres sitios donde el caso cambia desde fuera (cargar un
+documento, reabrir un caso guardado, subir otro biómetro) ahora
+corrigen el aparato activo explícitamente, y el efecto que protege
+«Añadir otro biómetro» a medio escribir ya no bloquea esa corrección
+cuando no había nada que proteger. `pnpm lint && pnpm typecheck &&
+pnpm test && pnpm build && pnpm test:e2e` en verde — 900 tests
+unitarios (el único fallo es el previo y ajeno de siempre) y 65/65 de
+interfaz.
+
+Antes de esto — **02/10/2026 (3): Encontrada la causa real de
 «EVO no se lanza»: una variante pedida sola se quedaba sin ningún
 aparato que planificar (D114, corrige D111).** El registro de D113
 (ver abajo) lo dejó ver con un caso real del mismo día: Kane calculaba y

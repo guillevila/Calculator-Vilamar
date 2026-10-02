@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 
 import type { Calculadora, Caso, EntradaBandeja, Lateralidad, Aviso } from '@vilamar/domain'
-import { APARATO_PRINCIPAL, aparatosDe, ojosDelCaso } from '@vilamar/domain'
+import { aparatosDe, NOMBRE_DISPOSITIVO, ojosDelCaso } from '@vilamar/domain'
 
 import { api, hayApi } from './api.js'
 import type { ArchivoEntrante, EstadoCalculo, ResumenExtraccion } from '../compartido/ipc.js'
@@ -36,6 +36,38 @@ function pasoDeCaso(c: Caso): Paso {
   return c.estado === 'COMPLETADO' ? 'RESULTADOS' : 'REVISION'
 }
 
+/**
+ * A qué ojo/aparato debería estar mirando la pantalla, dado un caso recién
+ * llegado de fuera (un documento cargado, un caso reabierto, otro biómetro
+ * subido) — nunca de haber escrito algo en pantalla.
+ *
+ * Existe porque el efecto que corrige `ojoActivo`/`aparatoActivo` se apaga a
+ * propósito durante REVISION, para no deshacer «Añadir otro biómetro»
+ * mientras se escribe su nombre (ese aparato elegido TODAVÍA no existe como
+ * dataset, y no hay que corregirlo). Pero cuando el caso cambia por una de
+ * estas tres vías, si no hay nada a medio escribir que proteger: si lo que
+ * estaba activo ya no corresponde a ningún dato real, hay que corregirlo a
+ * mano, aquí, igual que haría ese efecto si no estuviera apagado (D115,
+ * 02/10/2026: antes esto no hacía falta porque el primer aparato de un ojo
+ * se llamaba siempre «Principal», así que casi nunca podía desincronizarse).
+ *
+ * Devuelve `null` si el caso no tiene ningún ojo todavía — no hay nada que
+ * corregir.
+ */
+function ojoYAparatoCorrectos(
+  caso: Caso,
+  ojoActual: Lateralidad,
+  aparatoActual: string,
+): { readonly ojo: Lateralidad; readonly aparato: string } | null {
+  const ojosReal = ojosDelCaso(caso)
+  const ojo = ojosReal.includes(ojoActual) ? ojoActual : ojosReal[0]
+  if (!ojo) return null
+  const aparatosReal = aparatosDe(caso, ojo)
+  const aparato = aparatosReal.includes(aparatoActual) ? aparatoActual : aparatosReal[0]
+  if (!aparato) return null
+  return { ojo, aparato }
+}
+
 export function App(): JSX.Element {
   const [version, setVersion] = useState('')
   const [caso, setCaso] = useState<Caso | null>(null)
@@ -46,9 +78,13 @@ export function App(): JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [ojoActivo, setOjoActivo] = useState<Lateralidad>('OD')
   // Con qué aparato/biómetro se trabaja en el ojo activo (D47, 27/08/2026).
-  // Con un solo aparato —el caso de siempre— esto es invisible: vale
-  // `APARATO_PRINCIPAL` y ningún selector se enseña.
-  const [aparatoActivo, setAparatoActivo] = useState<string>(APARATO_PRINCIPAL)
+  // Por defecto, «ZEISS IOLMaster 700» (D115, 02/10/2026, petición expresa
+  // del dueño del proyecto: es el aparato más habitual, y un nombre real
+  // elegido de antemano es mejor que el genérico «Principal», que no decía
+  // nada y había que corregir siempre a mano). Con un solo aparato —el caso
+  // de siempre— esto es invisible: no hace falta tocar nada y ningún
+  // selector se enseña hasta que se añade un segundo.
+  const [aparatoActivo, setAparatoActivo] = useState<string>(NOMBRE_DISPOSITIVO.IOLMASTER_700)
   const [ocupado, setOcupado] = useState(false)
   // Las pantallas ortogonales al caso (D80/D81/D82): agenda de doctores,
   // bandeja de casos, dashboard. Se pueden abrir desde cualquier paso, sin
@@ -91,6 +127,25 @@ export function App(): JSX.Element {
 
   const ojos = useMemo(() => (caso ? ojosDelCaso(caso) : []), [caso])
 
+  /**
+   * Un caso nuevo de verdad (D115, 02/10/2026) vuelve `aparatoActivo` a la
+   * suposición por defecto, para que no arrastre el nombre de un aparato
+   * renombrado a mano en el cálculo anterior.
+   *
+   * Mira `caso.id`, no `caso` ni `ojos`: un guardado de un caso YA VACÍO
+   * (p. ej. elegir el aparato antes de escribir ningún dato, que no toca
+   * nada de verdad por dentro) cambia la referencia de `caso` sin cambiar de
+   * caso — si este efecto mirara eso, deshacía esa misma elección en el
+   * instante de hacerla, el mismo fallo que ya avisan los dos efectos de
+   * abajo para `ojoActivo`/`aparatoActivo`.
+   */
+  const casoIdAnterior = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    if (!caso || casoIdAnterior.current === caso.id) return
+    casoIdAnterior.current = caso.id
+    if (ojosDelCaso(caso).length === 0) setAparatoActivo(NOMBRE_DISPOSITIVO.IOLMASTER_700)
+  }, [caso])
+
   // EXCEPTO en revisión (14/09/2026, mismo patrón que el de `aparatoActivo`
   // justo debajo): ahí se puede elegir a propósito un OJO que todavía no
   // tiene ningún dataset —para añadir el segundo ojo de un caso que solo
@@ -119,14 +174,30 @@ export function App(): JSX.Element {
   // volvía al aparato original en el mismo instante en que se elegía el
   // nuevo, porque `aparatosDelOjo` (los que el caso ya tiene de verdad)
   // no lo conocía todavía.
+  //
+  // EXCEPCIÓN A LA EXCEPCIÓN (D115, 02/10/2026): si este ojo no tenía
+  // NINGÚN aparato todavía, no hay ninguna elección a medio hacer que
+  // proteger — así que sí se corrige, aunque esté en REVISION. Hace falta
+  // porque un caso puede recibir sus primeros datos durante REVISION sin
+  // pasar por un manejador de React (p. ej. una importación automática de
+  // la carpeta de entrada): antes esto no hacía falta porque el primer
+  // aparato de un ojo se llamaba siempre «Principal», así que casi nunca
+  // podía desincronizarse.
   const aparatosDelOjo = useMemo(() => (caso ? aparatosDe(caso, ojoActivo) : []), [caso, ojoActivo])
+  const habiaAlgoEnEsteOjo = useRef<{ ojo: Lateralidad; habia: boolean }>({
+    ojo: ojoActivo,
+    habia: aparatosDelOjo.length > 0,
+  })
   useEffect(() => {
-    if (paso === 'REVISION') return
+    const anterior = habiaAlgoEnEsteOjo.current
+    const habiaAlgo = anterior.ojo === ojoActivo ? anterior.habia : false
+    habiaAlgoEnEsteOjo.current = { ojo: ojoActivo, habia: aparatosDelOjo.length > 0 }
+    if (paso === 'REVISION' && habiaAlgo) return
     if (aparatosDelOjo.length > 0 && !aparatosDelOjo.includes(aparatoActivo)) {
       const primero = aparatosDelOjo[0]
       if (primero) setAparatoActivo(primero)
     }
-  }, [aparatosDelOjo, aparatoActivo, paso])
+  }, [aparatosDelOjo, aparatoActivo, paso, ojoActivo])
 
   /**
    * Al cambiar de OJO (no de aparato), `aparatoActivo` SIEMPRE tiene que
@@ -181,15 +252,23 @@ export function App(): JSX.Element {
   }, [])
 
   /** Vuelve a abrir un caso guardado, tal y como se dejó. */
-  const abrirCasoGuardado = useCallback(async (codigo: string) => {
-    setError(null)
-    setResumenes([])
-    setEstados([])
-    setAvisos([])
-    const c = await api().abrirCaso(codigo)
-    setCaso(c)
-    setPaso(pasoDeCaso(c))
-  }, [])
+  const abrirCasoGuardado = useCallback(
+    async (codigo: string) => {
+      setError(null)
+      setResumenes([])
+      setEstados([])
+      setAvisos([])
+      const c = await api().abrirCaso(codigo)
+      setCaso(c)
+      setPaso(pasoDeCaso(c))
+      const corregido = ojoYAparatoCorrectos(c, ojoActivo, aparatoActivo)
+      if (corregido) {
+        setOjoActivo(corregido.ojo)
+        setAparatoActivo(corregido.aparato)
+      }
+    },
+    [ojoActivo, aparatoActivo],
+  )
 
   /**
    * Empezar a trabajar un aviso de la bandeja que todavía no tiene caso
@@ -282,10 +361,15 @@ export function App(): JSX.Element {
       }
       setCaso(r.caso)
       setResumenes(r.resumenes)
+      const corregido = ojoYAparatoCorrectos(r.caso, ojoActivo, aparatoActivo)
+      if (corregido) {
+        setOjoActivo(corregido.ojo)
+        setAparatoActivo(corregido.aparato)
+      }
       await refrescarAvisos()
       setPaso('REVISION')
     },
-    [refrescarAvisos],
+    [refrescarAvisos, ojoActivo, aparatoActivo],
   )
 
   /**
@@ -367,6 +451,11 @@ export function App(): JSX.Element {
       if (r) {
         setCaso(r.caso)
         setResumenes((previos) => [...previos, ...r.resumenes])
+        const corregido = ojoYAparatoCorrectos(r.caso, ojoActivo, aparatoActivo)
+        if (corregido) {
+          setOjoActivo(corregido.ojo)
+          setAparatoActivo(corregido.aparato)
+        }
         await refrescarAvisos()
         setPaso('REVISION')
       }
@@ -375,7 +464,7 @@ export function App(): JSX.Element {
     } finally {
       setOcupado(false)
     }
-  }, [refrescarAvisos])
+  }, [refrescarAvisos, ojoActivo, aparatoActivo])
 
   /**
    * Empezar sin documento: todo a mano. Es un caso de uso legítimo.

@@ -32,6 +32,7 @@ import {
   nivelDeCampo,
   obtener,
   ojoDe,
+  ojoPrincipalDe,
   ojoVacio,
   prepararEntradas,
   sePuedeConfirmar,
@@ -736,6 +737,27 @@ describe('Invariante 12 — los aparatos del mismo ojo no se mezclan sin que la 
     expect(aparatosDe(caso, 'OD')).toEqual(['ZEISS IOLMaster 700'])
     expect(ojoDe(caso, 'OD', 'ZEISS IOLMaster 700').medidas.AL?.valor).toBe(24.07)
     expect(ojoDe(caso, 'OD', APARATO_PRINCIPAL).medidas.AL).toBeUndefined()
+  })
+
+  /**
+   * Fallo real (sin que nadie lo hubiera provocado todavía), encontrado el
+   * 02/10/2026 investigando D114: `ojoDe(caso, lado)`, sin tercer argumento,
+   * cae en `APARATO_PRINCIPAL` ('Principal') — y en cuanto el único aparato
+   * de un ojo se renombra (el propio desplegable lo permite desde D47), deja
+   * de encontrarlo. El informe en PDF y la validación de datos usaban ese
+   * patrón en varios sitios: renombrar el único aparato de un ojo les
+   * vaciaba la hoja de biometría y los avisos pendientes, en silencio. Igual
+   * que D99 (24/09/2026) con `elegirLente()`. `ojoPrincipalDe()` es el
+   * arreglo general: encuentra el primer aparato de verdad, se llame como se
+   * llame.
+   */
+  it('ojoPrincipalDe() encuentra el único aparato de un ojo aunque se haya renombrado (D114, 02/10/2026)', () => {
+    let caso = casoNuevo('caso-1', 'CV-2026-0001', CUANDO)
+    caso = conOjo(caso, odCompleto(), CUANDO) // APARATO_PRINCIPAL
+    caso = conAparatoRenombrado(caso, 'OD', APARATO_PRINCIPAL, 'Heidelberg ANTERION', CUANDO)
+
+    expect(ojoPrincipalDe(caso, 'OD').aparato).toBe('Heidelberg ANTERION')
+    expect(ojoPrincipalDe(caso, 'OD').medidas.AL?.valor).toBe(24.07)
   })
 
   it('renombrar a un nombre que ya usa OTRO aparato del mismo ojo lanza, no fusiona en silencio', () => {
