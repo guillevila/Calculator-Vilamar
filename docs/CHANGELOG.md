@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.79] — 06/10/2026 (versión visible en pantalla: v1.37)
+
+fix(app): el PDF-resumen tiene su propio botón y se guarda solo en «Resúmenes»; las dos casillas del PDF normal arrancan apagadas (D120).
+
+Petición del dueño tras probar D118: el resumen se repetía también en «Calculados». Ahora «Generar PDF» saca solo el normal (casillas apagadas por defecto) y un botón «PDF resumen» debajo genera solo el resumen, sin capturas, en `<doctor>/Resúmenes/<paciente>/<ojo>/`. La opción interna `generarResumenAparte` pasa a `soloResumen`. Además, «PDF resumen» y todos los botones «Volver» (a los datos, Doctores, Laboratorios, Bandeja, Dashboard, Casos guardados) pasan a un azul más claro (`button.claro`), para distinguirlos del botón principal. Verificado: tests de `servicio-casos.generar-pdf.test.ts` reescritos (solo resumen, una sola llamada de impresión, sin carpeta «Calculados»), 913 tests unitarios, lint, tipos, build y 66 pruebas de interfaz en verde.
+
+---
+
 ## [1.15.78] — 06/10/2026 (versión visible en pantalla: v1.37)
 
 chore(scripts): comando `pnpm compartir` para empaquetar y comprimir la aplicación lista para dar a otro optometrista (D119).

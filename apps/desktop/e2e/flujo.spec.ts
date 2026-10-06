@@ -816,7 +816,7 @@ test('el PDF se guarda en una carpeta por doctor y, dentro, una por paciente (D8
     window.vilamar?.generarPdf({
       incluirEstimacionCompleta: true,
       incluirTablaComparativaDetallada: true,
-      generarResumenAparte: false,
+      soloResumen: false,
     }),
   )
   const ruta = resultado?.rutas[0]?.ruta ?? ''
@@ -853,7 +853,7 @@ test('el PDF se guarda en «Sin doctor» cuando el caso no tiene ninguno asignad
     window.vilamar?.generarPdf({
       incluirEstimacionCompleta: true,
       incluirTablaComparativaDetallada: true,
-      generarResumenAparte: false,
+      soloResumen: false,
     }),
   )
   const ruta = resultado?.rutas[0]?.ruta ?? ''
@@ -1470,7 +1470,7 @@ ACD (epi)      3.18 mm</pre></body>`)
     window.vilamar?.generarPdf({
       incluirEstimacionCompleta: true,
       incluirTablaComparativaDetallada: true,
-      generarResumenAparte: false,
+      soloResumen: false,
     }),
   )
   const ruta = resultado?.rutas[0]?.ruta ?? ''

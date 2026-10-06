@@ -9,7 +9,9 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 06/10/2026 (4) · **Comando `pnpm compartir`
+**Última actualización:** 06/10/2026 (5) · **El PDF-resumen tiene su propio botón y se guarda solo en «Resúmenes» (D120).** Tras usar D118 con casos reales, el dueño pidió quitar la copia repetida en «Calculados», dejar las dos casillas del PDF normal apagadas por defecto y poner debajo un botón «PDF resumen» aparte. Hecho y comprobado (tests, lint, tipos, build y 66 pruebas de interfaz en verde). Pendiente de subir a la rama: sin commit todavía.
+
+Antes de esto — **06/10/2026 (4): comando `pnpm compartir`
 para darle una copia de la aplicación a otro optometrista, en su propio
 ordenador (D119).** Petición inicial del dueño: «crear usuarios para
 compartir la aplicación», a imagen de la app móvil hermana — que SÍ

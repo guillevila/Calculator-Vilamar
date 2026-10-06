@@ -452,14 +452,9 @@ export function PanelResultados({
   // proyecto para dejar de enseñar la estimación propia (D43) bajo cada
   // captura y en su cuadro de tarjetas.
   const [incluirEstimacionCompleta, setIncluirEstimacionCompleta] = useState(false)
-  // Encendido por defecto (D118, 06/10/2026): hasta D118 la tabla comparativa
-  // detallada se enseñaba siempre, sin casilla — por eso esta, a diferencia
-  // de las otras dos, empieza marcada: quien no la toque ve el informe
-  // exactamente igual que antes de D118.
-  const [incluirTablaComparativaDetallada, setIncluirTablaComparativaDetallada] = useState(true)
-  // Apagado por defecto (D118, 06/10/2026): un documento nuevo, además del
-  // normal — no tiene sentido generarlo sin que se pida expresamente.
-  const [generarResumenAparte, setGenerarResumenAparte] = useState(false)
+  // Apagado por defecto (D120, 06/10/2026): petición expresa del dueño — el
+  // PDF normal sale limpio, sin estimación ni tabla, salvo que se marquen.
+  const [incluirTablaComparativaDetallada, setIncluirTablaComparativaDetallada] = useState(false)
 
   // Las cinco casillas de siempre (D45/D48): Predicted y Measured PCA de EVO
   // y de Barrett, más Kane — la que no se haya pedido para este ojo y
@@ -475,17 +470,17 @@ export function PanelResultados({
   }
   const comparativa = compararOjo(ojoActivo, resultados as never, COLUMNAS_COMPARATIVA)
 
-  async function generar(): Promise<void> {
+  async function generar(soloResumen: boolean): Promise<void> {
     setGenerando(true)
     setError(null)
     try {
       const r = await api().generarPdf({
         incluirEstimacionCompleta,
         incluirTablaComparativaDetallada,
-        generarResumenAparte,
+        soloResumen,
       })
-      setRutas(r.rutas)
-      setRutasResumen(r.rutasResumen)
+      if (soloResumen) setRutasResumen(r.rutasResumen)
+      else setRutas(r.rutas)
     } catch (e) {
       setError(
         `No se ha podido generar el PDF. ${e instanceof Error ? e.message : String(e)} ` +
@@ -684,7 +679,9 @@ export function PanelResultados({
               </button>
             )
           })}
-          <button onClick={onVolverARevisar}>Volver a los datos</button>
+          <button className="claro" onClick={onVolverARevisar}>
+            Volver a los datos
+          </button>
         </div>
       </div>
 
@@ -724,9 +721,7 @@ export function PanelResultados({
             onChange={(e) => setIncluirEstimacionCompleta(e.target.checked)}
             data-testid="incluir-estimacion-completa"
           />
-          <span>
-            Incluir la estimación propia bajo cada captura y en un cuadro de tarjetas
-          </span>
+          <span>Incluir la estimación propia bajo cada captura y en un cuadro de tarjetas</span>
         </label>
         <label className="fila" style={{ gap: 8, alignItems: 'center', marginBottom: 12 }}>
           <input
@@ -738,25 +733,7 @@ export function PanelResultados({
           <span>
             Incluir la tabla comparativa detallada del final
             <span className="pie-nota" style={{ display: 'block' }}>
-              Con las dos casillas de arriba apagadas, el PDF normal no lleva la estimación propia
-              en ningún sitio.
-            </span>
-          </span>
-        </label>
-        <label className="fila" style={{ gap: 8, alignItems: 'center', marginBottom: 12 }}>
-          <input
-            type="checkbox"
-            checked={generarResumenAparte}
-            onChange={(e) => setGenerarResumenAparte(e.target.checked)}
-            data-testid="generar-resumen-aparte"
-          />
-          <span>
-            Generar también un PDF-resumen aparte, sin capturas de pantalla
-            <span className="pie-nota" style={{ display: 'block' }}>
-              Un segundo documento por ojo, con los datos de entrada, el cuadro de tarjetas y la
-              tabla comparativa detallada — sin ninguna captura, y sin depender de las dos casillas
-              de arriba. Se guarda junto al PDF normal y, además, en una carpeta «Resúmenes» aparte
-              de «Calculados», dentro de la carpeta del doctor.
+              Con las dos casillas apagadas (lo normal), el PDF solo lleva los pantallazos.
             </span>
           </span>
         </label>
@@ -766,11 +743,26 @@ export function PanelResultados({
           )}
           <button
             className="principal grande"
-            onClick={() => void generar()}
+            onClick={() => void generar(false)}
             disabled={generando}
             data-testid="generar-pdf"
           >
             {generando ? 'Generando…' : 'Generar PDF'}
+          </button>
+        </div>
+        <p className="pie-nota" style={{ marginTop: 14 }}>
+          PDF resumen: sin capturas, con los datos de entrada, el cuadro de tarjetas y la tabla
+          comparativa. Se guarda solo en la carpeta «Resúmenes» del doctor. No depende de las
+          casillas de arriba.
+        </p>
+        <div className="fila derecha">
+          <button
+            className="claro"
+            onClick={() => void generar(true)}
+            disabled={generando}
+            data-testid="generar-resumen-aparte"
+          >
+            PDF resumen
           </button>
         </div>
       </div>

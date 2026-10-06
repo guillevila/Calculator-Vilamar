@@ -81,6 +81,16 @@ button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
+/* Azul claro (D121): «Volver…» y «PDF resumen» — acciones secundarias que
+   se distinguen de un vistazo del botón principal azul oscuro. */
+button.claro {
+  background: #dbe9f8;
+  border-color: #a9c6e6;
+  color: var(--azul);
+}
+button.claro:hover:not(:disabled) {
+  background: #c5dcf3;
+}
 button.principal {
   background: var(--azul);
   border-color: var(--azul);
