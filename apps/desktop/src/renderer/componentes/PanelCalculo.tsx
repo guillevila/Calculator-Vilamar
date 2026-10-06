@@ -314,7 +314,7 @@ export function PanelCalculo({
         <div className="fila derecha">
           {ocupado && <button onClick={onCancelar}>Cancelar</button>}
           {!ocupado && (
-            <button onClick={onVolverARevisar} data-testid="volver-a-revisar">
+            <button className="claro" onClick={onVolverARevisar} data-testid="volver-a-revisar">
               Volver a los datos
             </button>
           )}

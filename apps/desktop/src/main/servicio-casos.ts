@@ -1646,28 +1646,22 @@ export class ServicioCasos {
    * del dueño, el PDF normal puede quedar sin ningún rastro de la
    * estimación propia.
    *
-   * **`generarResumenAparte`** (D118, 06/10/2026): además del PDF normal,
-   * genera un SEGUNDO documento por ojo —sin ninguna captura de pantalla,
-   * solo los datos de entrada, el cuadro de tarjetas y la tabla
-   * comparativa detallada (`generarHtmlResumen`)— pensado para compartir
-   * con alguien que solo necesita ver los números. Este segundo PDF no
-   * depende de `incluirEstimacionCompleta` ni de
-   * `incluirTablaComparativaDetallada`: siempre lleva las dos cosas, sea
-   * cual sea lo elegido para el PDF normal. Se guarda DOS veces, petición
-   * expresa del dueño: junto al PDF normal (misma carpeta de
-   * paciente/ojo, para encontrarlo sin buscar en otro sitio) y, además,
-   * en `<carpetaDoctor>/Resúmenes/<paciente>/<ojo>/` —hermana de
-   * «Calculados», con la misma estructura— para poder repasar solo los
-   * resúmenes de todos los pacientes sin entrar carpeta a carpeta. El
-   * HTML del resumen se construye una sola vez; `imprimirPdf()` se llama
-   * dos veces sobre ese mismo HTML, una por destino, porque no hay forma
-   * de pedirle los bytes que ya generó para copiarlos — solo sabe
-   * escribir a una ruta.
+   * **`soloResumen`** (D118, 06/10/2026; D120 lo convierte en un botón
+   * propio): en vez del PDF normal, genera SOLO un documento por ojo
+   * —sin ninguna captura de pantalla, con los datos de entrada, el cuadro
+   * de tarjetas y la tabla comparativa detallada (`generarHtmlResumen`)—
+   * pensado para compartir con alguien que solo necesita ver los números.
+   * No depende de `incluirEstimacionCompleta` ni de
+   * `incluirTablaComparativaDetallada`: siempre lleva las dos cosas. Se
+   * guarda UNA sola vez, en `<carpetaDoctor>/Resúmenes/<paciente>/<ojo>/`
+   * —hermana de «Calculados», con la misma estructura—; ya no se repite
+   * en «Calculados» (D120, petición expresa del dueño: sobraba). `rutas`
+   * va vacío en este modo.
    */
   async generarPdf(opciones: {
     readonly incluirEstimacionCompleta: boolean
     readonly incluirTablaComparativaDetallada: boolean
-    readonly generarResumenAparte: boolean
+    readonly soloResumen: boolean
   }): Promise<{
     rutas: readonly { ojo: Lateralidad; ruta: string }[]
     rutasResumen: readonly { ojo: Lateralidad; ruta: string }[]
@@ -1690,15 +1684,6 @@ export class ServicioCasos {
     const rutasResumen: { ojo: Lateralidad; ruta: string }[] = []
     for (const ojo of ojosConResultados) {
       const resultadosDelOjo = todosLosResultados.filter((r) => r.ojo === ojo)
-      const datos = recopilarInforme(caso, {
-        version: this.dep.version,
-        generadoEn: this.iso(),
-        resultados: resultadosDelOjo,
-        soloOjo: ojo,
-        incluirEstimacionCompleta: opciones.incluirEstimacionCompleta,
-        incluirTablaComparativaDetallada: opciones.incluirTablaComparativaDetallada,
-      })
-      const html = generarHtmlInforme(datos)
       // Dentro de la carpeta del doctor: una por paciente y, dentro, una
       // por ojo — antes todos los pacientes compartían la misma carpeta
       // «Ojo derecho»/«Ojo izquierdo», así que con el tiempo se
@@ -1706,55 +1691,47 @@ export class ServicioCasos {
       // dueño, 06/09/2026). Varias visitas del mismo paciente caen en la
       // misma carpeta, porque el nombre del archivo ya lleva el código
       // del caso y la fecha, así que nunca se pisan entre sí.
+      const subcarpeta = opciones.soloResumen ? 'Resúmenes' : 'Calculados'
       const carpetaOjo = join(
         carpetaDoctor,
-        'Calculados',
+        subcarpeta,
         nombreDeCarpeta(caso.nombrePaciente, caso.codigo),
         nombreLateralidad(ojo),
       )
       mkdirSync(carpetaOjo, { recursive: true })
+
+      if (opciones.soloResumen) {
+        const htmlResumen = generarHtmlResumen(
+          recopilarInforme(caso, {
+            version: this.dep.version,
+            generadoEn: this.iso(),
+            resultados: resultadosDelOjo,
+            soloOjo: ojo,
+          }),
+        )
+        const destino = join(carpetaOjo, `${caso.codigo}_${ojo}_${marca}_resumen.pdf`)
+        writeFileSync(destino.replace(/\.pdf$/, '.html'), htmlResumen, 'utf8')
+        await this.dep.imprimirPdf(htmlResumen, destino)
+        rutasResumen.push({ ojo, ruta: destino })
+        continue
+      }
+
+      const html = generarHtmlInforme(
+        recopilarInforme(caso, {
+          version: this.dep.version,
+          generadoEn: this.iso(),
+          resultados: resultadosDelOjo,
+          soloOjo: ojo,
+          incluirEstimacionCompleta: opciones.incluirEstimacionCompleta,
+          incluirTablaComparativaDetallada: opciones.incluirTablaComparativaDetallada,
+        }),
+      )
       const destino = join(carpetaOjo, `${caso.codigo}_${ojo}_${marca}.pdf`)
 
       // Se guarda también el HTML: si el PDF falla, el informe no se pierde.
       writeFileSync(destino.replace(/\.pdf$/, '.html'), html, 'utf8')
       await this.dep.imprimirPdf(html, destino)
       rutas.push({ ojo, ruta: destino })
-
-      if (opciones.generarResumenAparte) {
-        const datosResumen = recopilarInforme(caso, {
-          version: this.dep.version,
-          generadoEn: this.iso(),
-          resultados: resultadosDelOjo,
-          soloOjo: ojo,
-        })
-        const htmlResumen = generarHtmlResumen(datosResumen)
-        const nombreResumen = `${caso.codigo}_${ojo}_${marca}_resumen.pdf`
-
-        // Junto al PDF normal, en la misma carpeta de paciente/ojo — para
-        // encontrarlo sin tener que buscar en otro sitio.
-        const destinoJuntoAlNormal = join(carpetaOjo, nombreResumen)
-        writeFileSync(destinoJuntoAlNormal.replace(/\.pdf$/, '.html'), htmlResumen, 'utf8')
-        await this.dep.imprimirPdf(htmlResumen, destinoJuntoAlNormal)
-
-        // Y además en «Resúmenes», hermana de «Calculados» dentro de la
-        // carpeta del doctor — petición expresa del dueño, para poder
-        // repasar solo los resúmenes de todos los pacientes sin entrar
-        // carpeta a carpeta. Se vuelve a pedir el PDF (no se copia el
-        // fichero) porque `imprimirPdf` no expone los bytes que ya generó,
-        // solo sabe escribir a una ruta — el coste es el mismo HTML ya
-        // construido, no un segundo cálculo.
-        const carpetaResumenOjo = join(
-          carpetaDoctor,
-          'Resúmenes',
-          nombreDeCarpeta(caso.nombrePaciente, caso.codigo),
-          nombreLateralidad(ojo),
-        )
-        mkdirSync(carpetaResumenOjo, { recursive: true })
-        const destinoResumenes = join(carpetaResumenOjo, nombreResumen)
-        writeFileSync(destinoResumenes.replace(/\.pdf$/, '.html'), htmlResumen, 'utf8')
-        await this.dep.imprimirPdf(htmlResumen, destinoResumenes)
-        rutasResumen.push({ ojo, ruta: destinoResumenes })
-      }
     }
     return { rutas, rutasResumen }
   }

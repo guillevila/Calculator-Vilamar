@@ -444,14 +444,15 @@ export interface ApiVilamar {
    *
    * `incluirEstimacionCompleta` (D105, 29/09/2026) e
    * `incluirTablaComparativaDetallada` (D118, 06/10/2026): qué lleva el PDF
-   * normal, elegido con dos casillas justo antes de generar. `rutasResumen`
-   * solo llega con algo si `generarResumenAparte` es `true` (D118): un
-   * segundo documento por ojo, sin capturas, ver `ServicioCasos.generarPdf`.
+   * normal, elegido con dos casillas justo antes de generar. Con
+   * `soloResumen` a `true` (D118/D120) NO se genera el PDF normal: solo el
+   * PDF-resumen por ojo, sin capturas, y llega en `rutasResumen` (`rutas`
+   * va vacío). Ver `ServicioCasos.generarPdf`.
    */
   readonly generarPdf: (opciones: {
     readonly incluirEstimacionCompleta: boolean
     readonly incluirTablaComparativaDetallada: boolean
-    readonly generarResumenAparte: boolean
+    readonly soloResumen: boolean
   }) => Promise<{
     readonly rutas: readonly { readonly ojo: Lateralidad; readonly ruta: string }[]
     readonly rutasResumen: readonly { readonly ojo: Lateralidad; readonly ruta: string }[]

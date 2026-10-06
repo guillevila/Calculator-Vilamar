@@ -223,7 +223,12 @@ export function DoctoresScreen({ onVolver }: Props): JSX.Element {
       <div className="separador" />
 
       <div className="fila">
-        <button onClick={onVolver} disabled={guardando} data-testid="volver-de-doctores">
+        <button
+          className="claro"
+          onClick={onVolver}
+          disabled={guardando}
+          data-testid="volver-de-doctores"
+        >
           Volver
         </button>
       </div>

@@ -315,7 +315,7 @@ export function DashboardScreen({ onVolver }: { readonly onVolver: () => void })
       <div className="separador" />
 
       <div className="fila">
-        <button onClick={onVolver} data-testid="volver-de-dashboard">
+        <button className="claro" onClick={onVolver} data-testid="volver-de-dashboard">
           Volver
         </button>
       </div>
