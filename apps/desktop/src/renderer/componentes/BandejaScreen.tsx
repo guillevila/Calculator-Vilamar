@@ -405,7 +405,12 @@ export function BandejaScreen({
       <div className="separador" />
 
       <div className="fila">
-        <button onClick={onVolver} disabled={ocupado} data-testid="volver-de-bandeja">
+        <button
+          className="claro"
+          onClick={onVolver}
+          disabled={ocupado}
+          data-testid="volver-de-bandeja"
+        >
           Volver
         </button>
       </div>

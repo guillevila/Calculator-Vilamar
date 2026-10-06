@@ -188,7 +188,12 @@ export function LaboratoriosScreen({ onVolver }: Props): JSX.Element {
       <div className="separador" />
 
       <div className="fila">
-        <button onClick={onVolver} disabled={guardando} data-testid="volver-de-laboratorios">
+        <button
+          className="claro"
+          onClick={onVolver}
+          disabled={guardando}
+          data-testid="volver-de-laboratorios"
+        >
           Volver
         </button>
       </div>

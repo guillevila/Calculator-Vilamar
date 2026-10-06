@@ -129,7 +129,7 @@ describe('generarPdf — borra de «Importadas» la foto ya archivada en «Datos
     await servicio.generarPdf({
       incluirEstimacionCompleta: true,
       incluirTablaComparativaDetallada: true,
-      generarResumenAparte: false,
+      soloResumen: false,
     })
 
     expect(existsSync(rutaFoto), 'la foto sigue en Importadas tras calcular').toBe(false)
@@ -163,7 +163,7 @@ describe('generarPdf — borra de «Importadas» la foto ya archivada en «Datos
     await servicio.generarPdf({
       incluirEstimacionCompleta: true,
       incluirTablaComparativaDetallada: true,
-      generarResumenAparte: false,
+      soloResumen: false,
     })
 
     expect(existsSync(rutaFoto), 'un fichero fuera de Importadas no debe borrarse nunca').toBe(true)
@@ -196,7 +196,7 @@ describe('generarPdf — borra de «Importadas» la foto ya archivada en «Datos
     await servicio.generarPdf({
       incluirEstimacionCompleta: true,
       incluirTablaComparativaDetallada: true,
-      generarResumenAparte: false,
+      soloResumen: false,
     })
 
     expect(existsSync(foto1)).toBe(false)

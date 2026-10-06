@@ -483,7 +483,7 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
       opciones: {
         incluirEstimacionCompleta: boolean
         incluirTablaComparativaDetallada: boolean
-        generarResumenAparte: boolean
+        soloResumen: boolean
       },
     ) => s().generarPdf(opciones),
   )

@@ -106,7 +106,7 @@ export function CasosGuardados({ onAbrir, onVolver }: Props): JSX.Element {
         </table>
       )}
       <div className="fila" style={{ marginTop: 14 }}>
-        <button onClick={onVolver} disabled={abriendo !== null}>
+        <button className="claro" onClick={onVolver} disabled={abriendo !== null}>
           Volver
         </button>
       </div>
