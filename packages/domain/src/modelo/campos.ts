@@ -47,6 +47,9 @@ export type CampoBiometrico =
   | 'REFRACCION_OBJETIVO'
   | 'SIA'
   | 'EJE_INCISION'
+  // ── Córnea especial (D67): solo con LASIK/PRK/RK previos ───────────────────
+  | 'REFRACCION_PRE_LASIK'
+  | 'REFRACCION_POST_LASIK'
   // ── Lente ────────────────────────────────────────────────────────────────
   | 'CONSTANTE_A'
   | 'FACTOR_LENTE'
@@ -342,6 +345,36 @@ export const REGISTRO_CAMPOS: Readonly<Record<CampoBiometrico, DefinicionCampo>>
     limite: { min: 0, max: 360 },
     habitual: { min: 0, max: 360 },
     descripcion: 'Dónde se va a hacer la incisión. Lo decide el cirujano.',
+  },
+
+  REFRACCION_PRE_LASIK: {
+    codigo: 'REFRACCION_PRE_LASIK',
+    etiqueta: 'Refracción antes del LASIK/PRK/RK',
+    etiquetaClinica: 'Pre-Lasik Ref.',
+    categoria: 'QUIRURGICO',
+    unidad: 'D',
+    decimales: 2,
+    esEje: false,
+    // Barrett True K Toric no declara un rango junto a este campo (a
+    // diferencia de casi todos los demás, que sí lo hacen) — límite propio,
+    // amplio a propósito para no bloquear un historial real poco habitual.
+    limite: { min: -20, max: 20 },
+    habitual: { min: -12, max: 6 },
+    descripcion:
+      'Refracción del paciente antes de la cirugía refractiva (LASIK, PRK o queratotomía radial). Solo hace falta si el ojo tiene una córnea especial (D67): historial del paciente, no lo mide ningún biómetro.',
+  },
+  REFRACCION_POST_LASIK: {
+    codigo: 'REFRACCION_POST_LASIK',
+    etiqueta: 'Refracción después del LASIK/PRK/RK',
+    etiquetaClinica: 'Post-Lasik Ref.',
+    categoria: 'QUIRURGICO',
+    unidad: 'D',
+    decimales: 2,
+    esEje: false,
+    limite: { min: -20, max: 20 },
+    habitual: { min: -6, max: 6 },
+    descripcion:
+      'Refracción del paciente después de la cirugía refractiva, antes de la catarata. Solo hace falta si el ojo tiene una córnea especial (D67): historial del paciente, no lo mide ningún biómetro.',
   },
 
   CONSTANTE_A: {

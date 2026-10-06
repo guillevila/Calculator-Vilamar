@@ -10,10 +10,12 @@ import { describe, expect, it } from 'vitest'
 
 import type { Caso, OjoBiometrico, Procedencia, ResultadoCalculadora } from '@vilamar/domain'
 import {
+  APARATO_PRINCIPAL,
   casoNuevo,
   corregirMedida,
   confirmar,
   confirmarTodas,
+  conAparatoRenombrado,
   conMedida,
   conOjo,
   conResultado,
@@ -22,7 +24,13 @@ import {
   ojoVacio,
 } from '@vilamar/domain'
 
-import { esc, generarHtmlInforme } from './plantilla.js'
+import type { ResultadoInforme } from './plantilla.js'
+import {
+  esc,
+  generarHtmlInforme,
+  generarHtmlInformeDetallado,
+  generarHtmlResumen,
+} from './plantilla.js'
 import { recopilarInforme } from './recopilar.js'
 
 const CUANDO = '2026-08-10T10:00:00.000Z'
@@ -117,9 +125,15 @@ function casoCompleto(): Caso {
   return caso
 }
 
+/**
+ * El informe DETALLADO (portada, tabla comparativa, alternativas, biometría,
+ * trazabilidad) — no es el que genera la aplicación por defecto (ver
+ * `generarHtmlInforme`, probado más abajo en su propio bloque), pero se
+ * conserva y se sigue probando porque el código sigue ahí.
+ */
 function html(): string {
   const caso = casoCompleto()
-  return generarHtmlInforme(
+  return generarHtmlInformeDetallado(
     recopilarInforme(caso, { version: '0.1.0', generadoEn: '2026-08-10T12:34:00.000Z' }),
   )
 }
@@ -131,12 +145,14 @@ describe('escapado', () => {
   })
 
   it('un nombre de fichero con símbolos no rompe el documento', () => {
+    // El nombre del documento solo se enseña en el informe DETALLADO (hoja de
+    // biometría): el simplificado no lo toca en absoluto.
     let caso = casoCompleto()
     caso = {
       ...caso,
       documentos: [{ ...caso.documentos[0]!, nombre: '<img src=x onerror=alert(1)>.pdf' }],
     }
-    const salida = generarHtmlInforme(
+    const salida = generarHtmlInformeDetallado(
       recopilarInforme(caso, { version: '0.1.0', generadoEn: CUANDO }),
     )
     expect(salida).not.toContain('<img src=x')
@@ -145,12 +161,20 @@ describe('escapado', () => {
 })
 
 describe('el informe dice lo que hay', () => {
-  it('lleva el nombre del producto, la versión, la fecha y el código del caso', () => {
+  it('lleva el título del documento, la versión, la fecha y el código del caso', () => {
     const h = html()
-    expect(h).toContain('Calculator Vilamar')
+    expect(h).toContain('Resumen Calculadores IOL')
     expect(h).toContain('0.1.0')
     expect(h).toContain('CV-2026-0042')
     expect(h).toContain('10/08/2026')
+  })
+
+  // Petición expresa del dueño del proyecto (15/09/2026): el informe no
+  // puede llevar ningún nombre que lo relacione con «Calculator Vilamar»
+  // —es el título interno del programa, no el del documento que recibe el
+  // cirujano—; el título visible es «Resumen Calculadores IOL».
+  it('no lleva ninguna mención a Vilamar en ningún sitio', () => {
+    expect(html()).not.toContain('Vilamar')
   })
 
   it('dice qué aparato generó el informe', () => {
@@ -192,13 +216,25 @@ describe('el informe dice lo que hay', () => {
   it('dice claramente que los resultados son de las calculadoras externas', () => {
     const h = html()
     expect(h).toMatch(/proceden de las calculadoras externas/i)
-    expect(h).toMatch(/no calcula potencias de lente/i)
+    expect(sinSaltos(h)).toMatch(/no calcula ninguna potencia de lente/i)
   })
 
   it('dice que no emite recomendación clínica', () => {
     // El texto del pie va partido en varias líneas: se compara sin espacios.
     expect(sinSaltos(html())).toMatch(/no emite ninguna recomendación clínica/i)
   })
+
+  it(
+    'se presenta como organizador de cálculos, no como instrucción médica, y deja la ' +
+      'responsabilidad en el oftalmólogo — reforzado el 20/09/2026 con el mismo tono que ' +
+      'usa el ESCRS IOL Calculator en sus propios términos',
+    () => {
+      const h = sinSaltos(html())
+      expect(h).toMatch(/organizador de cálculos/i)
+      expect(h).toMatch(/no está destinado a servir de instrucción médica ni quirúrgica/i)
+      expect(h).toMatch(/responsabilidad exclusiva del oftalmólogo/i)
+    },
+  )
 })
 
 /** Junta el HTML en una línea para poder buscar frases que van partidas. */
@@ -207,27 +243,692 @@ function sinSaltos(h: string): string {
 }
 
 /**
- * El cuerpo del informe, sin el pie.
+ * El cuerpo del informe, sin el pie ni el contenido opaco de las capturas.
  *
- * El pie NOMBRA los datos que el informe no lleva («no contiene el nombre, la
- * fecha de nacimiento ni el número de historia»). Esa frase tiene que estar, así
- * que la comprobación de privacidad mira el resto del documento: lo que importa
- * es que no aparezca ningún dato identificativo, no que no se nombre la idea.
+ * Se sigue descartando el pie aunque, desde D109 (30/09/2026), ya no nombre
+ * ningún dato excluido — por si algún día vuelve a llevar uno.
+ *
+ * El base64 de una captura es contenido binario opaco: puede contener por azar
+ * cualquier subcadena, incluidas las que busca la comprobación de privacidad,
+ * sin que haya ningún dato identificativo real. Se descarta del barrido antes
+ * de buscar.
  */
 function cuerpoSinPie(h: string): string {
   const i = h.indexOf('<footer')
-  return i === -1 ? h : h.slice(0, i)
+  const sinPie = i === -1 ? h : h.slice(0, i)
+  return sinPie.replace(
+    /data:image\/png;base64,[A-Za-z0-9+/=]+/g,
+    'data:image/png;base64,[omitido]',
+  )
 }
 
 describe('un dato ausente se dice, no se rellena', () => {
   it('un campo sin valor sale como NO ENCONTRADO', () => {
+    // «Datos que faltaban» es la sección de trazabilidad del informe
+    // DETALLADO; el simplificado no la tiene.
     let ojo = ojoVacio('OD')
     ojo = conMedida(ojo, crearMedida('AL', 'OD', 24.07, DEL_INFORME))
     ojo = confirmarTodas(ojo)
     const caso = confirmar(conOjo(casoNuevo('c', 'CV-1', CUANDO), ojo, CUANDO), CUANDO)
-    const h = generarHtmlInforme(recopilarInforme(caso, { version: '0.1.0', generadoEn: CUANDO }))
+    const h = generarHtmlInformeDetallado(
+      recopilarInforme(caso, { version: '0.1.0', generadoEn: CUANDO }),
+    )
     // El WTW no está: no puede aparecer un número en su lugar.
     expect(h).toContain('Datos que faltaban')
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  El informe SIMPLIFICADO — el que genera de verdad la aplicación
+//  (`generarHtmlInforme`). Solo capturas + lente recomendada + aviso de
+//  fallo, nada de tabla comparativa, biometría, diagramas ni trazabilidad.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Construye el informe simplificado a partir de una lista de resultados hecha
+ * a mano. `aparato` es opcional en las llamadas de este fichero: cuando no se
+ * da, se rellena con `APARATO_PRINCIPAL` — los tests de aquí no son sobre
+ * D47, así que no necesitan repetirlo en cada literal.
+ */
+function htmlSimple(
+  resultados: readonly (Omit<ResultadoInforme, 'aparato'> & { readonly aparato?: string })[],
+  codigo = 'CV-2026-0042',
+): string {
+  const caso = confirmar(
+    conOjo(casoNuevo('c1', codigo, CUANDO), confirmarTodas(ojoVacio('OD')), CUANDO),
+    CUANDO,
+  )
+  const conAparato = resultados.map((r) => ({ ...r, aparato: r.aparato ?? APARATO_PRINCIPAL }))
+  return generarHtmlInforme(
+    recopilarInforme(caso, { version: '0.1.0', generadoEn: CUANDO, resultados: conAparato }),
+  )
+}
+
+describe('el informe simplificado (generarHtmlInforme)', () => {
+  it('una casilla con éxito lleva la imagen y la lente recomendada', () => {
+    const h = htmlSimple([
+      {
+        calculadora: 'EVO_TORIC',
+        ojo: 'OD',
+        dataUri: 'data:image/png;base64,QUFB',
+        // `eje` (el meridiano corneal, fijo) es a propósito distinto de
+        // `ejeResidual` (el que enseña el informe) — ver el fallo real
+        // documentado en `recomendacion.ts`, 01/09/2026.
+        recomendada: { esfera: 21.5, cilindro: 1, eje: 40, ejeResidual: 81 },
+      },
+    ])
+    expect(h).toContain('<img src="data:image/png;base64,QUFB"')
+    expect(h).toContain('Estimación del Resumen de calculadores')
+    expect(h).toContain('no vinculante')
+    expect(h).toContain('21.50 D')
+    expect(h).toContain('Cilindro 1.00 D')
+    expect(h).toContain('Eje 81°')
+  })
+
+  it('una casilla con resultado pero sin captura legible explica la ausencia, sin inventar una imagen', () => {
+    const h = htmlSimple([{ calculadora: 'KANE', ojo: 'OD' }])
+    expect(h).toContain('No se pudo guardar la captura de pantalla')
+    expect(h).not.toContain('<img src="undefined"')
+  })
+
+  it('una casilla sin resultado utilizable enseña el aviso de fallo, no una captura', () => {
+    const h = htmlSimple([
+      {
+        calculadora: 'BARRETT_TORIC',
+        ojo: 'OD',
+        fallo: 'Barrett necesita el diámetro corneal (WTW) y no se ha encontrado.',
+      },
+    ])
+    expect(h).toContain('Barrett necesita el diámetro corneal (WTW)')
+    expect(h).not.toContain('<img')
+  })
+
+  it('el orden es calculadora a calculadora, tal como llegan los resultados', () => {
+    const h = htmlSimple([
+      { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
+      { calculadora: 'BARRETT_TORIC', ojo: 'OD', fallo: 'Falta el WTW.' },
+      { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 21.5 } },
+    ])
+    const iEvo = h.indexOf('EVO Toric')
+    const iBarrett = h.indexOf('Barrett Toric')
+    const iKane = h.indexOf('Kane')
+    expect(iEvo).toBeGreaterThan(-1)
+    expect(iBarrett).toBeGreaterThan(iEvo)
+    expect(iKane).toBeGreaterThan(iBarrett)
+  })
+
+  it('sin ningún resultado, genera un informe válido que lo explica en vez de quedar en blanco', () => {
+    const h = htmlSimple([])
+    expect(h.startsWith('<!doctype html>')).toBe(true)
+    expect(h).toContain('Este caso no tiene ningún resultado calculado todavía')
+  })
+
+  it('no lleva nada del informe detallado: ni tabla comparativa, ni biometría, ni trazabilidad, ni portada', () => {
+    const h = htmlSimple([
+      {
+        calculadora: 'EVO_TORIC',
+        ojo: 'OD',
+        dataUri: 'data:image/png;base64,QUFB',
+        recomendada: { esfera: 21.5 },
+      },
+    ])
+    expect(h).not.toContain('<div class="cab-marca">')
+    expect(h).not.toContain('Qué dice cada calculadora haber recibido')
+    expect(h).not.toContain('Biometría confirmada')
+    expect(h).not.toContain('class="tabla-comparativa"')
+  })
+
+  it('no lleva ningún dato identificativo del paciente', () => {
+    const h = htmlSimple([
+      { calculadora: 'EVO_TORIC', ojo: 'OD', dataUri: 'data:image/png;base64,QUFB' },
+    ])
+    const cuerpo = cuerpoSinPie(h).toLowerCase()
+    for (const prohibido of [
+      'fecha de nacimiento',
+      'número de historia',
+      'nhc',
+      'apellidos',
+      'dni',
+    ]) {
+      expect(cuerpo, `el informe menciona «${prohibido}»`).not.toContain(prohibido)
+    }
+  })
+
+  describe('el cuadro comparativo final (D43)', () => {
+    it('con una sola estimación no hay nada que comparar: no sale el cuadro', () => {
+      const h = htmlSimple([{ calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } }])
+      expect(h).not.toContain('Comparación orientativa')
+    })
+
+    it('con dos o más estimaciones del mismo ojo, sale el cuadro con el aviso de no vinculante', () => {
+      const h = htmlSimple([
+        { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
+        { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 22.0 } },
+      ])
+      expect(h).toContain('Comparación orientativa')
+      expect(h).toContain('No vinculante')
+      expect(h).toContain('EVO Toric')
+      expect(h).toContain('Kane')
+    })
+
+    it('no señala ninguna como la más adecuada: solo enseña el valor de cada una', () => {
+      const h = htmlSimple([
+        { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
+        { calculadora: 'BARRETT_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
+        { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 23.0 } },
+      ])
+      // Hasta el CIERRE de esta hoja, no hasta el `<footer>` legal del
+      // final del documento — aunque desde D109 (30/09/2026) ninguna hoja
+      // explica ya el criterio en prosa, sigue siendo la forma correcta
+      // de acotar «solo este cuadro», no todo lo que viene después.
+      const inicio = h.indexOf('Comparación orientativa')
+      const cuadro = h.slice(inicio, h.indexOf('<section class="hoja">', inicio + 1))
+      expect(cuadro.toLowerCase()).not.toContain('más cercana')
+      expect(cuadro.toLowerCase()).not.toContain('más adecuada')
+    })
+
+    it('no confunde esto con lo que ha destacado la calculadora: nunca dice "ha elegido"', () => {
+      const h = htmlSimple([
+        { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
+        { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 22.0 } },
+      ])
+      // Solo el propio cuadro, sin el pie legal común (que sí menciona «implanta» al
+      // hablar de las calculadoras externas, y no es lo que se está comprobando aquí).
+      const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))
+      expect(cuadro.toLowerCase()).not.toContain('recomendamos')
+      expect(cuadro.toLowerCase()).not.toContain('debes')
+      expect(cuadro.toLowerCase()).not.toContain('implanta')
+      expect(cuadro.toLowerCase()).not.toContain('ha elegido')
+    })
+
+    it('el eje que enseña es el residual de cada calculadora, no el meridiano corneal fijo (fallo real, 01/09/2026)', () => {
+      // Caso real: el meridiano corneal («eje») es el mismo para todo el
+      // ojo — aquí 0°, repetido en las cinco casillas de un PDF real—,
+      // mientras que el eje que cada calculadora dice que quedaría
+      // («ejeResidual») varía. Enseñar `eje` (como hacía el fallo) daba
+      // «Eje 0°» cinco veces seguidas, sin ninguna información real.
+      const h = htmlSimple([
+        {
+          calculadora: 'EVO_TORIC',
+          ojo: 'OD',
+          recomendada: { esfera: 29.5, eje: 0, ejeResidual: 94 },
+        },
+        {
+          calculadora: 'BARRETT_TORIC',
+          ojo: 'OD',
+          recomendada: { esfera: 28.5, eje: 0, ejeResidual: 4 },
+        },
+        { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 29.0, eje: 0, ejeResidual: 5 } },
+      ])
+      const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))
+      expect(cuadro).toContain('Eje 94°')
+      expect(cuadro).toContain('Eje 4°')
+      expect(cuadro).toContain('Eje 5°')
+      expect(cuadro).not.toContain('Eje 0°')
+    })
+
+    it('la tabla comparativa detallada también enseña el eje residual, no el corneal fijo', () => {
+      const h = htmlSimple([
+        {
+          calculadora: 'EVO_TORIC',
+          ojo: 'OD',
+          recomendada: { esfera: 29.5, eje: 0, ejeResidual: 94 },
+        },
+        { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 29.0, eje: 0, ejeResidual: 5 } },
+      ])
+      const inicio = h.indexOf('Tabla comparativa detallada')
+      const tabla = h.slice(inicio, h.indexOf('</table>', inicio))
+      expect(tabla).toContain('94°')
+      expect(tabla).toContain('5°')
+      expect(tabla).not.toContain('0°')
+    })
+
+    it('un ojo sin ninguna estimación (todo fallos) no saca cuadro', () => {
+      const h = htmlSimple([
+        { calculadora: 'EVO_TORIC', ojo: 'OD', fallo: 'Falta la constante A.' },
+        { calculadora: 'KANE', ojo: 'OD', fallo: 'Falta el sexo.' },
+      ])
+      expect(h).not.toContain('Comparación orientativa')
+    })
+
+    it('D45: la variante «sin córnea posterior» SÍ cuenta para el cuadro, con su propia tarjeta', () => {
+      const h = htmlSimple([
+        { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
+        { calculadora: 'EVO_TORIC_SIN_CARA_POSTERIOR', ojo: 'OD', recomendada: { esfera: 22.0 } },
+      ])
+      // Dos estimaciones para este ojo — la base y su variante —, así que sí
+      // hay algo que poner una al lado de otra.
+      expect(h).toContain('Comparación orientativa')
+      const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))
+      expect(cuadro).toContain('EVO Toric — estimado')
+      expect(cuadro).toContain('22.00 D')
+    })
+
+    it('D45: con las tres de verdad Y la variante, el cuadro saca las cinco tarjetas', () => {
+      const h = htmlSimple([
+        { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
+        { calculadora: 'EVO_TORIC_SIN_CARA_POSTERIOR', ojo: 'OD', recomendada: { esfera: 30.0 } },
+        { calculadora: 'BARRETT_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
+        { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 21.5 } },
+      ])
+      const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))
+      expect(cuadro).toContain('EVO Toric')
+      expect(cuadro).toContain('EVO Toric — estimado')
+      expect(cuadro).toContain('Barrett Toric')
+      expect(cuadro).toContain('Kane')
+      expect(cuadro).toContain('30.00 D')
+    })
+
+    it('D47: con un solo aparato, la tarjeta no menciona ningún nombre de aparato', () => {
+      const h = htmlSimple([
+        { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
+        { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 21.5 } },
+      ])
+      expect(h).toContain('<div class="tarjeta-nombre">EVO Toric</div>')
+      expect(h).toContain('<div class="tarjeta-nombre">Kane</div>')
+    })
+
+    it('D47: con dos aparatos del mismo ojo, cada tarjeta dice de cuál es', () => {
+      const h = htmlSimple([
+        {
+          calculadora: 'EVO_TORIC',
+          ojo: 'OD',
+          aparato: 'IOLMaster 700',
+          recomendada: { esfera: 21.5 },
+        },
+        { calculadora: 'EVO_TORIC', ojo: 'OD', aparato: 'ANTERION', recomendada: { esfera: 22.0 } },
+      ])
+      const cuadro = h.slice(h.indexOf('Comparación orientativa'), h.indexOf('<footer'))
+      expect(cuadro).toContain('EVO Toric (IOLMaster 700)')
+      expect(cuadro).toContain('EVO Toric (ANTERION)')
+    })
+  })
+
+  describe('D105 (29/09/2026): el interruptor «incluirEstimacionCompleta»', () => {
+    function htmlConInterruptor(
+      resultados: readonly (Omit<ResultadoInforme, 'aparato'> & { readonly aparato?: string })[],
+      opciones: {
+        readonly incluirEstimacionCompleta: boolean
+        readonly incluirTablaComparativaDetallada?: boolean
+      },
+    ): string {
+      const caso = confirmar(
+        conOjo(casoNuevo('c1', 'CV-2026-0042', CUANDO), confirmarTodas(ojoVacio('OD')), CUANDO),
+        CUANDO,
+      )
+      const conAparato = resultados.map((r) => ({ ...r, aparato: r.aparato ?? APARATO_PRINCIPAL }))
+      return generarHtmlInforme(
+        recopilarInforme(caso, {
+          version: '0.1.0',
+          generadoEn: CUANDO,
+          resultados: conAparato,
+          incluirEstimacionCompleta: opciones.incluirEstimacionCompleta,
+          incluirTablaComparativaDetallada: opciones.incluirTablaComparativaDetallada,
+        }),
+      )
+    }
+
+    const DOS_ESTIMACIONES: readonly (Omit<ResultadoInforme, 'aparato'> & {
+      readonly aparato?: string
+    })[] = [
+      {
+        calculadora: 'EVO_TORIC',
+        ojo: 'OD',
+        dataUri: 'data:image/png;base64,QUFB',
+        recomendada: { esfera: 21.5, cilindro: 1, ejeResidual: 81 },
+      },
+      { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 22.0 } },
+    ]
+
+    it('con el interruptor apagado, no hay estimación debajo de la captura ni cuadro de tarjetas', () => {
+      const h = htmlConInterruptor(DOS_ESTIMACIONES, { incluirEstimacionCompleta: false })
+      expect(h).toContain('<img src="data:image/png;base64,QUFB"')
+      expect(h).not.toContain('Estimación del Resumen de calculadores')
+      expect(h).not.toContain('Comparación orientativa')
+    })
+
+    it('con el interruptor encendido, se comporta exactamente como antes de D105: las dos cosas aparecen', () => {
+      const h = htmlConInterruptor(DOS_ESTIMACIONES, { incluirEstimacionCompleta: true })
+      expect(h).toContain('Estimación del Resumen de calculadores')
+      expect(h).toContain('Comparación orientativa')
+    })
+
+    it('con el interruptor apagado, la tabla comparativa detallada del final SIGUE saliendo, con la misma lente', () => {
+      const h = htmlConInterruptor(DOS_ESTIMACIONES, { incluirEstimacionCompleta: false })
+      expect(h).toContain('Tabla comparativa detallada')
+      const tabla = h.slice(
+        h.indexOf('Tabla comparativa detallada'),
+        h.indexOf('</table>', h.indexOf('Tabla comparativa detallada')),
+      )
+      expect(tabla).toContain('21.50 D')
+      expect(tabla).toContain('22.00 D')
+    })
+
+    it('sin especificar el interruptor, `recopilarInforme` sigue viendo el informe completo de siempre', () => {
+      const caso = confirmar(
+        conOjo(casoNuevo('c1', 'CV-2026-0042', CUANDO), confirmarTodas(ojoVacio('OD')), CUANDO),
+        CUANDO,
+      )
+      const h = generarHtmlInforme(
+        recopilarInforme(caso, {
+          version: '0.1.0',
+          generadoEn: CUANDO,
+          resultados: DOS_ESTIMACIONES.map((r) => ({ ...r, aparato: APARATO_PRINCIPAL })),
+        }),
+      )
+      expect(h).toContain('Estimación del Resumen de calculadores')
+      expect(h).toContain('Comparación orientativa')
+    })
+
+    describe('D118 (06/10/2026): el interruptor «incluirTablaComparativaDetallada»', () => {
+      it('apagado, la tabla comparativa detallada ya no sale en el PDF normal', () => {
+        const h = htmlConInterruptor(DOS_ESTIMACIONES, {
+          incluirEstimacionCompleta: true,
+          incluirTablaComparativaDetallada: false,
+        })
+        expect(h).not.toContain('Tabla comparativa detallada')
+        // Las otras dos hojas —captura y cuadro de tarjetas— no dependen de
+        // este interruptor: siguen saliendo igual.
+        expect(h).toContain('Estimación del Resumen de calculadores')
+        expect(h).toContain('Comparación orientativa')
+      })
+
+      it('encendido, se comporta exactamente como antes de D118: la tabla sigue saliendo', () => {
+        const h = htmlConInterruptor(DOS_ESTIMACIONES, {
+          incluirEstimacionCompleta: true,
+          incluirTablaComparativaDetallada: true,
+        })
+        expect(h).toContain('Tabla comparativa detallada')
+      })
+
+      it('sin especificar el interruptor, `recopilarInforme` sigue viendo la tabla de siempre', () => {
+        const caso = confirmar(
+          conOjo(casoNuevo('c1', 'CV-2026-0042', CUANDO), confirmarTodas(ojoVacio('OD')), CUANDO),
+          CUANDO,
+        )
+        const h = generarHtmlInforme(
+          recopilarInforme(caso, {
+            version: '0.1.0',
+            generadoEn: CUANDO,
+            resultados: DOS_ESTIMACIONES.map((r) => ({ ...r, aparato: APARATO_PRINCIPAL })),
+          }),
+        )
+        expect(h).toContain('Tabla comparativa detallada')
+      })
+
+      /**
+       * Petición expresa del dueño del proyecto (06/10/2026), con las dos
+       * casillas apagadas a la vez: confirmó que quiere que sea posible
+       * generar un PDF normal sin ningún rastro de la estimación propia, bajo
+       * su responsabilidad — avisado primero de lo que implicaba.
+       */
+      it('las dos casillas apagadas a la vez: el PDF normal no lleva la estimación propia en ningún sitio', () => {
+        const h = htmlConInterruptor(DOS_ESTIMACIONES, {
+          incluirEstimacionCompleta: false,
+          incluirTablaComparativaDetallada: false,
+        })
+        expect(h).not.toContain('Tabla comparativa detallada')
+        expect(h).not.toContain('Estimación del Resumen de calculadores')
+        expect(h).not.toContain('Comparación orientativa')
+        expect(h).not.toContain('No vinculante')
+        // La captura, sin interpretar, se sigue viendo — es lo único que no
+        // depende de ningún interruptor.
+        expect(h).toContain('<img src="data:image/png;base64,QUFB"')
+      })
+    })
+  })
+
+  describe('D118 (06/10/2026): el informe-resumen, sin capturas (`generarHtmlResumen`)', () => {
+    const DOS_ESTIMACIONES_RESUMEN: readonly (Omit<ResultadoInforme, 'aparato'> & {
+      readonly aparato?: string
+    })[] = [
+      {
+        calculadora: 'EVO_TORIC',
+        ojo: 'OD',
+        dataUri: 'data:image/png;base64,QUFB',
+        recomendada: { esfera: 21.5, cilindro: 1, ejeResidual: 81 },
+      },
+      { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 22.0 } },
+    ]
+
+    function htmlResumen(
+      resultados: readonly (Omit<ResultadoInforme, 'aparato'> & { readonly aparato?: string })[],
+      opciones?: {
+        readonly incluirEstimacionCompleta?: boolean
+        readonly incluirTablaComparativaDetallada?: boolean
+      },
+    ): string {
+      const caso = casoCompleto()
+      const conAparato = resultados.map((r) => ({ ...r, aparato: r.aparato ?? APARATO_PRINCIPAL }))
+      return generarHtmlResumen(
+        recopilarInforme(caso, {
+          version: '0.1.0',
+          generadoEn: CUANDO,
+          resultados: conAparato,
+          ...opciones,
+        }),
+      )
+    }
+
+    it('lleva los datos de entrada y la tabla comparativa detallada, pero ninguna captura', () => {
+      const h = htmlResumen(DOS_ESTIMACIONES_RESUMEN)
+      expect(h).toContain('Datos de entrada')
+      expect(h).toContain('Tabla comparativa detallada')
+      expect(h).not.toContain('<img src="data:image/png;base64,QUFB"')
+      expect(h).not.toContain('Captura de pantalla')
+    })
+
+    it('con más de una estimación, también lleva el cuadro de tarjetas', () => {
+      const h = htmlResumen(DOS_ESTIMACIONES_RESUMEN)
+      expect(h).toContain('Comparación orientativa')
+    })
+
+    /**
+     * A diferencia del PDF normal, este informe no depende de las dos
+     * casillas de arriba — su naturaleza es llevar siempre el cuadro de
+     * tarjetas y la tabla comparativa detallada, nunca ninguna captura.
+     */
+    it('no depende de `incluirEstimacionCompleta` ni de `incluirTablaComparativaDetallada`', () => {
+      const h = htmlResumen(DOS_ESTIMACIONES_RESUMEN, {
+        incluirEstimacionCompleta: false,
+        incluirTablaComparativaDetallada: false,
+      })
+      expect(h).toContain('Tabla comparativa detallada')
+      expect(h).toContain('Comparación orientativa')
+    })
+  })
+
+  describe('cabecera de la hoja de captura, reforzada (D91, 20/09/2026)', () => {
+    // Fallo real reportado por el dueño del proyecto: con un título largo
+    // (una calculadora con su variante de córnea posterior), el título y la
+    // referencia de la derecha se solapaban — confirmado generando un
+    // informe de muestra y mirándolo con Playwright antes de arreglar nada.
+    // El arreglo tiene dos partes: quitar del título lo que ya se ve en
+    // otro sitio (el ojo, ya en `.ref`), y separar la nota («Captura de
+    // pantalla…») del título en su propia línea, en vez de ir pegada.
+
+    it('el título de una captura con éxito es SOLO el nombre de la calculadora, sin el ojo ni «Captura de pantalla»', () => {
+      const h = htmlSimple([
+        { calculadora: 'EVO_TORIC', ojo: 'OD', dataUri: 'data:image/png;base64,QUFB' },
+      ])
+      expect(h).toContain('<div class="titulo">EVO Toric<span class="apunte">')
+      expect(h).not.toContain('EVO Toric · Ojo')
+    })
+
+    it('la nota de la captura va en el apunte, en su propia línea, no pegada al título', () => {
+      const h = htmlSimple([
+        { calculadora: 'KANE', ojo: 'OD', dataUri: 'data:image/png;base64,QUFB' },
+      ])
+      expect(h).toContain(
+        '<span class="apunte">Captura de pantalla · tal cual la devolvió la web, sin recortar</span>',
+      )
+    })
+
+    it('una casilla sin resultado dice «No se pudo calcular» en el apunte, con el título limpio', () => {
+      const h = htmlSimple([{ calculadora: 'BARRETT_TORIC', ojo: 'OD', fallo: 'Falta el WTW.' }])
+      expect(h).toContain(
+        '<div class="titulo">Barrett Toric<span class="apunte">No se pudo calcular</span></div>',
+      )
+    })
+
+    it('el título de la cabecera se puede encoger (min-width: 0) para no invadir la referencia de la derecha', () => {
+      const h = htmlSimple([{ calculadora: 'EVO_TORIC', ojo: 'OD' }])
+      expect(h).toContain('.cab-menor .titulo {')
+      expect(h).toMatch(/\.cab-menor \.titulo \{[^}]*min-width:\s*0/)
+      expect(h).toMatch(/\.cab-menor \.ref \{[^}]*flex-shrink:\s*0/)
+    })
+  })
+
+  it('la hoja de «Datos de entrada» no lleva el esquema pequeño del ojo (petición expresa del dueño, 20/09/2026: ocupaba espacio y no gustaba)', () => {
+    const h = htmlSimple([{ calculadora: 'EVO_TORIC', ojo: 'OD' }])
+    expect(h).toContain('Datos de entrada')
+    expect(h).not.toContain('class="figura"')
+    expect(h).not.toContain('Esquema del ojo')
+  })
+
+  it('D45: una casilla de la variante «sin córnea posterior» dice «estimado» en su título (petición del dueño, 27/08/2026)', () => {
+    const h = htmlSimple([
+      {
+        calculadora: 'EVO_TORIC_SIN_CARA_POSTERIOR',
+        ojo: 'OD',
+        dataUri: 'data:image/png;base64,QUFB',
+        recomendada: { esfera: 22.0 },
+      },
+    ])
+    expect(h).toContain('EVO Toric — estimado')
+  })
+
+  it('D45: la variante «con córnea posterior» de Barrett dice «con córnea posterior medida» en su título (petición del dueño, 27/08/2026)', () => {
+    const h = htmlSimple([
+      {
+        calculadora: 'BARRETT_TORIC_CON_CARA_POSTERIOR',
+        ojo: 'OD',
+        dataUri: 'data:image/png;base64,QUFB',
+        recomendada: { esfera: 21.0 },
+      },
+    ])
+    expect(h).toContain('Barrett Toric — con córnea posterior medida')
+  })
+
+  it('D45+D47: EVO_TORIC (la base) NO dice «con córnea posterior medida» cuando el ojo no tiene PK1 ni PK2 — sería mentira', () => {
+    // Sin esta comprobación, un ojo normal (sin córnea posterior) con solo
+    // la calculadora base habría dicho «medida» sin haber medido nada.
+    const h = htmlSimple([
+      {
+        calculadora: 'EVO_TORIC',
+        ojo: 'OD',
+        dataUri: 'data:image/png;base64,QUFB',
+        recomendada: { esfera: 21.5 },
+      },
+    ])
+    expect(h).not.toContain('con córnea posterior medida')
+    // El título de la hoja es SOLO el nombre de la calculadora (D91,
+    // 20/09/2026): el ojo ya se ve en `.ref`, no hace falta repetirlo aquí.
+    expect(h).toContain('<div class="titulo">EVO Toric<span')
+  })
+
+  it('D45+D47: EVO_TORIC (la base) SÍ dice «con córnea posterior medida» cuando el dataset de verdad tiene PK1/PK2', () => {
+    let ojo = ojoVacio('OD')
+    ojo = conMedida(ojo, crearMedida('PK1', 'OD', -6, A_MANO))
+    ojo = conMedida(ojo, crearMedida('PK2', 'OD', -6.1, A_MANO))
+    ojo = confirmarTodas(ojo)
+    const caso = confirmar(conOjo(casoNuevo('c1', 'CV-2026-0042', CUANDO), ojo, CUANDO), CUANDO)
+    const h = generarHtmlInforme(
+      recopilarInforme(caso, {
+        version: '0.1.0',
+        generadoEn: CUANDO,
+        resultados: [
+          {
+            calculadora: 'EVO_TORIC',
+            ojo: 'OD',
+            aparato: APARATO_PRINCIPAL,
+            dataUri: 'data:image/png;base64,QUFB',
+            recomendada: { esfera: 21.5 },
+          },
+        ],
+      }),
+    )
+    expect(h).toContain('EVO Toric — con córnea posterior medida')
+  })
+})
+
+/**
+ * Petición expresa del dueño del proyecto (30/09/2026): quitar todos los
+ * avisos del informe salvo el párrafo legal del final — incluida la
+ * segunda mitad de ese párrafo, la de privacidad («no contiene el
+ * nombre...»). La etiqueta «No vinculante» se queda, pero como apunte
+ * corto en la cabecera de cada hoja o pegada al valor bajo cada captura,
+ * nunca ya como un párrafo de prosa.
+ *
+ * Corregido el mismo día (D110): el dueño pidió recuperar justo UNO de
+ * los párrafos quitados — el que explica el criterio de la esfera, en la
+ * tabla comparativa detallada. Es la única excepción; todo lo demás de
+ * D109 se queda fuera.
+ */
+describe('D109/D110 (30/09/2026): el informe se reduce al mínimo, con una única excepción', () => {
+  it('el pie legal es UN solo párrafo, exactamente el que pidió el dueño — nada de privacidad aparte', () => {
+    const h = htmlSimple([
+      { calculadora: 'EVO_TORIC', ojo: 'OD', dataUri: 'data:image/png;base64,QUFB' },
+    ])
+    const pie = h.slice(h.indexOf('<footer'))
+    const parrafos = pie.match(/<p>/g) ?? []
+    expect(parrafos).toHaveLength(1)
+    expect(sinSaltos(pie)).toMatch(/organizador de cálculos/i)
+    expect(sinSaltos(pie)).not.toMatch(/no contiene el nombre/i)
+  })
+
+  it('con el interruptor encendido, ni el cuadro de tarjetas ni la línea bajo la captura llevan ya prosa explicativa — solo la etiqueta corta', () => {
+    const h = htmlSimple([
+      { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5 } },
+      { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 22.0 } },
+    ])
+    expect(h).not.toContain('calculada con un criterio fijo')
+    expect(h).not.toContain('quien opera')
+    expect(h).not.toContain('decide con el detalle de cada calculadora')
+  })
+
+  it('D110: la tabla comparativa detallada SÍ vuelve a explicar el criterio en prosa — la única excepción de D109', () => {
+    const h = htmlSimple([
+      {
+        calculadora: 'EVO_TORIC',
+        ojo: 'OD',
+        recomendada: { esfera: 21.5, refraccionPrevista: -0.1 },
+      },
+      { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 22.0 } },
+    ])
+    expect(h).toContain('Tabla comparativa detallada')
+    expect(h).toContain('refracción prevista negativa')
+    // Pero el resto de la prosa que D109 quitó del cuadro de tarjetas y
+    // del pie legal no vuelve — D110 solo trajo de vuelta este párrafo.
+    expect(h).not.toContain('Un vistazo a todo lo calculado')
+    expect(h).not.toContain('calculada con un criterio fijo')
+  })
+
+  it('D110: el criterio explicado varía con la familia de lente (D52) — «primera positiva» para la familia Lux', () => {
+    const caso = confirmar(
+      conOjo(
+        { ...casoNuevo('c1', 'CV-2026-0042', CUANDO), lente: { modelo: 'B&L LuxSmart' } },
+        confirmarTodas(ojoVacio('OD')),
+        CUANDO,
+      ),
+      CUANDO,
+    )
+    const h = generarHtmlInforme(
+      recopilarInforme(caso, {
+        version: '0.1.0',
+        generadoEn: CUANDO,
+        resultados: [
+          {
+            calculadora: 'EVO_TORIC',
+            ojo: 'OD',
+            aparato: APARATO_PRINCIPAL,
+            recomendada: { esfera: 21.5, refraccionPrevista: 0.1 },
+          },
+        ],
+      }),
+    )
+    expect(h).toContain('refracción prevista positiva')
+    expect(h).not.toContain('refracción prevista negativa')
   })
 })
 
@@ -247,10 +948,6 @@ describe('privacidad del documento', () => {
     }
   })
 
-  it('dice explícitamente que no lleva datos identificativos', () => {
-    expect(sinSaltos(html())).toMatch(/no contiene el nombre, la fecha de nacimiento ni/i)
-  })
-
   it('el caso se identifica solo por su código local', () => {
     const h = html()
     expect(h).toContain('CV-2026-0042')
@@ -262,7 +959,9 @@ describe('robustez', () => {
     let ojo = ojoVacio('OD')
     ojo = confirmarTodas(conMedida(ojo, crearMedida('AL', 'OD', 24.07, DEL_INFORME)))
     const caso = confirmar(conOjo(casoNuevo('c', 'CV-2', CUANDO), ojo, CUANDO), CUANDO)
-    const h = generarHtmlInforme(recopilarInforme(caso, { version: '0.1.0', generadoEn: CUANDO }))
+    const h = generarHtmlInformeDetallado(
+      recopilarInforme(caso, { version: '0.1.0', generadoEn: CUANDO }),
+    )
     expect(h).toContain('<!doctype html>')
     expect(h).toContain('CV-2')
   })
@@ -278,7 +977,9 @@ describe('robustez', () => {
     caso = conOjo(caso, od, CUANDO)
     caso = conOjo(caso, os, CUANDO)
     caso = confirmar(caso, CUANDO)
-    const h = generarHtmlInforme(recopilarInforme(caso, { version: '0.1.0', generadoEn: CUANDO }))
+    const h = generarHtmlInformeDetallado(
+      recopilarInforme(caso, { version: '0.1.0', generadoEn: CUANDO }),
+    )
     expect(h).toContain('Ojo derecho (OD)')
     expect(h).toContain('Ojo izquierdo (OS)')
     expect(h).toContain('24.07')
@@ -319,13 +1020,19 @@ describe('el origen de cada dato en el PDF', () => {
       conOjo(casoNuevo('c-origen', 'CV-2026-0099', CUANDO), ojo, CUANDO),
       CUANDO,
     )
-    return generarHtmlInforme({
+    // «Del informe» / «Corregido» / «Aportado» / «Derivado del informe» son
+    // vocabulario de la hoja de biometría del informe DETALLADO — el
+    // simplificado no enseña ningún dato biométrico, solo capturas.
+    return generarHtmlInformeDetallado({
       caso,
       version: '0.0.0',
       generadoEn: CUANDO,
       comparativas: [],
       avisos: [],
       ausenciasRelevantes: [],
+      resultados: [],
+      incluirEstimacionCompleta: true,
+      incluirTablaComparativaDetallada: true,
     })
   }
 
@@ -382,5 +1089,33 @@ describe('el origen de cada dato en el PDF', () => {
     // Los sumandos siguen en el informe como medidas propias.
     expect(html).toContain('2.65')
     expect(html).toContain('530')
+  })
+
+  /**
+   * Fallo real (D114, 02/10/2026): la hoja de biometría se construía con
+   * `ojoDe(caso, l)`, que sin tercer argumento busca el aparato literalmente
+   * llamado «Principal». En cuanto el único aparato de un ojo se renombra
+   * —el propio desplegable ya lo permite desde D47—, esa búsqueda dejaba de
+   * encontrarlo y la hoja salía vacía, en silencio, sin ningún aviso.
+   */
+  it('la hoja de biometría no se vacía si el único aparato del ojo se ha renombrado (D114, 02/10/2026)', () => {
+    const ojo = confirmarTodas(conMedida(ojoVacio('OD'), crearMedida('AL', 'OD', 24.07, DEL_PDF)))
+    let caso = confirmar(conOjo(casoNuevo('c-origen', 'CV-2026-0100', CUANDO), ojo, CUANDO), CUANDO)
+    caso = conAparatoRenombrado(caso, 'OD', APARATO_PRINCIPAL, 'Heidelberg ANTERION', CUANDO)
+
+    const html = generarHtmlInformeDetallado({
+      caso,
+      version: '0.0.0',
+      generadoEn: CUANDO,
+      comparativas: [],
+      avisos: [],
+      ausenciasRelevantes: [],
+      resultados: [],
+      incluirEstimacionCompleta: false,
+      incluirTablaComparativaDetallada: true,
+    })
+
+    expect(html).toContain('Biometría confirmada')
+    expect(html).toContain('24.07')
   })
 })

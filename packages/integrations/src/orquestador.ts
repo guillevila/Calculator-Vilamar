@@ -41,20 +41,32 @@
 
 import type { Calculadora, Caso, Lateralidad, ResultadoCalculadora } from '@vilamar/domain'
 import {
+  APARATO_PRINCIPAL,
+  datasetsActivosDe,
   explicarBloqueo,
   fichaDe,
+  ojoDe,
   ojosDelCaso,
   prepararEntradas,
   resultadoDe,
   resultadoVacio,
   sePuedeReintentar,
+  tieneCaraPosterior,
+  VARIANTE_CARA_POSTERIOR,
 } from '@vilamar/domain'
 import type { Browser, BrowserContext } from 'playwright'
 
-import type { AdaptadorCalculadora, DatosDiagnostico, EventoProgreso } from './contrato.js'
+import type {
+  AdaptadorCalculadora,
+  DatosCaptura,
+  DatosDiagnostico,
+  EventoProgreso,
+} from './contrato.js'
 import { AdaptadorBarrettToric } from './adapters/barrett.js'
+import { AdaptadorBarrettTrueKToric } from './adapters/barrett-true-k.js'
 import { AdaptadorEvoToric } from './adapters/evo.js'
 import { AdaptadorKane } from './adapters/kane.js'
+import { AdaptadorSinCaraPosterior } from './variante-sin-cara-posterior.js'
 
 /**
  * Orden de ejecución.
@@ -71,42 +83,121 @@ export const ORDEN_OJOS: readonly Lateralidad[] = ['OD', 'OS']
 export function crearAdaptadores(): Readonly<Record<Calculadora, AdaptadorCalculadora>> {
   return {
     EVO_TORIC: new AdaptadorEvoToric(),
+    // Mismo adaptador real, envuelto para que sus entradas nunca lleven la
+    // córnea posterior y su resultado se guarde bajo su propia clave (D45).
+    EVO_TORIC_SIN_CARA_POSTERIOR: new AdaptadorSinCaraPosterior(
+      new AdaptadorEvoToric(),
+      'EVO_TORIC_SIN_CARA_POSTERIOR',
+    ),
     BARRETT_TORIC: new AdaptadorBarrettToric(),
+    // Mismo formulario, con el paso extra de «Measured PCA» (D45).
+    BARRETT_TORIC_CON_CARA_POSTERIOR: new AdaptadorBarrettToric(true),
     KANE: new AdaptadorKane(),
+    // Calculadora aparte, no una variante de Barrett Toric — para un ojo con
+    // córnea especial (D67). `prepararEntradas()` bloquea las dos entre sí.
+    BARRETT_TRUE_K_TORIC: new AdaptadorBarrettTrueKToric(),
   }
 }
 
 /**
- * Una casilla del cálculo: qué web y para qué ojo.
+ * Las calculadoras que solo tienen sentido cuando el dataset tiene de
+ * verdad córnea posterior medida (D111, 01/10/2026): tanto
+ * `EVO_TORIC_SIN_CARA_POSTERIOR` (compara con/sin quitarla) como
+ * `BARRETT_TORIC_CON_CARA_POSTERIOR` (compara con/sin añadirla) calculan
+ * EXACTAMENTE lo mismo que su calculadora base cuando el aparato no tiene
+ * PK1 ni PK2 — no hay ninguna córnea posterior que quitar o añadir—, así
+ * que planificarlas ahí no compara nada: solo repite el mismo resultado
+ * en una hoja de más.
+ */
+const CALCULADORAS_VARIANTE_CARA_POSTERIOR: ReadonlySet<Calculadora> = new Set(
+  Object.values(VARIANTE_CARA_POSTERIOR).map((v) => v.calculadora),
+)
+
+/**
+ * Una casilla del cálculo: qué web, para qué ojo y de qué aparato.
  *
  * Es la unidad de todo lo que hace este fichero — planificar, ejecutar y
  * reintentar—, y es la misma clave con la que el caso guarda los resultados
- * (`${calculadora}:${ojo}`). Que sea la misma no es casualidad: es lo que impide
- * que un resultado acabe en la casilla de otro.
+ * (`${calculadora}:${ojo}:${aparato}`). Que sea la misma no es casualidad: es lo
+ * que impide que un resultado acabe en la casilla de otro.
+ *
+ * `aparato` es de D47 (27/08/2026): un caso que solo usa un biómetro lleva
+ * siempre `APARATO_PRINCIPAL` aquí, así que no cambia nada para quien no
+ * necesita varios.
  */
 export interface TareaCalculo {
   readonly calculadora: Calculadora
   readonly ojo: Lateralidad
+  readonly aparato: string
 }
 
 /**
  * Qué hay que ejecutar para este caso.
  *
- * Calculadora a calculadora y, dentro de cada una, los ojos que el caso tiene.
- * Un caso de un solo ojo produce la mitad de tareas; no se inventa el que falta.
+ * Calculadora a calculadora, dentro de cada una los ojos que el caso tiene, y
+ * dentro de cada ojo, cada aparato/biómetro que ese ojo tenga (D47). Un caso
+ * de un solo ojo y un solo aparato produce las mismas tareas que antes de
+ * D47; no se inventa el que falta.
+ *
+ * **Una variante de córnea posterior no planifica un aparato sin PK1/PK2
+ * SI queda otro que sí la tiene** (D111, 01/10/2026; corregido en D114,
+ * 02/10/2026): con dos aparatos del mismo ojo, uno con córnea posterior
+ * medida y otro sin ella, pedir «EVO con posterior» y «Barrett con
+ * posterior» generaba también esas dos casillas para el aparato SIN esos
+ * datos — calculaban exactamente lo mismo que su base, sin comparar nada
+ * de verdad, y el PDF sacaba una hoja de más por cada una.
+ *
+ * **D114**: esa regla, aplicada sin más, dejaba la casilla COMPLETAMENTE
+ * VACÍA —ni un resultado, ni un error, nada que reintentar— cuando la
+ * variante se pide SOLA (sin su calculadora base) y el único aparato del
+ * ojo no tiene córnea posterior: el caso más común, porque
+ * «EVO Toric — Predicted PCA» (`EVO_TORIC_SIN_CARA_POSTERIOR`) es una de
+ * las tres casillas marcadas por defecto en la pantalla de cálculo. Un
+ * día después de D111 un caso real sin ningún dato de córnea posterior se
+ * quedó así: Kane calculaba, EVO no aparecía ni como fallo, y solo
+ * «Reintentar» —que vuelve a planificar sin este filtro de por medio, al
+ * pedir la casilla explícita— lo arreglaba. Por eso el filtro ahora NUNCA
+ * vacía del todo la lista de un ojo: si quitar los aparatos sin córnea
+ * posterior no dejara ninguno, se calcula con todos — no hay nada que
+ * comparar, pero tampoco hay motivo para no dar ningún resultado. El
+ * resto de calculadoras (las bases, y Kane) no se filtran: no dependen de
+ * tener córnea posterior para tener sentido.
  */
 export function planificarCaso(
   caso: Caso,
   opciones?: {
     readonly calculadoras?: readonly Calculadora[]
     readonly ojos?: readonly Lateralidad[]
+    /** Restringe a estos aparatos, cuando el ojo los tenga. Sin especificar, todos. */
+    readonly aparatos?: readonly string[]
   },
 ): readonly TareaCalculo[] {
   const calculadoras = opciones?.calculadoras ?? ORDEN_POR_DEFECTO
   const disponibles = ojosDelCaso(caso)
   const ojos = (opciones?.ojos ?? ORDEN_OJOS).filter((o) => disponibles.includes(o))
 
-  return calculadoras.flatMap((calculadora) => ojos.map((ojo) => ({ calculadora, ojo })))
+  return calculadoras.flatMap((calculadora) =>
+    ojos.flatMap((ojo) => {
+      // Un aparato excluido (D100) nunca se calcula, se pida explícitamente
+      // o no: es un veto, no una preferencia de partida.
+      const aparatosDelOjo = datasetsActivosDe(caso, ojo)
+        .map((d) => d.aparato)
+        .filter((a) => opciones?.aparatos === undefined || opciones.aparatos.includes(a))
+
+      const aparatosAPlanificar = CALCULADORAS_VARIANTE_CARA_POSTERIOR.has(calculadora)
+        ? (() => {
+            const conCaraPosterior = aparatosDelOjo.filter((aparato) =>
+              tieneCaraPosterior(ojoDe(caso, ojo, aparato)),
+            )
+            // Ver D114 arriba: si ESTE filtro dejara la casilla a cero,
+            // mejor no aplicarlo que devolver un silencio total.
+            return conCaraPosterior.length > 0 ? conCaraPosterior : aparatosDelOjo
+          })()
+        : aparatosDelOjo
+
+      return aparatosAPlanificar.map((aparato) => ({ calculadora, ojo, aparato }))
+    }),
+  )
 }
 
 /**
@@ -127,10 +218,11 @@ export function tareasPendientes(
   opciones?: {
     readonly calculadoras?: readonly Calculadora[]
     readonly ojos?: readonly Lateralidad[]
+    readonly aparatos?: readonly string[]
   },
 ): readonly TareaCalculo[] {
   return planificarCaso(caso, opciones).filter((t) => {
-    const r = resultadoDe(caso, t.calculadora, t.ojo)
+    const r = resultadoDe(caso, t.calculadora, t.ojo, t.aparato)
     return r === undefined || sePuedeReintentar(r.estado)
   })
 }
@@ -154,10 +246,18 @@ export interface OpcionesCaso {
    */
   readonly contexto?: BrowserContext
   readonly progreso: (evento: EventoProgreso) => void
-  /** Cada resultado, en cuanto está. Permite ir pintando la pantalla. */
-  readonly alTerminarUna: (resultado: ResultadoCalculadora) => void
+  /**
+   * Cada resultado, en cuanto está. Permite ir pintando la pantalla.
+   *
+   * Lleva también la `tarea` de la que salió: un `ResultadoCalculadora` no
+   * sabe de qué aparato son sus datos (D47) — esa información solo existe en
+   * la tarea que lo pidió, así que quien guarda el resultado la necesita para
+   * guardarlo bajo la clave correcta.
+   */
+  readonly alTerminarUna: (resultado: ResultadoCalculadora, tarea: TareaCalculo) => void
   readonly ahora: () => string
   readonly guardarDiagnostico: (d: DatosDiagnostico) => Promise<string>
+  readonly guardarCaptura: (d: DatosCaptura) => Promise<string>
   readonly cancelado: () => boolean
   /**
    * Los adaptadores a usar. Se puede sustituir para probar el aislamiento de
@@ -204,17 +304,19 @@ export async function ejecutarCaso(
       const resultado = await ejecutarUnaCalculadoraParaUnOjo(adaptador, contexto, {
         caso: opciones.caso,
         ojo: tarea.ojo,
+        aparato: tarea.aparato,
         // El adaptador no sabe de qué ojo habla el aviso que emite, así que se
         // le añade aquí. Sin esto, la pantalla enseñaría «Calculando en EVO…»
         // dos veces seguidas sin decir de cuál de los dos ojos.
         progreso: (e) => opciones.progreso({ ...e, ojo: tarea.ojo }),
         ahora: opciones.ahora,
         guardarDiagnostico: opciones.guardarDiagnostico,
+        guardarCaptura: opciones.guardarCaptura,
         cancelado: opciones.cancelado,
       })
 
       resultados.push(resultado)
-      opciones.alTerminarUna(resultado)
+      opciones.alTerminarUna(resultado, tarea)
     }
   } finally {
     if (contextoPropio) await contexto.close().catch(() => undefined)
@@ -227,9 +329,12 @@ export async function ejecutarCaso(
 export interface OpcionesUnaCasilla {
   readonly caso: Caso
   readonly ojo: Lateralidad
+  /** De qué biómetro coger los datos (D47). Sin especificar, `APARATO_PRINCIPAL`. */
+  readonly aparato?: string
   readonly progreso: (evento: EventoProgreso) => void
   readonly ahora: () => string
   readonly guardarDiagnostico: (d: DatosDiagnostico) => Promise<string>
+  readonly guardarCaptura: (d: DatosCaptura) => Promise<string>
   readonly cancelado: () => boolean
 }
 
@@ -258,9 +363,10 @@ export async function ejecutarUnaCalculadoraParaUnOjo(
   opciones: OpcionesUnaCasilla,
 ): Promise<ResultadoCalculadora> {
   const { caso, ojo, ahora } = opciones
+  const aparato = opciones.aparato ?? APARATO_PRINCIPAL
 
   // 1 — El dominio decide si esto puede salir. El adaptador no puede saltárselo.
-  const preparacion = prepararEntradas(caso, adaptador.calculadora, ojo)
+  const preparacion = prepararEntradas(caso, adaptador.calculadora, ojo, aparato)
   if (!preparacion.ok) {
     const motivo = explicarBloqueo(preparacion) ?? 'Faltan datos.'
     return {
@@ -292,6 +398,7 @@ export async function ejecutarUnaCalculadoraParaUnOjo(
       progreso: opciones.progreso,
       ahora,
       guardarDiagnostico: opciones.guardarDiagnostico,
+      guardarCaptura: opciones.guardarCaptura,
       cancelado: opciones.cancelado,
     })
 

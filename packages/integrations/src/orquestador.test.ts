@@ -22,7 +22,7 @@ import {
 } from '@vilamar/domain'
 import type { BrowserContext } from 'playwright'
 
-import type { AdaptadorCalculadora, ContextoEjecucion } from './contrato.js'
+import type { AdaptadorCalculadora, ContextoEjecucion, DatosCaptura } from './contrato.js'
 import { ejecutarCaso, necesitaVentana, ORDEN_POR_DEFECTO } from './orquestador.js'
 
 const CUANDO = '2026-08-10T10:00:00.000Z'
@@ -126,13 +126,44 @@ function adaptadorRevienta(calculadora: Calculadora): AdaptadorCalculadora {
   }
 }
 
+/** Un doble que guarda su captura, como hacen los adaptadores de verdad al tener éxito. */
+function adaptadorQueCaptura(calculadora: Calculadora): AdaptadorCalculadora {
+  return {
+    calculadora,
+    nombre: calculadora,
+    url: 'https://ejemplo.local',
+    requiereNavegadorVisible: false,
+    validarEntradas: () => [],
+    ejecutar: async (ctx: ContextoEjecucion): Promise<ResultadoCalculadora> => {
+      const capturaId = await ctx.guardarCaptura({
+        calculadora,
+        ojo: ctx.entradas.ojo,
+        png: new Uint8Array([1, 2, 3]),
+      })
+      return {
+        calculadora,
+        ojo: ctx.entradas.ojo,
+        estado: 'SUCCESS',
+        obtenidoEn: ctx.ahora(),
+        opciones: [{ esfera: 21, recomendada: true }],
+        recomendada: { esfera: 21, recomendada: true },
+        capturaId,
+      }
+    },
+  }
+}
+
 /** Doble del contexto de navegador: solo se usa `close()`. */
 function contextoFalso(): BrowserContext {
   return { close: async () => undefined } as unknown as BrowserContext
 }
 
 interface Escenario {
-  readonly adaptadores: Record<Calculadora, AdaptadorCalculadora>
+  // Los tests de este fichero solo conocen las tres calculadoras «de
+  // verdad» — la variante «sin córnea posterior» (D45) no participa en el
+  // aislamiento de fallos, así que `ejecutar()` le pone un doble neutro por
+  // defecto para no tener que tocar cada escenario existente.
+  readonly adaptadores: Partial<Record<Calculadora, AdaptadorCalculadora>>
   readonly caso?: Caso
   readonly calculadoras?: readonly Calculadora[]
 }
@@ -140,6 +171,7 @@ interface Escenario {
 async function ejecutar(escenario: Escenario) {
   const recibidos: ResultadoCalculadora[] = []
   const diagnosticos: string[] = []
+  const capturas: DatosCaptura[] = []
   const resultados = await ejecutarCaso({
     caso: escenario.caso ?? casoListo(),
     ojos: ['OD'],
@@ -153,10 +185,17 @@ async function ejecutar(escenario: Escenario) {
       diagnosticos.push(d.errorTecnico)
       return 'diag-1'
     },
+    guardarCaptura: async (d) => {
+      capturas.push(d)
+      return 'captura-1'
+    },
     cancelado: () => false,
-    adaptadores: escenario.adaptadores,
+    adaptadores: {
+      EVO_TORIC_SIN_CARA_POSTERIOR: adaptadorOk('EVO_TORIC_SIN_CARA_POSTERIOR', 0),
+      ...escenario.adaptadores,
+    } as Record<Calculadora, AdaptadorCalculadora>,
   })
-  return { resultados, recibidos, diagnosticos }
+  return { resultados, recibidos, diagnosticos, capturas }
 }
 
 describe('aislamiento de fallos', () => {
@@ -227,6 +266,21 @@ describe('aislamiento de fallos', () => {
     expect(recibidos).toHaveLength(3)
     // El orden es el de ejecución, y EVO va primero por diseño.
     expect(recibidos[0]?.calculadora).toBe('EVO_TORIC')
+  })
+})
+
+describe('la captura de un resultado', () => {
+  it('guardarCaptura llega hasta el adaptador, con la calculadora y el ojo correctos', async () => {
+    const { resultados, capturas } = await ejecutar({
+      adaptadores: {
+        EVO_TORIC: adaptadorQueCaptura('EVO_TORIC'),
+        BARRETT_TORIC: adaptadorOk('BARRETT_TORIC', 21),
+        KANE: adaptadorOk('KANE', 21),
+      },
+    })
+    expect(capturas).toHaveLength(1)
+    expect(capturas[0]).toMatchObject({ calculadora: 'EVO_TORIC', ojo: 'OD' })
+    expect(resultados.find((r) => r.calculadora === 'EVO_TORIC')?.capturaId).toBe('captura-1')
   })
 })
 

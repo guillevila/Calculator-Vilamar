@@ -12,12 +12,19 @@ interface Props {
   readonly onArchivos: (archivos: readonly ArchivoEntrante[]) => void
   readonly onElegir: () => void
   readonly onAMano: () => void
+  readonly onAbrirGuardados: () => void
   readonly ocupado: boolean
 }
 
 const ADMITIDOS = ['pdf', 'jpg', 'jpeg', 'png']
 
-export function ZonaSoltar({ onArchivos, onElegir, onAMano, ocupado }: Props): JSX.Element {
+export function ZonaSoltar({
+  onArchivos,
+  onElegir,
+  onAMano,
+  onAbrirGuardados,
+  ocupado,
+}: Props): JSX.Element {
   const [encima, setEncima] = useState(false)
   const [rechazados, setRechazados] = useState<readonly string[]>([])
 
@@ -63,32 +70,51 @@ export function ZonaSoltar({ onArchivos, onElegir, onAMano, ocupado }: Props): J
 
   return (
     <>
-      <div
-        className={`soltar ${encima ? 'encima' : ''}`}
-        onDragOver={(e) => {
-          e.preventDefault()
-          setEncima(true)
-        }}
-        onDragLeave={() => setEncima(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          setEncima(false)
-          void procesar(e.dataTransfer.files)
-        }}
-        data-testid="zona-soltar"
-      >
-        <h2>Arrastra tu informe de biometría</h2>
-        <p>o elígelo desde tu ordenador</p>
-        <div className="fila" style={{ justifyContent: 'center' }}>
-          <button className="principal grande" onClick={onElegir} disabled={ocupado}>
-            Elegir archivo
-          </button>
-          <button onClick={onAMano} disabled={ocupado}>
-            Escribir los datos a mano
-          </button>
+      <div className="opciones-inicio">
+        <div
+          className={`soltar ${encima ? 'encima' : ''}`}
+          onDragOver={(e) => {
+            e.preventDefault()
+            setEncima(true)
+          }}
+          onDragLeave={() => setEncima(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setEncima(false)
+            void procesar(e.dataTransfer.files)
+          }}
+          data-testid="zona-soltar"
+        >
+          <h2>Arrastra tu informe de biometría</h2>
+          <p>o elígelo desde tu ordenador</p>
+          <div className="fila" style={{ justifyContent: 'center' }}>
+            <button className="principal grande" onClick={onElegir} disabled={ocupado}>
+              Elegir archivo
+            </button>
+          </div>
+          <div className="formatos">
+            Admite PDF, JPG y PNG. Puedes subir varios archivos: cada uno se lee por separado.
+          </div>
         </div>
-        <div className="formatos">
-          Admite PDF, JPG y PNG. Puedes subir varios archivos: cada uno se lee por separado.
+
+        <div className="soltar" data-testid="tarjeta-manual">
+          <h2>Escribe los datos a mano</h2>
+          <p>Sin documento: un cuestionario con solo lo que hace falta para calcular</p>
+          <div className="fila" style={{ justifyContent: 'center' }}>
+            <button className="principal grande" onClick={onAMano} disabled={ocupado}>
+              Escribir los datos a mano
+            </button>
+          </div>
+        </div>
+
+        <div className="soltar" data-testid="tarjeta-casos-guardados">
+          <h2>Abre un caso guardado</h2>
+          <p>Vuelve a uno que ya empezaste, tal y como lo dejaste</p>
+          <div className="fila" style={{ justifyContent: 'center' }}>
+            <button className="principal grande" onClick={onAbrirGuardados} disabled={ocupado}>
+              Ver casos guardados
+            </button>
+          </div>
         </div>
       </div>
 
@@ -108,8 +134,8 @@ export function ZonaSoltar({ onArchivos, onElegir, onAMano, ocupado }: Props): J
         </p>
         <p className="pie-nota">
           No calcula nada por su cuenta y no recomienda ninguna lente: los números son de esas tres
-          webs. Ningún dato se envía a ningún sitio salvo a las propias calculadoras, y sin tu
-          nombre ni el del paciente.
+          webs. Ningún dato se envía a ningún sitio salvo a las propias calculadoras — y a esas sí
+          les llega tu nombre y el del paciente, si su formulario lo pide.
         </p>
       </div>
     </>

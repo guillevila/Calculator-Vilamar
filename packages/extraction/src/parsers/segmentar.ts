@@ -198,10 +198,19 @@ function segmentarPorSecciones(texto: string, marcas: readonly Marca[]): Segment
     if (!actual) continue
     const siguiente = cortes[i + 1]
     const trozo = texto.slice(actual.indice, siguiente ? siguiente.indice : texto.length)
-    // Si un ojo aparece dos veces, se queda el trozo más largo: el otro suele
-    // ser una mención de paso («comparación OD/OS»), no la tabla de medidas.
+    // Si un ojo aparece dos veces, se JUNTAN los dos trozos, no se elige uno.
+    //
+    // Antes se quedaba solo el más largo, pensando en una mención de paso
+    // («ver comparación OD/OS») frente a la tabla de medidas de verdad. Pero
+    // un IOLMaster real trae dos secciones por ojo, las dos con datos —un
+    // resumen con la AL y sin eje, y una «Transcripción detallada» con el eje
+    // y sin la AL— y quedarse con una sola perdía datos que solo estaban en
+    // la otra. `aplicarReglas` ya se queda con la PRIMERA aparición de cada
+    // campo (nucleo.ts), así que juntar los trozos en orden es seguro: si el
+    // resumen trae la AL, esa es la que se usa, y si la tabla trae el eje que
+    // el resumen no traía, también se aprovecha.
     const previo = porOjo[actual.lado]
-    if (!previo || trozo.length > previo.length) porOjo[actual.lado] = trozo
+    porOjo[actual.lado] = previo ? `${previo}\n${trozo}` : trozo
   }
 
   const lados = Object.keys(porOjo) as Lateralidad[]
