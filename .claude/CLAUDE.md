@@ -328,22 +328,27 @@ cualquier consideración técnica:
   con una inferencia. Se dice que falta.
 - **El producto compara, no recomienda.** Puede decir que dos calculadoras
   coinciden; no puede decir qué lente implantar. **Única excepción, estrecha
-  y siempre marcada como «no vinculante»**: una estimación propia con un
-  criterio clínico fijo y explícito («la primera esfera con refracción
-  prevista negativa; el cilindro tórico más alto que sigue compartiendo el
-  eje curvo» — invertido para la familia Lux, D52), enseñada SIEMPRE en la
-  tabla comparativa detallada del final del informe y, solo si se marca la
-  casilla correspondiente antes de generar el PDF (apagada por defecto,
-  D105), también bajo cada captura y en un cuadro de tarjetas — nunca en el
-  lugar de lo que la calculadora respondió de verdad, que sigue siendo la
-  captura de pantalla sin interpretar. Decisión D43 en `SYSTEM_VISION.md`:
+  y siempre marcada como «no vinculante» cuando aparece**: una estimación
+  propia con un criterio clínico fijo y explícito («la primera esfera con
+  refracción prevista negativa; el cilindro tórico más alto que sigue
+  compartiendo el eje curvo» — invertido para la familia Lux, D52), que
+  puede enseñarse en la tabla comparativa detallada del final del informe,
+  bajo cada captura y en un cuadro de tarjetas — cada uno con su propia
+  casilla, apagada por defecto salvo la de la tabla (D105, D118) — nunca en
+  el lugar de lo que la calculadora respondió de verdad, que sigue siendo
+  la captura de pantalla sin interpretar. Decisión D43 en `SYSTEM_VISION.md`:
   pedida expresamente por el dueño del proyecto después de un pushback
   explícito, aceptando la condición de que sea opcional y no vinculante;
-  matizada por D105 (29/09/2026) a petición del propio dueño. El resto de
-  avisos en prosa del informe se redujeron a un único párrafo legal final
-  (D109, 30/09/2026) — salvo este, el de la tabla comparativa detallada,
-  que el dueño pidió recuperar el mismo día (D110): es el único párrafo
-  de prosa que queda en todo el informe, aparte del legal.
+  matizada por D105 (29/09/2026) y por D118 (06/10/2026), ambas a petición
+  del propio dueño. **Desde D118, con las tres casillas apagadas a la vez,
+  el PDF normal puede no llevar la estimación propia en ningún sitio** — ya
+  no hay un lugar garantizado donde aparezca siempre; es una elección
+  consciente del dueño, avisado primero de esa consecuencia exacta, igual
+  que con D43 en su momento. El resto de avisos en prosa del informe se
+  redujeron a un único párrafo legal final (D109, 30/09/2026) — salvo el de
+  la tabla comparativa detallada, que el dueño pidió recuperar el mismo día
+  (D110): sigue siendo el único párrafo de prosa de todo el informe, aparte
+  del legal, en las hojas donde aparece.
 
 ---
 

@@ -50,6 +50,12 @@ export interface OpcionesInforme {
    * que no lo especifique ve el informe exactamente como antes de D105.
    */
   readonly incluirEstimacionCompleta?: boolean
+  /**
+   * Si la tabla comparativa detallada del final sale en el PDF normal
+   * (D118, 06/10/2026). `true` por defecto: cualquier llamada antigua que
+   * no lo especifique ve el informe exactamente como antes de D118.
+   */
+  readonly incluirTablaComparativaDetallada?: boolean
 }
 
 /**
@@ -108,5 +114,6 @@ export function recopilarInforme(caso: Caso, opciones: OpcionesInforme): DatosIn
     ausenciasRelevantes,
     resultados: opciones.resultados ?? [],
     incluirEstimacionCompleta: opciones.incluirEstimacionCompleta ?? true,
+    incluirTablaComparativaDetallada: opciones.incluirTablaComparativaDetallada ?? true,
   }
 }

@@ -9,7 +9,83 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 02/10/2026 (4) · **El primer aparato de un ojo
+**Última actualización:** 06/10/2026 (4) · **Comando `pnpm compartir`
+para darle una copia de la aplicación a otro optometrista, en su propio
+ordenador (D119).** Petición inicial del dueño: «crear usuarios para
+compartir la aplicación», a imagen de la app móvil hermana — que SÍ
+tiene cuentas porque ahí varias personas comparten un servidor remoto
+único. Aclarado antes de construir nada que aquí no aplica: cada
+optometrista tendrá su PROPIO ordenador con una copia INDEPENDIENTE, sin
+servidor ni datos compartidos — confirmado por el dueño («cada persona
+usaría su propio ordenador... cada uno independiente»). Eso ya funciona
+solo, sin tocar código: cada caso y cada doctor se guardan en la carpeta
+de datos de Windows de quien abre la app, nunca dentro de la app
+instalada. Lo que de verdad faltaba era un paso rápido para preparar y
+entregar una copia. **Fallo real encontrado y corregido antes de decir
+que funcionaba**: la primera versión del script comprimía con
+`Compress-Archive` de PowerShell, que fallaba EN SILENCIO —imprimía
+«Listo» sin haber creado el `.zip`— porque las rutas del Chromium
+empaquetado de Playwright superan el límite de 260 caracteres de
+Windows sumadas a la ruta de esta carpeta del proyecto. Corregido usando
+`7za.exe` (el binario que ya trae `electron-builder`, ahora dependencia
+explícita). Comprobado de verdad: el `.zip` existe en el disco, 471 MB,
+sin errores — no solo que el comando terminara. `pnpm lint` en verde.
+Documentado para el dueño en `docs/DAR-LA-APP-A-OTRO-ORDENADOR.md`.
+**Pendiente de subir a `master`** junto con D116/D117/D118, a falta de
+confirmación del dueño sobre si en un commit o en varios.
+
+Antes de esto — **06/10/2026 (3): la tabla comparativa
+detallada pasa a ser opcional, y un PDF-resumen aparte, sin capturas, se
+puede generar además del normal (D118).** Hasta ahora esa tabla era la
+única hoja que se enseñaba SIEMPRE en el PDF — la garantía escrita en la
+propia constitución del proyecto para la excepción D43 («el producto
+compara, no recomienda»). Petición del dueño: tres casillas
+independientes antes de generar — la de siempre (D105), una nueva para
+la tabla detallada (encendida por defecto, para no cambiar nada a quien
+no la toque), y una tercera que genera además un PDF-resumen por ojo
+—datos de entrada, cuadro de tarjetas y tabla detallada, sin ninguna
+captura— que no depende de las otras dos. Avisado primero de que, con
+las dos primeras apagadas y sin el resumen, un PDF normal puede quedar
+sin la estimación propia en ningún sitio, contestó con claridad: «quiero
+ser yo el que decida». Actualizada la constitución (`CLAUDE.md` y
+`.claude/CLAUDE.md`) para reflejar que esa garantía ya no es
+incondicional. El PDF-resumen se guarda dos veces: junto al normal, y en
+una carpeta nueva «Resúmenes», hermana de «Calculados», dentro de la
+carpeta del doctor. `pnpm lint && pnpm typecheck && pnpm test` en verde
+(914 tests unitarios; el único fallo es el previo y ajeno de siempre) y
+`pnpm test:e2e` (66/66) en verde.
+
+Antes de esto — **06/10/2026 (2): en la pantalla de revisión, un dato
+del núcleo que de verdad falta pulsa, distinto del que ya está puesto
+(D117).** Petición del dueño: «cuando meto una foto y falta algún dato
+necesario para hacer el cálculo... crea un aviso en modo de flash o
+cambio de color... para que sea más claro». Antes, cualquier fila del
+núcleo (`CAMPOS_DESTACADOS`) salía en rojo tuviera valor o no — un único
+hueco entre varios datos ya rellenos no saltaba a la vista. Ahora, un
+campo de verdad obligatorio y sin ningún valor pulsa con el mismo rojo
+que ya usaba la prioridad Urgente de la bandeja de casos — la única
+animación que tiene la interfaz, ahora con un segundo caso igual de caro
+de pasar por alto. Verificado con un test de interfaz nuevo.
+
+Antes de esto — **06/10/2026 (1): la ACD se deriva de AQD + CCT
+aunque el aparato no se haya podido confirmar (D116).** Caso real:
+`CV-2026-0299`, una foto de WhatsApp recortada de un ANTERION, sin logo
+visible. El lector de visión leyó bien el AQD y el CCT de los dos ojos,
+pero al no poder confirmar el aparato por su maqueta, la derivación
+automática de la ACD —que ya existía desde hace tiempo para un ANTERION
+reconocido— no se aplicaba: un ojo acabó con la ACD escrita a mano y el
+otro sin ningún valor. Arreglado: si el informe trae un campo llamado
+literalmente «AQD» —que ningún otro aparato conocido publica con ese
+nombre—, se deriva igual, avisando de que el aparato no está
+confirmado. Los aparatos SÍ confirmados que no siguen esta convención
+(IOLMaster, Pentacam) siguen sin derivar nunca, sin cambios.
+**Pendiente, no tocado a propósito**: el caso `CV-2026-0299` ya guardado
+sigue con el OS sin ACD — esta aplicación no corrige datos ya guardados
+por su cuenta; si quieres completarlo, ábrelo y escribe la ACD del OS a
+mano, o vuelve a cargar la foto en un caso nuevo para ver la derivación
+automática en acción.
+
+Antes de esto — **02/10/2026 (4): El primer aparato de un ojo
 ya no depende de llamarse «Principal» a ciegas; por defecto, el mismo
 aparato en los dos ojos (D114, D115).** Petición del dueño: por defecto,
 «ZEISS IOLMaster 700» si no se distingue el aparato (a mano o por foto

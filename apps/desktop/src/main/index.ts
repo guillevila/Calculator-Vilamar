@@ -476,8 +476,16 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   ipcMain.handle(CANALES.calcular, (_e, calculadoras, filtro) => s().calcular(calculadoras, filtro))
   ipcMain.handle(CANALES.reintentar, (_e, calculadora, ojo) => s().reintentar(calculadora, ojo))
   ipcMain.handle(CANALES.cancelarCalculo, () => s().cancelarCalculo())
-  ipcMain.handle(CANALES.generarPdf, (_e, incluirEstimacionCompleta: boolean) =>
-    s().generarPdf(incluirEstimacionCompleta),
+  ipcMain.handle(
+    CANALES.generarPdf,
+    (
+      _e,
+      opciones: {
+        incluirEstimacionCompleta: boolean
+        incluirTablaComparativaDetallada: boolean
+        generarResumenAparte: boolean
+      },
+    ) => s().generarPdf(opciones),
   )
   ipcMain.handle(CANALES.abrirCarpetaInformes, () => shell.openPath(carpetas.informes))
 }

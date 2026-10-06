@@ -61,6 +61,13 @@ vi.mock('@vilamar/integrations', async (importarOriginal) => {
 const { prepararCarpetas } = await import('./almacen.js')
 const { ServicioCasos } = await import('./servicio-casos.js')
 
+/** Las tres casillas en su estado de siempre, para los tests que no son sobre D105/D118. */
+const OPCIONES_COMPLETAS = {
+  incluirEstimacionCompleta: true,
+  incluirTablaComparativaDetallada: true,
+  generarResumenAparte: false,
+}
+
 const carpetas: string[] = []
 
 function raizTemporal(): string {
@@ -121,7 +128,7 @@ describe('generarPdf — no saca un PDF vacío de un ojo que nunca se calculó',
     expect(caso.resultados['KANE:OD:Principal']).toBeDefined()
     expect(caso.resultados['KANE:OS:Principal']).toBeUndefined()
 
-    const { rutas } = await servicio.generarPdf(true)
+    const { rutas } = await servicio.generarPdf(OPCIONES_COMPLETAS)
 
     expect(rutas).toHaveLength(1)
     expect(rutas[0]?.ojo).toBe('OD')
@@ -140,7 +147,7 @@ describe('generarPdf — no saca un PDF vacío de un ojo que nunca se calculó',
 
     await servicio.calcular(['KANE'])
 
-    const { rutas } = await servicio.generarPdf(true)
+    const { rutas } = await servicio.generarPdf(OPCIONES_COMPLETAS)
 
     expect(rutas.map((r) => r.ojo).sort()).toEqual(['OD', 'OS'])
   })
@@ -162,7 +169,7 @@ describe('generarPdf — no saca un PDF vacío de un ojo que nunca se calculó',
     servicio.editarMedida('OD', 'AL', 24.0)
     servicio.editarMedida('OS', 'AL', 24.3)
 
-    const { rutas } = await servicio.generarPdf(true)
+    const { rutas } = await servicio.generarPdf(OPCIONES_COMPLETAS)
 
     expect(rutas.map((r) => r.ojo).sort()).toEqual(['OD', 'OS'])
   })
@@ -178,7 +185,7 @@ describe('generarPdf — carpeta por doctor, con «Calculados» y «Datos previo
     })
     servicio.editarMedida('OD', 'AL', 24.0)
 
-    const { rutas } = await servicio.generarPdf(true)
+    const { rutas } = await servicio.generarPdf(OPCIONES_COMPLETAS)
 
     expect(rutas[0]?.ruta).toContain(
       join('Dra. Ruiz', 'Calculados', 'Paciente De Prueba', 'Ojo derecho (OD)'),
@@ -191,7 +198,7 @@ describe('generarPdf — carpeta por doctor, con «Calculados» y «Datos previo
     servicio.establecerIdentificacion({ nombrePaciente: 'Paciente De Prueba' })
     servicio.editarMedida('OD', 'AL', 24.0)
 
-    const { rutas } = await servicio.generarPdf(true)
+    const { rutas } = await servicio.generarPdf(OPCIONES_COMPLETAS)
 
     expect(rutas[0]?.ruta).toContain(join('Sin doctor', 'Calculados', 'Paciente De Prueba'))
   })
@@ -205,7 +212,7 @@ describe('generarPdf — carpeta por doctor, con «Calculados» y «Datos previo
     })
     servicio.editarMedida('OD', 'AL', 24.0)
 
-    const { rutas } = await servicio.generarPdf(true)
+    const { rutas } = await servicio.generarPdf(OPCIONES_COMPLETAS)
 
     expect(rutas[0]?.ruta).toContain(
       join('Dr. Pérez Ruiz Test', 'Calculados', 'Paciente De Prueba'),
@@ -221,7 +228,7 @@ describe('generarPdf — carpeta por doctor, con «Calculados» y «Datos previo
     })
     servicio.editarMedida('OD', 'AL', 24.0)
 
-    await servicio.generarPdf(true)
+    await servicio.generarPdf(OPCIONES_COMPLETAS)
 
     const raizDoctor = join(carpetas.informes, 'Dra. Ruiz')
     expect(existsSync(join(raizDoctor, 'Datos previos'))).toBe(false)
@@ -272,7 +279,7 @@ describe('generarPdf — un aparato excluido (D100, 24/09/2026) no saca ninguna 
 
     await servicio.editarExclusionAparato('OD', 'Pentacam Excluido', true)
     await servicio.calcular(['KANE'])
-    await servicio.generarPdf(true)
+    await servicio.generarPdf(OPCIONES_COMPLETAS)
 
     expect(imprimirPdf).toHaveBeenCalledTimes(1)
     const html = imprimirPdf.mock.calls[0]?.[0] as string
@@ -290,7 +297,7 @@ describe('generarPdf — un aparato excluido (D100, 24/09/2026) no saca ninguna 
 
     await servicio.editarExclusionAparato('OD', 'Pentacam Excluido', false)
     await servicio.calcular(['KANE'])
-    await servicio.generarPdf(true)
+    await servicio.generarPdf(OPCIONES_COMPLETAS)
 
     const html = imprimirPdf.mock.calls[0]?.[0] as string
     expect(html).toContain('Pentacam Excluido')
@@ -337,7 +344,11 @@ describe('generarPdf — el interruptor de la estimación completa (D105, 29/09/
     servicio.editarMedida('OD', 'AL', 24.0)
     await servicio.calcular(['KANE', 'EVO_TORIC'])
 
-    await servicio.generarPdf(false)
+    await servicio.generarPdf({
+      incluirEstimacionCompleta: false,
+      incluirTablaComparativaDetallada: true,
+      generarResumenAparte: false,
+    })
 
     const html = imprimirPdf.mock.calls[0]?.[0] as string
     expect(html).not.toContain('Estimación del Resumen de calculadores')
@@ -354,11 +365,222 @@ describe('generarPdf — el interruptor de la estimación completa (D105, 29/09/
     servicio.editarMedida('OD', 'AL', 24.0)
     await servicio.calcular(['KANE', 'EVO_TORIC'])
 
-    await servicio.generarPdf(true)
+    await servicio.generarPdf(OPCIONES_COMPLETAS)
 
     const html = imprimirPdf.mock.calls[0]?.[0] as string
     expect(html).toContain('Estimación del Resumen de calculadores')
     expect(html).toContain('Comparación orientativa')
     expect(html).toContain('Tabla comparativa detallada')
+  })
+})
+
+/**
+ * Petición expresa del dueño del proyecto (06/10/2026): «vamos a hacer lo
+ * mismo con la tabla resumen» — hasta ahora la tabla comparativa detallada
+ * se enseñaba siempre, sin casilla. Avisado primero de que, con esta y la
+ * de D105 apagadas a la vez, el PDF normal puede quedar sin ningún rastro
+ * de la estimación propia, confirmó que quiere esa posibilidad bajo su
+ * responsabilidad.
+ */
+describe('generarPdf — el interruptor de la tabla comparativa detallada (D118, 06/10/2026)', () => {
+  function servicioConImprimirEspiado(): {
+    servicio: InstanceType<typeof ServicioCasos>
+    imprimirPdf: ReturnType<typeof vi.fn>
+  } {
+    const imprimirPdf = vi.fn(() => Promise.resolve())
+    const dep: DependenciasServicio = {
+      carpetas: prepararCarpetas(raizTemporal()),
+      proveedor: {
+        nombre: 'test',
+        puedeCon: () => false,
+        extraer: () => Promise.reject(new Error('no usado')),
+      },
+      diagnosticador: { carpeta: '', guardar: () => Promise.resolve('') },
+      capturas: { carpeta: '', guardar: () => Promise.resolve(''), leer: () => null },
+      version: '0.0.0-test',
+      ahora: () => new Date('2026-10-06T10:00:00.000Z'),
+      abrirNavegador: () => Promise.resolve({ close: () => Promise.resolve() } as never),
+      imprimirPdf,
+      emitirProgreso: () => {},
+      emitirCaso: () => {},
+    }
+    return { servicio: new ServicioCasos(dep), imprimirPdf }
+  }
+
+  it('apagada: la tabla comparativa detallada ya no sale, pase lo que pase con la otra casilla', async () => {
+    const { servicio, imprimirPdf } = servicioConImprimirEspiado()
+    servicio.nuevo()
+    servicio.establecerIdentificacion({ nombrePaciente: 'Paciente De Prueba' })
+    servicio.editarMedida('OD', 'AL', 24.0)
+    await servicio.calcular(['KANE', 'EVO_TORIC'])
+
+    await servicio.generarPdf({
+      incluirEstimacionCompleta: true,
+      incluirTablaComparativaDetallada: false,
+      generarResumenAparte: false,
+    })
+
+    const html = imprimirPdf.mock.calls[0]?.[0] as string
+    expect(html).not.toContain('Tabla comparativa detallada')
+    // Las otras dos hojas no dependen de esta casilla: siguen saliendo.
+    expect(html).toContain('Estimación del Resumen de calculadores')
+    expect(html).toContain('Comparación orientativa')
+  })
+
+  it('encendida: se comporta exactamente como antes de D118', async () => {
+    const { servicio, imprimirPdf } = servicioConImprimirEspiado()
+    servicio.nuevo()
+    servicio.establecerIdentificacion({ nombrePaciente: 'Paciente De Prueba' })
+    servicio.editarMedida('OD', 'AL', 24.0)
+    await servicio.calcular(['KANE', 'EVO_TORIC'])
+
+    await servicio.generarPdf(OPCIONES_COMPLETAS)
+
+    const html = imprimirPdf.mock.calls[0]?.[0] as string
+    expect(html).toContain('Tabla comparativa detallada')
+  })
+
+  it('las dos casillas apagadas a la vez: el PDF normal no lleva la estimación propia en ningún sitio', async () => {
+    const { servicio, imprimirPdf } = servicioConImprimirEspiado()
+    servicio.nuevo()
+    servicio.establecerIdentificacion({ nombrePaciente: 'Paciente De Prueba' })
+    servicio.editarMedida('OD', 'AL', 24.0)
+    await servicio.calcular(['KANE', 'EVO_TORIC'])
+
+    await servicio.generarPdf({
+      incluirEstimacionCompleta: false,
+      incluirTablaComparativaDetallada: false,
+      generarResumenAparte: false,
+    })
+
+    const html = imprimirPdf.mock.calls[0]?.[0] as string
+    expect(html).not.toContain('Tabla comparativa detallada')
+    expect(html).not.toContain('Estimación del Resumen de calculadores')
+    expect(html).not.toContain('Comparación orientativa')
+    expect(html).not.toContain('No vinculante')
+  })
+})
+
+/**
+ * Petición expresa del dueño del proyecto (06/10/2026): un segundo PDF,
+ * aparte del normal, con los datos de entrada, el cuadro de tarjetas y la
+ * tabla comparativa detallada — sin ninguna captura de pantalla — guardado
+ * tanto junto al PDF normal como en una carpeta «Resúmenes» aparte, dentro
+ * de la carpeta del doctor.
+ */
+describe('generarPdf — el PDF-resumen aparte (D118, 06/10/2026)', () => {
+  function servicioConImprimirEspiado(): {
+    servicio: InstanceType<typeof ServicioCasos>
+    carpetas: ReturnType<typeof prepararCarpetas>
+    imprimirPdf: ReturnType<typeof vi.fn>
+  } {
+    const imprimirPdf = vi.fn(() => Promise.resolve())
+    const carpetasDePrueba = prepararCarpetas(raizTemporal())
+    const dep: DependenciasServicio = {
+      carpetas: carpetasDePrueba,
+      proveedor: {
+        nombre: 'test',
+        puedeCon: () => false,
+        extraer: () => Promise.reject(new Error('no usado')),
+      },
+      diagnosticador: { carpeta: '', guardar: () => Promise.resolve('') },
+      capturas: { carpeta: '', guardar: () => Promise.resolve(''), leer: () => null },
+      version: '0.0.0-test',
+      ahora: () => new Date('2026-10-06T10:00:00.000Z'),
+      abrirNavegador: () => Promise.resolve({ close: () => Promise.resolve() } as never),
+      imprimirPdf,
+      emitirProgreso: () => {},
+      emitirCaso: () => {},
+    }
+    return { servicio: new ServicioCasos(dep), carpetas: carpetasDePrueba, imprimirPdf }
+  }
+
+  it('apagado (por defecto): no se genera ningún PDF-resumen', async () => {
+    const { servicio } = servicioConImprimirEspiado()
+    servicio.nuevo()
+    servicio.establecerIdentificacion({ nombrePaciente: 'Paciente De Prueba' })
+    servicio.editarMedida('OD', 'AL', 24.0)
+    await servicio.calcular(['KANE'])
+
+    const { rutasResumen } = await servicio.generarPdf(OPCIONES_COMPLETAS)
+
+    expect(rutasResumen).toHaveLength(0)
+  })
+
+  it('encendido: genera un PDF-resumen por ojo, sin ninguna captura de pantalla', async () => {
+    const { servicio, imprimirPdf } = servicioConImprimirEspiado()
+    servicio.nuevo()
+    servicio.establecerIdentificacion({ nombrePaciente: 'Paciente De Prueba' })
+    servicio.editarMedida('OD', 'AL', 24.0)
+    await servicio.calcular(['KANE', 'EVO_TORIC'])
+
+    const { rutasResumen } = await servicio.generarPdf({
+      incluirEstimacionCompleta: true,
+      incluirTablaComparativaDetallada: true,
+      generarResumenAparte: true,
+    })
+
+    expect(rutasResumen).toHaveLength(1)
+    expect(rutasResumen[0]?.ojo).toBe('OD')
+    // El normal, y luego dos llamadas más por el resumen (una por destino).
+    expect(imprimirPdf).toHaveBeenCalledTimes(3)
+    const htmlResumen = imprimirPdf.mock.calls[1]?.[0] as string
+    expect(htmlResumen).toContain('Datos de entrada')
+    expect(htmlResumen).not.toContain('Captura de pantalla')
+    expect(htmlResumen).not.toContain('<img')
+  })
+
+  it('no depende de las otras dos casillas: el resumen siempre lleva el cuadro de tarjetas y la tabla', async () => {
+    const { servicio, imprimirPdf } = servicioConImprimirEspiado()
+    servicio.nuevo()
+    servicio.establecerIdentificacion({ nombrePaciente: 'Paciente De Prueba' })
+    servicio.editarMedida('OD', 'AL', 24.0)
+    await servicio.calcular(['KANE', 'EVO_TORIC'])
+
+    await servicio.generarPdf({
+      incluirEstimacionCompleta: false,
+      incluirTablaComparativaDetallada: false,
+      generarResumenAparte: true,
+    })
+
+    const htmlResumen = imprimirPdf.mock.calls[1]?.[0] as string
+    expect(htmlResumen).toContain('Tabla comparativa detallada')
+  })
+
+  it('se guarda junto al PDF normal Y en una carpeta «Resúmenes» hermana de «Calculados»', async () => {
+    const { servicio, carpetas } = servicioConImprimirEspiado()
+    servicio.nuevo()
+    servicio.establecerIdentificacion({
+      nombrePaciente: 'Paciente De Prueba',
+      nombreCirujano: 'Dra. Ruiz',
+    })
+    servicio.editarMedida('OD', 'AL', 24.0)
+    await servicio.calcular(['KANE'])
+
+    const { rutas, rutasResumen } = await servicio.generarPdf({
+      incluirEstimacionCompleta: true,
+      incluirTablaComparativaDetallada: true,
+      generarResumenAparte: true,
+    })
+
+    // Junto al normal: mismo <doctor>/Calculados/<paciente>/<ojo>.
+    const carpetaCalculados = join(
+      carpetas.informes,
+      'Dra. Ruiz',
+      'Calculados',
+      'Paciente De Prueba',
+      'Ojo derecho (OD)',
+    )
+    expect(rutas[0]?.ruta.startsWith(carpetaCalculados)).toBe(true)
+
+    // Y además en <doctor>/Resúmenes/<paciente>/<ojo>, hermana de «Calculados».
+    const carpetaResumenes = join(
+      carpetas.informes,
+      'Dra. Ruiz',
+      'Resúmenes',
+      'Paciente De Prueba',
+      'Ojo derecho (OD)',
+    )
+    expect(rutasResumen[0]?.ruta.startsWith(carpetaResumenes)).toBe(true)
   })
 })

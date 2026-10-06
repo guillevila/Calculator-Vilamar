@@ -812,7 +812,13 @@ test('el PDF se guarda en una carpeta por doctor y, dentro, una por paciente (D8
 
   // No hace falta ningún cálculo real para generar el PDF: el informe dice
   // «no calculado» donde no haya resultado, y eso no es lo que se prueba aquí.
-  const resultado = await ventana.evaluate(() => window.vilamar?.generarPdf(true))
+  const resultado = await ventana.evaluate(() =>
+    window.vilamar?.generarPdf({
+      incluirEstimacionCompleta: true,
+      incluirTablaComparativaDetallada: true,
+      generarResumenAparte: false,
+    }),
+  )
   const ruta = resultado?.rutas[0]?.ruta ?? ''
   expect(ruta, 'no ha generado ningún PDF').not.toBe('')
 
@@ -843,7 +849,13 @@ test('el PDF se guarda en «Sin doctor» cuando el caso no tiene ninguno asignad
   await ventana.getByTestId('manual-campo-AL').fill('24.00')
   await ventana.getByTestId('manual-campo-AL').press('Tab')
 
-  const resultado = await ventana.evaluate(() => window.vilamar?.generarPdf(true))
+  const resultado = await ventana.evaluate(() =>
+    window.vilamar?.generarPdf({
+      incluirEstimacionCompleta: true,
+      incluirTablaComparativaDetallada: true,
+      generarResumenAparte: false,
+    }),
+  )
   const ruta = resultado?.rutas[0]?.ruta ?? ''
   expect(ruta, 'no ha generado ningún PDF').not.toBe('')
   expect(ruta).toContain(join('Sin doctor', 'Calculados', 'Paciente Sin Doctor E2E'))
@@ -1454,7 +1466,13 @@ ACD (epi)      3.18 mm</pre></body>`)
 
   // Y llega hasta el PDF de verdad, en la carpeta con su nombre — igual
   // que por la vía manual (ver la prueba de la carpeta por paciente).
-  const resultado = await ventana.evaluate(() => window.vilamar?.generarPdf(true))
+  const resultado = await ventana.evaluate(() =>
+    window.vilamar?.generarPdf({
+      incluirEstimacionCompleta: true,
+      incluirTablaComparativaDetallada: true,
+      generarResumenAparte: false,
+    }),
+  )
   const ruta = resultado?.rutas[0]?.ruta ?? ''
   expect(ruta).toContain(join('Paciente Del Documento', 'Ojo derecho (OD)'))
   expect(statSync(ruta).size).toBeGreaterThan(0)
@@ -2365,4 +2383,60 @@ CCT             530 um</pre>
 
   // La línea repetida bajo cada dato ya no aparece en ningún sitio.
   await expect(ventana.getByText('Leído de:', { exact: false })).toHaveCount(0)
+})
+
+/**
+ * Petición expresa del dueño del proyecto (06/10/2026): «cuando meto una
+ * foto y falta algún dato necesario... crea un aviso en modo de flash o
+ * cambio de color... para que sea más claro». Antes, un dato del núcleo
+ * que faltaba se veía con el mismo rojo que uno ya puesto —toda la fila
+ * «obligatorio» era igual, da igual si tenía valor o no—, así que un
+ * único hueco entre varios datos ya rellenos no saltaba a la vista.
+ */
+test('la revisión (D117): un dato del núcleo que de verdad falta se distingue de uno ya puesto', async () => {
+  test.setTimeout(180_000)
+
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  // Sin ninguna línea de ACD, AQD ni CCT: no hay de dónde leerla ni derivarla,
+  // así que se queda de verdad vacía tras cargar el documento — a diferencia
+  // de REFRACCION_OBJETIVO/SIA/EJE_INCISION, que el programa rellena solo con
+  // un valor por defecto en cuanto falta (petición ya existente del dueño),
+  // así que nunca sirven para probar esto.
+  await p.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <pre>OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85</pre>
+    </body>`)
+  const rutaPdf = join(carpetaDatos, 'd117-falta-dato-nucleo.pdf')
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.evaluate(
+    async (ruta) =>
+      window.vilamar?.cargarDocumentos([{ nombre: 'd117-falta-dato-nucleo.pdf', ruta }]),
+    rutaPdf,
+  )
+  await ventana.getByTestId('paso-REVISION').click()
+
+  // AL se ha leído bien: fila «obligatorio» de siempre, sin pulso.
+  const filaAL = ventana.locator('tr', { has: ventana.getByTestId('campo-AL') })
+  await expect(filaAL).toHaveClass(/obligatorio/)
+  await expect(filaAL).not.toHaveClass(/falta/)
+
+  // ACD es obligatoria de verdad (las tres calculadoras la necesitan) y no
+  // hay ni ACD ni AQD+CCT de los que derivarla: fila «falta», con el pulso.
+  const filaAcd = ventana.locator('tr', { has: ventana.getByTestId('campo-ACD') })
+  await expect(filaAcd).toHaveClass(/falta/)
+  await expect(filaAcd).not.toHaveClass(/obligatorio\b/)
+
+  // En cuanto se escribe el dato, deja de faltar y el pulso se para.
+  await ventana.getByTestId('campo-ACD').fill('3.2')
+  await ventana.getByTestId('campo-ACD').press('Tab')
+  await expect(filaAcd).not.toHaveClass(/falta/)
+  await expect(filaAcd).toHaveClass(/obligatorio/)
 })

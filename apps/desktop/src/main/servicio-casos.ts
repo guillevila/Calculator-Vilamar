@@ -99,7 +99,7 @@ import {
   tareasPendientes,
 } from '@vilamar/integrations'
 import type { ResultadoInforme } from '@vilamar/report'
-import { generarHtmlInforme, recopilarInforme } from '@vilamar/report'
+import { generarHtmlInforme, generarHtmlResumen, recopilarInforme } from '@vilamar/report'
 import type { Browser } from 'playwright'
 
 import type {
@@ -1636,14 +1636,42 @@ export class ServicioCasos {
    *
    * **`incluirEstimacionCompleta`** (D105, 29/09/2026): si es `false`, el
    * PDF no lleva la estimación propia (D43) bajo cada captura ni en su
-   * cuadro de tarjetas — la tabla comparativa detallada del final la sigue
-   * llevando siempre, con el mismo criterio, así que nunca desaparece del
-   * todo. La persona lo elige cada vez, justo antes de generar, con la
-   * casilla de la pantalla de resultados.
+   * cuadro de tarjetas. La persona lo elige cada vez, justo antes de
+   * generar, con una casilla de la pantalla de resultados.
+   *
+   * **`incluirTablaComparativaDetallada`** (D118, 06/10/2026): si es
+   * `false`, la tabla comparativa detallada del final tampoco sale. Hasta
+   * D118 era la única hoja que se enseñaba siempre, sin depender de ningún
+   * interruptor — con las dos casillas apagadas a la vez, petición expresa
+   * del dueño, el PDF normal puede quedar sin ningún rastro de la
+   * estimación propia.
+   *
+   * **`generarResumenAparte`** (D118, 06/10/2026): además del PDF normal,
+   * genera un SEGUNDO documento por ojo —sin ninguna captura de pantalla,
+   * solo los datos de entrada, el cuadro de tarjetas y la tabla
+   * comparativa detallada (`generarHtmlResumen`)— pensado para compartir
+   * con alguien que solo necesita ver los números. Este segundo PDF no
+   * depende de `incluirEstimacionCompleta` ni de
+   * `incluirTablaComparativaDetallada`: siempre lleva las dos cosas, sea
+   * cual sea lo elegido para el PDF normal. Se guarda DOS veces, petición
+   * expresa del dueño: junto al PDF normal (misma carpeta de
+   * paciente/ojo, para encontrarlo sin buscar en otro sitio) y, además,
+   * en `<carpetaDoctor>/Resúmenes/<paciente>/<ojo>/` —hermana de
+   * «Calculados», con la misma estructura— para poder repasar solo los
+   * resúmenes de todos los pacientes sin entrar carpeta a carpeta. El
+   * HTML del resumen se construye una sola vez; `imprimirPdf()` se llama
+   * dos veces sobre ese mismo HTML, una por destino, porque no hay forma
+   * de pedirle los bytes que ya generó para copiarlos — solo sabe
+   * escribir a una ruta.
    */
-  async generarPdf(
-    incluirEstimacionCompleta: boolean,
-  ): Promise<{ rutas: readonly { ojo: Lateralidad; ruta: string }[] }> {
+  async generarPdf(opciones: {
+    readonly incluirEstimacionCompleta: boolean
+    readonly incluirTablaComparativaDetallada: boolean
+    readonly generarResumenAparte: boolean
+  }): Promise<{
+    rutas: readonly { ojo: Lateralidad; ruta: string }[]
+    rutasResumen: readonly { ojo: Lateralidad; ruta: string }[]
+  }> {
     const caso = this.exigirCaso()
     const todosLosResultados = this.recopilarResultadosParaInforme(caso)
     const marca = this.iso().replace(/[:.]/g, '-').slice(0, 19)
@@ -1659,13 +1687,16 @@ export class ServicioCasos {
     this.archivarDatosPrevios(caso, carpetaDoctor)
 
     const rutas: { ojo: Lateralidad; ruta: string }[] = []
+    const rutasResumen: { ojo: Lateralidad; ruta: string }[] = []
     for (const ojo of ojosConResultados) {
+      const resultadosDelOjo = todosLosResultados.filter((r) => r.ojo === ojo)
       const datos = recopilarInforme(caso, {
         version: this.dep.version,
         generadoEn: this.iso(),
-        resultados: todosLosResultados.filter((r) => r.ojo === ojo),
+        resultados: resultadosDelOjo,
         soloOjo: ojo,
-        incluirEstimacionCompleta,
+        incluirEstimacionCompleta: opciones.incluirEstimacionCompleta,
+        incluirTablaComparativaDetallada: opciones.incluirTablaComparativaDetallada,
       })
       const html = generarHtmlInforme(datos)
       // Dentro de la carpeta del doctor: una por paciente y, dentro, una
@@ -1688,8 +1719,44 @@ export class ServicioCasos {
       writeFileSync(destino.replace(/\.pdf$/, '.html'), html, 'utf8')
       await this.dep.imprimirPdf(html, destino)
       rutas.push({ ojo, ruta: destino })
+
+      if (opciones.generarResumenAparte) {
+        const datosResumen = recopilarInforme(caso, {
+          version: this.dep.version,
+          generadoEn: this.iso(),
+          resultados: resultadosDelOjo,
+          soloOjo: ojo,
+        })
+        const htmlResumen = generarHtmlResumen(datosResumen)
+        const nombreResumen = `${caso.codigo}_${ojo}_${marca}_resumen.pdf`
+
+        // Junto al PDF normal, en la misma carpeta de paciente/ojo — para
+        // encontrarlo sin tener que buscar en otro sitio.
+        const destinoJuntoAlNormal = join(carpetaOjo, nombreResumen)
+        writeFileSync(destinoJuntoAlNormal.replace(/\.pdf$/, '.html'), htmlResumen, 'utf8')
+        await this.dep.imprimirPdf(htmlResumen, destinoJuntoAlNormal)
+
+        // Y además en «Resúmenes», hermana de «Calculados» dentro de la
+        // carpeta del doctor — petición expresa del dueño, para poder
+        // repasar solo los resúmenes de todos los pacientes sin entrar
+        // carpeta a carpeta. Se vuelve a pedir el PDF (no se copia el
+        // fichero) porque `imprimirPdf` no expone los bytes que ya generó,
+        // solo sabe escribir a una ruta — el coste es el mismo HTML ya
+        // construido, no un segundo cálculo.
+        const carpetaResumenOjo = join(
+          carpetaDoctor,
+          'Resúmenes',
+          nombreDeCarpeta(caso.nombrePaciente, caso.codigo),
+          nombreLateralidad(ojo),
+        )
+        mkdirSync(carpetaResumenOjo, { recursive: true })
+        const destinoResumenes = join(carpetaResumenOjo, nombreResumen)
+        writeFileSync(destinoResumenes.replace(/\.pdf$/, '.html'), htmlResumen, 'utf8')
+        await this.dep.imprimirPdf(htmlResumen, destinoResumenes)
+        rutasResumen.push({ ojo, ruta: destinoResumenes })
+      }
     }
-    return { rutas }
+    return { rutas, rutasResumen }
   }
 
   /**

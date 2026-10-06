@@ -25,7 +25,12 @@ import {
 } from '@vilamar/domain'
 
 import type { ResultadoInforme } from './plantilla.js'
-import { esc, generarHtmlInforme, generarHtmlInformeDetallado } from './plantilla.js'
+import {
+  esc,
+  generarHtmlInforme,
+  generarHtmlInformeDetallado,
+  generarHtmlResumen,
+} from './plantilla.js'
 import { recopilarInforme } from './recopilar.js'
 
 const CUANDO = '2026-08-10T10:00:00.000Z'
@@ -542,7 +547,10 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
   describe('D105 (29/09/2026): el interruptor «incluirEstimacionCompleta»', () => {
     function htmlConInterruptor(
       resultados: readonly (Omit<ResultadoInforme, 'aparato'> & { readonly aparato?: string })[],
-      opciones: { readonly incluirEstimacionCompleta: boolean },
+      opciones: {
+        readonly incluirEstimacionCompleta: boolean
+        readonly incluirTablaComparativaDetallada?: boolean
+      },
     ): string {
       const caso = confirmar(
         conOjo(casoNuevo('c1', 'CV-2026-0042', CUANDO), confirmarTodas(ojoVacio('OD')), CUANDO),
@@ -555,6 +563,7 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
           generadoEn: CUANDO,
           resultados: conAparato,
           incluirEstimacionCompleta: opciones.incluirEstimacionCompleta,
+          incluirTablaComparativaDetallada: opciones.incluirTablaComparativaDetallada,
         }),
       )
     }
@@ -608,6 +617,123 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
         }),
       )
       expect(h).toContain('Estimación del Resumen de calculadores')
+      expect(h).toContain('Comparación orientativa')
+    })
+
+    describe('D118 (06/10/2026): el interruptor «incluirTablaComparativaDetallada»', () => {
+      it('apagado, la tabla comparativa detallada ya no sale en el PDF normal', () => {
+        const h = htmlConInterruptor(DOS_ESTIMACIONES, {
+          incluirEstimacionCompleta: true,
+          incluirTablaComparativaDetallada: false,
+        })
+        expect(h).not.toContain('Tabla comparativa detallada')
+        // Las otras dos hojas —captura y cuadro de tarjetas— no dependen de
+        // este interruptor: siguen saliendo igual.
+        expect(h).toContain('Estimación del Resumen de calculadores')
+        expect(h).toContain('Comparación orientativa')
+      })
+
+      it('encendido, se comporta exactamente como antes de D118: la tabla sigue saliendo', () => {
+        const h = htmlConInterruptor(DOS_ESTIMACIONES, {
+          incluirEstimacionCompleta: true,
+          incluirTablaComparativaDetallada: true,
+        })
+        expect(h).toContain('Tabla comparativa detallada')
+      })
+
+      it('sin especificar el interruptor, `recopilarInforme` sigue viendo la tabla de siempre', () => {
+        const caso = confirmar(
+          conOjo(casoNuevo('c1', 'CV-2026-0042', CUANDO), confirmarTodas(ojoVacio('OD')), CUANDO),
+          CUANDO,
+        )
+        const h = generarHtmlInforme(
+          recopilarInforme(caso, {
+            version: '0.1.0',
+            generadoEn: CUANDO,
+            resultados: DOS_ESTIMACIONES.map((r) => ({ ...r, aparato: APARATO_PRINCIPAL })),
+          }),
+        )
+        expect(h).toContain('Tabla comparativa detallada')
+      })
+
+      /**
+       * Petición expresa del dueño del proyecto (06/10/2026), con las dos
+       * casillas apagadas a la vez: confirmó que quiere que sea posible
+       * generar un PDF normal sin ningún rastro de la estimación propia, bajo
+       * su responsabilidad — avisado primero de lo que implicaba.
+       */
+      it('las dos casillas apagadas a la vez: el PDF normal no lleva la estimación propia en ningún sitio', () => {
+        const h = htmlConInterruptor(DOS_ESTIMACIONES, {
+          incluirEstimacionCompleta: false,
+          incluirTablaComparativaDetallada: false,
+        })
+        expect(h).not.toContain('Tabla comparativa detallada')
+        expect(h).not.toContain('Estimación del Resumen de calculadores')
+        expect(h).not.toContain('Comparación orientativa')
+        expect(h).not.toContain('No vinculante')
+        // La captura, sin interpretar, se sigue viendo — es lo único que no
+        // depende de ningún interruptor.
+        expect(h).toContain('<img src="data:image/png;base64,QUFB"')
+      })
+    })
+  })
+
+  describe('D118 (06/10/2026): el informe-resumen, sin capturas (`generarHtmlResumen`)', () => {
+    const DOS_ESTIMACIONES_RESUMEN: readonly (Omit<ResultadoInforme, 'aparato'> & {
+      readonly aparato?: string
+    })[] = [
+      {
+        calculadora: 'EVO_TORIC',
+        ojo: 'OD',
+        dataUri: 'data:image/png;base64,QUFB',
+        recomendada: { esfera: 21.5, cilindro: 1, ejeResidual: 81 },
+      },
+      { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 22.0 } },
+    ]
+
+    function htmlResumen(
+      resultados: readonly (Omit<ResultadoInforme, 'aparato'> & { readonly aparato?: string })[],
+      opciones?: {
+        readonly incluirEstimacionCompleta?: boolean
+        readonly incluirTablaComparativaDetallada?: boolean
+      },
+    ): string {
+      const caso = casoCompleto()
+      const conAparato = resultados.map((r) => ({ ...r, aparato: r.aparato ?? APARATO_PRINCIPAL }))
+      return generarHtmlResumen(
+        recopilarInforme(caso, {
+          version: '0.1.0',
+          generadoEn: CUANDO,
+          resultados: conAparato,
+          ...opciones,
+        }),
+      )
+    }
+
+    it('lleva los datos de entrada y la tabla comparativa detallada, pero ninguna captura', () => {
+      const h = htmlResumen(DOS_ESTIMACIONES_RESUMEN)
+      expect(h).toContain('Datos de entrada')
+      expect(h).toContain('Tabla comparativa detallada')
+      expect(h).not.toContain('<img src="data:image/png;base64,QUFB"')
+      expect(h).not.toContain('Captura de pantalla')
+    })
+
+    it('con más de una estimación, también lleva el cuadro de tarjetas', () => {
+      const h = htmlResumen(DOS_ESTIMACIONES_RESUMEN)
+      expect(h).toContain('Comparación orientativa')
+    })
+
+    /**
+     * A diferencia del PDF normal, este informe no depende de las dos
+     * casillas de arriba — su naturaleza es llevar siempre el cuadro de
+     * tarjetas y la tabla comparativa detallada, nunca ninguna captura.
+     */
+    it('no depende de `incluirEstimacionCompleta` ni de `incluirTablaComparativaDetallada`', () => {
+      const h = htmlResumen(DOS_ESTIMACIONES_RESUMEN, {
+        incluirEstimacionCompleta: false,
+        incluirTablaComparativaDetallada: false,
+      })
+      expect(h).toContain('Tabla comparativa detallada')
       expect(h).toContain('Comparación orientativa')
     })
   })
@@ -763,7 +889,11 @@ describe('D109/D110 (30/09/2026): el informe se reduce al mínimo, con una únic
 
   it('D110: la tabla comparativa detallada SÍ vuelve a explicar el criterio en prosa — la única excepción de D109', () => {
     const h = htmlSimple([
-      { calculadora: 'EVO_TORIC', ojo: 'OD', recomendada: { esfera: 21.5, refraccionPrevista: -0.1 } },
+      {
+        calculadora: 'EVO_TORIC',
+        ojo: 'OD',
+        recomendada: { esfera: 21.5, refraccionPrevista: -0.1 },
+      },
       { calculadora: 'KANE', ojo: 'OD', recomendada: { esfera: 22.0 } },
     ])
     expect(h).toContain('Tabla comparativa detallada')
@@ -902,6 +1032,7 @@ describe('el origen de cada dato en el PDF', () => {
       ausenciasRelevantes: [],
       resultados: [],
       incluirEstimacionCompleta: true,
+      incluirTablaComparativaDetallada: true,
     })
   }
 
@@ -969,10 +1100,7 @@ describe('el origen de cada dato en el PDF', () => {
    */
   it('la hoja de biometría no se vacía si el único aparato del ojo se ha renombrado (D114, 02/10/2026)', () => {
     const ojo = confirmarTodas(conMedida(ojoVacio('OD'), crearMedida('AL', 'OD', 24.07, DEL_PDF)))
-    let caso = confirmar(
-      conOjo(casoNuevo('c-origen', 'CV-2026-0100', CUANDO), ojo, CUANDO),
-      CUANDO,
-    )
+    let caso = confirmar(conOjo(casoNuevo('c-origen', 'CV-2026-0100', CUANDO), ojo, CUANDO), CUANDO)
     caso = conAparatoRenombrado(caso, 'OD', APARATO_PRINCIPAL, 'Heidelberg ANTERION', CUANDO)
 
     const html = generarHtmlInformeDetallado({
@@ -984,6 +1112,7 @@ describe('el origen de cada dato en el PDF', () => {
       ausenciasRelevantes: [],
       resultados: [],
       incluirEstimacionCompleta: false,
+      incluirTablaComparativaDetallada: true,
     })
 
     expect(html).toContain('Biometría confirmada')

@@ -443,13 +443,23 @@ export function PanelResultados({
   const aparatos = aparatosDe(caso, ojoActivo)
   // Un PDF por ojo (D47, 27/08/2026) — antes era uno solo por caso.
   const [rutas, setRutas] = useState<readonly { ojo: Lateralidad; ruta: string }[]>([])
+  const [rutasResumen, setRutasResumen] = useState<readonly { ojo: Lateralidad; ruta: string }[]>(
+    [],
+  )
   const [generando, setGenerando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Apagado por defecto (D105, 29/09/2026): petición expresa del dueño del
   // proyecto para dejar de enseñar la estimación propia (D43) bajo cada
-  // captura y en su cuadro de tarjetas — la tabla comparativa detallada del
-  // final la sigue llevando siempre, pase lo que pase con esta casilla.
+  // captura y en su cuadro de tarjetas.
   const [incluirEstimacionCompleta, setIncluirEstimacionCompleta] = useState(false)
+  // Encendido por defecto (D118, 06/10/2026): hasta D118 la tabla comparativa
+  // detallada se enseñaba siempre, sin casilla — por eso esta, a diferencia
+  // de las otras dos, empieza marcada: quien no la toque ve el informe
+  // exactamente igual que antes de D118.
+  const [incluirTablaComparativaDetallada, setIncluirTablaComparativaDetallada] = useState(true)
+  // Apagado por defecto (D118, 06/10/2026): un documento nuevo, además del
+  // normal — no tiene sentido generarlo sin que se pida expresamente.
+  const [generarResumenAparte, setGenerarResumenAparte] = useState(false)
 
   // Las cinco casillas de siempre (D45/D48): Predicted y Measured PCA de EVO
   // y de Barrett, más Kane — la que no se haya pedido para este ojo y
@@ -469,8 +479,13 @@ export function PanelResultados({
     setGenerando(true)
     setError(null)
     try {
-      const r = await api().generarPdf(incluirEstimacionCompleta)
+      const r = await api().generarPdf({
+        incluirEstimacionCompleta,
+        incluirTablaComparativaDetallada,
+        generarResumenAparte,
+      })
       setRutas(r.rutas)
+      setRutasResumen(r.rutasResumen)
     } catch (e) {
       setError(
         `No se ha podido generar el PDF. ${e instanceof Error ? e.message : String(e)} ` +
@@ -690,6 +705,18 @@ export function PanelResultados({
             ))}
           </div>
         )}
+        {rutasResumen.length > 0 && (
+          <div className="aviso exito">
+            <strong>
+              {rutasResumen.length === 1 ? 'Resumen generado.' : 'Resúmenes generados.'}
+            </strong>
+            {rutasResumen.map((r) => (
+              <div key={r.ojo}>
+                {nombreLateralidad(r.ojo)}: <code>{r.ruta}</code>
+              </div>
+            ))}
+          </div>
+        )}
         <label className="fila" style={{ gap: 8, alignItems: 'center', marginBottom: 12 }}>
           <input
             type="checkbox"
@@ -699,9 +726,37 @@ export function PanelResultados({
           />
           <span>
             Incluir la estimación propia bajo cada captura y en un cuadro de tarjetas
+          </span>
+        </label>
+        <label className="fila" style={{ gap: 8, alignItems: 'center', marginBottom: 12 }}>
+          <input
+            type="checkbox"
+            checked={incluirTablaComparativaDetallada}
+            onChange={(e) => setIncluirTablaComparativaDetallada(e.target.checked)}
+            data-testid="incluir-tabla-comparativa-detallada"
+          />
+          <span>
+            Incluir la tabla comparativa detallada del final
             <span className="pie-nota" style={{ display: 'block' }}>
-              La tabla comparativa detallada del final, con el mismo criterio, se enseña siempre —
-              esta casilla solo añade las otras dos.
+              Con las dos casillas de arriba apagadas, el PDF normal no lleva la estimación propia
+              en ningún sitio.
+            </span>
+          </span>
+        </label>
+        <label className="fila" style={{ gap: 8, alignItems: 'center', marginBottom: 12 }}>
+          <input
+            type="checkbox"
+            checked={generarResumenAparte}
+            onChange={(e) => setGenerarResumenAparte(e.target.checked)}
+            data-testid="generar-resumen-aparte"
+          />
+          <span>
+            Generar también un PDF-resumen aparte, sin capturas de pantalla
+            <span className="pie-nota" style={{ display: 'block' }}>
+              Un segundo documento por ojo, con los datos de entrada, el cuadro de tarjetas y la
+              tabla comparativa detallada — sin ninguna captura, y sin depender de las dos casillas
+              de arriba. Se guarda junto al PDF normal y, además, en una carpeta «Resúmenes» aparte
+              de «Calculados», dentro de la carpeta del doctor.
             </span>
           </span>
         </label>

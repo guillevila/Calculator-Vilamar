@@ -4,6 +4,245 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.78] — 06/10/2026 (versión visible en pantalla: v1.37)
+
+chore(scripts): comando `pnpm compartir` para empaquetar y comprimir la aplicación lista para dar a otro optometrista (D119).
+
+### Qué se pidió
+
+El dueño del proyecto, inicialmente: «vamos a crear usuarios para poder
+compartir la aplicación, ya lo he hecho en la app móvil». Aclarado antes
+de construir nada: la app móvil tiene cuentas porque varias personas
+comparten UN servidor remoto; aquí cada optometrista tiene su PROPIO
+ordenador con una copia independiente, sin servidor ni datos
+compartidos — confirmado por el dueño: «cada persona usaría su propio
+ordenador... sus carpetas serían clones de lo mío, cada uno
+independiente». No hacía falta ningún sistema de cuentas: cada caso y
+cada doctor ya se guarda en la carpeta de datos de Windows de quien abre
+la aplicación (`app.getPath('userData')`), nunca dentro de la app
+instalada — una copia nueva ya empieza vacía sola. Lo que de verdad
+faltaba era un paso más rápido para preparar esa copia y entregarla.
+
+### El cambio
+
+Nuevo script `scripts/empaquetar-para-compartir.mjs`, expuesto como
+`pnpm compartir`: compila la aplicación entera (`pnpm dist`, con su
+propio Chromium de Playwright ya incluido) y la comprime en un único
+`.zip` con la fecha de hoy, dentro de `apps/desktop/dist/`. Quien lo
+recibe solo tiene que descomprimirlo y abrir el `.exe` de dentro — nada
+que instalar. Documentado para el dueño en
+`docs/DAR-LA-APP-A-OTRO-ORDENADOR.md`.
+
+### Fallo real encontrado y corregido antes de decir que funcionaba
+
+La primera versión comprimía con `Compress-Archive` de PowerShell, que
+fallaba **en silencio**: el script seguía e imprimía «Listo» igual,
+aunque el `.zip` nunca se llegara a crear. La causa — las rutas del
+Chromium empaquetado de Playwright (`PrivacySandboxAttestationsPreloaded\
+privacy-sandbox-attestations.dat`, dentro de varias carpetas anidadas),
+sumadas a la ruta ya larga de esta carpeta del proyecto, superan el
+límite clásico de 260 caracteres de Windows, y `Compress-Archive` no lo
+soporta. Corregido usando `7za.exe` — el mismo binario que ya trae
+`electron-builder` para sus propias tareas, ahora declarado como
+dependencia explícita (`7zip-bin`) en vez de depender de que otro
+paquete lo arrastrara —, que no tiene ese límite.
+
+### Verificado
+
+Ejecutado `pnpm compartir` de principio a fin dos veces (antes y después
+del arreglo), comprobando el `.zip` resultante en el disco — no solo el
+código de salida del comando, que en este equipo siempre es distinto de
+cero por un paso de firma de código que ya se sabía que fallaba (ver
+lecciones aprendidas) —: 471 MB, sin errores de 7-Zip. `pnpm lint` en
+verde sobre el script nuevo.
+
+---
+
+## [1.15.77] — 06/10/2026 (versión visible en pantalla: v1.37)
+
+feat(app,report): la tabla comparativa detallada pasa a ser opcional, y un PDF-resumen aparte, sin capturas, se puede generar además del normal (D118).
+
+### Qué se pidió
+
+El dueño del proyecto: «vamos a hacer lo mismo con la tabla resumen del
+PDF final, pon abajo otro recuadro para activar o no ese resumen, y un
+tercer recuadro donde, si lo activamos, cree otro PDF donde salgan los
+datos previos, el cuadro de tarjetas y el resumen en tablas, sin los
+pantallazos, así podemos elegir todo. En caso de que se active este
+último, que se guarde en la carpeta del doctor, en la carpeta del
+paciente, y en una nueva carpeta aparte de «Calculados» que se llame
+«Resúmenes»».
+
+### Investigado antes de tocar nada
+
+La tabla comparativa detallada no era una hoja más: era la ÚNICA parte
+del informe que la propia constitución del proyecto (D43) garantiza
+que se enseña siempre, pase lo que pase con la casilla de D105 — la
+condición bajo la que existe la excepción «el producto compara, no
+recomienda». Hacerla opcional significaba que, con las dos primeras
+casillas apagadas y sin el PDF-resumen, un PDF normal podía quedar sin
+ningún rastro de la estimación propia en ningún sitio.
+
+Antes de tocar nada se le avisó de esto explícitamente, con las
+palabras exactas de lo que implicaba, y se le preguntó cómo quería
+resolverlo: ¿posible sin ninguna condición, bajo su responsabilidad, o
+con un aviso si no queda cubierto en ningún sitio? Contestó con
+claridad: «quiero ser yo el que decida» — las tres casillas,
+independientes entre sí, sin ninguna red de seguridad oculta.
+
+### El cambio
+
+Tres casillas independientes en la pantalla de resultados, antes de
+generar:
+
+1. **Estimación propia bajo captura/cuadro de tarjetas** (D105, sin
+   cambios).
+2. **Tabla comparativa detallada** — nueva, encendida por defecto (para
+   que nadie note ningún cambio si no toca la casilla).
+3. **Generar también un PDF-resumen aparte** — nueva, apagada por
+   defecto. Un segundo documento por ojo
+   (`generarHtmlResumen()`, en `@vilamar/report`) con los datos de
+   entrada, el cuadro de tarjetas y la tabla comparativa detallada —sin
+   ninguna captura de pantalla—, que NO depende de las dos casillas de
+   arriba: siempre lleva las dos cosas, sea cual sea lo elegido para el
+   PDF normal.
+
+El PDF-resumen se guarda dos veces: junto al PDF normal (misma carpeta
+de paciente/ojo, para encontrarlo sin buscar en otro sitio) y, además,
+en `<carpetaDoctor>/Resúmenes/<paciente>/<ojo>/` —hermana de
+«Calculados», con la misma estructura—, para poder repasar solo los
+resúmenes de todos los pacientes sin entrar carpeta a carpeta.
+`generarPdf()` pasó de recibir un único booleano a un objeto con las
+tres opciones — se actualizaron todos sus llamadores (interfaz, tests,
+pruebas de interfaz).
+
+Actualizada la constitución del proyecto (`CLAUDE.md` y
+`.claude/CLAUDE.md`): la excepción D43 ya no tiene un lugar garantizado
+donde la estimación propia aparezca siempre — pasa a ser, como las
+demás, una elección del dueño en cada PDF.
+
+### Verificado
+
+- `plantilla.test.ts`: el interruptor de la tabla comparativa detallada
+  (apagado/encendido/las dos casillas a la vez), y `generarHtmlResumen()`
+  (lleva datos de entrada y tabla, nunca capturas, no depende de las
+  otras dos casillas).
+- `servicio-casos.generar-pdf.test.ts`: las tres casillas de punta a
+  punta con el servicio real, y las dos carpetas de destino del
+  PDF-resumen (`Calculados` y `Resúmenes`).
+- Todos los tests comprobados primero contra el código sin arreglar
+  (los nuevos fallan, reproduciendo exactamente lo que faltaba) y
+  después contra el arreglado.
+- `pnpm lint && pnpm typecheck && pnpm test` en verde (914 tests
+  unitarios; el único fallo es el previo y ajeno de siempre).
+
+---
+
+## [1.15.76] — 06/10/2026 (versión visible en pantalla: v1.37)
+
+feat(app): un dato del núcleo que de verdad falta pulsa en la revisión, distinto del que ya está puesto (D117).
+
+### Qué se pidió
+
+El dueño del proyecto: «cuando meto una foto y falta algún dato
+necesario para hacer el cálculo... crea un aviso en modo de flash o
+cambio de color de la casilla donde tengo que meter ese dato que
+falta, para que sea más claro y se vea bien».
+
+### Investigado antes de tocar nada
+
+La pantalla de revisión ya pintaba en rojo (`tr.obligatorio`) cualquier
+fila de los ocho campos del núcleo (`CAMPOS_DESTACADOS`) — pero esa
+clase se aplicaba igual tuviera valor o no. Con un documento que trae
+siete de ocho datos, las ocho filas salían del mismo rojo: el único
+hueco de verdad no se distinguía de los siete ya rellenos.
+
+La propia aplicación tiene una regla explícita, escrita arriba del todo
+en `estilos.css`: «nada parpadea, salvo el aviso más caro de pasar por
+alto» — hasta ahora, solo la prioridad Urgente de la bandeja de casos.
+Un dato que bloquea el cálculo entero encaja exactamente en esa misma
+categoría.
+
+### El cambio
+
+Nueva clase `tr.falta`, que se aplica cuando el campo no tiene ningún
+valor Y es obligatorio de verdad para al menos una calculadora
+(`exigenciaDe().nivel` distinto de OPCIONAL/INFORMATIVO) — no solo por
+estar en la lista general del núcleo. Reutiliza el pulso que ya existía
+(`pulso-urgente`), no una animación nueva. En cuanto se escribe el dato,
+la fila deja de pulsar por el propio cambio de estado, sin ningún
+temporizador.
+
+### Verificado
+
+Nuevo test de interfaz en `flujo.spec.ts` (D117): un documento que no
+trae `REFRACCION_OBJETIVO` —ningún aparato la imprime, la aporta el
+cirujano— muestra esa fila con `falta` y sin `obligatorio`, mientras AL
+—leído bien— muestra `obligatorio` sin `falta`; al escribirla a mano,
+`falta` desaparece y vuelve `obligatorio`.
+`pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e`
+en verde (900 tests unitarios; el único fallo es el previo y ajeno de
+siempre).
+
+---
+
+## [1.15.75] — 06/10/2026 (versión visible en pantalla: v1.37)
+
+fix(domain): la ACD se deriva de AQD + CCT aunque el aparato no se haya podido confirmar, si el informe trae un AQD de verdad (D116).
+
+### Qué se pidió
+
+El dueño del proyecto: «hay aparatos, sobre todo el ANTERION de
+Heidelberg, que no te dan directamente la ACD sino que te dan la AQD y
+el CCT, y la ACD es la suma de las dos; cuando no aparezca ACD haz
+directamente esa suma». Al preguntarle si esto ya pasaba (porque el
+código ya lo hacía desde hace tiempo para un ANTERION reconocido),
+confirmó un caso real donde NO funcionó: `CV-2026-0299`.
+
+### Investigado antes de tocar nada
+
+El caso era una foto de WhatsApp recortada, sin logo ni membrete
+visibles. El lector de visión leyó bien el AQD y el CCT de los dos
+ojos —correctamente, con sus valores reales—, pero no pudo confirmar
+que el aparato fuera un ANTERION por su maqueta, y devolvió
+`dispositivo: 'DESCONOCIDO'`. La derivación de la ACD solo se aplicaba
+cuando el perfil del aparato RECONOCIDO lo permitía explícitamente — un
+aparato desconocido no derivaba nunca, a propósito: había un test que
+decía literalmente «la suma daría un valor plausible; da igual», una
+guarda deliberada contra inventar una cuenta con cualquier aparato.
+
+Consecuencia real en este caso: el OD acabó con la ACD escrita a mano
+(un paso que no hacía falta), y el OS se quedó sin ningún valor de ACD
+en absoluto.
+
+### El cambio
+
+Se mantiene la guarda para los aparatos que SÍ se han confirmado y se
+sabe que no siguen esta convención (IOLMaster, Pentacam) — ahí no
+cambia nada. Pero para un aparato DESCONOCIDO, el razonamiento es
+distinto: ningún otro aparato de los que lee este programa publica un
+dato llamado literalmente «AQD», distinto de la ACD — es un campo
+específico del catálogo, con su propia etiqueta clínica
+(«AQD — endothelium to lens»). Si ese campo aparece, el informe sigue
+la misma convención que el ANTERION, se haya podido confirmar su
+maqueta o no. `derivarAcd()`, en
+`packages/domain/src/normalizacion/normalizar.ts`, ahora deriva también
+en ese caso — con un aviso que deja explícito que el aparato no está
+confirmado, para revisarla con más cuidado de lo normal.
+
+### Verificado
+
+Dos tests nuevos en `normalizar.test.ts`: deriva correctamente con
+DESCONOCIDO + AQD + CCT, y el aviso menciona que el aparato no está
+confirmado — comprobados primero contra el código sin arreglar (fallan,
+reproduciendo el síntoma exacto de `CV-2026-0299`) y después contra el
+arreglado. Los tests que protegen IOLMaster/Pentacam y la
+restrictividad general de la tabla de perfiles siguen intactos.
+`pnpm lint && pnpm typecheck && pnpm test` en verde (el único fallo de
+la suite es el previo y ajeno de siempre).
+
+---
+
 ## [1.15.74] — 02/10/2026 (versión visible en pantalla: v1.37)
 
 fix(domain,report,app): el primer aparato de un ojo ya no depende de llamarse «Principal»; por defecto, el mismo aparato en los dos ojos (D114, D115).

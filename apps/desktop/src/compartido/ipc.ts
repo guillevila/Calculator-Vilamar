@@ -442,13 +442,19 @@ export interface ApiVilamar {
    * Genera un PDF por ojo (D47, 27/08/2026) y devuelve dónde se ha guardado
    * cada uno. Un caso de un solo ojo devuelve una sola ruta, igual que antes.
    *
-   * `incluirEstimacionCompleta` (D105, 29/09/2026): si es `false`, el PDF no
-   * lleva la estimación propia (D43) bajo cada captura ni en su cuadro de
-   * tarjetas — la tabla comparativa detallada del final la sigue llevando
-   * siempre. Lo elige la persona, con una casilla, justo antes de generar.
+   * `incluirEstimacionCompleta` (D105, 29/09/2026) e
+   * `incluirTablaComparativaDetallada` (D118, 06/10/2026): qué lleva el PDF
+   * normal, elegido con dos casillas justo antes de generar. `rutasResumen`
+   * solo llega con algo si `generarResumenAparte` es `true` (D118): un
+   * segundo documento por ojo, sin capturas, ver `ServicioCasos.generarPdf`.
    */
-  readonly generarPdf: (incluirEstimacionCompleta: boolean) => Promise<{
+  readonly generarPdf: (opciones: {
+    readonly incluirEstimacionCompleta: boolean
+    readonly incluirTablaComparativaDetallada: boolean
+    readonly generarResumenAparte: boolean
+  }) => Promise<{
     readonly rutas: readonly { readonly ojo: Lateralidad; readonly ruta: string }[]
+    readonly rutasResumen: readonly { readonly ojo: Lateralidad; readonly ruta: string }[]
   }>
   readonly abrirCarpetaInformes: () => Promise<void>
 

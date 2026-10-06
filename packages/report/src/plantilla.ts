@@ -107,11 +107,21 @@ export interface DatosInforme {
   /**
    * Si la estimación propia (D43) se enseña también bajo cada captura y en
    * su propio cuadro de tarjetas, o solo en la tabla comparativa detallada
-   * del final —que la lleva siempre, sin excepción— (D105, 29/09/2026).
-   * `true` por defecto (`recopilarInforme`): cualquier llamada antigua que
-   * no lo especifique sigue viendo el informe exactamente como antes.
+   * del final (D105, 29/09/2026). `true` por defecto (`recopilarInforme`):
+   * cualquier llamada antigua que no lo especifique sigue viendo el informe
+   * exactamente como antes.
    */
   readonly incluirEstimacionCompleta: boolean
+  /**
+   * Si la tabla comparativa detallada del final sale en el PDF normal
+   * (D118, 06/10/2026). Hasta D118 era la única hoja que se enseñaba
+   * siempre, pase lo que pase con `incluirEstimacionCompleta` — garantía
+   * que vivía en la propia constitución del proyecto. Petición expresa del
+   * dueño, con el aviso correspondiente ya dado y aceptado: ahora es una
+   * elección más, como la de arriba. `true` por defecto: una llamada
+   * antigua que no lo especifique sigue viendo el informe igual que antes.
+   */
+  readonly incluirTablaComparativaDetallada: boolean
 }
 
 /** Escapa el texto para que nada de lo que venga de fuera pueda inyectar HTML. */
@@ -1740,10 +1750,18 @@ function hojaResumenFinal(
  *
  * **`datos.incluirEstimacionCompleta`** (D105, 29/09/2026): si es `false`,
  * la estimación propia deja de enseñarse bajo cada captura y como su propio
- * cuadro de tarjetas — las capturas se enseñan igual, tal cual, solas. La
- * tabla comparativa detallada del final (`tablaComparativaDetallada`) sigue
- * llevándola SIEMPRE, con el mismo criterio de siempre: es la única parte
- * del informe de la que este interruptor no depende.
+ * cuadro de tarjetas — las capturas se enseñan igual, tal cual, solas.
+ *
+ * **`datos.incluirTablaComparativaDetallada`** (D118, 06/10/2026): si es
+ * `false`, la tabla comparativa detallada del final tampoco sale. Hasta
+ * D118 esa tabla era la única hoja que se enseñaba SIEMPRE, sin depender de
+ * ningún interruptor — garantía escrita en la propia constitución del
+ * proyecto (D43). Petición expresa del dueño, avisado primero de lo que
+ * implicaba —con las dos casillas apagadas y sin generar el informe de
+ * resumen aparte (`generarHtmlResumen`, D118), el PDF normal puede quedar
+ * sin ningún rastro de la estimación propia—: lo pidió de todos modos,
+ * «quiero ser yo el que decida». Deja de ser una garantía incondicional y
+ * pasa a ser una elección más, como la de arriba.
  *
  * **Avisos reducidos al mínimo** (D109, 30/09/2026): todo el informe lleva
  * un único párrafo de aviso legal, al final (`PIE_LEGAL`) — petición
@@ -1760,7 +1778,7 @@ function hojaResumenFinal(
  * todo el informe, aparte del aviso legal del final.
  */
 export function generarHtmlInforme(datos: DatosInforme): string {
-  const { caso, incluirEstimacionCompleta } = datos
+  const { caso, incluirEstimacionCompleta, incluirTablaComparativaDetallada } = datos
 
   // Qué ojo(s) cubre este informe concreto — en el flujo real siempre uno
   // (`generarPdf()` llama a esto una vez por ojo, D47), pero no se supone:
@@ -1845,21 +1863,68 @@ export function generarHtmlInforme(datos: DatosInforme): string {
   )
 
   // La tabla comparativa detallada (petición expresa del dueño, 27/08/2026):
-  // solo tiene sentido con al menos un resultado intentado.
+  // solo tiene sentido con al menos un resultado intentado. Desde D118
+  // (06/10/2026) es, además, opcional: si `incluirTablaComparativaDetallada`
+  // es `false`, no se calcula ni se incluye.
+  const hojasDetalle = incluirTablaComparativaDetallada
+    ? ojosDelInforme
+        .map((ojo) => tablaComparativaDetallada(caso, ojo, datos.resultados))
+        .filter((h): h is Hoja => h !== undefined)
+    : []
+
+  const hojas = [
+    ...hojasBiometria,
+    ...hojasPorCasilla,
+    // El cuadro de tarjetas (D105, 29/09/2026): solo si se ha pedido la
+    // estimación completa.
+    ...(incluirEstimacionCompleta
+      ? ojosConVariasEstimaciones.map((ojo) => hojaResumenFinal(caso, ojo, datos.resultados))
+      : []),
+    ...hojasDetalle,
+  ]
+
+  return documentoDeHojas(caso, datos.version, datos.generadoEn, hojas)
+}
+
+/**
+ * El informe-resumen, sin ninguna captura de pantalla (D118, 06/10/2026).
+ *
+ * Petición expresa del dueño del proyecto: un tercer documento, aparte del
+ * normal, con los datos de entrada, el cuadro de tarjetas y la tabla
+ * comparativa detallada — todo lo que es dato organizado o cálculo propio,
+ * nada que sea una captura de la web ajena. Pensado para compartir con
+ * alguien que solo necesita ver los números, no la pantalla de cada
+ * calculadora.
+ *
+ * A diferencia de `generarHtmlInforme`, este NO depende de
+ * `incluirEstimacionCompleta` ni de `incluirTablaComparativaDetallada`: el
+ * cuadro de tarjetas y la tabla comparativa detallada salen siempre que
+ * tengan sentido (un ojo con más de una estimación, o al menos un
+ * resultado intentado) — es la naturaleza de este documento, no una
+ * elección aparte. Si un día hiciera falta elegir también aquí, sería una
+ * petición nueva, no una que ya se haya hecho.
+ */
+export function generarHtmlResumen(datos: DatosInforme): string {
+  const { caso } = datos
+  const ojosDelInforme = [...new Set(datos.comparativas.map((c) => c.ojo))]
+
+  const hojasBiometria: Hoja[] = ojosDelInforme.flatMap((lado) => {
+    const aparatos = datasetsActivosDe(caso, lado).map((d) => d.aparato)
+    return aparatos.map((aparato) => hojaBiometriaAparato(caso, lado, aparato, aparatos.length > 1))
+  })
+
+  const ojosConVariasEstimaciones = ojosDelCaso(caso).filter(
+    (ojo) =>
+      datos.resultados.filter((r) => r.ojo === ojo && r.recomendada !== undefined).length > 1,
+  )
+
   const hojasDetalle = ojosDelInforme
     .map((ojo) => tablaComparativaDetallada(caso, ojo, datos.resultados))
     .filter((h): h is Hoja => h !== undefined)
 
   const hojas = [
     ...hojasBiometria,
-    ...hojasPorCasilla,
-    // El cuadro de tarjetas (D105, 29/09/2026): solo si se ha pedido la
-    // estimación completa. La tabla comparativa detallada de más abajo
-    // (`hojasDetalle`) sigue llevando la estimación propia SIEMPRE, sin
-    // excepción — es la única hoja que no depende de este interruptor.
-    ...(incluirEstimacionCompleta
-      ? ojosConVariasEstimaciones.map((ojo) => hojaResumenFinal(caso, ojo, datos.resultados))
-      : []),
+    ...ojosConVariasEstimaciones.map((ojo) => hojaResumenFinal(caso, ojo, datos.resultados)),
     ...hojasDetalle,
   ]
 

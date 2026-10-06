@@ -34,9 +34,11 @@
     "probar:lectura": "vite-node scripts/probar-lectura.ts",
     "comparar:lectores": "vite-node scripts/comparar-lectores.ts",
     "preparar:navegador-empaquetado": "node scripts/preparar-navegador-empaquetado.mjs",
-    "dist": "node scripts/preparar-navegador-empaquetado.mjs && pnpm --filter @vilamar/desktop dist"
+    "dist": "node scripts/preparar-navegador-empaquetado.mjs && pnpm --filter @vilamar/desktop dist",
+    "compartir": "node scripts/empaquetar-para-compartir.mjs"
   },
   "devDependencies": {
+    "7zip-bin": "^5.2.0",
     "@eslint/js": "^9.17.0",
     "@types/node": "^22.10.2",
     "@vilamar/domain": "workspace:^",

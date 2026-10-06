@@ -17,7 +17,8 @@ El orden de lectura al iniciar una sesión es:
 > y `docs/MANTENIMIENTO.md` (cómo reparar un adaptador cuando una cambie).
 >
 > Guía para el dueño del proyecto: `docs/GETTING-STARTED.md`. Qué significa cada
-> etapa: `docs/ESTADOS_DEL_PROYECTO.md`.
+> etapa: `docs/ESTADOS_DEL_PROYECTO.md`. Cómo dar una copia de la aplicación a
+> otra persona, en su propio ordenador: `docs/DAR-LA-APP-A-OTRO-ORDENADOR.md`.
 
 ---
 
@@ -31,10 +32,13 @@ Está en la constitución, pero se repite aquí porque es lo que define el produ
 - **No envía nada a una calculadora sin confirmación humana.**
 - **No acepta términos ni rodea protecciones** en nombre del usuario.
 - **Compara, pero no recomienda.** No dice qué lente implantar. **Única
-  excepción, estrecha y siempre marcada como «no vinculante»**: una
-  estimación propia, con un criterio clínico fijo y explícito, siempre en
-  la tabla comparativa detallada del informe —y, si se marca la casilla
-  antes de generar el PDF, también bajo cada captura de pantalla y en un
-  cuadro de tarjetas (D43/D105, ver `SYSTEM_VISION.md`) — pedida
-  expresamente por el dueño del proyecto después de que se le avisara de
-  que es justo lo que esta regla evita.
+  excepción, estrecha y siempre marcada como «no vinculante»** cuando
+  aparece: una estimación propia, con un criterio clínico fijo y
+  explícito — en la tabla comparativa detallada del informe, bajo cada
+  captura de pantalla y en un cuadro de tarjetas, cada uno con su propia
+  casilla (D43/D105/D118, ver `SYSTEM_VISION.md`) — pedida expresamente
+  por el dueño del proyecto después de que se le avisara, dos veces, de
+  que es justo lo que esta regla evita. Desde D118 (06/10/2026) ya no hay
+  un sitio garantizado donde tenga que aparecer siempre: con las tres
+  casillas apagadas, un PDF puede no llevarla en ningún lado — elección
+  consciente del dueño, avisado primero de esa consecuencia exacta.

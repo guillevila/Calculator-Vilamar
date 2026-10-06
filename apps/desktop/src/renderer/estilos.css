@@ -357,6 +357,17 @@ table.revision tr.warning {
 table.revision tr.obligatorio {
   background: var(--rojo-suave);
 }
+/* Un dato que de verdad falta y bloquea el cálculo (D117, 06/10/2026),
+   petición expresa del dueño del proyecto: se queda sin su valor entre
+   los demás, ya rojos — tiene que saltar a la vista solo. Reutiliza el
+   único pulso que tiene la interfaz, el de la prioridad Urgente de la
+   bandeja de casos, más abajo: es, igual que aquél, el aviso más caro de
+   pasar por alto. En cuanto se escribe el dato, la fila deja de ser
+   «falta» y el pulso se para solo. */
+table.revision tr.falta {
+  background: var(--rojo-suave);
+  animation: pulso-urgente 1.6s ease-in-out infinite;
+}
 
 /* Bandeja de casos: prioridad por color (petición expresa del dueño,
    16/09/2026) — Baja en verde, Normal en azul, Urgente en rojo, para

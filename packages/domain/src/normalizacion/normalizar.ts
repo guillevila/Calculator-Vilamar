@@ -113,9 +113,11 @@ export function normalizarOjo(
 }
 
 /**
- * Obtiene la ACD a partir de AQD + CCT cuando el aparato lo permite.
+ * Obtiene la ACD a partir de AQD + CCT cuando el aparato lo permite, o cuando
+ * el propio informe trae un campo llamado AQD aunque no se haya podido
+ * confirmar qué aparato es.
  *
- * Los cinco casos, y qué hace cada uno:
+ * Los seis casos, y qué hace cada uno:
  *
  *  1. **Hay ACD en el informe** → se usa esa y no se toca nada. Aunque también
  *     estén AQD y CCT: los tres datos se conservan y de comprobar que cuadran
@@ -123,9 +125,25 @@ export function normalizarOjo(
  *     creíble. Aquí no se elige entre dos valores.
  *  2. **No hay ACD, hay AQD y CCT, y el aparato lo permite** → se deriva, y
  *     queda marcada como derivada con la cuenta escrita al lado.
+ *  2b. **No hay ACD, hay AQD y CCT, y el aparato NO se ha reconocido**
+ *     (DESCONOCIDO, D116, 06/10/2026) → se deriva igual, pero avisando de
+ *     que el aparato no está confirmado. Un campo llamado literalmente «AQD»
+ *     —distinto de la ACD— es, por sí solo, la prueba: ningún otro aparato
+ *     de los que lee este programa publica ese dato con ese nombre, así que
+ *     si aparece, el informe sigue la misma convención que el ANTERION —se
+ *     reconozca o no su maqueta—. Caso real que motivó esto: `CV-2026-0299`,
+ *     una foto de WhatsApp recortada sin logotipo visible — el lector de
+ *     visión leyó bien el AQD y el CCT de los dos ojos, pero al no poder
+ *     confirmar el aparato por su maqueta, antes esto se quedaba sin
+ *     calcular: un ojo exigió escribir la ACD a mano y el otro se quedó sin
+ *     ningún valor.
  *  3. **No hay ACD, hay AQD, falta el CCT** → no se deriva. Se dice qué falta.
- *  4. **No hay ACD y el aparato no lo permite** → no se deriva. Se dice por qué,
- *     para que quien lo lea sepa que no es un fallo del programa.
+ *  4. **No hay ACD, el aparato SÍ se ha reconocido, y no lo permite**
+ *     (IOLMaster, Pentacam) → no se deriva. Se dice por qué, para que quien
+ *     lo lea sepa que no es un fallo del programa. A diferencia del caso 2b,
+ *     aquí el aparato SÍ se conoce y se sabe que su AQD —si la tuviera— no
+ *     seguiría esta misma relación: la duda no es «qué aparato es», es «este
+ *     aparato concreto no funciona así».
  *  5. **No hay ni AQD** → no hay nada que decir aquí; que falte la ACD ya lo
  *     enseña la pantalla de revisión.
  */
@@ -143,11 +161,15 @@ function derivarAcd(
   if (aqd === undefined) return { ojo, avisos: [] }
 
   const perfil = perfilDe(dispositivo)
+  // Caso 2b: el aparato no se ha confirmado, pero el propio campo AQD —que
+  // ningún otro aparato conocido publica con ese nombre— ya es la evidencia.
+  const aparatoNoConfirmado = dispositivo === 'DESCONOCIDO'
+  const puedeDerivar = perfil.acdDesdeAqdMasCct || aparatoNoConfirmado
 
   // Caso 4. Se comprueba ANTES que el CCT: si el aparato no admite la
   // derivación, que falte o no el grosor corneal es irrelevante, y decir «te
   // falta el CCT» mandaría a buscar un dato que no iba a servir de nada.
-  if (!perfil.acdDesdeAqdMasCct) {
+  if (!puedeDerivar) {
     return {
       ojo,
       avisos: [
@@ -168,7 +190,7 @@ function derivarAcd(
     }
   }
 
-  // Caso 2. La única rama que crea un dato.
+  // Caso 2 y 2b. La única rama que crea un dato.
   const exacta = aqd.valor + cctEnMm(cct.valor)
   const valor = redondearAlCampo('ACD', exacta)
 
@@ -195,13 +217,20 @@ function derivarAcd(
 
   const derivada: Medida = crearMedida('ACD', ojo.lateralidad, valor, procedencia)
 
+  // D116: en el caso 2b, el aviso deja claro que el aparato no está
+  // confirmado, para que se compruebe con más cuidado de lo normal — no es
+  // la misma certeza que un ANTERION reconocido por su maqueta.
+  const notaAparato = aparatoNoConfirmado
+    ? ' No se ha podido confirmar qué aparato es, pero el propio informe trae un dato llamado «AQD», distinto de la ACD, que solo usan aparatos como el ANTERION — compruébala con más cuidado de lo normal.'
+    : ''
+
   return {
     ojo: conMedida(ojo, derivada),
     avisos: [
       `Este informe no trae la ACD, así que se ha calculado sumando ${explicacion} = ${formatearConUnidad(
         'ACD',
         valor,
-      )}. Sale marcada como «derivada del informe»; compruébala antes de confirmar.`,
+      )}.${notaAparato} Sale marcada como «derivada del informe»; compruébala antes de confirmar.`,
     ],
   }
 }

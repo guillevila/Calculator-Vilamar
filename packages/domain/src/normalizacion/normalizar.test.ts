@@ -26,7 +26,7 @@ import { prepararEntradas } from '../modelo/preparar-entradas.js'
 import { CALCULADORAS, FICHAS } from '../modelo/calculadoras.js'
 import { validarOjo } from '../validacion/validar.js'
 import { cctEnMm, comparacionAcd, normalizarOjo, TOLERANCIA_ACD_MM } from './normalizar.js'
-import { PERFILES, perfilDe } from './perfiles.js'
+import { PERFILES } from './perfiles.js'
 
 const CUANDO = '2026-08-11T10:00:00.000Z'
 const LUEGO = '2026-08-11T10:05:00.000Z'
@@ -261,23 +261,31 @@ describe('AQD sin grosor corneal', () => {
 //  6 · La derivación depende del aparato
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('un aparato desconocido no deriva nada', () => {
-  it('con AQD y CCT y sin ACD, NO calcula la ACD', () => {
+describe('un aparato sin confirmar (D116, 06/10/2026): el campo AQD ya es la prueba', () => {
+  /**
+   * Caso real que motivó esto: CV-2026-0299, una foto de WhatsApp recortada
+   * sin logotipo visible. El lector de visión leyó bien el AQD y el CCT de
+   * los dos ojos, pero no pudo confirmar el aparato por su maqueta y dijo
+   * «DESCONOCIDO» — antes de este arreglo, eso bastaba para no calcular
+   * nada: un ojo acabó con la ACD escrita a mano y el otro sin ningún
+   * valor. Ningún otro aparato de los que lee este programa publica un dato
+   * llamado literalmente «AQD», distinto de la ACD — así que si aparece, el
+   * informe sigue esa misma convención se reconozca o no la maqueta.
+   */
+  it('con AQD y CCT y sin ACD, SÍ calcula la ACD, aunque no se sepa qué aparato es', () => {
     const r = normalizarOjo(anterionAntiguo(), 'DESCONOCIDO', LUEGO)
-
-    // Es la prueba que impide que la regla se vuelva genérica sin que nadie se
-    // dé cuenta. La suma daría 3.18 y sería plausible; da igual.
-    expect(obtener(r.ojo, 'ACD')).toBeUndefined()
+    expect(obtener(r.ojo, 'ACD')?.valor).toBeCloseTo(3.18, 2)
+    expect(esDerivado(obtener(r.ojo, 'ACD')!.procedencia)).toBe(true)
   })
 
-  it('lo dice, y dice por qué, para que no parezca un fallo del programa', () => {
+  it('el aviso deja claro que el aparato no está confirmado, para revisarla con más cuidado', () => {
     const r = normalizarOjo(anterionAntiguo(), 'DESCONOCIDO', LUEGO)
     expect(r.avisos).toHaveLength(1)
-    expect(r.avisos[0]).toContain(perfilDe('DESCONOCIDO').razonAcd)
-    expect(r.avisos[0]).toMatch(/a mano/i)
+    expect(r.avisos[0]).toMatch(/no se ha podido confirmar qué aparato/i)
+    expect(r.avisos[0]).toContain('AQD')
   })
 
-  it('ni el IOLMaster ni el Pentacam derivan', () => {
+  it('ni el IOLMaster ni el Pentacam derivan — ahí el aparato SÍ se conoce, y se sabe que no vale', () => {
     for (const dispositivo of ['IOLMASTER_700', 'PENTACAM'] as const) {
       const r = normalizarOjo(anterionAntiguo(), dispositivo, LUEGO)
       expect(obtener(r.ojo, 'ACD')).toBeUndefined()

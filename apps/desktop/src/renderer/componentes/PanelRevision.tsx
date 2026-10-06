@@ -803,14 +803,34 @@ function FilaCampo({
    * estructura; esto lo completa para el color).
    */
   const destacado = CAMPOS_DESTACADOS.includes(campo)
+
+  /**
+   * Un dato que de verdad falta y que bloquearía el cálculo (D117,
+   * 06/10/2026): ni el documento lo trajo ni nadie lo ha escrito, y al
+   * menos una calculadora no funciona sin él. Antes se veía con el mismo
+   * rojo que CUALQUIER campo «obligatorio» —diera igual que ya tuviera
+   * valor o no—, así que un único dato que faltaba entre ocho ya puestos no
+   * saltaba a la vista. Petición expresa del dueño del proyecto: «crea un
+   * aviso en modo de flash o cambio de color... para que sea más claro». Se
+   * reutiliza el único pulso que ya tiene la interfaz (`pulso-urgente`, el
+   * de la prioridad Urgente de la bandeja de casos) en vez de inventar una
+   * animación nueva — la regla de la aplicación es que nada se mueve solo,
+   * salvo el aviso más caro de pasar por alto, y que falte un dato que
+   * impide calcular es justo eso.
+   */
+  const faltaDeVerdad =
+    nivel === 'MISSING' && exigencia.nivel !== 'OPCIONAL' && exigencia.nivel !== 'INFORMATIVO'
+
   const claseFila =
     nivel === 'INVALID'
       ? 'invalid'
       : nivel === 'WARNING' || porComprobar
         ? 'warning'
-        : destacado
-          ? 'obligatorio'
-          : ''
+        : faltaDeVerdad
+          ? 'falta'
+          : destacado
+            ? 'obligatorio'
+            : ''
 
   return (
     <>
