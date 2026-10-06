@@ -20,6 +20,7 @@ import type {
   CampoBiometrico,
   Caso,
   Comparativa,
+  CriterioEsfera,
   DatoComparativo,
   Lateralidad,
   Medida,
@@ -28,6 +29,8 @@ import type {
 } from '@vilamar/domain'
 import {
   camposPresentes,
+  criterioEsferaPara,
+  datasetsActivosDe,
   definicionDe,
   describirProcedencia,
   fichaDe,
@@ -38,12 +41,54 @@ import {
   textoDeOrigen,
   loAportaElCirujano,
   ojoDe,
+  ojoPrincipalDe,
   ojosDelCaso,
   origenDe,
   describirDiscrepancia,
   discrepanciasDeConstante,
   textoEstado,
+  tieneCaraPosterior,
 } from '@vilamar/domain'
+
+/**
+ * Lo que se enseña de UNA casilla (calculadora × ojo) en el informe.
+ *
+ * Antes esto solo llevaba la captura de pantalla (`CapturaInforme`), y solo
+ * existía una entrada por casilla con éxito. Ahora hay una entrada por cada
+ * casilla INTENTADA, tenga o no resultado utilizable: el informe simplificado
+ * (`generarHtmlInforme`) necesita poder decir «Barrett no ha podido calcular:
+ * falta el WTW» en vez de omitir esa página en silencio.
+ */
+export interface ResultadoInforme {
+  readonly calculadora: Calculadora
+  readonly ojo: Lateralidad
+  /**
+   * De qué biómetro son los datos de este resultado (D47, 27/08/2026). Un
+   * caso que solo usa un aparato lleva siempre `APARATO_PRINCIPAL` aquí, así
+   * que su informe no cambia nada respecto a antes de D47.
+   */
+  readonly aparato: string
+  /** Ausente si el resultado fue de éxito pero la captura no se pudo guardar o leer. */
+  readonly dataUri?: string
+  /**
+   * La estimación PROPIA de Calculator Vilamar para esta casilla (D43) — no
+   * la opción que la calculadora haya destacado. `refraccionPrevista`,
+   * `cilindroResidual` y `ejeResidual` viajan con ella desde el 27/08/2026,
+   * para la tabla comparativa detallada del informe: son los mismos datos
+   * de la fila elegida, no un cálculo nuevo — ver `LenteEstimada` en
+   * `comparacion/recomendacion.ts`.
+   */
+  readonly recomendada?: {
+    readonly esfera: number
+    readonly cilindro?: number
+    readonly eje?: number
+    readonly refraccionPrevista?: number
+    readonly cilindroResidual?: number
+    readonly ejeResidual?: number
+  }
+  /** Por qué esta casilla no tiene un resultado utilizable, si no lo tiene. */
+  readonly fallo?: string
+}
 
 export interface DatosInforme {
   readonly caso: Caso
@@ -57,6 +102,26 @@ export interface DatosInforme {
     readonly ojo: Lateralidad
     readonly campos: readonly CampoBiometrico[]
   }[]
+  /** Lo que se enseña de cada casilla intentada, en el orden en que se enseñan. */
+  readonly resultados: readonly ResultadoInforme[]
+  /**
+   * Si la estimación propia (D43) se enseña también bajo cada captura y en
+   * su propio cuadro de tarjetas, o solo en la tabla comparativa detallada
+   * del final (D105, 29/09/2026). `true` por defecto (`recopilarInforme`):
+   * cualquier llamada antigua que no lo especifique sigue viendo el informe
+   * exactamente como antes.
+   */
+  readonly incluirEstimacionCompleta: boolean
+  /**
+   * Si la tabla comparativa detallada del final sale en el PDF normal
+   * (D118, 06/10/2026). Hasta D118 era la única hoja que se enseñaba
+   * siempre, pase lo que pase con `incluirEstimacionCompleta` — garantía
+   * que vivía en la propia constitución del proyecto. Petición expresa del
+   * dueño, con el aviso correspondiente ya dado y aceptado: ahora es una
+   * elección más, como la de arriba. `true` por defecto: una llamada
+   * antigua que no lo especifique sigue viendo el informe igual que antes.
+   */
+  readonly incluirTablaComparativaDetallada: boolean
 }
 
 /** Escapa el texto para que nada de lo que venga de fuera pueda inyectar HTML. */
@@ -274,7 +339,7 @@ function opcionesDevueltas(c: Comparativa): string {
 
     const nota = senalada
       ? `${esc(celdaComp.nombre)} ha señalado una de ellas; es la que aparece en la comparación.`
-      : `${esc(celdaComp.nombre)} no ha señalado ninguna opción preferente. La elección no la hace Calculator Vilamar.`
+      : `${esc(celdaComp.nombre)} no ha señalado ninguna opción preferente. La elección no la hace el Resumen de calculadores.`
 
     return `<div class="bloque-opciones">
       <h3>${esc(celdaComp.nombre)} · ${celdaComp.opciones.length} alternativas devueltas</h3>
@@ -373,7 +438,7 @@ function seccionAuditoria(caso: Caso): string {
   return `<section class="auditoria">
     <h2>Qué dice cada calculadora haber recibido</h2>
     <p class="nota">
-      Esto no es lo que Calculator Vilamar cree haber enviado: es lo que cada web
+      Esto no es lo que el Resumen de calculadores cree haber enviado: es lo que cada web
       ha mostrado en su propia pantalla como datos de entrada. Permite comprobar
       que entrada y resultado se corresponden.
     </p>
@@ -594,7 +659,7 @@ function bandaDeLente(datos: DatosInforme): string {
   const { caso } = datos
   const lente = caso.lente
   const primerOjo = ojosDelCaso(caso)[0]
-  const ojo = primerOjo ? ojoDe(caso, primerOjo) : undefined
+  const ojo = primerOjo ? ojoPrincipalDe(caso, primerOjo) : undefined
   const constante = ojo?.medidas.CONSTANTE_A
   const objetivo = ojo?.medidas.REFRACCION_OBJETIVO
 
@@ -640,8 +705,14 @@ function bandaDeLente(datos: DatosInforme): string {
 /** Color de cada calculadora en el diagrama y su leyenda. */
 const COLOR_CALCULADORA: Readonly<Record<Calculadora, string>> = {
   EVO_TORIC: '#0B5F68',
+  EVO_TORIC_SIN_CARA_POSTERIOR: '#0B5F68',
   BARRETT_TORIC: '#1B4C86',
+  BARRETT_TORIC_CON_CARA_POSTERIOR: '#1B4C86',
   KANE: '#5B3B8A',
+  // Misma familia de color que Barrett Toric: nunca coexisten en el mismo
+  // ojo (D67, se excluyen entre sí), así que no hay riesgo de confundirlas
+  // en el mismo diagrama.
+  BARRETT_TRUE_K_TORIC: '#1B4C86',
 }
 
 /**
@@ -955,7 +1026,7 @@ export function figuraBiometrica(ojo: OjoBiometrico): string {
 const ESTILOS = `
   /*
    * El sistema visual del informe, traído del rediseño hecho en Claude Design
-   * («Rediseño informe Calculator Vilamar», 5 hojas A4).
+   * («Rediseño del informe», 5 hojas A4).
    *
    * ⚠️ **Las fuentes NO se piden a la red.** El diseño usa IBM Plex Sans y Mono
    * desde Google Fonts; aquí no se puede, y no por comodidad: este programa es
@@ -1033,14 +1104,33 @@ const ESTILOS = `
   }
   .cab-meta .codigo { font-size: 10pt; font-weight: 600; color: var(--tinta); }
 
-  /* Cabecera menor, de las hojas 2 a 5. */
+  /*
+   * Cabecera menor, de las hojas 2 a 5.
+   *
+   * Ojo: «.titulo» necesita min-width: 0 — sin ella, un div dentro de un
+   * flex no encoge nunca por debajo del ancho de su texto, aunque el texto
+   * SÍ pueda partirse en líneas: con un título largo (un aparato o una
+   * variante de córnea posterior con nombre largo, D45), el título invadía
+   * el hueco de «.ref» en vez de ajustarse al suyo — fallo real reportado
+   * por el dueño del proyecto (20/09/2026), confirmado generando un informe
+   * de muestra y mirándolo con Playwright antes de tocar nada. «.apunte»
+   * pasa a su propia línea, debajo del título, en vez de ir pegado en la
+   * misma frase: además de arreglar el sitio, queda más claro qué es el
+   * título (qué calculadora, si la córnea posterior es estimada o medida) y
+   * qué es la nota aparte.
+   */
   .cab-menor {
-    display: flex; align-items: center; justify-content: space-between;
-    border-bottom: 1px solid var(--linea); padding-bottom: 8px;
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 16px; border-bottom: 1px solid var(--linea); padding-bottom: 8px;
   }
-  .cab-menor .titulo { font-size: 13pt; font-weight: 700; }
-  .cab-menor .apunte { font-size: 9pt; color: var(--gris); margin-left: 8px; font-weight: 400; }
+  .cab-menor .titulo {
+    flex: 1 1 auto; min-width: 0; font-size: 13pt; font-weight: 700; line-height: 1.3;
+  }
+  .cab-menor .apunte {
+    display: block; font-size: 8pt; color: var(--gris); font-weight: 400; margin-top: 2px;
+  }
   .cab-menor .ref {
+    flex-shrink: 0; white-space: nowrap; text-align: right;
     font-size: 8pt; color: var(--gris);
     font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace;
   }
@@ -1199,6 +1289,75 @@ const ESTILOS = `
   footer.principal strong { color: var(--tinta); }
 
   code { font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace; font-size: 8pt; }
+
+  /*
+   * Capturas de pantalla, tal cual — la imagen manda el tamaño, la hoja se adapta.
+   *
+   * max-height deja sitio de sobra para la cabecera, la banda del aparato
+   * (D48, cuando el ojo tiene más de uno) y el pie de página en la MISMA
+   * hoja de 297mm: 273mm de zona útil, menos ~50mm para todo lo demás en el
+   * caso más cargado. Sin este límite, una captura recortada a la zona del
+   * resultado (D71, 06/09/2026) puede acercarse mucho más a su tope que una
+   * captura de página entera —esta última casi siempre se queda corta de
+   * alto al encogerse por anchura—, y empujar el pie de página a una
+   * segunda hoja casi en blanco. Fallo real reportado por el dueño con un
+   * PDF suyo (06/09/2026, con una de las tres calculadoras): la hoja del
+   * texto «Captura sin editar...» salía sola, en la página siguiente.
+   */
+  .captura { display: flex; justify-content: center; align-items: flex-start; margin-top: 10px; }
+  .captura img { max-width: 100%; max-height: 210mm; object-fit: contain; border: 1px solid var(--linea); border-radius: 4px; }
+  .captura-ausente { color: var(--gris); font-style: italic; margin-top: 10px; }
+  .lente-recomendada { margin-top: 16px; font-size: 11pt; text-align: center; }
+  .lente-recomendada strong { font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace; }
+  .no-vinculante { font-size: 8.5pt; color: var(--gris); font-style: italic; }
+
+  /* El único párrafo de prosa que D110 (30/09/2026) trajo de vuelta tras D109 — explica el criterio de la tabla final. */
+  .aviso-no-vinculante {
+    background: #FFF7E6; border: 1px solid #F0C36D; border-radius: 6px;
+    padding: 10px 14px; font-size: 9pt; line-height: 1.5; color: #6B4E00; margin-bottom: 16px;
+  }
+  .aviso-no-vinculante strong { color: #4A3600; }
+  .tarjetas-resumen { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .tarjeta-resumen {
+    flex: 1 1 0; min-width: 46mm; max-width: 60mm; border-radius: 8px; padding: 12px;
+    text-align: center; border: 2px solid transparent; color: #fff;
+  }
+  .tarjeta-resumen.evo { background: #12506E; }
+  .tarjeta-resumen.barrett { background: #7A3E9D; }
+  .tarjeta-resumen.kane { background: #1B7F5E; }
+  .tarjeta-nombre { font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.85; }
+  .tarjeta-valor {
+    margin-top: 6px; font-size: 12pt; font-weight: 600;
+    font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  }
+  .tarjeta-sin-dato { margin-top: 6px; font-size: 9pt; font-style: italic; opacity: 0.85; }
+
+  /*
+   * El aparato, EN GRANDE, en cada hoja de un ojo con más de un biómetro
+   * (D47, 27/08/2026, petición expresa del dueño) — con un solo aparato no
+   * se pinta nunca, para que un caso de siempre no note nada distinto.
+   */
+  .banda-aparato {
+    margin-top: 10px; padding: 7px 14px; border-radius: 8px;
+    background: var(--tinta); color: #fff; text-align: center;
+    font-size: 12pt; font-weight: 700; letter-spacing: 0.02em;
+  }
+  .banda-aparato .rot {
+    display: block; font-size: 7.5pt; font-weight: 600; letter-spacing: 0.12em;
+    text-transform: uppercase; opacity: 0.7; margin-bottom: 1px;
+  }
+
+  /* La tabla comparativa detallada — un tono de fondo por aparato, para verlos agrupados de un vistazo. */
+  table.tabla-detallada { width: 100%; border-collapse: collapse; font-size: 8.3pt; }
+  table.tabla-detallada th {
+    text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--tinta);
+    font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.04em; color: var(--gris);
+  }
+  table.tabla-detallada td { padding: 6px 8px; border-bottom: 1px solid var(--linea); }
+  table.tabla-detallada td.num {
+    font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace; text-align: right;
+  }
+  table.tabla-detallada td.aparato-cel { font-weight: 600; }
 `
 
 /**
@@ -1220,12 +1379,566 @@ interface Hoja {
   readonly apunte?: string
   /** Lo que se añade al código en la referencia: « · OD». */
   readonly refExtra?: string
+  /**
+   * El aparato de esta hoja, EN GRANDE (D47, 27/08/2026) — solo cuando el
+   * ojo tiene más de uno: con un solo aparato ninguna hoja lo lleva, para
+   * que un caso de siempre no note nada distinto.
+   */
+  readonly aparatoDestacado?: string
   readonly cuerpo: string
   readonly pie: string
 }
 
 /**
- * El informe completo, una hoja A4 por sección.
+ * Numera las hojas y las convierte en el documento HTML final.
+ *
+ * Común a las dos versiones del informe (`generarHtmlInforme` y
+ * `generarHtmlInformeDetallado`): lo único que cambia entre ellas es QUÉ
+ * hojas se construyen, no cómo se numeran, se encabezan o se serializan.
+ */
+function documentoDeHojas(
+  caso: Caso,
+  version: string,
+  generadoEn: string,
+  hojas: readonly Hoja[],
+): string {
+  const total = hojas.length
+  const cuerpoDelDocumento = hojas
+    .map((h, i) => {
+      const n = i + 1
+      const ultima = n === total
+      const cabecera = h.portada
+        ? `<div class="cab">
+    <div class="cab-marca">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+        <circle cx="15" cy="15" r="14" fill="none" stroke="#12506E" stroke-width="1.6"></circle>
+        <circle cx="15" cy="15" r="5.4" fill="#12506E"></circle>
+        <path d="M3.4 15 A 13 9 0 0 1 26.6 15" fill="none" stroke="#12506E" stroke-width="1.6"></path>
+        <path d="M3.4 15 A 13 9 0 0 0 26.6 15" fill="none" stroke="#12506E" stroke-width="1.6" opacity="0.35"></path>
+      </svg>
+      <div>
+        <h1>Resumen Calculadores IOL</h1>
+        <div class="sub">Informe comparativo de cálculo de LIO</div>
+      </div>
+    </div>
+    <div class="cab-meta">
+      <div class="codigo">${esc(caso.codigo)}</div>
+      <div>${esc(fecha(generadoEn))}</div>
+      <div>versión ${esc(version)} · página ${n} de ${total}</div>
+    </div>
+  </div>`
+        : `<div class="cab-menor">
+    <div class="titulo">${esc(h.titulo ?? '')}${h.apunte ? `<span class="apunte">${esc(h.apunte)}</span>` : ''}</div>
+    <div class="ref">${esc(caso.codigo)}${esc(h.refExtra ?? '')} · página ${n} de ${total}</div>
+  </div>`
+
+      const bandaAparato = h.aparatoDestacado
+        ? `<div class="banda-aparato"><span class="rot">Aparato</span>${esc(h.aparatoDestacado)}</div>`
+        : ''
+
+      return `<section class="hoja">
+  ${cabecera}
+  ${bandaAparato}
+  ${h.cuerpo}
+  <div class="pie">${h.pie}</div>
+  ${ultima ? PIE_LEGAL : ''}
+</section>`
+    })
+    .join('\n')
+
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Resumen Calculadores IOL · ${esc(caso.codigo)}</title>
+<style>${ESTILOS}</style>
+</head>
+<body>
+${cuerpoDelDocumento}
+</body>
+</html>`
+}
+
+/**
+ * Una línea con la estimación PROPIA de Calculator Vilamar (D43) — nunca la
+ * opción que la calculadora haya destacado, aunque coincidan. Se dice así en
+ * el propio texto, para que no se confunda con lo que dice la web: eso sigue
+ * siendo, sin interpretar, la captura de pantalla de encima.
+ */
+function lenteRecomendadaTexto(recomendada: ResultadoInforme['recomendada']): string {
+  if (!recomendada) return ''
+  const partes = [`${recomendada.esfera.toFixed(2)} D`]
+  if (recomendada.cilindro !== undefined)
+    partes.push(`Cilindro ${recomendada.cilindro.toFixed(2)} D`)
+  // El eje que se enseña es el RESIDUAL —el que la propia calculadora dice
+  // que quedaría con esta opción—, no `recomendada.eje` (el meridiano
+  // corneal curvo, fijo, que usa el criterio para ELEGIR la fila, no para
+  // mostrarla). Fallo real encontrado el 01/09/2026 con un PDF real: el eje
+  // corneal es el mismo para las cinco casillas de un ojo —salía «Eje 0°»
+  // repetido cinco veces—, mientras que el que cada calculadora publica
+  // varía por calculadora y por córnea posterior sí/no, que es la
+  // información que de verdad distingue una casilla de otra.
+  if (recomendada.ejeResidual !== undefined) {
+    partes.push(`Eje ${recomendada.ejeResidual.toFixed(0)}°`)
+  }
+  return `<p class="lente-recomendada">Estimación del Resumen de calculadores <span class="no-vinculante">(no vinculante)</span>: <strong>${esc(partes.join(' · '))}</strong></p>`
+}
+
+/** Clase CSS de cada calculadora, solo para las tarjetas del cuadro final. */
+const CLASE_TARJETA: Record<Calculadora, string> = {
+  EVO_TORIC: 'evo',
+  EVO_TORIC_SIN_CARA_POSTERIOR: 'evo',
+  BARRETT_TORIC: 'barrett',
+  BARRETT_TORIC_CON_CARA_POSTERIOR: 'barrett',
+  KANE: 'kane',
+  BARRETT_TRUE_K_TORIC: 'barrett',
+}
+
+/**
+ * Si ese dataset concreto (ojo × aparato) tiene algo de córnea posterior
+ * medida — mismo criterio que usa `planificarCaso()` para decidir si
+ * tiene sentido pedirle una variante de córnea posterior (D111).
+ */
+function hayCaraPosteriorEn(caso: Caso, ojo: Lateralidad, aparato: string): boolean {
+  return tieneCaraPosterior(ojoDe(caso, ojo, aparato))
+}
+
+/**
+ * El título de cada calculadora EN EL INFORME (petición expresa del dueño,
+ * 27/08/2026): «estimado» para la variante que no manda córnea posterior
+ * medida —EVO sin ella, Barrett en «Predicted PCA»—, «con córnea posterior
+ * medida» para la que sí —EVO con ella, Barrett en «Measured PCA»—. Distinto
+ * de `fichaDe(...).nombre`, que sigue igual en el resto de la aplicación
+ * (botones de «Repetir», cabeceras de la pantalla de resultados…): esto es
+ * solo para que, en el PDF, quede clarísimo de un vistazo qué cálculo es
+ * cada hoja sin tener que leer el pie de la captura.
+ *
+ * ⚠️ **`EVO_TORIC` y `BARRETT_TORIC` (las calculadoras BASE) son ambiguas
+ * sin mirar el dato de verdad.** `EVO_TORIC` manda la córnea posterior SI el
+ * dataset la tiene, así que titularla siempre «con córnea posterior medida»
+ * mentiría en el caso normal —sin córnea posterior— donde es la única hoja
+ * de EVO que existe. Por eso necesita `hayCaraPosterior`: el sufijo solo
+ * aparece cuando de verdad hay una comparación que hacer, es decir, cuando
+ * la variante contraria (D45) también se ha calculado.
+ */
+function tituloCalculadoraInforme(calculadora: Calculadora, hayCaraPosterior: boolean): string {
+  if (calculadora === 'EVO_TORIC_SIN_CARA_POSTERIOR') return 'EVO Toric — estimado'
+  if (calculadora === 'BARRETT_TORIC_CON_CARA_POSTERIOR') {
+    return 'Barrett Toric — con córnea posterior medida'
+  }
+  if (calculadora === 'EVO_TORIC' && hayCaraPosterior)
+    return 'EVO Toric — con córnea posterior medida'
+  if (calculadora === 'BARRETT_TORIC' && hayCaraPosterior) return 'Barrett Toric — estimado'
+  return fichaDe(calculadora).nombre
+}
+
+/**
+ * Los datos de entrada de un aparato, al principio del informe (D47,
+ * 27/08/2026, petición expresa del dueño): antes de ver ningún cálculo, qué
+ * se ha usado para calcular y de dónde salió cada dato — la misma tabla que
+ * ya usa el informe detallado (`seccionEntradas`).
+ *
+ * **Sin el esquema del ojo** (`figuraBiometrica`), a diferencia del informe
+ * detallado que sí lo lleva — petición expresa del dueño del proyecto
+ * (20/09/2026): en estas primeras hojas salía pequeño, ocupaba espacio y no
+ * aportaba nada que la propia tabla no dijera ya con números. Se queda solo
+ * en `generarHtmlInformeDetallado` —el informe legado, que no genera la
+ * aplicación por defecto—, donde tiene más sitio.
+ */
+function hojaBiometriaAparato(
+  caso: Caso,
+  lado: Lateralidad,
+  aparato: string,
+  variosAparatos: boolean,
+): Hoja {
+  const ojo = ojoDe(caso, lado, aparato)
+  return {
+    titulo: `Datos de entrada · ${nombreLateralidad(lado)}`,
+    apunte: 'Lo que se ha usado para calcular',
+    refExtra: ` · ${lado}`,
+    ...(variosAparatos ? { aparatoDestacado: aparato } : {}),
+    cuerpo: seccionEntradas(caso, ojo),
+    pie: `Datos de entrada confirmados de ${esc(nombreLateralidad(lado))}${
+      variosAparatos ? ` · ${esc(aparato)}` : ''
+    }, antes de calcular.`,
+  }
+}
+
+/**
+ * Tonos para distinguir cada aparato de un vistazo en la tabla comparativa
+ * detallada (D47) — se reparten por orden de aparición, no por calculadora:
+ * es la fila la que dice de qué aparato es, no la columna.
+ */
+const TONOS_APARATO: readonly { readonly fondo: string; readonly borde: string }[] = [
+  { fondo: '#E7F3EC', borde: '#8FC7A6' },
+  { fondo: '#EAF3F8', borde: '#8FBBDA' },
+  { fondo: '#EFE8F8', borde: '#C3A6E8' },
+  { fondo: '#FDF9EF', borde: '#E0C177' },
+  { fondo: '#F7FAFC', borde: '#C2CBD3' },
+]
+
+/**
+ * El criterio fijo de la esfera (D43/D52), en palabras llanas — para
+ * explicarlo junto a la tabla comparativa detallada. Vuelto a añadir en
+ * D110 (30/09/2026): D109 lo había quitado junto con el resto de la prosa
+ * del informe, pero el dueño pidió recuperar justo este, el que explica el
+ * criterio del Resumen de calculadores — el único de los que se quitaron
+ * que sí vuelve.
+ */
+function criterioEsferaTexto(criterio: CriterioEsfera): string {
+  return criterio === 'PRIMERA_POSITIVA'
+    ? 'la primera esfera con refracción prevista positiva, la más cercana a cero'
+    : 'la primera esfera con refracción prevista negativa, la más cercana a cero'
+}
+
+/**
+ * La tabla comparativa detallada (petición expresa del dueño, 27/08/2026):
+ * una fila por casilla intentada, con el aparato, la calculadora, el ojo, la
+ * lente de la estimación propia (D43) y sus residuales — para verlo todo
+ * junto sin pasar hoja a hoja. Solo se genera si el ojo tiene algo que
+ * enseñar; con un caso vacío no aparece.
+ *
+ * ⚠️ No sustituye a nada: el detalle exacto de cada calculadora sigue en su
+ * propia hoja, con su captura sin interpretar. Esto es una lectura rápida
+ * ADEMÁS, marcada igual que el resto de estimaciones propias — opcional y
+ * no vinculante (D43).
+ *
+ * **Es la ÚNICA hoja que explica el criterio en prosa** (D109 quitó esa
+ * prosa de todo el informe el 30/09/2026; D110, el mismo día, la trajo de
+ * vuelta aquí, y solo aquí, a petición expresa del dueño — el resto de
+ * avisos en prosa que D109 quitó se quedan fuera).
+ */
+function tablaComparativaDetallada(
+  caso: Caso,
+  ojo: Lateralidad,
+  resultados: readonly ResultadoInforme[],
+): Hoja | undefined {
+  const deEsteOjo = resultados.filter((r) => r.ojo === ojo)
+  if (deEsteOjo.length === 0) return undefined
+
+  const criterio = criterioEsferaPara(caso.lente?.modelo)
+
+  // El orden de aparición es el mismo con el que ya salen las hojas
+  // (aparato a aparato): así el color de una fila coincide con el bloque de
+  // hojas que tiene encima.
+  const aparatos = [...new Set(deEsteOjo.map((r) => r.aparato))]
+  const tonoDe = (aparato: string): { readonly fondo: string; readonly borde: string } =>
+    TONOS_APARATO[aparatos.indexOf(aparato) % TONOS_APARATO.length] ?? TONOS_APARATO[0]!
+
+  const num = (v: number | undefined, sufijo = '', decimales = 2): string =>
+    v === undefined ? '<span class="na">—</span>' : `${esc(v.toFixed(decimales))}${sufijo}`
+
+  const filas = deEsteOjo
+    .map((r) => {
+      const tono = tonoDe(r.aparato)
+      const rec = r.recomendada
+      const lente = rec
+        ? `${esc(rec.esfera.toFixed(2))} D${
+            rec.cilindro !== undefined ? ` · Cil. ${esc(rec.cilindro.toFixed(2))} D` : ''
+          }`
+        : `<span class="na">${r.fallo ? 'Sin resultado' : '—'}</span>`
+      const hayCaraPosterior = hayCaraPosteriorEn(caso, r.ojo, r.aparato)
+      return `<tr style="background:${tono.fondo}">
+        <td class="aparato-cel" style="border-left:4px solid ${tono.borde}">${esc(r.aparato)}</td>
+        <td>${esc(tituloCalculadoraInforme(r.calculadora, hayCaraPosterior))}</td>
+        <td>${esc(nombreLateralidad(r.ojo))}</td>
+        <td>${lente}</td>
+        <td class="num">${num(rec?.refraccionPrevista, ' D')}</td>
+        <td class="num">${num(rec?.cilindroResidual, ' D')}</td>
+        <td class="num">${rec?.ejeResidual !== undefined ? `${esc(rec.ejeResidual.toFixed(0))}°` : '<span class="na">—</span>'}</td>
+      </tr>`
+    })
+    .join('')
+
+  return {
+    titulo: `Tabla comparativa detallada · ${nombreLateralidad(ojo)}`,
+    apunte: 'No vinculante',
+    refExtra: ` · ${ojo}`,
+    cuerpo: `<p class="aviso-no-vinculante">
+      La lente de esta tabla es una estimación propia del Resumen de calculadores, con un criterio fijo y el
+      mismo para todas las calculadoras: <strong>${esc(criterioEsferaTexto(criterio))}</strong>, y el cilindro
+      tórico más alto que sigue compartiendo el eje corneal curvo — o el primero, antes de que el eje cambie
+      de orientación.
+    </p>
+    <table class="tabla-detallada">
+      <thead>
+        <tr>
+          <th>Aparato</th><th>Calculadora</th><th>Ojo</th><th>Lente resultante</th>
+          <th>Residual esfera</th><th>Residual cilindro</th><th>Eje</th>
+        </tr>
+      </thead>
+      <tbody>${filas}</tbody>
+    </table>`,
+    pie: `Tabla comparativa detallada de ${esc(nombreLateralidad(ojo))}. No sustituye a ninguna calculadora.`,
+  }
+}
+
+/**
+ * El cuadro final: todas las estimaciones de ese ojo, lado a lado — cada
+ * calculadora (y sus variantes de córnea posterior, D45, cuando el ojo las
+ * tiene) con la suya, sin señalar ninguna como la más adecuada. Marcado
+ * siempre, sin excepción, como opcional y no vinculante (D43) — con la
+ * etiqueta «No vinculante» en el `apunte` de la cabecera, no en un párrafo
+ * aparte (D109, 30/09/2026 le quitó la prosa explicativa que tenía desde
+ * D43: el dueño pidió reducir el informe al mínimo de avisos, manteniendo
+ * la etiqueta en sí). No sustituye a ninguna calculadora ni dice qué
+ * implantar; es una lectura rápida de algo que ya está, con más detalle,
+ * en las hojas de encima.
+ */
+function hojaResumenFinal(
+  caso: Caso,
+  ojo: Lateralidad,
+  resultados: readonly ResultadoInforme[],
+): Hoja {
+  const deEsteOjo = resultados.filter((r) => r.ojo === ojo)
+  // Con un solo aparato (el caso de antes de D47) el nombre no cambia. Con
+  // varios, cada tarjeta dice de cuál es — si no, dos tarjetas de «EVO
+  // Toric» de aparatos distintos serían indistinguibles.
+  const variosAparatos = new Set(deEsteOjo.map((r) => r.aparato)).size > 1
+
+  const tarjetas = deEsteOjo
+    .map((r) => {
+      const base = tituloCalculadoraInforme(
+        r.calculadora,
+        hayCaraPosteriorEn(caso, r.ojo, r.aparato),
+      )
+      const nombre = variosAparatos ? `${base} (${r.aparato})` : base
+      const color = CLASE_TARJETA[r.calculadora]
+      if (!r.recomendada) {
+        return `<div class="tarjeta-resumen ${color}">
+      <div class="tarjeta-nombre">${esc(nombre)}</div>
+      <div class="tarjeta-sin-dato">Sin estimación para este ojo</div>
+    </div>`
+      }
+      const partes = [`${r.recomendada.esfera.toFixed(2)} D`]
+      if (r.recomendada.cilindro !== undefined) {
+        partes.push(`Cil. ${r.recomendada.cilindro.toFixed(2)} D`)
+      }
+      // Eje RESIDUAL, no el corneal fijo — mismo motivo que en `lenteRecomendadaTexto`.
+      if (r.recomendada.ejeResidual !== undefined) {
+        partes.push(`Eje ${r.recomendada.ejeResidual.toFixed(0)}°`)
+      }
+      return `<div class="tarjeta-resumen ${color}">
+      <div class="tarjeta-nombre">${esc(nombre)}</div>
+      <div class="tarjeta-valor">${esc(partes.join(' · '))}</div>
+    </div>`
+    })
+    .join('\n')
+
+  return {
+    titulo: `Comparación orientativa · ${nombreLateralidad(ojo)}`,
+    apunte: 'No vinculante',
+    refExtra: ` · ${ojo}`,
+    cuerpo: `<div class="tarjetas-resumen">${tarjetas}</div>`,
+    pie: `Cuadro comparativo orientativo de ${esc(nombreLateralidad(ojo))}. No sustituye a ninguna calculadora.`,
+  }
+}
+
+/**
+ * El informe simplificado: una hoja por casilla intentada, y nada más.
+ *
+ * Petición expresa del dueño del proyecto (25/08/2026): antes se enseñaba
+ * también la comparación, las alternativas, la biometría y la trazabilidad
+ * (ver `generarHtmlInformeDetallado`, que se conserva sin usarse). Ahora el
+ * informe que de verdad se genera lleva solo la evidencia sin interpretar
+ * —la captura tal cual— y, debajo de cada una, la estimación PROPIA de
+ * Calculator Vilamar (D43) — nunca lo que la web destacó, aunque coincidan.
+ * Una casilla que no llegó a tener resultado no se omite en silencio: lleva
+ * su propio aviso explicando por qué. Si algún ojo tiene más de una
+ * estimación, el informe cierra con un cuadro comparativo de ese ojo,
+ * siempre marcado como opcional y no vinculante.
+ *
+ * **`datos.incluirEstimacionCompleta`** (D105, 29/09/2026): si es `false`,
+ * la estimación propia deja de enseñarse bajo cada captura y como su propio
+ * cuadro de tarjetas — las capturas se enseñan igual, tal cual, solas.
+ *
+ * **`datos.incluirTablaComparativaDetallada`** (D118, 06/10/2026): si es
+ * `false`, la tabla comparativa detallada del final tampoco sale. Hasta
+ * D118 esa tabla era la única hoja que se enseñaba SIEMPRE, sin depender de
+ * ningún interruptor — garantía escrita en la propia constitución del
+ * proyecto (D43). Petición expresa del dueño, avisado primero de lo que
+ * implicaba —con las dos casillas apagadas y sin generar el informe de
+ * resumen aparte (`generarHtmlResumen`, D118), el PDF normal puede quedar
+ * sin ningún rastro de la estimación propia—: lo pidió de todos modos,
+ * «quiero ser yo el que decida». Deja de ser una garantía incondicional y
+ * pasa a ser una elección más, como la de arriba.
+ *
+ * **Avisos reducidos al mínimo** (D109, 30/09/2026): todo el informe lleva
+ * un único párrafo de aviso legal, al final (`PIE_LEGAL`) — petición
+ * expresa del dueño del proyecto, que pidió quitar toda la demás prosa
+ * explicando el criterio de la estimación propia o el alcance del informe.
+ * La etiqueta «No vinculante» se conserva, pero solo como apunte corto en
+ * la cabecera de cada hoja que corresponda, o pegada al valor bajo cada
+ * captura — nunca ya como un párrafo aparte, salvo la ÚNICA excepción de
+ * abajo.
+ *
+ * **Salvo una** (D110, mismo día): el párrafo que explica el criterio de
+ * la esfera, en `tablaComparativaDetallada`, volvió — a petición expresa
+ * del dueño, después de D109. Es el único párrafo de prosa que queda en
+ * todo el informe, aparte del aviso legal del final.
+ */
+export function generarHtmlInforme(datos: DatosInforme): string {
+  const { caso, incluirEstimacionCompleta, incluirTablaComparativaDetallada } = datos
+
+  // Qué ojo(s) cubre este informe concreto — en el flujo real siempre uno
+  // (`generarPdf()` llama a esto una vez por ojo, D47), pero no se supone:
+  // se lee de `comparativas`, que ya viene filtrada por `soloOjo` si tocaba.
+  const ojosDelInforme = [...new Set(datos.comparativas.map((c) => c.ojo))]
+
+  // Los datos de entrada de cada aparato, al principio del informe (D47,
+  // petición expresa del dueño): antes de cualquier cálculo, qué se ha
+  // usado. Con un solo aparato por ojo no cambia nada de lo que ya había:
+  // una hoja de biometría por ojo, como el informe siempre pudo enseñar.
+  const hojasBiometria: Hoja[] = ojosDelInforme.flatMap((lado) => {
+    // Un aparato excluido (D100, 24/09/2026) no saca hoja de datos de
+    // entrada — es justo el motivo por el que se pidió poder excluirlo.
+    const aparatos = datasetsActivosDe(caso, lado).map((d) => d.aparato)
+    return aparatos.map((aparato) => hojaBiometriaAparato(caso, lado, aparato, aparatos.length > 1))
+  })
+
+  const hojasPorCasilla: Hoja[] =
+    datos.resultados.length === 0
+      ? [
+          {
+            titulo: 'Sin resultados',
+            cuerpo: `<p class="captura-ausente">Este caso no tiene ningún resultado calculado todavía.</p>`,
+            pie: 'Genera el informe después de calcular con al menos una calculadora.',
+          },
+        ]
+      : datos.resultados.map((r) => {
+          // Aparato a aparato (petición expresa del dueño, 27/08/2026): las
+          // hojas ya llegan en ese orden desde `recopilarResultadosParaInforme`
+          // — aquí solo se decide si hace falta la banda grande del aparato,
+          // que con uno solo no se pinta nunca. Cuenta solo los ACTIVOS
+          // (D100): con dos aparatos pero uno excluido, ya no hace falta la
+          // banda — solo va a salir uno.
+          const variosAparatos = datasetsActivosDe(caso, r.ojo).length > 1
+          // El título es SOLO la calculadora, con su variante de córnea
+          // posterior si aplica (p. ej. «Barrett Toric — con córnea
+          // posterior medida») — nada más. El ojo y el aparato ya se ven
+          // aparte (`.ref`, a la derecha, y la banda grande de abajo si hay
+          // varios aparatos), así que repetirlos aquí solo alargaba una
+          // línea que ya tenía que decir de qué calculadora es y si la
+          // córnea posterior es estimada o medida — lo que de verdad hace
+          // falta ver claro de un vistazo (petición expresa del dueño,
+          // 20/09/2026).
+          const nombre = tituloCalculadoraInforme(
+            r.calculadora,
+            hayCaraPosteriorEn(caso, r.ojo, r.aparato),
+          )
+          const comun = variosAparatos ? { aparatoDestacado: r.aparato } : {}
+
+          if (r.fallo !== undefined) {
+            return {
+              ...comun,
+              titulo: nombre,
+              apunte: 'No se pudo calcular',
+              refExtra: ` · ${r.ojo}`,
+              cuerpo: `<p class="captura-ausente">${esc(r.fallo)}</p>`,
+              pie: `${esc(nombre)} no ha podido calcular para este ojo. Las demás calculadoras y ojos no se ven afectados.`,
+            }
+          }
+
+          return {
+            ...comun,
+            titulo: nombre,
+            apunte: 'Captura de pantalla · tal cual la devolvió la web, sin recortar',
+            refExtra: ` · ${r.ojo}`,
+            cuerpo: `${
+              r.dataUri
+                ? `<div class="captura"><img src="${esc(r.dataUri)}" alt="Captura de ${esc(nombre)}, ${esc(r.ojo)}"></div>`
+                : `<p class="captura-ausente">No se pudo guardar la captura de pantalla de este resultado.</p>`
+            }${incluirEstimacionCompleta ? lenteRecomendadaTexto(r.recomendada) : ''}`,
+            pie: `Captura sin editar de la pantalla de resultado de ${esc(nombre)}.`,
+          }
+        })
+
+  // El cuadro final enseña todas las casillas del caso — las tres
+  // calculadoras y, si el ojo tiene córnea posterior medida (D45), también
+  // sus variantes de EVO y Barrett — y solo si ese ojo tiene más de una
+  // estimación que poner una al lado de otra.
+  const ojosConVariasEstimaciones = ojosDelCaso(caso).filter(
+    (ojo) =>
+      datos.resultados.filter((r) => r.ojo === ojo && r.recomendada !== undefined).length > 1,
+  )
+
+  // La tabla comparativa detallada (petición expresa del dueño, 27/08/2026):
+  // solo tiene sentido con al menos un resultado intentado. Desde D118
+  // (06/10/2026) es, además, opcional: si `incluirTablaComparativaDetallada`
+  // es `false`, no se calcula ni se incluye.
+  const hojasDetalle = incluirTablaComparativaDetallada
+    ? ojosDelInforme
+        .map((ojo) => tablaComparativaDetallada(caso, ojo, datos.resultados))
+        .filter((h): h is Hoja => h !== undefined)
+    : []
+
+  const hojas = [
+    ...hojasBiometria,
+    ...hojasPorCasilla,
+    // El cuadro de tarjetas (D105, 29/09/2026): solo si se ha pedido la
+    // estimación completa.
+    ...(incluirEstimacionCompleta
+      ? ojosConVariasEstimaciones.map((ojo) => hojaResumenFinal(caso, ojo, datos.resultados))
+      : []),
+    ...hojasDetalle,
+  ]
+
+  return documentoDeHojas(caso, datos.version, datos.generadoEn, hojas)
+}
+
+/**
+ * El informe-resumen, sin ninguna captura de pantalla (D118, 06/10/2026).
+ *
+ * Petición expresa del dueño del proyecto: un tercer documento, aparte del
+ * normal, con los datos de entrada, el cuadro de tarjetas y la tabla
+ * comparativa detallada — todo lo que es dato organizado o cálculo propio,
+ * nada que sea una captura de la web ajena. Pensado para compartir con
+ * alguien que solo necesita ver los números, no la pantalla de cada
+ * calculadora.
+ *
+ * A diferencia de `generarHtmlInforme`, este NO depende de
+ * `incluirEstimacionCompleta` ni de `incluirTablaComparativaDetallada`: el
+ * cuadro de tarjetas y la tabla comparativa detallada salen siempre que
+ * tengan sentido (un ojo con más de una estimación, o al menos un
+ * resultado intentado) — es la naturaleza de este documento, no una
+ * elección aparte. Si un día hiciera falta elegir también aquí, sería una
+ * petición nueva, no una que ya se haya hecho.
+ */
+export function generarHtmlResumen(datos: DatosInforme): string {
+  const { caso } = datos
+  const ojosDelInforme = [...new Set(datos.comparativas.map((c) => c.ojo))]
+
+  const hojasBiometria: Hoja[] = ojosDelInforme.flatMap((lado) => {
+    const aparatos = datasetsActivosDe(caso, lado).map((d) => d.aparato)
+    return aparatos.map((aparato) => hojaBiometriaAparato(caso, lado, aparato, aparatos.length > 1))
+  })
+
+  const ojosConVariasEstimaciones = ojosDelCaso(caso).filter(
+    (ojo) =>
+      datos.resultados.filter((r) => r.ojo === ojo && r.recomendada !== undefined).length > 1,
+  )
+
+  const hojasDetalle = ojosDelInforme
+    .map((ojo) => tablaComparativaDetallada(caso, ojo, datos.resultados))
+    .filter((h): h is Hoja => h !== undefined)
+
+  const hojas = [
+    ...hojasBiometria,
+    ...ojosConVariasEstimaciones.map((ojo) => hojaResumenFinal(caso, ojo, datos.resultados)),
+    ...hojasDetalle,
+  ]
+
+  return documentoDeHojas(caso, datos.version, datos.generadoEn, hojas)
+}
+
+/**
+ * El informe detallado, con comparación, alternativas, biometría y
+ * trazabilidad. Una hoja A4 por sección.
+ *
+ * **No se usa por defecto** (ver `generarHtmlInforme`, la versión que de
+ * verdad genera la aplicación) — se conserva porque es una feature ya
+ * fusionada a `master` en una sesión anterior y no cuesta nada mantenerla
+ * disponible por si se quiere recuperar.
  *
  * El reparto NO es fijo: se construye según lo que tenga el caso, y cada hoja
  * lleva una cosa para que quepa. Con dos ojos y tres calculadoras salen nueve:
@@ -1242,10 +1955,30 @@ interface Hoja {
  * Las hojas de alternativas **solo salen si hay alternativas**, y la de biometría
  * es por ojo: juntar los dos era lo que desbordaba la página.
  */
-export function generarHtmlInforme(datos: DatosInforme): string {
+export function generarHtmlInformeDetallado(datos: DatosInforme): string {
   const { caso } = datos
   const ojos = ojosDelCaso(caso)
   const hojas: Hoja[] = []
+
+  // ── 0 · Las capturas de pantalla, tal cual las devolvió cada web ─────────
+  //
+  // Van primero porque son la evidencia sin interpretar: antes de que el
+  // programa resuma o compare nada, quien lee el informe puede ver la
+  // pantalla real de cada calculadora. El resto —portada, comparación,
+  // alternativas, biometría, trazabilidad— sigue exactamente igual, después.
+  // Solo las casillas con un resultado de verdad: una que ni se intentó no
+  // tenía hueco aquí antes de que existiera `fallo`, y no lo gana ahora.
+  for (const cap of datos.resultados.filter((r) => r.fallo === undefined)) {
+    hojas.push({
+      titulo: `${fichaDe(cap.calculadora).nombre} · ${nombreLateralidad(cap.ojo)} · Captura de pantalla`,
+      apunte: 'Tal cual la devolvió la web, sin recortar',
+      refExtra: ` · ${cap.ojo}`,
+      cuerpo: cap.dataUri
+        ? `<div class="captura"><img src="${esc(cap.dataUri)}" alt="Captura de ${esc(fichaDe(cap.calculadora).nombre)}, ${esc(cap.ojo)}"></div>`
+        : `<p class="captura-ausente">No se pudo guardar la captura de pantalla de este resultado. El resultado en sí se conserva en las páginas siguientes.</p>`,
+      pie: `Captura sin editar de la pantalla de resultado de ${esc(fichaDe(cap.calculadora).nombre)}. El resumen comparativo empieza en la página siguiente.`,
+    })
+  }
 
   // ── 1 · Portada ──────────────────────────────────────────────────────────
   hojas.push({
@@ -1267,7 +2000,7 @@ export function generarHtmlInforme(datos: DatosInforme): string {
       titulo: `${c.ojo} · ${nombreLateralidad(c.ojo)}`,
       apunte: 'Resultado por calculadora',
       refExtra: ` · ${c.ojo}`,
-      cuerpo: `${diagramaDeEje(c, ojoDe(caso, c.ojo))}
+      cuerpo: `${diagramaDeEje(c, ojoPrincipalDe(caso, c.ojo))}
   ${tablaComparativa(c)}`,
       pie: `Los valores son los devueltos por cada web, sin transformación. Una casilla
       con «Ver alternativas» significa que la calculadora ha devuelto varias y no ha
@@ -1288,7 +2021,7 @@ export function generarHtmlInforme(datos: DatosInforme): string {
       refExtra: ` · ${c.ojo}`,
       cuerpo: detalle,
       pie: `Cuando una calculadora no señala ninguna opción, la elección es de quien
-      opera. Calculator Vilamar no elige, ni la de menor cilindro residual.`,
+      opera. El Resumen de calculadores no elige, ni la de menor cilindro residual.`,
     })
   }
 
@@ -1301,8 +2034,8 @@ export function generarHtmlInforme(datos: DatosInforme): string {
       titulo: `Biometría confirmada · ${nombreLateralidad(l)}`,
       apunte: 'Cada dato, con su origen',
       refExtra: ` · ${l}`,
-      cuerpo: `${figuraBiometrica(ojoDe(caso, l))}
-  ${seccionEntradas(caso, ojoDe(caso, l))}`,
+      cuerpo: `${figuraBiometrica(ojoPrincipalDe(caso, l))}
+  ${seccionEntradas(caso, ojoPrincipalDe(caso, l))}`,
       pie: `«Del informe» lo leyó el programa del documento. «Derivado del informe» lo
       calculó a partir de otros datos suyos, y lleva la cuenta escrita. «Aportado» y
       «Corregido» los escribió una persona. Un dato que falta se dice como ausente:
@@ -1325,78 +2058,34 @@ export function generarHtmlInforme(datos: DatosInforme): string {
     // comprueba que el cuerpo no lleva ninguno.
   })
 
-  const total = hojas.length
-  const cuerpoDelDocumento = hojas
-    .map((h, i) => {
-      const n = i + 1
-      const ultima = n === total
-      const cabecera = h.portada
-        ? `<div class="cab">
-    <div class="cab-marca">
-      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
-        <circle cx="15" cy="15" r="14" fill="none" stroke="#12506E" stroke-width="1.6"></circle>
-        <circle cx="15" cy="15" r="5.4" fill="#12506E"></circle>
-        <path d="M3.4 15 A 13 9 0 0 1 26.6 15" fill="none" stroke="#12506E" stroke-width="1.6"></path>
-        <path d="M3.4 15 A 13 9 0 0 0 26.6 15" fill="none" stroke="#12506E" stroke-width="1.6" opacity="0.35"></path>
-      </svg>
-      <div>
-        <h1>Calculator Vilamar</h1>
-        <div class="sub">Informe comparativo de cálculo de LIO</div>
-      </div>
-    </div>
-    <div class="cab-meta">
-      <div class="codigo">${esc(caso.codigo)}</div>
-      <div>${esc(fecha(datos.generadoEn))}</div>
-      <div>versión ${esc(datos.version)} · página ${n} de ${total}</div>
-    </div>
-  </div>`
-        : `<div class="cab-menor">
-    <div class="titulo">${esc(h.titulo ?? '')}${h.apunte ? `<span class="apunte">${esc(h.apunte)}</span>` : ''}</div>
-    <div class="ref">${esc(caso.codigo)}${esc(h.refExtra ?? '')} · página ${n} de ${total}</div>
-  </div>`
-
-      return `<section class="hoja">
-  ${cabecera}
-  ${h.cuerpo}
-  <div class="pie">${h.pie}</div>
-  ${ultima ? PIE_LEGAL : ''}
-</section>`
-    })
-    .join('\n')
-
-  return `<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<title>Calculator Vilamar · ${esc(caso.codigo)}</title>
-<style>${ESTILOS}</style>
-</head>
-<body>
-${cuerpoDelDocumento}
-</body>
-</html>`
+  return documentoDeHojas(caso, datos.version, datos.generadoEn, hojas)
 }
 
 /**
- * El aviso legal y el de privacidad, al final del documento.
+ * El aviso legal, al final del documento — reducido a un único párrafo
+ * (D109, 30/09/2026), petición expresa del dueño del proyecto: quitar
+ * todos los avisos del informe salvo este. El segundo párrafo que había
+ * antes («este documento no contiene el nombre, la fecha de nacimiento…»)
+ * se quitó también, a petición suya: la protección real —que esos datos
+ * nunca lleguen al documento— no depende de decirlo aquí, vive en el
+ * modelo de datos (D23, D44).
  *
- * Va en un `<footer>` a propósito: la comprobación de que el informe no lleva datos
- * identificativos recorre el cuerpo SIN el pie, y la frase que nombra los datos
- * excluidos tiene que quedar fuera de ese recorrido para no darla por encontrada.
+ * Va en un `<footer>` a propósito: la comprobación de que el informe no
+ * lleva datos identificativos recorre el cuerpo SIN el pie — sigue siendo
+ * así aunque ahora este párrafo no nombre ningún dato excluido, por si
+ * algún día vuelve a llevar uno.
  */
 const PIE_LEGAL = `<footer class="principal">
     <p>
-      Los resultados de este informe <strong>proceden de las calculadoras externas</strong>
-      Kane (iolformula.com), EVO Toric (evoiolcalculator.com) y Barrett Toric
-      (ASCRS/APACRS). <strong>Calculator Vilamar no calcula potencias de lente</strong>
-      por su cuenta y <strong>no emite ninguna recomendación clínica</strong>: recoge lo
-      que devuelve cada web y lo presenta junto. Cuando las calculadoras no coinciden se
-      enseña el rango de lo que han devuelto, nunca un valor intermedio calculado por
-      este programa. La decisión de qué lente implantar es del cirujano.
-    </p>
-    <p>
-      Este documento <strong>no contiene el nombre, la fecha de nacimiento ni el número
-      de historia</strong> del paciente: el caso se identifica solo por su código local.
-      Se ha generado en este ordenador, sin enviar nada a ningún servidor.
+      Este documento es únicamente un <strong>organizador de cálculos</strong>. Los
+      resultados <strong>proceden de las calculadoras externas</strong> Kane
+      (iolformula.com), EVO Toric (evoiolcalculator.com) y Barrett Toric
+      (ASCRS/APACRS): el Resumen de calculadores <strong>no calcula ninguna potencia de
+      lente</strong> por su cuenta, <strong>no emite ninguna recomendación clínica</strong>,
+      y no interpreta ni corrige lo que cada web devuelve — se limita a introducir los
+      datos, capturar la pantalla de cada resultado tal cual y presentarlos juntos.
+      <strong>No está destinado a servir de instrucción médica ni quirúrgica.</strong> La
+      decisión de qué lente implantar, y el análisis de cada resultado mostrado, son
+      <strong>responsabilidad exclusiva del oftalmólogo</strong> que opera.
     </p>
   </footer>`

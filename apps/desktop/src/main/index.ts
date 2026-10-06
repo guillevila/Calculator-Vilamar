@@ -6,16 +6,18 @@
  * Playwright: todo pasa por aquí, con `contextIsolation` puesto.
  */
 
-import { readFileSync } from 'node:fs'
+import { appendFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import type { Lateralidad } from '@vilamar/domain'
 import type { Browser } from 'playwright'
 
 import type { ArchivoEntrante, EstadoCalculo } from '../compartido/ipc.js'
 import { CANALES } from '../compartido/ipc.js'
-import { prepararCarpetas } from './almacen.js'
+import { nuevoId, prepararCarpetas } from './almacen.js'
+import { crearAlmacenCapturas } from './capturas.js'
 import { crearDiagnosticador } from './diagnostico.js'
 import { crearMotorOcr } from './extraccion/ocr.js'
 import { crearLectorPdf } from './extraccion/lector-pdf.js'
@@ -23,7 +25,10 @@ import { crearRasterizador } from './extraccion/rasterizador.js'
 import { ProveedorDocumentos } from './extraccion/proveedor.js'
 import { crearLectorVision } from './extraccion/vision-claude.js'
 import { cargarEnv } from './ajustes.js'
+import { ServicioBandeja } from './servicio-bandeja.js'
 import { ServicioCasos } from './servicio-casos.js'
+import { ServicioDoctores } from './servicio-doctores.js'
+import { ServicioLaboratorios } from './servicio-laboratorios.js'
 
 const carpetaActual = join(fileURLToPath(import.meta.url), '..')
 
@@ -39,16 +44,39 @@ const carpetaActual = join(fileURLToPath(import.meta.url), '..')
  */
 app.setName('calculator-vilamar')
 
-/** La versión que se enseña en la pantalla y en el PDF. */
+/**
+ * Cuando la aplicación está empaquetada (`pnpm dist`), Playwright no puede
+ * usar el Chromium del ordenador de quien la desarrolló — no existe en el
+ * ordenador de quien la instala. `scripts/preparar-navegador-empaquetado.mjs`
+ * descarga su propio Chromium dentro de `resources/playwright-browsers` en
+ * el momento de empaquetar, y `electron-builder` lo copia junto al resto de
+ * la aplicación (`build.extraResources`, en `package.json`). Esta línea le
+ * dice a Playwright que lo busque ahí — nunca en la caché global del
+ * sistema, que en el ordenador de destino no existe — antes de que
+ * `abrirNavegador()` lo necesite. En desarrollo (`pnpm dev`) no se toca
+ * nada: sigue usando la caché de siempre, la que deja `pnpm playwright:install`.
+ */
+if (app.isPackaged) {
+  process.env['PLAYWRIGHT_BROWSERS_PATH'] = join(process.resourcesPath, 'playwright-browsers')
+}
+
+/**
+ * La versión que se enseña en la pantalla (barra superior) y en el PDF —
+ * para que el dueño del proyecto vea de un vistazo si está en la última
+ * actualización. A propósito NO es el `version` de `package.json` (ese es
+ * el número técnico que usa `electron-builder`, y npm exige que tenga forma
+ * de semver: «0.1.0», nunca «1.01»): esto es un contador propio y más
+ * simple, pensado para leerse sin conocimientos técnicos.
+ *
+ * Convención (pedida por el dueño el 15/09/2026): empieza en 1.01 y sube de
+ * 0.01 en cada actualización que se le entrega — 1.01, 1.02, 1.03… Subir
+ * este número es lo ÚLTIMO que se hace al cerrar un cambio en la aplicación
+ * de escritorio, justo antes de avisar de que está listo para probar.
+ */
+const VERSION_VISIBLE = '1.37'
+
 function versionDelProducto(): string {
-  try {
-    const paquete = JSON.parse(
-      readFileSync(join(carpetaActual, '..', '..', 'package.json'), 'utf8'),
-    ) as { version?: string }
-    return paquete.version ?? app.getVersion()
-  } catch {
-    return app.getVersion()
-  }
+  return VERSION_VISIBLE
 }
 
 let ventana: BrowserWindow | null = null
@@ -106,14 +134,26 @@ function enviarAlaInterfaz(canal: string, carga: unknown): void {
  *
  * Se usa una ventana oculta y `printToPDF`. Así no hace falta ninguna librería
  * de PDF ni nada que compile.
+ *
+ * ⚠️ **El HTML se escribe a un fichero temporal y se carga con `loadFile`, no
+ * con una URL `data:`.** Antes se metía el HTML entero, codificado, en la
+ * propia URL (`data:text/html;charset=utf-8,...`) — funcionaba mientras el
+ * informe era pequeño, pero Chromium **rechaza cualquier URL de más de
+ * 2 097 152 caracteres** con `ERR_INVALID_URL` (-300), sin margen ni aviso
+ * previo. Un informe de un ojo con varios biómetros (D47) junta varias
+ * capturas de pantalla en base64 en el mismo HTML y lo cruza sin esfuerzo.
+ * Un fichero no tiene ese límite: solo la ruta viaja por la URL.
  */
 async function imprimirPdf(html: string, destino: string): Promise<void> {
   const oculta = new BrowserWindow({
     show: false,
     webPreferences: { offscreen: true, javascript: false },
   })
+  const { writeFileSync, unlinkSync } = await import('node:fs')
+  const rutaTemporal = `${destino}.tmp.html`
   try {
-    await oculta.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+    writeFileSync(rutaTemporal, html, 'utf-8')
+    await oculta.loadFile(rutaTemporal)
     // Un respiro para que termine de maquetar antes de imprimir.
     await new Promise((r) => setTimeout(r, 400))
     const pdf = await oculta.webContents.printToPDF({
@@ -131,10 +171,14 @@ async function imprimirPdf(html: string, destino: string): Promise<void> {
       // detrás de cada una.
       margins: { top: 0, bottom: 0, left: 0, right: 0 },
     })
-    const { writeFileSync } = await import('node:fs')
     writeFileSync(destino, pdf)
   } finally {
     oculta.destroy()
+    try {
+      unlinkSync(rutaTemporal)
+    } catch {
+      // No llegó a crearse, o ya se limpió. No es un fallo del PDF.
+    }
   }
 }
 
@@ -187,7 +231,7 @@ function crearVentana(): void {
     minHeight: 680,
     backgroundColor: '#F5F7FA',
     title: 'Calculator Vilamar',
-    show: false,
+    show: true,
     webPreferences: {
       preload: join(carpetaActual, '..', 'preload', 'index.mjs'),
       contextIsolation: true,
@@ -195,8 +239,6 @@ function crearVentana(): void {
       sandbox: false,
     },
   })
-
-  ventana.once('ready-to-show', () => ventana?.show())
 
   ventana.webContents.setWindowOpenHandler(({ url }) => {
     // Nada se abre dentro de la aplicación: los enlaces van al navegador.
@@ -209,10 +251,33 @@ function crearVentana(): void {
   } else {
     void ventana.loadFile(join(carpetaActual, '..', 'renderer', 'index.html'))
   }
+
+  ventana.show()
+  ventana.focus()
+}
+
+/**
+ * Registro de ejecución de cálculo (D113, 02/10/2026): un hilo de texto, uno
+ * por línea, de cada cambio de fase y de cada resultado que llega durante un
+ * cálculo. Existe porque el dueño del proyecto reportó que EVO a veces «no
+ * se lanza» —ni siquiera llega a fallar con un aviso— y ese caso concreto no
+ * deja ningún rastro en el diagnóstico de D112: ese solo se guarda cuando el
+ * adaptador SÍ llega a lanzarse y falla dentro. La próxima vez que ocurra,
+ * este registro dirá si la tarea llegó a empezar (fase NAVEGANDO) y hasta
+ * dónde llegó antes de quedarse callada.
+ */
+function registrar(carpetas: ReturnType<typeof prepararCarpetas>, linea: string): void {
+  try {
+    const ruta = join(carpetas.raiz, 'registro-calculo.log')
+    appendFileSync(ruta, `${new Date().toISOString()} ${linea}\n`)
+  } catch {
+    // Un fallo escribiendo el registro no puede tirar el cálculo.
+  }
 }
 
 function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   const version = versionDelProducto()
+  const ultimoEstadoPorCasilla = new Map<string, string>()
 
   // Antes que nada: si hay un `.env`, se carga. Tiene que ir aquí arriba porque
   // el lector de visión mira `ANTHROPIC_API_KEY` al construirse, y una clave
@@ -236,13 +301,32 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
     proveedor,
     lectorVision,
     diagnosticador: crearDiagnosticador(carpetas.diagnostico),
+    capturas: crearAlmacenCapturas(carpetas.capturas),
     version,
     ahora: () => new Date(),
     abrirNavegador: (conVentana) => abrirNavegador(conVentana, carpetas.sesiones),
     imprimirPdf,
-    emitirProgreso: (estado: EstadoCalculo) => enviarAlaInterfaz(CANALES.progreso, estado),
-    emitirCaso: (caso) => enviarAlaInterfaz(CANALES.casoCambiado, caso),
+    emitirProgreso: (estado: EstadoCalculo) => {
+      registrar(
+        carpetas,
+        `progreso ${estado.calculadora} ${estado.ojo} fase=${estado.fase} "${estado.mensaje}"`,
+      )
+      enviarAlaInterfaz(CANALES.progreso, estado)
+    },
+    emitirCaso: (caso) => {
+      for (const [clave, resultado] of Object.entries(caso.resultados)) {
+        if (ultimoEstadoPorCasilla.get(clave) !== resultado.estado) {
+          ultimoEstadoPorCasilla.set(clave, resultado.estado)
+          registrar(carpetas, `resultado ${clave} -> ${resultado.estado}`)
+        }
+      }
+      enviarAlaInterfaz(CANALES.casoCambiado, caso)
+    },
   })
+
+  const doctores = new ServicioDoctores({ carpetas, nuevoId })
+  const laboratorios = new ServicioLaboratorios({ carpetas, nuevoId })
+  const bandeja = new ServicioBandeja({ carpetas, nuevoId, ahora: () => new Date() })
 
   const s = (): ServicioCasos => {
     if (!servicio) throw new Error('El servicio todavía no está listo.')
@@ -252,6 +336,19 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   ipcMain.handle(CANALES.version, () => version)
   ipcMain.handle(CANALES.casoNuevo, () => s().nuevo())
   ipcMain.handle(CANALES.casoActual, () => s().obtener())
+  ipcMain.handle(CANALES.listarCasosGuardados, () => s().listarCasosGuardados())
+  ipcMain.handle(CANALES.abrirCaso, (_e, codigo) => s().abrirCaso(codigo))
+  ipcMain.handle(CANALES.resumenDashboard, (_e, rango) => s().resumenDashboard(rango))
+  ipcMain.handle(CANALES.listarDoctoresExcluidosDeEstadisticas, () => s().listarDoctoresExcluidos())
+  ipcMain.handle(CANALES.excluirDoctorDeEstadisticas, (_e, nombre) =>
+    s().excluirDoctorDeEstadisticas(nombre),
+  )
+  ipcMain.handle(CANALES.incluirDoctorEnEstadisticas, (_e, nombre) =>
+    s().incluirDoctorEnEstadisticas(nombre),
+  )
+  ipcMain.handle(CANALES.eliminarCasosDeDoctor, (_e, nombre, rango) =>
+    s().eliminarCasosDeDoctor(nombre, rango),
+  )
 
   /** Convierte rutas en documentos leídos del disco. El contenido no sale de aquí. */
   const desdeRutas = (rutas: readonly string[]): ArchivoEntrante[] =>
@@ -278,28 +375,142 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
     return s().cargarDocumentos(desdeRutas(r.filePaths))
   })
 
-  ipcMain.handle(CANALES.editarMedida, (_e, ojo, campo, valor) =>
-    s().editarMedida(ojo, campo, valor),
+  ipcMain.handle(CANALES.editarMedida, (_e, ojo, campo, valor, aparato) =>
+    s().editarMedida(ojo, campo, valor, aparato),
   )
-  ipcMain.handle(CANALES.confirmarCampo, (_e, ojo, campo) => s().confirmarCampo(ojo, campo))
+  ipcMain.handle(CANALES.establecerIdentificacion, (_e, datos) =>
+    s().establecerIdentificacion(datos),
+  )
+  ipcMain.handle(CANALES.listarDoctores, () => doctores.listar())
+  ipcMain.handle(CANALES.guardarDoctor, (_e, datos) => doctores.guardar(datos))
+  ipcMain.handle(CANALES.eliminarDoctor, (_e, id) => doctores.eliminar(id))
+  ipcMain.handle(CANALES.aplicarDoctor, (_e, id: string) => {
+    const doctor = doctores.obtener(id)
+    if (!doctor) throw new Error('Ese doctor ya no está guardado.')
+    return s().aplicarDoctor(doctor)
+  })
+  ipcMain.handle(CANALES.listarLaboratorios, () => laboratorios.listar())
+  ipcMain.handle(CANALES.guardarLaboratorio, (_e, datos) => laboratorios.guardar(datos))
+  ipcMain.handle(CANALES.eliminarLaboratorio, (_e, id) => laboratorios.eliminar(id))
+  ipcMain.handle(CANALES.guardarPedidoLente, (_e, lado, datos) =>
+    s().guardarPedidoLente(lado, datos),
+  )
+  /**
+   * Abre el programa de correo con el pedido ya redactado (D93, 20/09/2026)
+   * — nunca se manda solo. `ServicioCasos` construye el texto sin depender
+   * de `ServicioLaboratorios` (igual que `aplicarDoctor` no depende de
+   * `ServicioDoctores`); el email de destino se resuelve aquí, mirando el
+   * fabricante del pedido guardado.
+   */
+  ipcMain.handle(CANALES.pedirAlLaboratorio, async (_e, lado: Lateralidad) => {
+    const caso = s().obtener()
+    const pedido = caso?.pedidosLente?.[lado]
+    if (!pedido) throw new Error('Todavía no se ha guardado ninguna lente a pedir para ese ojo.')
+    const email = laboratorios.emailDe(pedido.fabricante)
+    if (!email) {
+      throw new Error(
+        `No hay ningún email guardado para «${pedido.fabricante}». Añádelo en «Laboratorios».`,
+      )
+    }
+    const { asunto, cuerpo } = s().mailtoPedidoLente(lado)
+    const url = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`
+    await shell.openExternal(url)
+  })
+  ipcMain.handle(CANALES.listarBandeja, () => bandeja.listar())
+  ipcMain.handle(CANALES.crearEntradaBandeja, (_e, datos) => bandeja.crear(datos))
+  ipcMain.handle(CANALES.editarEntradaBandeja, (_e, id, datos) => bandeja.editar(id, datos))
+  ipcMain.handle(CANALES.vincularEntradaBandeja, (_e, id, casoCodigo) =>
+    bandeja.vincularCaso(id, casoCodigo),
+  )
+  ipcMain.handle(CANALES.marcarEntradaBandejaEnviada, (_e, id, enviado) =>
+    bandeja.marcarEnviado(id, enviado),
+  )
+  ipcMain.handle(CANALES.eliminarEntradaBandeja, (_e, id) => bandeja.eliminar(id))
+  ipcMain.handle(CANALES.obtenerCarpetaEntrada, () => bandeja.carpetaEntrada())
+  ipcMain.handle(CANALES.elegirYConfigurarCarpetaEntrada, async () => {
+    if (!ventana) return null
+    const r = await dialog.showOpenDialog(ventana, {
+      title: 'Elige la carpeta de entrada (donde guardas las fotos de biometría)',
+      properties: ['openDirectory'],
+    })
+    if (r.canceled || r.filePaths.length === 0) return null
+    const ruta = r.filePaths[0]
+    if (!ruta) return null
+    bandeja.configurarCarpetaEntrada(ruta)
+    return ruta
+  })
+  ipcMain.handle(CANALES.buscarFotosNuevasEnCarpeta, () => bandeja.buscarFotosNuevas())
+  ipcMain.handle(CANALES.confirmarCampo, (_e, ojo, campo, aparato) =>
+    s().confirmarCampo(ojo, campo, aparato),
+  )
+  ipcMain.handle(CANALES.confirmarTodoElOjo, (_e, ojo, aparato) =>
+    s().confirmarTodoElOjo(ojo, aparato),
+  )
   ipcMain.handle(CANALES.elegirSexo, (_e, sexo) => s().elegirSexo(sexo))
   ipcMain.handle(CANALES.confirmarSexo, () => s().confirmarSexo())
   ipcMain.handle(CANALES.confirmarTodo, () => s().confirmarTodo())
   ipcMain.handle(CANALES.validar, () => s().validar())
-  ipcMain.handle(CANALES.elegirLente, (_e, fabricante, modelo) =>
-    s().elegirLente(fabricante, modelo),
+  ipcMain.handle(CANALES.discrepanciasDe, (_e, ojo) => s().discrepanciasDe(ojo))
+  ipcMain.handle(CANALES.reconocerDiscrepancia, (_e, ojo) => s().reconocerDiscrepancia(ojo))
+  ipcMain.handle(CANALES.renombrarAparato, (_e, ojo, aparatoViejo, aparatoNuevo) =>
+    s().renombrarAparato(ojo, aparatoViejo, aparatoNuevo),
   )
-  ipcMain.handle(CANALES.calcular, (_e, calculadoras) => s().calcular(calculadoras))
+  ipcMain.handle(CANALES.editarAparatoCaraPosterior, (_e, ojo, aparato, aparatoCaraPosterior) =>
+    s().editarAparatoCaraPosterior(ojo, aparato, aparatoCaraPosterior),
+  )
+  ipcMain.handle(CANALES.editarSituacionCorneal, (_e, ojo, aparato, situacionCorneal) =>
+    s().editarSituacionCorneal(ojo, aparato, situacionCorneal),
+  )
+  ipcMain.handle(CANALES.editarExclusionAparato, (_e, ojo, aparato, excluido) =>
+    s().editarExclusionAparato(ojo, aparato, excluido),
+  )
+  ipcMain.handle(
+    CANALES.elegirLente,
+    (_e, fabricante, modelo, nombreEnEvo, nombreEnKane, constanteConocida) =>
+      s().elegirLente(fabricante, modelo, nombreEnEvo, nombreEnKane, constanteConocida),
+  )
+  ipcMain.handle(CANALES.elegirLenteSecundaria, (_e, eleccion) =>
+    s().elegirLenteSecundaria(eleccion),
+  )
+  ipcMain.handle(CANALES.intercambiarLentes, () => s().intercambiarLentes())
+  ipcMain.handle(CANALES.calcular, (_e, calculadoras, filtro) => s().calcular(calculadoras, filtro))
   ipcMain.handle(CANALES.reintentar, (_e, calculadora, ojo) => s().reintentar(calculadora, ojo))
   ipcMain.handle(CANALES.cancelarCalculo, () => s().cancelarCalculo())
-  ipcMain.handle(CANALES.generarPdf, () => s().generarPdf())
+  ipcMain.handle(
+    CANALES.generarPdf,
+    (
+      _e,
+      opciones: {
+        incluirEstimacionCompleta: boolean
+        incluirTablaComparativaDetallada: boolean
+        generarResumenAparte: boolean
+      },
+    ) => s().generarPdf(opciones),
+  )
   ipcMain.handle(CANALES.abrirCarpetaInformes, () => shell.openPath(carpetas.informes))
 }
 
 instalarRedDeSeguridad()
 
 void app.whenReady().then(() => {
-  const carpetas = prepararCarpetas(app.getPath('userData'))
+  // Los informes se guardan en el Escritorio, dentro de «Calculadora
+  // Vilamar» (D57, 01/09/2026) — petición expresa del dueño del proyecto,
+  // avisado de que en este ordenador eso los sube a la nube corporativa
+  // (el Escritorio está sincronizado con OneDrive), y aun así decidió
+  // seguir adelante. El resto de datos internos del programa se queda en
+  // la carpeta de siempre, sin cambios.
+  //
+  // ⚠️ `VILAMAR_CARPETA_INFORMES`, si está puesta, manda sobre el
+  // Escritorio real — es lo que usan las pruebas de interfaz
+  // (`apps/desktop/e2e/flujo.spec.ts`) para no escribir PDF de prueba en
+  // el Escritorio de verdad de quien las ejecute. `--user-data-dir` no
+  // sirve para esto: solo mueve `userData`, y `app.getPath('desktop')` no
+  // depende de ese flag.
+  const carpetas = prepararCarpetas(
+    app.getPath('userData'),
+    process.env['VILAMAR_CARPETA_INFORMES'] ??
+      join(app.getPath('desktop'), 'Calculadora Vilamar', 'informes'),
+  )
   registrarCanales(carpetas)
   crearVentana()
 

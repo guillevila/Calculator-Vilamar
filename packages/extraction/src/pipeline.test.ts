@@ -495,15 +495,18 @@ describe('ACD: documento completo, de principio a fin', () => {
     expect(r.avisos.some((a) => /grosor|CCT/i.test(a) && /a mano/i.test(a))).toBe(true)
   })
 
-  it('aparato desconocido con AQD y CCT: NO se calcula nada automáticamente', () => {
-    // La suma daría 3.09, que es una ACD perfectamente creíble. Por eso mismo no
-    // se hace: si no se sabe cómo mide ese aparato, un número creíble y
-    // equivocado es indistinguible de uno correcto.
+  it('aparato desconocido con AQD y CCT: SÍ se calcula, avisando de que el aparato no está confirmado (D116, 06/10/2026)', () => {
+    // Caso real que motivó esto: CV-2026-0299, una foto de WhatsApp recortada
+    // sin logo visible. Ningún otro aparato de los que lee este programa
+    // publica un campo llamado literalmente «AQD», distinto de la ACD — así
+    // que si aparece, el informe sigue la misma convención que el ANTERION,
+    // se haya podido confirmar su maqueta o no.
     const r = leer(fx.DESCONOCIDO_CON_AQD_Y_CCT)
     expect(r.dispositivo.dispositivo).toBe('DESCONOCIDO')
-    expect(tiene(r.ojos.OD!, 'ACD')).toBe(false)
+    expect(valorDe(r.ojos.OD!, 'ACD')).toBeCloseTo(3.09, 2)
+    expect(origenDe(r.ojos.OD!.medidas.ACD)).toBe('DERIVADO_DEL_INFORME')
     expect(valorDe(r.ojos.OD!, 'AQD')).toBe(2.55)
-    expect(r.avisos.some((a) => /no se ha reconocido el aparato/i.test(a))).toBe(true)
+    expect(r.avisos.some((a) => /no se ha podido confirmar qué aparato/i.test(a))).toBe(true)
   })
 
   it('ACD impresa que no cuadra con AQD + CCT: avisa y no elige', () => {

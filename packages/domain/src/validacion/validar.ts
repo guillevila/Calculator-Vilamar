@@ -287,6 +287,41 @@ function validarCoherenciaAcd(ojo: OjoBiometrico): Aviso[] {
   ]
 }
 
+/**
+ * La córnea posterior medida (PK1/PK1_EJE/PK2/PK2_EJE) es un conjunto de
+ * cuatro: un meridiano sin su eje no significa nada. EVO y Barrett (D58)
+ * piden los cuatro juntos en su panel de «Measured Posterior Cornea»/«Measured
+ * PCA» — con solo tres rellenos, el panel queda a medias y la web no
+ * devuelve ningún resultado, sin explicar por qué (fallo real encontrado el
+ * 01/10/2026: el eje de K2 nunca llegó a confirmarse y el cálculo de EVO se
+ * quedaba esperando un resultado que no iba a llegar).
+ *
+ * `prepararEntradas()` ya no manda un subconjunto incompleto — este aviso es
+ * lo que explica por qué, antes de que la persona pierda tiempo esperando un
+ * cálculo que está condenado a no volver.
+ */
+function validarCorneaPosteriorCompleta(ojo: OjoBiometrico): Aviso[] {
+  const campos: readonly CampoBiometrico[] = ['PK1', 'PK1_EJE', 'PK2', 'PK2_EJE']
+  const presentes = campos.filter((c) => valorDe(ojo, c) !== undefined)
+  if (presentes.length === 0 || presentes.length === campos.length) return []
+
+  const faltan = campos.filter((c) => !presentes.includes(c))
+  return [
+    {
+      nivel: 'WARNING',
+      ojo: ojo.lateralidad,
+      codigo: 'CORNEA_POSTERIOR_INCOMPLETA',
+      mensaje:
+        'La córnea posterior medida está incompleta: faltan ' +
+        `${faltan.map((c) => definicionDe(c).etiqueta).join(' y ')}. EVO y Barrett necesitan los ` +
+        'cuatro datos juntos (K1, su eje, K2 y su eje) — con solo algunos, no van a devolver ' +
+        'ningún resultado, así que no se les manda nada de esto hasta que esté completo.',
+      sugerencia:
+        'Completa el dato que falta, o deja los cuatro vacíos para calcular sin córnea posterior medida.',
+    },
+  ]
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Punto de entrada
 // ─────────────────────────────────────────────────────────────────────────────
@@ -303,6 +338,7 @@ export function validarOjo(ojo: OjoBiometrico): readonly Aviso[] {
   avisos.push(...validarPerpendicularidad(ojo, 'TK1_EJE', 'TK2_EJE'))
   avisos.push(...validarAcdFrenteAAqd(ojo))
   avisos.push(...validarCoherenciaAcd(ojo))
+  avisos.push(...validarCorneaPosteriorCompleta(ojo))
   return ordenarAvisos(avisos)
 }
 

@@ -111,6 +111,8 @@ export function BloqueSexo({ caso, onCambio }: Props): JSX.Element {
                 <span className="estado-campo vacio">—</span>
               ) : porComprobar ? (
                 <span className="estado-campo warning">⚠ compruébalo</span>
+              ) : origen === 'POR_DEFECTO' ? (
+                <span className="estado-campo defecto">○ por defecto</span>
               ) : (
                 <span className="estado-campo valid">✓ correcto</span>
               )}
@@ -139,6 +141,13 @@ export function BloqueSexo({ caso, onCambio }: Props): JSX.Element {
           Esto lo ha deducido el programa, no lo dice el informe. Un nombre no siempre determina el
           sexo, y si se equivoca el resultado sale creíble igualmente:{' '}
           <strong>compruébalo antes de calcular</strong>.
+        </p>
+      )}
+      {origen === 'POR_DEFECTO' && (
+        <p className="pie-nota">
+          No lo dice el informe ni se ha podido deducir del nombre: se ha puesto «Hombre» por
+          defecto para no bloquear el cálculo si se olvida marcarlo — cámbialo si el paciente es
+          mujer.
         </p>
       )}
     </div>

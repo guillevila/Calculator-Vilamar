@@ -79,13 +79,87 @@ export interface Medida {
  */
 export type MapaMedidas = Partial<Readonly<Record<CampoBiometrico, Medida>>>
 
+/**
+ * El aparato de un `OjoBiometrico` cuando el caso solo usa uno.
+ *
+ * Casi todos los casos son así: un ojo, un conjunto de medidas. Que ese
+ * conjunto único lleve siempre esta misma etiqueta —en vez de, por ejemplo,
+ * el nombre del primer aparato que se use— es lo que permite que un caso de
+ * un solo aparato no vea ningún selector nuevo ni tenga que escribir nada
+ * distinto de lo que ya escribía antes de que existieran varios biómetros
+ * por ojo (D47).
+ */
+export const APARATO_PRINCIPAL = 'Principal'
+
+/**
+ * Una situación corneal que cambia qué calculadora hay que usar, y cómo
+ * (D67, 02/09/2026, petición expresa del dueño del proyecto).
+ *
+ * Un ojo con córnea alterada por una cirugía refractiva previa, o con
+ * queratocono, no se calcula igual que uno normal: EVO y Kane lo tienen en
+ * cuenta con un campo propio en su MISMO formulario, pero Barrett necesita
+ * una calculadora ENTERAMENTE DISTINTA —Barrett True K Toric, no Barrett
+ * Toric— porque la fórmula estándar da un resultado erróneo en estos ojos.
+ * Ver `dispositivoParaSituacionCorneal` en `preparar-entradas.ts` y
+ * `packages/integrations/src/adapters/barrett.ts`.
+ */
+export type SituacionCornealEspecial =
+  'LASIK_MIOPE' | 'LASIK_HIPERMETROPE' | 'QUERATOTOMIA_RADIAL' | 'QUERATOCONO'
+
 export interface OjoBiometrico {
   readonly lateralidad: Lateralidad
+  /**
+   * De qué biómetro es este conjunto de medidas.
+   *
+   * Es lo que distingue, para el MISMO ojo, un conjunto de datos de otro
+   * (D47): el IOLMaster y el ANTERION del mismo OD son dos `OjoBiometrico`
+   * distintos, cada uno con su propio `aparato`. Texto libre a propósito —el
+   * dominio no necesita conocer la lista cerrada de aparatos que ofrece el
+   * desplegable de la interfaz, solo guardar lo que llegue.
+   */
+  readonly aparato: string
+  /**
+   * Con qué aparato se midió la córnea posterior (PK1/PK2) de ESTE dataset,
+   * si es distinto del aparato general (`aparato`) de arriba.
+   *
+   * Petición expresa del dueño del proyecto (02/09/2026), corrigiendo D58:
+   * a veces los datos generales —AL, K1/K2, ACD…— vienen de un aparato y la
+   * córnea posterior se ha medido con OTRO, aparte —EVO y Barrett enseñan un
+   * desplegable propio para esto, independiente del que usan para el resto
+   * del formulario—. Sin valor, `dispositivoCaraPosteriorPara()` (en
+   * `preparar-entradas.ts`) usa `aparato` como hasta ahora: la mayoría de
+   * los casos no necesitan este campo.
+   */
+  readonly aparatoCaraPosterior?: string
+  /**
+   * Si este ojo tiene una córnea alterada por cirugía refractiva previa o
+   * queratocono (D67). `undefined` es el caso normal, con mucha diferencia
+   * el más habitual: no aparece ningún selector nuevo en pantalla, ni se usa
+   * ninguna calculadora distinta de las de siempre.
+   */
+  readonly situacionCorneal?: SituacionCornealEspecial
+  /**
+   * Este dataset se deja fuera del cálculo y del informe, a propósito
+   * (D100, 24/09/2026, petición expresa del dueño del proyecto): con varios
+   * biómetros por ojo (D47), a veces se cargan fotos de un aparato que al
+   * final no interesa usar — antes, se calculaba con él igual (y salía en
+   * el PDF una hoja de «no se pudo calcular» por cada casilla vacía), sin
+   * ninguna forma de decir «este no, gracias».
+   *
+   * `undefined`/`false` es el caso normal, con mucha diferencia el más
+   * habitual — incluido, como siempre. **No borra nada**: los datos siguen
+   * ahí, y se puede volver a incluir en cualquier momento. Nunca se pierde
+   * un dato solo porque, de momento, no se vaya a usar.
+   */
+  readonly excluido?: boolean
   readonly medidas: MapaMedidas
 }
 
-export function ojoVacio(lateralidad: Lateralidad): OjoBiometrico {
-  return { lateralidad, medidas: {} }
+export function ojoVacio(
+  lateralidad: Lateralidad,
+  aparato: string = APARATO_PRINCIPAL,
+): OjoBiometrico {
+  return { lateralidad, aparato, medidas: {} }
 }
 
 export function crearMedida(
@@ -170,6 +244,21 @@ export function valorDe(ojo: OjoBiometrico, campo: CampoBiometrico): number | un
 }
 
 /**
+ * Si este dataset tiene de verdad córnea posterior medida (PK1 o PK2) —
+ * D111, 01/10/2026. Antes solo se usaba para decidir el título de cada
+ * hoja del informe (`hayCaraPosteriorEn`, en `@vilamar/report`); ahora
+ * también para decidir si tiene sentido PLANIFICAR una variante de
+ * córnea posterior (`EVO_TORIC_SIN_CARA_POSTERIOR`,
+ * `BARRETT_TORIC_CON_CARA_POSTERIOR`) para este aparato en concreto — sin
+ * este dato, esa variante calcula exactamente lo mismo que su base, y
+ * sacaba una hoja de más en el PDF sin ninguna diferencia real que
+ * mostrar.
+ */
+export function tieneCaraPosterior(ojo: OjoBiometrico): boolean {
+  return valorDe(ojo, 'PK1') !== undefined || valorDe(ojo, 'PK2') !== undefined
+}
+
+/**
  * Coloca una medida en el ojo.
  *
  * Comprueba que la medida sea de ESE ojo. Mezclar OD y OS es el error que más
@@ -183,6 +272,49 @@ export function conMedida(ojo: OjoBiometrico, medida: Medida): OjoBiometrico {
     )
   }
   return { ...ojo, medidas: { ...ojo.medidas, [medida.campo]: medida } }
+}
+
+/**
+ * Fija (o quita, con `undefined`) el aparato de córnea posterior de este
+ * dataset, cuando es distinto del aparato general (02/09/2026, corrige D58).
+ */
+export function conAparatoCaraPosterior(
+  ojo: OjoBiometrico,
+  aparatoCaraPosterior: string | undefined,
+): OjoBiometrico {
+  if (aparatoCaraPosterior === undefined) {
+    const { aparatoCaraPosterior: _quitado, ...resto } = ojo
+    return resto
+  }
+  return { ...ojo, aparatoCaraPosterior }
+}
+
+/**
+ * Fija (o quita, con `undefined`) la situación corneal especial de este ojo
+ * (D67, 02/09/2026).
+ */
+export function conSituacionCorneal(
+  ojo: OjoBiometrico,
+  situacionCorneal: SituacionCornealEspecial | undefined,
+): OjoBiometrico {
+  if (situacionCorneal === undefined) {
+    const { situacionCorneal: _quitada, ...resto } = ojo
+    return resto
+  }
+  return { ...ojo, situacionCorneal }
+}
+
+/**
+ * Marca (o desmarca) este dataset como excluido del cálculo y del informe
+ * (D100, 24/09/2026). No toca ninguna medida — es reversible sin más que
+ * volver a llamar a esto con `false`.
+ */
+export function conExclusion(ojo: OjoBiometrico, excluido: boolean): OjoBiometrico {
+  if (!excluido) {
+    const { excluido: _quitado, ...resto } = ojo
+    return resto
+  }
+  return { ...ojo, excluido }
 }
 
 /**

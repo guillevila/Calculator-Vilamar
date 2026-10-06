@@ -8,14 +8,21 @@
  * log: «una dependencia nativa no está elegida hasta que se instala».
  *
  * Nada de lo que escribe este módulo entra nunca en el repositorio: vive en
- * `%APPDATA%\calculator-vilamar`.
+ * `%APPDATA%\calculator-vilamar`, salvo `informes` — ver su comentario.
  */
 
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 
-import type { Caso } from '@vilamar/domain'
+import type { Caso, Doctor, EntradaBandeja, Laboratorio } from '@vilamar/domain'
 
 export interface Carpetas {
   readonly raiz: string
@@ -23,16 +30,31 @@ export interface Carpetas {
   readonly documentos: string
   readonly informes: string
   readonly diagnostico: string
+  readonly capturas: string
   readonly sesiones: string
 }
 
-export function prepararCarpetas(rutaDatos: string): Carpetas {
+/**
+ * @param rutaInformes Dónde guardar los PDF/HTML ya generados (D57,
+ *   01/09/2026) — petición expresa del dueño del proyecto, para poder
+ *   encontrarlos sin navegar hasta `%APPDATA%`. Sin especificarla, se
+ *   quedan junto al resto de datos internos, como antes.
+ *
+ *   ⚠️ **Aviso que se le hizo al dueño, y que aceptó informado**: en este
+ *   ordenador el Escritorio está sincronizado con el OneDrive de la
+ *   empresa. Los informes llevan el nombre real del paciente (D44), así
+ *   que guardarlos en una carpeta del Escritorio los sube automáticamente
+ *   a esa nube corporativa — algo que no pasaba mientras vivían en
+ *   `AppData`. Decisión suya, tomada sabiendo esto.
+ */
+export function prepararCarpetas(rutaDatos: string, rutaInformes?: string): Carpetas {
   const carpetas: Carpetas = {
     raiz: rutaDatos,
     casos: join(rutaDatos, 'casos'),
     documentos: join(rutaDatos, 'documentos'),
-    informes: join(rutaDatos, 'informes'),
+    informes: rutaInformes ?? join(rutaDatos, 'informes'),
     diagnostico: join(rutaDatos, 'diagnostico'),
+    capturas: join(rutaDatos, 'capturas'),
     // El perfil del navegador: cookies y sesiones. Local y solo local.
     sesiones: join(rutaDatos, 'sesion-navegador'),
   }
@@ -43,18 +65,44 @@ export function prepararCarpetas(rutaDatos: string): Carpetas {
 /**
  * Genera el código legible del caso: CV-2026-0007.
  *
- * El contador se saca de cuántos casos hay ya guardados este año. Es sencillo y
- * suficiente para un usuario único; si algún día hay varios, habrá que cambiarlo.
+ * ⚠️ Hasta el 20/09/2026 esto contaba cuántos ficheros había en `casos/` en
+ * ese momento y sumaba uno — que parecía sencillo pero tenía un fallo grave:
+ * en cuanto se borraba un caso (p. ej. limpiar uno de prueba desde el
+ * dashboard), la cuenta bajaba y el siguiente caso nuevo podía caer en un
+ * número YA USADO antes, pisando sin avisar el fichero de un paciente
+ * distinto. Así se perdieron varios casos reales entre el 16 y el 19/09.
+ *
+ * Ahora se busca el número más alto que se ha usado ALGUNA VEZ — mirando
+ * tanto `casos/` como `casos-borrados/` (un caso borrado sigue contando: su
+ * número no se reutiliza jamás) — y se devuelve ese número más uno. Nunca
+ * baja, pase lo que pase con los borrados.
  */
 export function siguienteCodigo(carpetas: Carpetas, ahora: Date): string {
   const anio = ahora.getFullYear()
-  let contador = 0
+  const prefijo = `CV-${anio}-`
+  const maximo = Math.max(
+    0,
+    ...numerosDeCasos(carpetas.casos, prefijo),
+    ...numerosDeCasos(join(carpetas.raiz, 'casos-borrados'), prefijo),
+  )
+  return `${prefijo}${String(maximo + 1).padStart(4, '0')}`
+}
+
+/** Recorre una carpeta (y sus subcarpetas, p. ej. los días de `casos-borrados/`)
+ *  y saca el número de cada `CV-<año>-NNNN.json` que encuentra. */
+function numerosDeCasos(dir: string, prefijo: string): number[] {
+  let entradas
   try {
-    contador = readdirSync(carpetas.casos).filter((f) => f.startsWith(`CV-${anio}-`)).length
+    entradas = readdirSync(dir, { withFileTypes: true })
   } catch {
-    contador = 0
+    return []
   }
-  return `CV-${anio}-${String(contador + 1).padStart(4, '0')}`
+  return entradas.flatMap((entrada) => {
+    if (entrada.isDirectory()) return numerosDeCasos(join(dir, entrada.name), prefijo)
+    if (!entrada.name.startsWith(prefijo) || !entrada.name.endsWith('.json')) return []
+    const numero = Number(entrada.name.slice(prefijo.length, -'.json'.length))
+    return Number.isFinite(numero) ? [numero] : []
+  })
 }
 
 export function nuevoId(): string {
@@ -87,6 +135,23 @@ export function listarCasos(carpetas: Carpetas): readonly string[] {
 }
 
 /**
+ * Saca un caso de `casos/` (D85, 16/09/2026, «Eliminar» del dashboard por
+ * doctor) — pero no lo borra para siempre: lo mueve a
+ * `casos-borrados/<día>/`, igual que se hizo a mano la primera vez que el
+ * dueño pidió limpiar unos casos de prueba. Un acierto o un error de
+ * verdad no es lo mismo que un despiste, y esto deja sitio para
+ * recuperarlo si hiciera falta. Si el caso ya no está (borrado dos veces,
+ * o movido a mano), no hace nada — no es un error, ya está fuera.
+ */
+export function moverCasoABorrados(carpetas: Carpetas, codigo: string, dia: string): void {
+  const origen = join(carpetas.casos, `${codigo}.json`)
+  if (!existsSync(origen)) return
+  const destino = join(carpetas.raiz, 'casos-borrados', dia)
+  mkdirSync(destino, { recursive: true })
+  renameSync(origen, join(destino, `${codigo}.json`))
+}
+
+/**
  * Guarda una copia local del documento subido.
  *
  * Se guarda para poder volver a leerlo o revisar la evidencia sin pedirle al
@@ -111,4 +176,125 @@ export function leerDocumento(ruta: string): Uint8Array | null {
   } catch {
     return null
   }
+}
+
+/**
+ * La agenda de doctores (D80, 15/09/2026): un único fichero, no una carpeta
+ * por doctor — es una lista corta, sin las consultas por código que
+ * justifican que cada caso tenga su propio fichero.
+ */
+export function leerDoctores(carpetas: Carpetas): readonly Doctor[] {
+  try {
+    return JSON.parse(readFileSync(join(carpetas.raiz, 'doctores.json'), 'utf8')) as Doctor[]
+  } catch {
+    return []
+  }
+}
+
+export function guardarDoctores(carpetas: Carpetas, doctores: readonly Doctor[]): void {
+  writeFileSync(join(carpetas.raiz, 'doctores.json'), JSON.stringify(doctores, null, 2), 'utf8')
+}
+
+/**
+ * Los laboratorios a los que se piden las lentes, uno por fabricante (D93,
+ * 20/09/2026) — mismo patrón que los doctores: una lista aparte, fuera de
+ * cualquier caso concreto.
+ */
+export function leerLaboratorios(carpetas: Carpetas): readonly Laboratorio[] {
+  try {
+    return JSON.parse(
+      readFileSync(join(carpetas.raiz, 'laboratorios.json'), 'utf8'),
+    ) as Laboratorio[]
+  } catch {
+    return []
+  }
+}
+
+export function guardarLaboratorios(
+  carpetas: Carpetas,
+  laboratorios: readonly Laboratorio[],
+): void {
+  writeFileSync(
+    join(carpetas.raiz, 'laboratorios.json'),
+    JSON.stringify(laboratorios, null, 2),
+    'utf8',
+  )
+}
+
+/**
+ * La bandeja de casos (D81, 15/09/2026): igual que los doctores, un único
+ * fichero — la lista de avisos pendientes de trabajar, no depende de
+ * ningún caso concreto.
+ *
+ * `rutaFoto` (D84, singular) pasó a `rutasFotos` (D86, una lista) — una
+ * entrada ya guardada en disco de antes de este cambio todavía trae el
+ * campo viejo; se migra sola al leerla, para no perder ningún aviso real
+ * que ya hubiera en la bandeja.
+ */
+export function leerBandeja(carpetas: Carpetas): readonly EntradaBandeja[] {
+  try {
+    const crudo = JSON.parse(readFileSync(join(carpetas.raiz, 'bandeja.json'), 'utf8')) as (Omit<
+      EntradaBandeja,
+      'rutasFotos'
+    > & { rutasFotos?: readonly string[]; rutaFoto?: string | null })[]
+    return crudo.map(({ rutaFoto, ...resto }) => ({
+      ...resto,
+      rutasFotos: resto.rutasFotos ?? (rutaFoto ? [rutaFoto] : []),
+    }))
+  } catch {
+    return []
+  }
+}
+
+export function guardarBandeja(carpetas: Carpetas, entradas: readonly EntradaBandeja[]): void {
+  writeFileSync(join(carpetas.raiz, 'bandeja.json'), JSON.stringify(entradas, null, 2), 'utf8')
+}
+
+/**
+ * Doctores excluidos del dashboard (D83, 16/09/2026): pruebas o casos
+ * metidos por error, para que no cuenten en las estadísticas sin tener
+ * que borrar el caso real. Una lista de nombres, no de ids — un caso de
+ * prueba puede llevar un nombre que ni siquiera está en la agenda de
+ * doctores (D80).
+ */
+export function leerDoctoresExcluidos(carpetas: Carpetas): readonly string[] {
+  try {
+    return JSON.parse(
+      readFileSync(join(carpetas.raiz, 'doctores-excluidos.json'), 'utf8'),
+    ) as string[]
+  } catch {
+    return []
+  }
+}
+
+export function guardarDoctoresExcluidos(carpetas: Carpetas, nombres: readonly string[]): void {
+  writeFileSync(
+    join(carpetas.raiz, 'doctores-excluidos.json'),
+    JSON.stringify(nombres, null, 2),
+    'utf8',
+  )
+}
+
+/**
+ * La carpeta de entrada por prioridad (D84, 16/09/2026): una ruta absoluta
+ * fuera de la carpeta de datos de la aplicación —vive en el OneDrive del
+ * dueño—, así que solo se guarda un puntero a ella, no su contenido.
+ */
+export function leerCarpetaEntrada(carpetas: Carpetas): string | null {
+  try {
+    const datos = JSON.parse(readFileSync(join(carpetas.raiz, 'carpeta-entrada.json'), 'utf8')) as {
+      ruta?: string
+    }
+    return datos.ruta ?? null
+  } catch {
+    return null
+  }
+}
+
+export function guardarCarpetaEntrada(carpetas: Carpetas, ruta: string): void {
+  writeFileSync(
+    join(carpetas.raiz, 'carpeta-entrada.json'),
+    JSON.stringify({ ruta }, null, 2),
+    'utf8',
+  )
 }

@@ -15,7 +15,7 @@
  * al lanzarlo.
  */
 
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -53,6 +53,11 @@ test.beforeAll(async () => {
   for (const [k, v] of Object.entries(process.env)) {
     if (v !== undefined && k !== 'ELECTRON_RUN_AS_NODE') entorno[k] = v
   }
+  // Los informes ya no van dentro de `carpetaDatos` (D57, 01/09/2026): por
+  // defecto la app real los guarda en el Escritorio de quien la usa. Sin
+  // esto, cada ejecución de esta prueba escribiría PDF de prueba en el
+  // Escritorio de verdad de quien la lance.
+  entorno['VILAMAR_CARPETA_INFORMES'] = join(carpetaDatos, 'informes')
 
   app = await electron.launch({
     args: [join(raizApp, 'out', 'main', 'index.js'), `--user-data-dir=${carpetaDatos}`],
@@ -78,12 +83,44 @@ test('la ventana se abre y enseña el punto de partida', async () => {
   await ventana.screenshot({ path: 'test-results/01-inicio.png' })
 })
 
-test('se pueden escribir los datos a mano y se validan mientras escribes', async () => {
+test('la vía manual pasa por el cuestionario simplificado antes de la revisión', async () => {
+  // Las dos opciones de inicio están igual de visibles, no una escondida.
+  await expect(ventana.getByTestId('tarjeta-manual')).toBeVisible()
+
   // Se pulsa con el RATÓN, no con JavaScript: si el botón estuviera tapado por
   // otro elemento, esto fallaría y un `element.click()` no.
   await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
-  await expect(ventana.getByTestId('campo-AL')).toBeVisible()
+  await expect(ventana.getByTestId('manual-campo-AL')).toBeVisible()
 
+  // Nombre del doctor y del paciente: ninguno de los dos exige nada del otro.
+  await ventana.getByLabel('Nombre del doctor').fill('Dra. Prueba E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Caso Sintético E2E')
+
+  // El target ya se enseña en 0 sin haberlo tocado (D38).
+  await expect(ventana.getByTestId('manual-campo-REFRACCION_OBJETIVO')).toHaveValue('0')
+
+  // El cuestionario no valida sobre la marcha —eso vive en la pantalla de
+  // revisión, a la que se llega después— así que aquí se escribe un valor
+  // válido y se comprueba que viaja.
+  await ventana.getByTestId('manual-campo-AL').fill('24.07')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-continuar').click()
+
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('24.07')
+  // El target sigue en 0 y ya está confirmado (es un dato manual): no debe
+  // quedar pendiente de revisar.
+  await expect(ventana.getByTestId('origen-REFRACCION_OBJETIVO')).toHaveText('Aportado')
+  await expect(ventana.getByTestId('comprobar-REFRACCION_OBJETIVO')).toHaveCount(0)
+  await ventana.screenshot({ path: 'test-results/02-desde-cuestionario.png' })
+
+  // El nombre del cirujano se guarda en el caso, aunque la pantalla de
+  // revisión no lo enseñe (D41: solo viaja hacia las calculadoras).
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.nombreCirujano).toBe('Dra. Prueba E2E')
+  expect(caso?.nombrePaciente).toBe('Caso Sintético E2E')
+})
+
+test('un dato imposible se marca y BLOQUEA, sin corregirse solo', async () => {
   // Un dato imposible tiene que marcarse y BLOQUEAR, sin corregirse solo.
   await ventana.getByTestId('campo-AL').fill('240.7')
   await ventana.getByTestId('campo-K1').click()
@@ -108,8 +145,10 @@ test('un campo vacío dice quién lo tiene que aportar, no «no encontrado»', a
   await expect(wtw).toHaveAttribute('placeholder', 'No consta en el informe')
   await expect(ventana.getByTestId('origen-WTW')).toHaveText('No consta en el informe')
 
-  // El SIA no viene en ninguna biometría: lo decide quien opera.
-  await expect(ventana.getByTestId('origen-SIA')).toHaveText('Pendiente de aportar')
+  // La constante A la decide el cirujano según la lente: no la trae ningún
+  // biómetro. (El SIA y el eje de incisión ya no sirven de ejemplo aquí:
+  // D46 les da un valor de partida de 0.25/135 en cuanto se entra a mano.)
+  await expect(ventana.getByTestId('origen-CONSTANTE_A')).toHaveText('Pendiente de aportar')
 
   // Y en ningún sitio se dice ya «no encontrado».
   await expect(ventana.locator('text=/NO ENCONTRADO/i')).toHaveCount(0)
@@ -178,12 +217,32 @@ test('el flujo completo llega hasta la pantalla de cálculo', async () => {
 
   await ventana.getByTestId('confirmar').click()
 
-  // Se llega a la pantalla de cálculo con las tres calculadoras listadas.
+  // Se llega a la pantalla de cálculo con las cinco casillas listadas
+  // (EVO y Barrett, Predicted y Measured PCA, más Kane — D45/D48).
   await expect(ventana.getByTestId('calc-EVO_TORIC')).toBeVisible()
   await expect(ventana.getByTestId('calc-BARRETT_TORIC')).toBeVisible()
   await expect(ventana.getByTestId('calc-KANE')).toBeVisible()
   await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
   await ventana.screenshot({ path: 'test-results/04-calculo.png', fullPage: true })
+})
+
+test('«Volver a los datos» deja corregir antes de calcular, sin perder nada', async () => {
+  // Petición expresa del dueño del proyecto (01/09/2026): poder volver al
+  // formulario a cambiar un dato antes de que se conecte a ninguna web.
+  await ventana.getByTestId('volver-a-revisar').click()
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('24.07')
+
+  // Se corrige un solo dato...
+  await ventana.getByTestId('campo-AL').fill('24.10')
+  await ventana.getByTestId('campo-AL').press('Enter')
+
+  // ...y se puede volver a confirmar y llegar de nuevo a la pantalla de
+  // cálculo, con el dato corregido y el resto intacto.
+  await ventana.getByTestId('confirmar').click()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.medidas?.AL?.valor).toBe(24.1)
 })
 
 test('la interfaz no enseña jerga técnica al usuario', async () => {
@@ -254,11 +313,11 @@ CCT             533 um</pre>
   ).not.toMatch(/no se ha podido leer ningún dato|está vacío/i)
 
   // Y los valores son los que pone el informe.
-  const od = resultado?.caso?.ojos?.OD?.medidas
+  const od = resultado?.caso?.ojos?.OD?.[0]?.medidas
   expect(od?.AL?.valor).toBe(24.07)
   expect(od?.K1?.valor).toBe(41.22)
   expect(od?.K1_EJE?.valor).toBe(175)
-  const os = resultado?.caso?.ojos?.OS?.medidas
+  const os = resultado?.caso?.ojos?.OS?.[0]?.medidas
   expect(os?.AL?.valor).toBe(24.01)
   expect(os?.K1?.valor).toBe(40.27)
 
@@ -298,8 +357,11 @@ CCT             530 um</pre></body>`)
   await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
   // Se entra a la pantalla de revisión ANTES de cargar. Llamar al canal de carga
   // desde aquí actualiza el caso —la pantalla se suscribe a sus cambios— pero no
-  // hace avanzar el paso del asistente, que es estado del propio navegador.
+  // hace avanzar el paso del asistente, que es estado del propio navegador. Se
+  // pasa por el cuestionario simplificado (sin rellenarlo) solo para llegar
+  // hasta ahí con el ratón.
   await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByTestId('manual-continuar').click()
   await expect(ventana.getByTestId('campo-ACD')).toBeVisible()
 
   const resultado = await ventana.evaluate(
@@ -307,7 +369,7 @@ CCT             530 um</pre></body>`)
     rutaPdf,
   )
 
-  const od = resultado?.caso?.ojos?.OD?.medidas
+  const od = resultado?.caso?.ojos?.OD?.[0]?.medidas
   // La ACD existe aunque el informe no la traiga…
   expect(od?.ACD?.valor, 'no ha calculado la ACD').toBe(3.18)
   expect(od?.ACD?.procedencia?.metodo, 'la ACD no está marcada como derivada').toBe('DERIVADO')
@@ -327,6 +389,476 @@ CCT             530 um</pre></body>`)
   await expect(ventana.getByTestId('comprobar-ACD')).toBeVisible()
 
   await ventana.screenshot({ path: 'test-results/11-acd-derivada.png', fullPage: true })
+})
+
+/**
+ * Petición expresa del dueño del proyecto (06/09/2026): con muchos datos por
+ * comprobar (probó un caso real de 34), confirmarlos uno a uno era demasiada
+ * fricción. Pero D28 —lo leído por una máquina no se da por bueno solo— sigue
+ * en pie: por eso el botón que los confirma de golpe empieza deshabilitado,
+ * y solo se activa tras marcar una casilla explícita.
+ */
+test('confirmar todo de golpe (D28 + petición del dueño): exige la casilla, y solo toca el ojo activo', async () => {
+  test.setTimeout(180_000)
+
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  // Mismo documento que la prueba anterior: ACD sale DERIVADO, que necesita
+  // comprobación humana — es la forma más simple y fiable de tener un dato
+  // "por comprobar" en una prueba, sin depender de OCR.
+  await p.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <pre>OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+AQD (endo)     2.65 mm
+LT             4.53 mm
+CCT             530 um</pre></body>`)
+  const rutaPdf = join(carpetaDatos, 'anterion-confirmar-todo.pdf')
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByTestId('manual-continuar').click()
+  await expect(ventana.getByTestId('campo-ACD')).toBeVisible()
+
+  await ventana.evaluate(
+    async (ruta) =>
+      window.vilamar?.cargarDocumentos([{ nombre: 'anterion-confirmar-todo.pdf', ruta }]),
+    rutaPdf,
+  )
+  await expect(ventana.getByTestId('comprobar-ACD')).toBeVisible()
+
+  // El botón de confirmar todo existe, pero no hace nada hasta marcar la
+  // casilla: sigue habiendo un gesto consciente, no un clic ciego.
+  const boton = ventana.getByTestId('confirmar-todo-el-ojo')
+  await expect(boton).toBeDisabled()
+  await ventana.getByTestId('checkbox-comprobado-todo').check()
+  await expect(boton).toBeEnabled()
+  await boton.click()
+
+  // La ACD (y cualquier otro dato pendiente de OD) queda confirmada, sin
+  // haber pulsado «Está bien» en cada fila.
+  await expect(ventana.getByTestId('comprobar-ACD')).toHaveCount(0)
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.medidas?.ACD?.confirmadoPorUsuario).toBe(true)
+
+  await ventana.screenshot({ path: 'test-results/11b-confirmar-todo.png', fullPage: true })
+})
+
+/**
+ * Reproducción del fallo reportado por el dueño (06/09/2026, caso real
+ * CV-2026-0117): tras usar «Confirmar todo» con muchos datos, la pantalla
+ * quedó con todos los campos en blanco. La diferencia con la prueba anterior
+ * —que sí pasa— es que en el caso real el dueño había RENOMBRADO a mano el
+ * aparato del primer dataset antes de confirmar. Esta prueba repite esa
+ * secuencia: cargar el documento, renombrar el aparato, y solo entonces
+ * confirmar todo — con más campos que la prueba anterior, para acercarse al
+ * caso real de 34 datos.
+ *
+ * Desde D115 (02/10/2026) el primer aparato de un documento RECONOCIDO ya
+ * se llama como el aparato real desde el principio («Heidelberg ANTERION»,
+ * no «Principal») — así que aquí se renombra a un nombre distinto
+ * («OCULUS Pentacam», sin que eso signifique que el documento lo sea: es
+ * solo el gesto mecánico de renombrar) para seguir probando un renombrado
+ * de verdad, no uno que no cambia nada.
+ */
+test('confirmar todo de golpe DESPUÉS de renombrar el aparato: no debe borrar nada', async () => {
+  test.setTimeout(180_000)
+
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  await p.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <pre>OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+AQD (endo)     2.65 mm
+LT             4.53 mm
+CCT             530 um
+WTW            11.80 mm</pre></body>`)
+  const rutaPdf = join(carpetaDatos, 'anterion-renombrar-luego-confirmar.pdf')
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByTestId('manual-continuar').click()
+  await expect(ventana.getByTestId('campo-ACD')).toBeVisible()
+
+  await ventana.evaluate(
+    async (ruta) =>
+      window.vilamar?.cargarDocumentos([
+        { nombre: 'anterion-renombrar-luego-confirmar.pdf', ruta },
+      ]),
+    rutaPdf,
+  )
+  // Sin ACD en el documento, sale DERIVADA de AQD+CCT — necesita comprobación
+  // humana (D28), que es justo lo que hace falta para que aparezca el botón.
+  await expect(ventana.getByTestId('comprobar-ACD')).toBeVisible()
+
+  const antesDeRenombrar = await ventana.evaluate(() => window.vilamar?.casoActual())
+  // D115: el documento se reconoce como ANTERION, así que el aparato ya
+  // lleva su nombre real desde el primer momento, no «Principal».
+  expect(antesDeRenombrar?.ojos?.OD?.[0]?.aparato).toBe('Heidelberg ANTERION')
+  expect(antesDeRenombrar?.ojos?.OD?.[0]?.medidas?.AL?.valor).toBeCloseTo(24.07, 2)
+
+  // El gesto exacto del dueño: elegir otro nombre en el desplegable —
+  // RENOMBRA el dataset que ya hay, no crea uno. Se elige uno distinto del
+  // que ya tiene para que sea un renombrado de verdad.
+  await ventana.getByTestId('manual-aparato-principal-select').selectOption('OCULUS Pentacam')
+
+  const trasRenombrar = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(trasRenombrar?.ojos?.OD?.[0]?.aparato).toBe('OCULUS Pentacam')
+  expect(
+    trasRenombrar?.ojos?.OD?.[0]?.medidas?.AL?.valor,
+    'el renombrado ya ha borrado datos',
+  ).toBeCloseTo(24.07, 2)
+  await expect(ventana.getByTestId('comprobar-ACD')).toBeVisible()
+
+  const boton = ventana.getByTestId('confirmar-todo-el-ojo')
+  await expect(boton).toBeDisabled()
+  await ventana.getByTestId('checkbox-comprobado-todo').check()
+  await expect(boton).toBeEnabled()
+  await boton.click()
+
+  const trasConfirmar = await ventana.evaluate(() => window.vilamar?.casoActual())
+  const ojoTrasConfirmar = trasConfirmar?.ojos?.OD?.[0]
+  expect(ojoTrasConfirmar?.aparato).toBe('OCULUS Pentacam')
+  for (const [campo, esperado] of Object.entries({
+    AL: 24.07,
+    K1: 41.22,
+    K2: 42.52,
+    AQD: 2.65,
+    LT: 4.53,
+    CCT: 530,
+    WTW: 11.8,
+  })) {
+    const medida = ojoTrasConfirmar?.medidas?.[campo as keyof typeof ojoTrasConfirmar.medidas]
+    expect(medida?.valor, `el campo ${campo} ha desaparecido tras «Confirmar todo»`).toBeCloseTo(
+      esperado,
+      2,
+    )
+    expect(medida?.confirmadoPorUsuario, `el campo ${campo} no quedó confirmado`).toBe(true)
+  }
+  // La ACD derivada también sobrevive, con el valor que ya se había calculado.
+  expect(ojoTrasConfirmar?.medidas?.ACD?.valor, 'la ACD derivada ha desaparecido').toBeDefined()
+  expect(ojoTrasConfirmar?.medidas?.ACD?.confirmadoPorUsuario).toBe(true)
+
+  await ventana.screenshot({
+    path: 'test-results/11c-renombrar-luego-confirmar.png',
+    fullPage: true,
+  })
+})
+
+/**
+ * Segundo intento de reproducir el fallo real (CV-2026-0117): renombrar el
+ * aparato SOBREVIVE dentro de la misma sesión (prueba anterior). Pero
+ * `App.tsx` no reinicia `aparatoActivo` al reabrir un caso guardado —ni al
+ * arrancar la aplicación con el último caso en curso, ni desde «Casos
+ * guardados»— y el efecto que lo resincroniza se apaga a propósito mientras
+ * `paso === 'REVISION'` (para no deshacer «Añadir otro biómetro» a medio
+ * escribir). Un caso reabierto aterriza DIRECTO en revisión, así que ese
+ * efecto nunca llega a correr: si el aparato activo por defecto
+ * («Principal») ya no coincide con el nombre real que tiene el dataset
+ * guardado (renombrado en la sesión anterior), la pantalla mira un dataset
+ * que no existe — vacío— y «Confirmar todo» crearía uno nuevo, vacío, junto
+ * al real, en vez de tocar el que tiene los datos.
+ */
+test('reabrir un caso guardado tras haber renombrado su aparato: la pantalla no debe mirar un dataset vacío', async () => {
+  test.setTimeout(180_000)
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByLabel('Nombre del doctor').fill('Dra. Reapertura E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Paciente Reapertura E2E')
+  await ventana.getByTestId('manual-campo-AL').fill('23.90')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  // Se renombra el único aparato de «Principal» a su nombre real, tal y como
+  // permite hacerlo D47 — el mismo gesto que la prueba anterior, pero ahora
+  // ANTES de cerrar el caso, no en la misma pantalla en la que se confirma.
+  await ventana.getByTestId('manual-aparato-principal-select').selectOption('Heidelberg ANTERION')
+  await expect(ventana.getByTestId('manual-aparato-principal-select')).toHaveValue(
+    'Heidelberg ANTERION',
+  )
+
+  const antesDeCerrar = await ventana.evaluate(() => window.vilamar?.casoActual())
+  const codigo = antesDeCerrar?.codigo
+  expect(antesDeCerrar?.ojos?.OD?.[0]?.aparato).toBe('Heidelberg ANTERION')
+
+  // Se cierra el caso (como reiniciar la aplicación) y se reabre desde
+  // «Casos guardados» — igual que la prueba ya existente de esa pantalla,
+  // pero esta vez el aparato del dataset NO es el que arranca por defecto.
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('tarjeta-casos-guardados').getByRole('button').click()
+  await expect(ventana.getByTestId('tabla-casos-guardados')).toBeVisible()
+  const fila = ventana.locator('tr', { hasText: codigo ?? '' })
+  await fila.getByRole('button', { name: 'Abrir' }).click()
+
+  // Si la pantalla mira el aparato correcto, el dato sigue viéndose.
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('23.9')
+
+  const reabierto = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(reabierto?.ojos?.OD).toHaveLength(1)
+  expect(reabierto?.ojos?.OD?.[0]?.aparato).toBe('Heidelberg ANTERION')
+})
+
+/**
+ * La reproducción real del fallo (06/09/2026, caso CV-2026-0117), confirmada
+ * por el propio dueño: tenía datos en los dos ojos, renombró el aparato de
+ * UN ojo («Principal» → «Heidelberg ANTERION») y al mirar el otro, la
+ * pantalla lo enseñó todo en blanco.
+ *
+ * La causa: `aparatoActivo` es UN solo valor en `App.tsx`, compartido por
+ * los dos ojos. `conAparatoRenombrado` solo renombra el ojo al que se le
+ * pide (correcto: los dos ojos no comparten aparato porque sí), pero nada
+ * volvía a poner `aparatoActivo` en un valor válido para el OTRO ojo al
+ * cambiar de pestaña OD/OS — y el efecto que sí lo hacía estaba apagado a
+ * propósito mientras se revisa (para no deshacer «Añadir otro biómetro» a
+ * medio escribir). El dato nunca se borró: seguía a salvo en el caso, pero
+ * la pantalla miraba un aparato que ese ojo nunca tuvo.
+ *
+ * El aparato de OS se elige a propósito, distinto del de OD (15/09/2026,
+ * amplía D73): con el desplegable sugiriendo de partida el mismo nombre
+ * que el otro ojo cuando aún no tiene dataset propio, dejar a OS con lo
+ * que sugiere el desplegable ya no reproduce la asimetría real del fallo
+ * —los dos aparatos serían iguales—, así que aquí se cambia a mano.
+ */
+test('renombrar el aparato de UN ojo no deja al OTRO mirando un dataset vacío al cambiar de pestaña', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByLabel('Nombre del doctor').fill('Dra. Dos Ojos E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Paciente Dos Ojos E2E')
+
+  // OD: dato + se renombra su único aparato al nombre real del biómetro.
+  await ventana.getByTestId('manual-campo-AL').fill('24.10')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-aparato-principal-select').selectOption('Heidelberg ANTERION')
+  await expect(ventana.getByTestId('manual-aparato-principal-select')).toHaveValue(
+    'Heidelberg ANTERION',
+  )
+
+  // OS: su propio dato, con un aparato GENUINAMENTE DISTINTO del de OD —
+  // el fallo real es justo esta asimetría. Se elige a propósito, porque
+  // desde D73 (08/09/2026) el desplegable de OS sugiere de partida el
+  // mismo nombre que OD si OD es el único aparato que hay; sin elegir
+  // otro aquí, los dos ojos acabarían con el mismo aparato y esta prueba
+  // dejaría de comprobar lo que de verdad importa: que renombrar UN ojo
+  // no rompe la vista del OTRO cuando de verdad son aparatos distintos.
+  await ventana.getByTestId('manual-ojo-OS').click()
+  await ventana.getByTestId('manual-aparato-principal-select').selectOption('OCULUS Pentacam')
+  await ventana.getByTestId('manual-campo-AL').fill('22.80')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  await ventana.getByTestId('manual-continuar').click()
+
+  // Aterriza en OD: su dato, con su aparato renombrado, se ve bien.
+  await expect(ventana.getByTestId('revision-ojo-OD')).toHaveClass(/activo/)
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('24.1')
+
+  // Al pasar a OS, su propio dato tiene que seguir viéndose — no el aviso
+  // de «No consta en el informe» de un aparato que OS nunca tuvo.
+  await ventana.getByTestId('revision-ojo-OS').click()
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('22.8')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.aparato).toBe('Heidelberg ANTERION')
+  expect(caso?.ojos?.OS?.[0]?.aparato).toBe('OCULUS Pentacam')
+  expect(caso?.ojos?.OS?.[0]?.medidas?.AL?.valor).toBeCloseTo(22.8, 2)
+
+  await ventana.screenshot({
+    path: 'test-results/11e-dos-ojos-un-aparato-renombrado.png',
+    fullPage: true,
+  })
+})
+
+/**
+ * Fallo real reportado por el dueño (14/09/2026): calculaba solo OD, y al
+ * volver a los datos para meter también OS no había ningún sitio por donde
+ * hacerlo — el caso entero había que empezarlo de nuevo, perdiendo lente,
+ * constante, paciente y doctor ya escritos.
+ *
+ * La causa eran dos frenos pensados para otra cosa: la pestaña de OS ni
+ * siquiera se enseñaba mientras ese ojo no tuviera datos
+ * (`PanelRevision.tsx`), y aunque se hubiera enseñado, el efecto que
+ * mantiene sincronizado `ojoActivo` con los ojos que el caso YA tiene la
+ * habría deshecho en el mismo instante (`App.tsx`). Los dos se arreglan
+ * igual que ya se arregló el mismo problema para «Añadir otro biómetro»
+ * (D65): la pestaña se enseña siempre, y el freno se apaga mientras se
+ * está en la pantalla de revisión.
+ */
+test('calcular solo OD y volver después a añadir OS, sin perder nada del caso', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByLabel('Nombre del doctor').fill('Dr. Un Ojo E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Paciente Un Ojo E2E')
+
+  await ventana.getByTestId('manual-campo-AL').fill('24.20')
+  await ventana.getByTestId('manual-campo-CONSTANTE_A').fill('119.30')
+  await ventana.getByTestId('manual-campo-CONSTANTE_A').press('Tab')
+
+  await ventana.getByTestId('manual-continuar').click()
+
+  // Solo hay datos de OD: se confirma y se llega a la pantalla de cálculo
+  // sin haber tocado OS para nada.
+  await expect(ventana.getByTestId('revision-ojo-OD')).toHaveClass(/activo/)
+  await ventana.getByTestId('confirmar').click()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
+
+  // Vuelve a los datos —como haría al querer añadir el segundo ojo— y ahora
+  // SÍ tiene que poder elegir OS, aunque todavía no tenga ningún dato.
+  await ventana.getByTestId('volver-a-revisar').click()
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('24.2')
+
+  await ventana.getByTestId('revision-ojo-OS').click()
+  await expect(ventana.getByTestId('revision-ojo-OS')).toHaveClass(/activo/)
+  // La pestaña no se deshace sola: sigue en OS, con el campo vacío listo
+  // para escribir, no con el dato de OD prestado por error.
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('')
+
+  // El paciente y el doctor ya escritos siguen ahí: no hay que repetirlos.
+  await expect(ventana.getByLabel('Nombre del doctor')).toHaveValue('Dr. Un Ojo E2E')
+  await expect(ventana.getByLabel('Nombre del paciente')).toHaveValue('Paciente Un Ojo E2E')
+
+  await ventana.getByTestId('campo-AL').fill('22.60')
+  await ventana.getByTestId('campo-AL').press('Enter')
+
+  await ventana.getByTestId('confirmar').click()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.nombreCirujano).toBe('Dr. Un Ojo E2E')
+  expect(caso?.nombrePaciente).toBe('Paciente Un Ojo E2E')
+  expect(caso?.ojos?.OD?.[0]?.medidas?.AL?.valor).toBe(24.2)
+  expect(caso?.ojos?.OD?.[0]?.medidas?.CONSTANTE_A?.valor).toBe(119.3)
+  expect(caso?.ojos?.OS?.[0]?.medidas?.AL?.valor).toBe(22.6)
+
+  await ventana.screenshot({ path: 'test-results/11f-od-solo-luego-os.png', fullPage: true })
+})
+
+/**
+ * Petición expresa del dueño del proyecto (08/09/2026): «si elegimos en OD
+ * un aparato... pon que al editar ojo izdo por defecto salga el mismo
+ * aparato, para no perder tiempo cliceando». Suele ser el mismo biómetro
+ * para los dos ojos del mismo paciente, en la misma visita.
+ *
+ * A diferencia del sexo (`caso.sexo`, un solo campo para todo el caso, que
+ * YA se comparte sin hacer nada), el aparato es intencionadamente
+ * independiente por ojo (D47, invariante 12: no se mezclan). Lo que se
+ * pide aquí no es fusionarlos — es que, mientras el OTRO ojo todavía no
+ * tiene ningún dato propio (su dataset ni existe), la pantalla SUGIERA de
+ * partida el nombre del aparato del ojo que sí tiene, en vez de
+ * «Principal» — una sugerencia, no una fusión: en cuanto ese ojo escribe
+ * su primer dato, el dataset se crea con ese nombre, pero se puede
+ * cambiar antes sin tocar nada del otro ojo.
+ */
+test('el aparato recién renombrado en un ojo se sugiere solo en el otro, mientras no tenga ningún dato propio', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  // OD: dato + se renombra su único aparato ANTES de tocar el otro ojo.
+  await ventana.getByTestId('manual-campo-AL').fill('23.50')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-aparato-principal-select').selectOption('ZEISS IOLMaster 700')
+  await expect(ventana.getByTestId('manual-aparato-principal-select')).toHaveValue(
+    'ZEISS IOLMaster 700',
+  )
+
+  // OS todavía no tiene ningún dato — su dropdown de aparato ya sugiere el
+  // mismo nombre que acaba de ponerse en OD, sin que nadie lo haya escrito.
+  await ventana.getByTestId('manual-ojo-OS').click()
+  await expect(ventana.getByTestId('manual-campo-AL')).toHaveValue('')
+  await expect(ventana.getByTestId('manual-aparato-principal-select')).toHaveValue(
+    'ZEISS IOLMaster 700',
+  )
+
+  // Al escribir el primer dato de OS, su dataset se crea con ESE aparato —
+  // sin que OD se haya visto tocado en ningún momento.
+  await ventana.getByTestId('manual-campo-AL').fill('23.60')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.aparato).toBe('ZEISS IOLMaster 700')
+  expect(caso?.ojos?.OD?.[0]?.medidas?.AL?.valor).toBeCloseTo(23.5, 2)
+  expect(caso?.ojos?.OS?.[0]?.aparato).toBe('ZEISS IOLMaster 700')
+  expect(caso?.ojos?.OS?.[0]?.medidas?.AL?.valor).toBeCloseTo(23.6, 2)
+})
+
+/**
+ * Petición expresa del dueño del proyecto (06/09/2026): una carpeta por
+ * paciente, con sus dos ojos dentro, en vez de que todos los pacientes
+ * compartan la misma carpeta «Ojo derecho»/«Ojo izquierdo» — con el tiempo
+ * se mezclaban los informes de gente distinta en el mismo sitio.
+ */
+test('el PDF se guarda en una carpeta por doctor y, dentro, una por paciente (D87) — un nombre con caracteres de Windows prohibidos no rompe nada', async () => {
+  test.setTimeout(180_000)
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  // Un nombre con caracteres que Windows NO admite en una carpeta: ':' y '/'.
+  await ventana.getByTestId('identificacion-paciente').fill('María: Pérez / Test')
+  await ventana.getByTestId('identificacion-paciente').press('Tab')
+  await ventana.getByTestId('identificacion-cirujano').fill('Dra. Ruiz: Test / 2')
+  await ventana.getByTestId('identificacion-cirujano').press('Tab')
+  await ventana.getByTestId('manual-campo-AL').fill('24.00')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  // No hace falta ningún cálculo real para generar el PDF: el informe dice
+  // «no calculado» donde no haya resultado, y eso no es lo que se prueba aquí.
+  const resultado = await ventana.evaluate(() =>
+    window.vilamar?.generarPdf({
+      incluirEstimacionCompleta: true,
+      incluirTablaComparativaDetallada: true,
+      generarResumenAparte: false,
+    }),
+  )
+  const ruta = resultado?.rutas[0]?.ruta ?? ''
+  expect(ruta, 'no ha generado ningún PDF').not.toBe('')
+
+  // La carpeta del doctor y, dentro, la del paciente, las dos limpias de
+  // los caracteres prohibidos, con el ojo dentro de la del paciente.
+  // Comprobar el trozo exacto de ruta, no toda la cadena, porque la ruta
+  // absoluta trae sus propios ':' y '\' de sintaxis (la unidad de
+  // Windows, los separadores).
+  expect(ruta).toContain(
+    join('Dra. Ruiz Test 2', 'Calculados', 'María Pérez Test', 'Ojo derecho (OD)'),
+  )
+
+  // Y el archivo existe de verdad, no solo la ruta devuelta.
+  expect(statSync(ruta).size).toBeGreaterThan(0)
+
+  await ventana.screenshot({ path: 'test-results/11c-carpeta-por-doctor.png', fullPage: true })
+})
+
+test('el PDF se guarda en «Sin doctor» cuando el caso no tiene ninguno asignado (D87)', async () => {
+  test.setTimeout(180_000)
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  await ventana.getByTestId('identificacion-paciente').fill('Paciente Sin Doctor E2E')
+  await ventana.getByTestId('identificacion-paciente').press('Tab')
+  // A propósito, no se rellena «Nombre del doctor».
+  await ventana.getByTestId('manual-campo-AL').fill('24.00')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  const resultado = await ventana.evaluate(() =>
+    window.vilamar?.generarPdf({
+      incluirEstimacionCompleta: true,
+      incluirTablaComparativaDetallada: true,
+      generarResumenAparte: false,
+    }),
+  )
+  const ruta = resultado?.rutas[0]?.ruta ?? ''
+  expect(ruta, 'no ha generado ningún PDF').not.toBe('')
+  expect(ruta).toContain(join('Sin doctor', 'Calculados', 'Paciente Sin Doctor E2E'))
 })
 
 /**
@@ -379,6 +911,7 @@ SRK/T: 119.2</pre></body>`)
 
   await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
   await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByTestId('manual-continuar').click()
   const resultado = await ventana.evaluate(
     async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'anterion-lentes.pdf', ruta }]),
     rutaPdf,
@@ -389,7 +922,7 @@ SRK/T: 119.2</pre></body>`)
   expect(lentes.map((l) => l.constanteA)).toEqual([118.5, 119.6, 119.1, 119.2])
 
   // Y NINGUNA se ha convertido en la constante A del ojo.
-  expect(resultado?.caso?.ojos?.OD?.medidas?.CONSTANTE_A).toBeUndefined()
+  expect(resultado?.caso?.ojos?.OD?.[0]?.medidas?.CONSTANTE_A).toBeUndefined()
   await expect(ventana.getByTestId('lentes-del-informe')).toBeVisible()
   await expect(ventana.getByTestId('campo-CONSTANTE_A')).toHaveValue('')
   await ventana.screenshot({ path: 'test-results/12-lentes-informe.png', fullPage: true })
@@ -416,6 +949,42 @@ SRK/T: 119.2</pre></body>`)
   )
 
   await ventana.screenshot({ path: 'test-results/13-lente-no-esta.png', fullPage: true })
+})
+
+test('lente alternativa: compara sin volver a escribir los datos, y no arrastra la constante de la otra', async () => {
+  // Petición expresa del dueño del proyecto (01/09/2026). Se retoma el
+  // informe con las cuatro lentes que dejó cargado la prueba anterior.
+  await ventana.getByTestId('lente-informe-bausch-lomb-akreos-ao-mi60').click()
+  await expect(ventana.getByTestId('campo-CONSTANTE_A')).toHaveValue('119.1')
+
+  // Se aparca una segunda lente, del catálogo de las calculadoras — no
+  // hace falta que esté en el informe para poder aparcarla.
+  await ventana.getByTestId('selector-lente-secundaria').selectOption('B&L LuxSmart')
+  await expect(ventana.getByTestId('lente-secundaria-elegida')).toContainText('B&L LuxSmart')
+
+  // La principal y su constante NO han cambiado por elegir la aparcada.
+  await expect(ventana.getByTestId('campo-CONSTANTE_A')).toHaveValue('119.1')
+  let caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.lente?.modelo).toBe('Bausch&Lomb Akreos AO MI60')
+  expect(caso?.lenteSecundaria?.modelo).toBe('B&L LuxSmart')
+
+  await ventana.screenshot({ path: 'test-results/14-lente-alternativa.png', fullPage: true })
+
+  // Se activa: pasa a ser la que se calcula, y la que era principal queda
+  // aparcada en su lugar.
+  await ventana.getByTestId('intercambiar-lentes').click()
+  await expect(ventana.getByTestId('lente-elegida')).toContainText('B&L LuxSmart')
+
+  caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.lente?.modelo).toBe('B&L LuxSmart')
+  expect(caso?.lenteSecundaria?.modelo).toBe('Bausch&Lomb Akreos AO MI60')
+  // «B&L LuxSmart» no está en este informe, así que no hereda la
+  // constante de Akreos (119.1) — pero SÍ lleva la suya propia, del
+  // catálogo (D69, 118.5), que es de la lente y no del informe.
+  expect(caso?.ojos?.OD?.[0]?.medidas?.CONSTANTE_A?.valor).toBe(118.5)
+  expect(caso?.ojos?.OD?.[0]?.medidas?.CONSTANTE_A?.procedencia?.metodo).toBe('CATALOGO')
+
+  await ventana.screenshot({ path: 'test-results/15-lentes-intercambiadas.png', fullPage: true })
 })
 
 /**
@@ -451,8 +1020,8 @@ ACD (epi)      3.18 mm</pre></body>`)
   )
 
   expect(resultado?.resumenes?.[0]?.nombreDispositivo).toContain('ANTERION')
-  expect(resultado?.caso?.ojos?.OD?.medidas?.AL?.valor).toBe(24.07)
-  expect(resultado?.caso?.ojos?.OD?.medidas?.K1?.valor).toBe(41.22)
+  expect(resultado?.caso?.ojos?.OD?.[0]?.medidas?.AL?.valor).toBe(24.07)
+  expect(resultado?.caso?.ojos?.OD?.[0]?.medidas?.K1?.valor).toBe(41.22)
 })
 
 /**
@@ -477,4 +1046,1399 @@ test('un archivo vacío se dice claramente, y no como un error de imagen', async
   expect(avisos).toMatch(/0 bytes/)
   // Y NO se le echa la culpa al reconocimiento de imagen.
   expect(avisos).not.toMatch(/decodificar|decoded|attempting to read/i)
+})
+
+/**
+ * Fallo real reportado por el dueño del proyecto (02/09/2026): un caso con
+ * OD y OS, calculó y el PDF de OS salió «sin resultados», sin ningún aviso
+ * de por qué.
+ *
+ * La causa: OS tenía dos aparatos con una discrepancia real entre sus K2,
+ * y nunca se reconoció — pero «Confirmar» solo miraba la discrepancia del
+ * ojo que se estuviera viendo en ese momento (D47 solo comprobaba el ojo
+ * activo). Confirmando mientras se revisaba OD (sin discrepancia), el botón
+ * estaba habilitado, y `calcular()` descartó en silencio las casillas de OS
+ * (D51: una discrepancia sin reconocer no bloquea el resto del caso) — sin
+ * que nadie hubiera visto ni reconocido esa discrepancia.
+ */
+test('una discrepancia sin reconocer en OS bloquea «Confirmar» aunque se esté mirando OD', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  await ventana.getByLabel('Nombre del doctor').fill('Dra. Prueba E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Caso Sintético E2E')
+
+  // OD: un solo aparato, con algo de dato — no hace falta más para esta prueba.
+  await ventana.getByTestId('manual-campo-AL').fill('24.00')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  // OS: dos aparatos con un K2 que discrepa de verdad (diferencia > 0.5 D).
+  await ventana.getByTestId('manual-ojo-OS').click()
+  await ventana.getByTestId('manual-campo-K2').fill('44.00')
+  await ventana.getByTestId('manual-campo-K2').press('Tab')
+
+  await ventana.getByTestId('manual-anadir-aparato').click()
+  await ventana.getByTestId('manual-anadir-aparato-select').selectOption('OCULUS Pentacam')
+  await ventana.getByTestId('manual-anadir-aparato-confirmar').click()
+  await ventana.getByTestId('manual-campo-K2').fill('45.20')
+  await ventana.getByTestId('manual-campo-K2').press('Tab')
+
+  await ventana.getByTestId('manual-continuar').click()
+
+  // La revisión aterriza en OD por defecto — el mismo escenario del fallo
+  // real: se confirma mirando el ojo que NO tiene ningún problema, sin
+  // haber visto nunca la alarma de OS.
+  await expect(ventana.getByTestId('revision-ojo-OD')).toHaveClass(/activo/)
+  await expect(ventana.getByTestId('alarma-discrepancia')).toHaveCount(0)
+  await expect(ventana.getByTestId('confirmar')).toBeDisabled()
+  await expect(ventana.getByTestId('aviso-discrepancia-otro-ojo')).toContainText('izquierdo')
+
+  // Solo al ir a OS y reconocer la discrepancia se puede confirmar.
+  await ventana.getByTestId('revision-ojo-OS').click()
+  await ventana.getByTestId('reconocer-discrepancia').click()
+  await expect(ventana.getByTestId('confirmar')).toBeEnabled()
+})
+
+/**
+ * Fallo real reportado por el dueño (15/09/2026): elegir calcular solo OD
+ * obligaba igualmente a comprobar los datos de OS —de una foto cargada,
+ * por ejemplo— aunque no se fueran a calcular todavía. «Confirmar datos»
+ * miraba los datos por comprobar de TODOS los ojos del caso (D47), no solo
+ * del que se estaba revisando.
+ *
+ * Se usa un ANTERION sin ACD (que el programa deriva de AQD+CCT, D31) en
+ * los dos ojos: es la forma más simple y fiable de tener un dato DERIVADO
+ * —que necesita comprobación humana— sin depender de OCR (mismo truco que
+ * la prueba de «confirmar todo de golpe»).
+ */
+test('elegir calcular solo OD no obliga a comprobar los datos de OS, de una foto cargada', async () => {
+  test.setTimeout(180_000)
+
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  await p.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <div style="display:flex;gap:90px">
+      <pre>OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+AQD (endo)     2.65 mm
+LT             4.53 mm
+CCT             530 um</pre>
+      <pre>OS
+AL            24.01 mm
+K1            40.27 D @ 8
+K2            42.68 D @ 98
+AQD (endo)     2.70 mm
+LT             4.48 mm
+CCT             533 um</pre>
+    </div></body>`)
+  const rutaPdf = join(carpetaDatos, 'anterion-solo-un-ojo.pdf')
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByLabel('Nombre del doctor').fill('Dra. Un Ojo E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Paciente Un Ojo E2E')
+  await ventana.getByTestId('manual-continuar').click()
+
+  await ventana.evaluate(
+    async (ruta) =>
+      window.vilamar?.cargarDocumentos([{ nombre: 'anterion-solo-un-ojo.pdf', ruta }]),
+    rutaPdf,
+  )
+
+  // Se elige OD a propósito, sin dar por hecho que la revisión aterriza ahí
+  // — `ojoActivo` es un estado de `App.tsx` compartido entre casos, así que
+  // qué ojo quedó activo en un caso anterior no dice nada de este.
+  await ventana.getByTestId('revision-ojo-OD').click()
+  await expect(ventana.getByTestId('revision-ojo-OD')).toHaveClass(/activo/)
+
+  // Se comprueba la propia ACD derivada de OD, nada más — no hace falta
+  // tocar OS para nada.
+  await expect(ventana.getByTestId('comprobar-ACD')).toBeVisible()
+  await ventana.getByTestId('comprobar-ACD').click()
+  await expect(ventana.getByTestId('comprobar-ACD')).toHaveCount(0)
+
+  // OS sigue con su propia ACD SIN comprobar — y aun así, «Confirmar
+  // datos» ya está habilitado: es el arreglo de hoy.
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OS?.[0]?.medidas?.ACD?.confirmadoPorUsuario).toBe(false)
+  await expect(ventana.getByTestId('confirmar')).toBeEnabled()
+
+  await ventana.getByTestId('confirmar').click()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
+
+  await ventana.screenshot({ path: 'test-results/11g-confirmar-solo-un-ojo.png', fullPage: true })
+})
+
+/**
+ * «Casos guardados» (02/09/2026, petición expresa del dueño del proyecto):
+ * antes de esto no había ninguna forma de volver a un caso una vez cerrada
+ * la aplicación — solo existía «el que está abierto ahora mismo», en
+ * memoria. `guardarCaso`/`leerCaso`/`listarCasos` ya guardaban cada caso en
+ * disco desde el principio; faltaba la pantalla para elegir cuál abrir.
+ */
+test('un caso guardado se puede volver a abrir, con sus datos intactos', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByLabel('Nombre del doctor').fill('Dra. Casos Guardados')
+  await ventana.getByLabel('Nombre del paciente').fill('Paciente Casos Guardados')
+  await ventana.getByTestId('manual-campo-AL').fill('23.55')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-continuar').click()
+
+  const creado = await ventana.evaluate(() => window.vilamar?.casoActual())
+  const codigo = creado?.codigo
+  expect(codigo).toBeTruthy()
+
+  // Se cierra el caso actual (como si se hubiera reiniciado la aplicación:
+  // «Nuevo cálculo» dijo adiós al que estaba en memoria) y se busca en la
+  // lista de guardados.
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('tarjeta-casos-guardados').getByRole('button').click()
+  await expect(ventana.getByTestId('tabla-casos-guardados')).toBeVisible()
+
+  // Escribir datos y pulsar «Continuar» no confirma el caso —eso es una
+  // acción explícita, en la revisión— así que el estado sigue siendo el de
+  // un caso recién creado.
+  const fila = ventana.locator('tr', { hasText: codigo ?? '' })
+  await expect(fila).toContainText('Paciente Casos Guardados')
+  await expect(fila).toContainText('Nuevo cálculo')
+  await fila.getByRole('button', { name: 'Abrir' }).click()
+
+  // Aterriza en revisión, con el dato tal cual se dejó.
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('23.55')
+  const reabierto = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(reabierto?.codigo).toBe(codigo)
+  expect(reabierto?.nombrePaciente).toBe('Paciente Casos Guardados')
+})
+
+/**
+ * Fallo real reportado por el dueño del proyecto (02/09/2026): al abrir un
+ * caso terminado, aterriza en «4. Resultados» y no encontraba cómo volver a
+ * los datos para corregir algo — la barra de pasos de arriba solo era un
+ * indicador, sin ningún sitio que llevara de vuelta salvo un botón escondido
+ * más abajo en la pantalla. «Entonces, ¿de qué me sirve?», tal cual.
+ *
+ * Ahora los pasos YA RECORRIDOS de esa barra se pueden volver a pulsar —
+ * nunca uno futuro, que saltaría por delante de lo que falta.
+ */
+test('los pasos ya recorridos de la barra de arriba se pueden volver a pulsar', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByLabel('Nombre del doctor').fill('Dra. Pasos E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Paciente Pasos E2E')
+  await ventana.getByTestId('manual-campo-AL').fill('23.80')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-continuar').click()
+  await ventana.getByTestId('confirmar').click()
+
+  // En «3. Calcular»: el paso «4. Resultados», que todavía no se ha
+  // alcanzado, no se puede pulsar — saltaría por delante.
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
+  await expect(ventana.getByTestId('paso-RESULTADOS')).toBeDisabled()
+
+  // Pero «2. Revisar datos», ya recorrido, sí — y vuelve con el dato intacto.
+  await ventana.getByTestId('paso-REVISION').click()
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('23.8')
+
+  // Y desde ahí, «3. Calcular» lleva otra vez adelante — el caso ya había
+  // llegado a «Calcular» antes, así que volver no lo «olvida».
+  await ventana.getByTestId('paso-CALCULANDO').click()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
+  // Y «4. Resultados», que de verdad no se ha alcanzado nunca, sigue sin poder pulsarse.
+  await expect(ventana.getByTestId('paso-RESULTADOS')).toBeDisabled()
+})
+
+/**
+ * Petición expresa del dueño del proyecto (02/09/2026), probando a cargar
+ * fotos leídas por un lector externo: la pantalla de revisión (para un
+ * documento cargado) no tenía forma de añadir un segundo aparato, y el
+ * orden de los campos no coincidía con el del cuestionario manual — las
+ * dos vías de entrada tienen que llevar a la misma experiencia.
+ * `SelectorAparato.tsx` es ahora el mismo componente en las dos pantallas.
+ */
+test('la pantalla de revisión (documento cargado) permite añadir un segundo aparato, igual que el manual', async () => {
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  await p.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <pre>OD
+AL            23.90 mm
+K1            41.00 D @ 10
+K2            42.50 D @ 100
+ACD (epi)      3.10 mm</pre>
+    </body>`)
+  const rutaPdf = join(carpetaDatos, 'informe-otro-aparato.pdf')
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  const resultado = await ventana.evaluate(
+    async (ruta) =>
+      window.vilamar?.cargarDocumentos([{ nombre: 'informe-otro-aparato.pdf', ruta }]),
+    rutaPdf,
+  )
+  expect(resultado?.caso?.ojos?.OD?.[0]?.medidas?.AL?.valor).toBe(23.9)
+
+  // Cargar el documento por el canal, sin pasar por la ventana, no cambia
+  // de pantalla sola — se entra en la revisión con el paso de la barra
+  // (D64: siempre pulsable en cuanto hay un caso).
+  await ventana.getByTestId('paso-REVISION').click()
+
+  // El botón para añadir un segundo biómetro, antes solo en el cuestionario
+  // manual, ahora también está aquí.
+  await expect(ventana.getByTestId('manual-anadir-aparato')).toBeVisible()
+  await ventana.getByTestId('manual-anadir-aparato').click()
+  await ventana.getByTestId('manual-anadir-aparato-select').selectOption('OCULUS Pentacam')
+  await ventana.getByTestId('manual-anadir-aparato-confirmar').click()
+
+  // Elegir un aparato nuevo no crea el dataset todavía —solo cambia cuál
+  // está activo, igual que en el cuestionario manual—, así que el campo
+  // arranca vacío: sin pisar el primero.
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('')
+
+  // En cuanto se escribe el primer dato, el dataset nuevo existe de
+  // verdad y aparece como pestaña — sin que el original desaparezca.
+  await ventana.getByTestId('campo-AL').fill('24.50')
+  await ventana.getByTestId('campo-AL').press('Tab')
+  await expect(ventana.getByTestId('manual-aparato-OCULUS Pentacam')).toBeVisible()
+
+  const aparatoOriginal = (await ventana.evaluate(() => window.vilamar?.casoActual()))?.ojos
+    ?.OD?.[0]?.aparato
+  expect(aparatoOriginal).toBeTruthy()
+  await expect(ventana.getByTestId(`manual-aparato-${aparatoOriginal}`)).toBeVisible()
+
+  // Y volver al aparato original enseña SU dato, no el 24.50 del nuevo.
+  await ventana.getByTestId(`manual-aparato-${aparatoOriginal}`).click()
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('23.9')
+
+  // Y el orden de los campos coincide con el cuestionario manual: AL y las
+  // dos K, antes que la constante A (que vive en «Lente e incisión», no en
+  // «Decisiones del cirujano» como antes).
+  const etiquetas = await ventana
+    .getByTestId(/^campo-/)
+    .evaluateAll((els) => els.map((el) => el.getAttribute('data-testid')))
+  const posAL = etiquetas.indexOf('campo-AL')
+  const posConstanteA = etiquetas.indexOf('campo-CONSTANTE_A')
+  const posPK1 = etiquetas.indexOf('campo-PK1')
+  expect(posAL).toBeLessThan(posConstanteA)
+  expect(posConstanteA).toBeLessThan(posPK1)
+})
+
+/**
+ * Fallo real reportado por el dueño del proyecto (29/09/2026): con un
+ * paciente de dos aparatos, tras subir la foto del primero y pulsar
+ * «Añadir otro biómetro» en la revisión, no había ninguna forma de subir
+ * la foto del segundo — ese botón solo dejaba escribirlo a mano. Antes de
+ * D103, la única pantalla que sabía subir un documento (`ZonaSoltar`) solo
+ * existía en el primer paso, al que además no había forma de volver una
+ * vez el caso tenía un documento cargado.
+ *
+ * El diálogo nativo de «Elegir archivo» no se puede pilotar desde aquí, así
+ * que esta prueba comprueba lo mismo que comprobaría tras elegir el
+ * fichero en ese diálogo: que un segundo documento, cargado por el mismo
+ * canal (`cargarDocumentos`) que usa el botón nuevo, se SUMA al caso que ya
+ * está en revisión —sin pisar el primer aparato— y que el botón que antes
+ * no existía («Subir documento…») está ahí para llegar a él.
+ */
+test('«Subir documento…» en la revisión añade un segundo aparato al caso en curso, sin perder el primero (D103)', async () => {
+  test.setTimeout(180_000)
+
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+
+  const p1 = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  await p1.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <pre>OD
+AL            23.90 mm
+K1            41.00 D @ 10
+K2            42.50 D @ 100
+ACD (epi)      3.10 mm</pre>
+    </body>`)
+  const rutaAnterion = join(carpetaDatos, 'd103-primer-aparato.pdf')
+  await p1.pdf({ path: rutaAnterion, format: 'A4', printBackground: true })
+  await p1.close()
+
+  const p2 = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  await p2.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>OCULUS PENTACAM</h1>
+    <pre>OD
+AL            24.30 mm
+K1            41.80 D @ 5
+K2            43.10 D @ 95
+ACD (epi)      3.05 mm</pre>
+    </body>`)
+  const rutaPentacam = join(carpetaDatos, 'd103-segundo-aparato.pdf')
+  await p2.pdf({ path: rutaPentacam, format: 'A4', printBackground: true })
+  await p2.close()
+  await nav.close()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+
+  // Primer aparato — mismo canal que usa la app al arrastrar un fichero.
+  await ventana.evaluate(
+    async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'd103-primer-aparato.pdf', ruta }]),
+    rutaAnterion,
+  )
+  await ventana.getByTestId('paso-REVISION').click()
+
+  const aparatoOriginal = (await ventana.evaluate(() => window.vilamar?.casoActual()))?.ojos
+    ?.OD?.[0]?.aparato
+  expect(aparatoOriginal, 'el primer documento no ha creado ningún dataset para OD').toBeTruthy()
+
+  // El botón que antes no existía: antes de D103 no había ninguna forma de
+  // subir una foto más una vez pasada la pantalla inicial.
+  await expect(ventana.getByTestId('manual-subir-documento')).toBeVisible()
+
+  // Segundo aparato — mismo canal que usaría el diálogo real tras elegir el
+  // fichero; lo que se comprueba es que se suma al caso EN CURSO en vez de
+  // reemplazarlo, que es justo lo que hacía falta y no había manera de
+  // disparar desde la pantalla de revisión.
+  await ventana.evaluate(
+    async (ruta) =>
+      window.vilamar?.cargarDocumentos([{ nombre: 'd103-segundo-aparato.pdf', ruta }]),
+    rutaPentacam,
+  )
+
+  // Los dos aparatos conviven —ahora sí hay pestañas— y ninguno pisa al otro.
+  await expect(ventana.getByTestId(`manual-aparato-${aparatoOriginal}`)).toBeVisible()
+  await expect(ventana.getByTestId('manual-aparato-OCULUS Pentacam')).toBeVisible()
+
+  await ventana.getByTestId(`manual-aparato-${aparatoOriginal}`).click()
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('23.9')
+
+  await ventana.getByTestId('manual-aparato-OCULUS Pentacam').click()
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('24.3')
+})
+
+/**
+ * Pregunta expresa del dueño del proyecto (06/09/2026): ¿el nombre del
+ * paciente y del doctor funcionan igual entrando por «cargar un documento»
+ * que por «escribir a mano»? Las dos vías aterrizan en la MISMA
+ * `PanelRevision.tsx` (comparten `IdentificacionCaso`), así que deberían
+ * — pero eso no se había probado nunca entrando por un documento, solo a
+ * mano. Esta prueba lo fuerza por la vía del documento, de punta a punta
+ * hasta el propio PDF, para no quedarse en "por construcción debería".
+ */
+test('Identificación funciona igual cargando un documento que escribiendo a mano — de punta a punta hasta el PDF', async () => {
+  test.setTimeout(180_000)
+
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  await p.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <pre>OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+ACD (epi)      3.18 mm</pre></body>`)
+  const rutaPdf = join(carpetaDatos, 'informe-identificacion.pdf')
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.evaluate(
+    async (ruta) =>
+      window.vilamar?.cargarDocumentos([{ nombre: 'informe-identificacion.pdf', ruta }]),
+    rutaPdf,
+  )
+  // Entrando por un documento, no por el cuestionario manual.
+  await ventana.getByTestId('paso-REVISION').click()
+
+  // Los mismos campos, con el mismo testid, que en la vía manual.
+  await expect(ventana.getByTestId('identificacion-paciente')).toBeVisible()
+  await expect(ventana.getByTestId('identificacion-cirujano')).toBeVisible()
+  await ventana.getByTestId('identificacion-paciente').fill('Paciente Del Documento')
+  await ventana.getByTestId('identificacion-paciente').press('Tab')
+  await ventana.getByTestId('identificacion-cirujano').fill('Doctor Del Documento')
+  await ventana.getByTestId('identificacion-cirujano').press('Tab')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.nombrePaciente).toBe('Paciente Del Documento')
+  expect(caso?.nombreCirujano).toBe('Doctor Del Documento')
+
+  // Y llega hasta el PDF de verdad, en la carpeta con su nombre — igual
+  // que por la vía manual (ver la prueba de la carpeta por paciente).
+  const resultado = await ventana.evaluate(() =>
+    window.vilamar?.generarPdf({
+      incluirEstimacionCompleta: true,
+      incluirTablaComparativaDetallada: true,
+      generarResumenAparte: false,
+    }),
+  )
+  const ruta = resultado?.rutas[0]?.ruta ?? ''
+  expect(ruta).toContain(join('Paciente Del Documento', 'Ojo derecho (OD)'))
+  expect(statSync(ruta).size).toBeGreaterThan(0)
+})
+
+/**
+ * Petición expresa del dueño del proyecto (02/09/2026): al meter la
+ * constante A de un ojo, que aparezca sola en el otro — casi siempre es la
+ * misma lente en los dos — sin tener que escribirla dos veces. Pero nunca
+ * pisando lo que ya haya: ni la del otro ojo si ya tenía la suya, ni al
+ * revés.
+ */
+test('la constante A escrita en un ojo se copia sola al otro, sin pisar la que ya hubiera (D66)', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  // OD: un dato de biometría y la constante.
+  await ventana.getByTestId('manual-campo-AL').fill('24.00')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-campo-CONSTANTE_A').fill('119.10')
+  await ventana.getByTestId('manual-campo-CONSTANTE_A').press('Tab')
+
+  // OS todavía no tiene ningún dato: no hay nada que copiar todavía.
+  await ventana.getByTestId('manual-ojo-OS').click()
+  await expect(ventana.getByTestId('manual-campo-CONSTANTE_A')).toHaveValue('')
+
+  // En cuanto OS tiene su primer dato, hereda la constante de OD sola.
+  await ventana.getByTestId('manual-campo-AL').fill('24.30')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await expect(ventana.getByTestId('manual-campo-CONSTANTE_A')).toHaveValue('119.1')
+
+  // Si la persona la cambia a propósito en OS, esa es la que se queda — y
+  // la de OD, que se escribió antes, tampoco se toca.
+  await ventana.getByTestId('manual-campo-CONSTANTE_A').fill('118.50')
+  await ventana.getByTestId('manual-campo-CONSTANTE_A').press('Tab')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.medidas?.CONSTANTE_A?.valor).toBe(119.1)
+  expect(caso?.ojos?.OS?.[0]?.medidas?.CONSTANTE_A?.valor).toBe(118.5)
+})
+
+/**
+ * Petición expresa del dueño del proyecto (15/09/2026), tras usar el
+ * arreglo de D75 para añadir el segundo ojo a un caso ya calculado: que el
+ * SIA, su eje y el objetivo de refracción también se rellenen solos en el
+ * segundo ojo, igual que ya hace la constante A (D66) — suelen ser los
+ * mismos en los dos ojos de la misma visita. La lente ya era del caso
+ * entero, no de cada ojo (D33), así que esa parte no necesitaba ningún
+ * cambio.
+ */
+test('el SIA, su eje y el objetivo de refracción se heredan solos del otro ojo al crear el segundo dataset', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  // OD: un dato de biometría y los tres campos, con valores DISTINTOS de
+  // los que arrancan por defecto (D38: 0.25 / 135 / 0) para poder
+  // distinguir «heredado de OD» de «el valor de partida de siempre».
+  await ventana.getByTestId('manual-campo-AL').fill('24.00')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-campo-SIA').fill('0.40')
+  await ventana.getByTestId('manual-campo-SIA').press('Tab')
+  await ventana.getByTestId('manual-campo-EJE_INCISION').fill('90')
+  await ventana.getByTestId('manual-campo-EJE_INCISION').press('Tab')
+  await ventana.getByTestId('manual-campo-REFRACCION_OBJETIVO').fill('-0.50')
+  await ventana.getByTestId('manual-campo-REFRACCION_OBJETIVO').press('Tab')
+
+  // OS todavía no tiene ningún dataset: sus campos muestran el valor de
+  // partida de siempre (D38), no el de OD — no hay nada que heredar hasta
+  // que se escriba el primer dato.
+  await ventana.getByTestId('manual-ojo-OS').click()
+  await expect(ventana.getByTestId('manual-campo-SIA')).toHaveValue('0.25')
+  await expect(ventana.getByTestId('manual-campo-EJE_INCISION')).toHaveValue('135')
+  await expect(ventana.getByTestId('manual-campo-REFRACCION_OBJETIVO')).toHaveValue('0')
+
+  // En cuanto OS tiene su primer dato, hereda los tres de OD solos.
+  await ventana.getByTestId('manual-campo-AL').fill('24.30')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await expect(ventana.getByTestId('manual-campo-SIA')).toHaveValue('0.4')
+  await expect(ventana.getByTestId('manual-campo-EJE_INCISION')).toHaveValue('90')
+  await expect(ventana.getByTestId('manual-campo-REFRACCION_OBJETIVO')).toHaveValue('-0.5')
+
+  // Si la persona cambia el SIA a propósito en OS, esa es la que se queda
+  // — y la de OD, escrita antes, no se toca.
+  await ventana.getByTestId('manual-campo-SIA').fill('0.30')
+  await ventana.getByTestId('manual-campo-SIA').press('Tab')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.medidas?.SIA?.valor).toBe(0.4)
+  expect(caso?.ojos?.OS?.[0]?.medidas?.SIA?.valor).toBe(0.3)
+  expect(caso?.ojos?.OS?.[0]?.medidas?.EJE_INCISION?.valor).toBe(90)
+  expect(caso?.ojos?.OS?.[0]?.medidas?.REFRACCION_OBJETIVO?.valor).toBe(-0.5)
+})
+
+/**
+ * Fallo real reportado por el dueño del proyecto (05/09/2026): eligió la
+ * lente ANTES de escribir ningún dato del ojo, y la constante A del
+ * catálogo (D69) se quedaba sin aplicar — `elegirLente()` solo puede
+ * escribir en los ojos que ya existen, y todavía no había ninguno.
+ */
+test('la constante A del catálogo (D69) se aplica sola en cuanto el ojo tiene su primer dato, aunque la lente se eligiera antes', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  // Se elige la lente ANTES de escribir ningún dato de biometría — todavía
+  // no hay ningún ojo al que engancharle la constante. Sale un aviso de
+  // que la constante llegará en cuanto haya datos, además del que confirma
+  // cuál se ha elegido.
+  await ventana.getByTestId('selector-lente').selectOption('B&L Envy')
+  await expect(ventana.getByTestId('aviso-lente')).toContainText([
+    /119\.28/,
+    /se aplicará cuando los haya/i,
+  ])
+
+  // En cuanto OD tiene su primer dato, se rellena sola.
+  await ventana.getByTestId('manual-campo-AL').fill('24.00')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await expect(ventana.getByTestId('manual-campo-CONSTANTE_A')).toHaveValue('119.28')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.medidas?.CONSTANTE_A?.valor).toBe(119.28)
+  expect(caso?.ojos?.OD?.[0]?.medidas?.CONSTANTE_A?.procedencia?.metodo).toBe('CATALOGO')
+})
+
+/**
+ * Petición expresa del dueño del proyecto (02/09/2026): con datos completos
+ * en los dos ojos, poder elegir calcular los dos a la vez o solo uno, en
+ * vez de lanzar siempre las dos calculadoras aunque solo haga falta una.
+ */
+test('se puede elegir calcular los dos ojos o solo uno (D66)', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  const datosOjo: [string, string][] = [
+    ['manual-campo-AL', '24.07'],
+    ['manual-campo-K1', '41.22'],
+    ['manual-campo-K1_EJE', '175'],
+    ['manual-campo-K2', '42.52'],
+    ['manual-campo-K2_EJE', '85'],
+    ['manual-campo-ACD', '3.18'],
+    ['manual-campo-LT', '4.53'],
+    ['manual-campo-CCT', '530'],
+    ['manual-campo-REFRACCION_OBJETIVO', '0'],
+    ['manual-campo-SIA', '0.3'],
+    ['manual-campo-EJE_INCISION', '90'],
+    ['manual-campo-CONSTANTE_A', '119'],
+  ]
+  for (const [id, valor] of datosOjo) {
+    await ventana.getByTestId(id).fill(valor)
+    await ventana.getByTestId(id).press('Tab')
+  }
+
+  await ventana.getByTestId('manual-ojo-OS').click()
+  for (const [id, valor] of datosOjo) {
+    // La constante A ya llegó copiada de OD (ver el test anterior).
+    if (id === 'manual-campo-CONSTANTE_A') continue
+    await ventana.getByTestId(id).fill(valor)
+    await ventana.getByTestId(id).press('Tab')
+  }
+  await expect(ventana.getByTestId('manual-campo-CONSTANTE_A')).toHaveValue('119')
+
+  await ventana.getByTestId('identificacion-cirujano').fill('Dra. Prueba')
+  await ventana.getByTestId('identificacion-cirujano').press('Tab')
+  await ventana.getByTestId('identificacion-paciente').fill('Paciente de prueba')
+  await ventana.getByTestId('identificacion-paciente').press('Tab')
+
+  await ventana.getByTestId('manual-continuar').click()
+  await ventana.getByTestId('confirmar').click()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
+
+  // Con datos en los dos ojos aparece el selector, con «Los dos ojos»
+  // activo de partida — el comportamiento de siempre, para no sorprender a
+  // quien no lo toca.
+  await expect(ventana.getByTestId('alcance-ojos-AMBOS')).toBeVisible()
+  await expect(ventana.getByTestId('alcance-ojos-OD')).toBeVisible()
+  await expect(ventana.getByTestId('alcance-ojos-OS')).toBeVisible()
+  await expect(ventana.getByTestId('lanzar-calculo')).not.toContainText('solo')
+
+  await ventana.getByTestId('alcance-ojos-OD').click()
+  await expect(ventana.getByTestId('lanzar-calculo')).toContainText('solo OD')
+})
+
+/**
+ * Petición expresa del dueño del proyecto (02/09/2026), a partir de dos
+ * pantallazos de EVO y Kane: un ojo con córnea alterada por LASIK/PRK/RK
+ * previo o queratocono necesita un campo especial en EVO y Kane, y una
+ * calculadora ENTERAMENTE DISTINTA en vez de Barrett Toric —Barrett True K
+ * Toric—, porque la fórmula normal de Barrett da un resultado erróneo ahí.
+ *
+ * Solo se prueba aquí la parte de INTERFAZ (el selector, y que aparece/
+ * desaparece lo que tiene que aparecer/desaparecer) — el bloqueo mutuo entre
+ * las dos calculadoras de Barrett ya está probado a fondo en
+ * `preparar-entradas.test.ts`, en el dominio, sin necesitar la aplicación
+ * entera. No se pulsa «Calcular» aquí a propósito: aunque el bloqueo pasa
+ * antes de abrir ninguna página, pulsarlo abre igualmente un navegador real
+ * —Barrett exige ventana visible—, y esta prueba no depende de eso para
+ * comprobar lo que le toca comprobar.
+ */
+test('el selector de córnea especial, y sus dos campos de LASIK, solo aparecen cuando hacen falta (D67)', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  await ventana.getByTestId('manual-campo-AL').fill('24.07')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  // Sin tocar nada, la córnea especial está en «Ninguna» y las dos
+  // refracciones de LASIK no se enseñan: no son un dato que casi nadie
+  // necesite.
+  await expect(ventana.getByTestId('situacion-corneal-select')).toHaveValue('')
+  await expect(ventana.getByTestId('manual-campo-REFRACCION_PRE_LASIK')).toHaveCount(0)
+
+  // Se marca OD como queratocono. Los dos campos de LASIK aparecen solos
+  // (opcionales: no hace falta rellenarlos para seguir), y el aviso explica
+  // qué cambia para Barrett.
+  await ventana.getByTestId('situacion-corneal-select').selectOption('QUERATOCONO')
+  await expect(ventana.getByTestId('manual-campo-REFRACCION_PRE_LASIK')).toBeVisible()
+  await expect(ventana.getByTestId('manual-campo-REFRACCION_POST_LASIK')).toBeVisible()
+  await expect(ventana.getByTestId('situacion-corneal-aviso')).toContainText('True K Toric')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.situacionCorneal).toBe('QUERATOCONO')
+
+  // Cambiando a «Ninguna» otra vez, los dos campos vuelven a esconderse —
+  // no se enseña un hueco vacío que confunda al usar el formulario normal.
+  await ventana.getByTestId('situacion-corneal-select').selectOption('')
+  await expect(ventana.getByTestId('manual-campo-REFRACCION_PRE_LASIK')).toHaveCount(0)
+
+  // Y en OS, sin haber tocado nada, sigue siendo «Ninguna»: es un dato por
+  // ojo, no del caso entero.
+  await ventana.getByTestId('manual-ojo-OS').click()
+  await expect(ventana.getByTestId('situacion-corneal-select')).toHaveValue('')
+})
+
+test('la agenda de doctores (D80): guardar uno con SIA y eje, y elegirlo aplica los dos al caso', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+
+  // La agenda es ortogonal al caso: se abre desde CUALQUIER paso, aquí
+  // desde la propia pantalla de inicio, antes incluso de elegir cómo
+  // empezar el caso.
+  await ventana.getByTestId('abrir-doctores').click()
+  await expect(ventana.getByRole('heading', { name: 'Doctores' })).toBeVisible()
+  await expect(ventana.getByText('Todavía no has guardado ningún doctor.')).toBeVisible()
+
+  await ventana.getByTestId('doctor-nombre').fill('Dra. Agenda E2E')
+  await ventana.getByTestId('doctor-sia').fill('0.55')
+  await ventana.getByTestId('doctor-eje').fill('72')
+  await ventana.getByTestId('guardar-doctor').click()
+  await expect(ventana.getByTestId('tabla-doctores')).toContainText('Dra. Agenda E2E')
+  await expect(ventana.getByTestId('tabla-doctores')).toContainText('0.55')
+  await expect(ventana.getByTestId('tabla-doctores')).toContainText('72')
+
+  await ventana.getByTestId('volver-de-doctores').click()
+
+  // De vuelta en el caso: se escribe un dato de biometría con un SIA
+  // DISTINTO del que va a traer el doctor, para poder distinguir «lo que
+  // había» de «lo que trajo la agenda».
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByTestId('manual-campo-AL').fill('24.07')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-campo-SIA').fill('0.10')
+  await ventana.getByTestId('manual-campo-SIA').press('Tab')
+
+  await ventana
+    .getByTestId('identificacion-doctor-guardado')
+    .selectOption({ label: 'Dra. Agenda E2E' })
+
+  // El nombre viaja a la casilla de texto de siempre — sigue siendo el
+  // mismo campo, editable a mano, solo que este atajo lo rellena solo.
+  await expect(ventana.getByLabel('Nombre del doctor')).toHaveValue('Dra. Agenda E2E')
+  await expect(ventana.getByTestId('manual-campo-SIA')).toHaveValue('0.55')
+  await expect(ventana.getByTestId('manual-campo-EJE_INCISION')).toHaveValue('72')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.nombreCirujano).toBe('Dra. Agenda E2E')
+  expect(caso?.ojos?.OD?.[0]?.medidas?.SIA?.valor).toBe(0.55)
+  expect(caso?.ojos?.OD?.[0]?.medidas?.EJE_INCISION?.valor).toBe(72)
+
+  // Un doctor sin SIA/eje guardados (uno nuevo, sin editar) no toca esos
+  // campos al elegirlo — se quedan con lo que el caso ya tuviera.
+  await ventana.getByTestId('abrir-doctores').click()
+  await ventana.getByTestId('doctor-nombre').fill('Dr. Sin Datos E2E')
+  await ventana.getByTestId('guardar-doctor').click()
+  await ventana.getByTestId('volver-de-doctores').click()
+
+  await ventana
+    .getByTestId('identificacion-doctor-guardado')
+    .selectOption({ label: 'Dr. Sin Datos E2E' })
+  await expect(ventana.getByLabel('Nombre del doctor')).toHaveValue('Dr. Sin Datos E2E')
+  await expect(ventana.getByTestId('manual-campo-SIA')).toHaveValue('0.55')
+  await expect(ventana.getByTestId('manual-campo-EJE_INCISION')).toHaveValue('72')
+})
+
+/**
+ * Fallo real reportado por el dueño del proyecto (15/09/2026), con
+ * capturas de pantalla: eligió el doctor de la agenda ANTES de escribir
+ * ningún dato de biometría, y el SIA/eje se quedaron en el valor de
+ * partida (0.25 / 135) en vez del guardado — `aplicarDoctor()` solo
+ * escribía en un dataset que YA existiera.
+ */
+test('elegir un doctor ANTES de escribir ningún dato también aplica su SIA/eje, en los dos ojos', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+
+  await ventana.getByTestId('abrir-doctores').click()
+  await ventana.getByTestId('doctor-nombre').fill('Dra. Antes De Escribir')
+  await ventana.getByTestId('doctor-sia').fill('0.45')
+  await ventana.getByTestId('doctor-eje').fill('60')
+  await ventana.getByTestId('guardar-doctor').click()
+  await ventana.getByTestId('volver-de-doctores').click()
+
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  // Todavía no se ha escrito NADA de biometría: el SIA/eje siguen en el
+  // valor de partida de siempre (D38), como siempre.
+  await expect(ventana.getByTestId('manual-campo-SIA')).toHaveValue('0.25')
+  await expect(ventana.getByTestId('manual-campo-EJE_INCISION')).toHaveValue('135')
+
+  await ventana
+    .getByTestId('identificacion-doctor-guardado')
+    .selectOption({ label: 'Dra. Antes De Escribir' })
+
+  // OD: el SIA/eje del doctor ya salen puestos, sin haber escrito AL.
+  await expect(ventana.getByTestId('manual-campo-SIA')).toHaveValue('0.45')
+  await expect(ventana.getByTestId('manual-campo-EJE_INCISION')).toHaveValue('60')
+
+  // OS: lo mismo, sin haber cambiado de ojo mientras se elegía el doctor.
+  await ventana.getByTestId('manual-ojo-OS').click()
+  await expect(ventana.getByTestId('manual-campo-SIA')).toHaveValue('0.45')
+  await expect(ventana.getByTestId('manual-campo-EJE_INCISION')).toHaveValue('60')
+
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.ojos?.OD?.[0]?.medidas?.SIA?.valor).toBe(0.45)
+  expect(caso?.ojos?.OS?.[0]?.medidas?.SIA?.valor).toBe(0.45)
+  // Sembrar el SIA/eje no inventa biometría: AL sigue sin ningún valor.
+  expect(caso?.ojos?.OD?.[0]?.medidas?.AL).toBeUndefined()
+})
+
+test('la bandeja de casos (D81): se ordena sola por prioridad, y el estado se lee del caso una vez enganchada', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('abrir-bandeja').click()
+  await expect(ventana.getByRole('heading', { name: 'Bandeja de casos' })).toBeVisible()
+  await expect(ventana.getByText('Todavía no has apuntado ningún aviso.')).toBeVisible()
+
+  // Se apunta primero uno de prioridad baja, y DESPUÉS uno urgente: si la
+  // bandeja no se ordenara sola, el urgente seguiría segundo.
+  await ventana.getByTestId('bandeja-delegado').fill('Delegado Baja E2E')
+  await ventana.getByTestId('bandeja-descripcion').fill('Paciente Baja E2E')
+  await ventana.getByTestId('bandeja-prioridad').selectOption('BAJA')
+  await ventana.getByTestId('guardar-bandeja').click()
+
+  await ventana.getByTestId('bandeja-delegado').fill('Delegado Urgente E2E')
+  await ventana.getByTestId('bandeja-descripcion').fill('Paciente Urgente E2E')
+  await ventana.getByTestId('bandeja-prioridad').selectOption('URGENTE')
+  await ventana.getByTestId('bandeja-notas').fill('Llamó dos veces')
+  await ventana.getByTestId('guardar-bandeja').click()
+
+  const filas = ventana.getByTestId('tabla-bandeja').locator('tbody tr')
+  await expect(filas).toHaveCount(2)
+  // El urgente, aunque se apuntó el segundo, sale primero.
+  await expect(filas.nth(0)).toContainText('Delegado Urgente E2E')
+  await expect(filas.nth(1)).toContainText('Delegado Baja E2E')
+
+  const filaUrgente = filas.filter({ hasText: 'Delegado Urgente E2E' })
+  await expect(filaUrgente).toContainText('Sin empezar')
+
+  // «Empezar» crea el caso, le pone el nombre del paciente, y engancha la
+  // entrada — todo sin salir de la bandeja hasta pulsar el botón.
+  await filaUrgente.getByRole('button', { name: 'Empezar' }).click()
+
+  // Al crear el caso desde la bandeja, se vuelve al flujo normal con ese
+  // caso ya abierto.
+  await expect(ventana.getByTestId('zona-soltar')).toBeVisible()
+  const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(caso?.nombrePaciente).toBe('Paciente Urgente E2E')
+
+  // De vuelta en la bandeja, esa entrada ya no dice «Sin empezar»: lee el
+  // estado real del caso que se acaba de crear, sin que nadie lo actualice
+  // a mano — y el botón cambia a «Abrir caso».
+  await ventana.getByTestId('abrir-bandeja').click()
+  const filaUrgenteDeNuevo = ventana
+    .getByTestId('tabla-bandeja')
+    .locator('tbody tr')
+    .filter({ hasText: 'Delegado Urgente E2E' })
+  await expect(filaUrgenteDeNuevo).toContainText('Nuevo cálculo')
+  await expect(filaUrgenteDeNuevo.getByRole('button', { name: 'Abrir caso' })).toBeVisible()
+
+  // Marcar como enviado (a mano — no hay forma de saberlo sola) la manda
+  // al final de la lista, aunque sea la urgente.
+  await filaUrgenteDeNuevo.getByRole('button', { name: 'Marcar enviado' }).click()
+  const filasTrasEnviar = ventana.getByTestId('tabla-bandeja').locator('tbody tr')
+  await expect(filasTrasEnviar.nth(1)).toContainText('Delegado Urgente E2E')
+  await expect(filasTrasEnviar.nth(1)).toContainText('Enviado')
+
+  await ventana.getByTestId('volver-de-bandeja').click()
+})
+
+/**
+ * Esta suite nunca habla con Kane, EVO ni Barrett de verdad (ver la
+ * cabecera del fichero), así que ningún caso de esta ejecución llega a
+ * `COMPLETADO` — el dashboard, con datos reales, se prueba a mano. Lo que
+ * SÍ puede probarse aquí es que la pantalla se abre, no rompe nada, y
+ * cuenta bien el caso «cero»: ningún caso calculado todavía.
+ */
+test('el dashboard (D82) se abre y, sin ningún caso calculado, lo dice claramente', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('abrir-dashboard').click()
+  await expect(ventana.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+  await expect(ventana.getByTestId('dashboard-total')).toContainText(
+    'Todavía no hay ningún caso calculado.',
+  )
+  await expect(ventana.getByTestId('dashboard-por-doctor')).toContainText(
+    'Todavía no hay ningún caso calculado.',
+  )
+  await expect(ventana.getByTestId('dashboard-por-modelo')).toContainText(
+    'Todavía no hay ningún caso calculado.',
+  )
+  await ventana.getByTestId('volver-de-dashboard').click()
+  await expect(ventana.getByTestId('zona-soltar')).toBeVisible()
+})
+
+test('el dashboard (D83): filtrar por fechas y «ver todo» no rompen nada, sin ningún caso calculado', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('abrir-dashboard').click()
+
+  await ventana.getByTestId('dashboard-desde').fill('2026-01-01')
+  await ventana.getByTestId('dashboard-hasta').fill('2026-12-31')
+  await ventana.getByTestId('dashboard-filtrar').click()
+  await expect(ventana.getByTestId('dashboard-total')).toContainText(
+    'Todavía no hay ningún caso calculado.',
+  )
+
+  await ventana.getByTestId('dashboard-ver-todo').click()
+  await expect(ventana.getByTestId('dashboard-desde')).toHaveValue('')
+  await expect(ventana.getByTestId('dashboard-hasta')).toHaveValue('')
+  await expect(ventana.getByTestId('dashboard-total')).toContainText(
+    'Todavía no hay ningún caso calculado.',
+  )
+
+  await ventana.getByTestId('volver-de-dashboard').click()
+})
+
+/**
+ * La pantalla no puede probar «excluir» de verdad porque, en esta suite,
+ * ningún caso llega a `COMPLETADO` (no habla con Kane/EVO/Barrett) — sin
+ * ningún caso en «Por doctor» no hay ninguna fila con botón que pulsar. La
+ * IPC en sí (persistencia real, ida y vuelta) sí se puede probar entera
+ * sin pasar por el botón.
+ */
+test('excluir/incluir un doctor de las estadísticas (D83): persiste de verdad, y es reversible', async () => {
+  const antes = await ventana.evaluate(() =>
+    window.vilamar?.listarDoctoresExcluidosDeEstadisticas(),
+  )
+  expect(antes).not.toContain('Dra. Excluida E2E')
+
+  const trasExcluir = await ventana.evaluate(() =>
+    window.vilamar?.excluirDoctorDeEstadisticas('Dra. Excluida E2E'),
+  )
+  expect(trasExcluir).toContain('Dra. Excluida E2E')
+
+  const trasIncluir = await ventana.evaluate(() =>
+    window.vilamar?.incluirDoctorEnEstadisticas('Dra. Excluida E2E'),
+  )
+  expect(trasIncluir).not.toContain('Dra. Excluida E2E')
+})
+
+/**
+ * «Elegir carpeta…» abre un diálogo nativo del sistema operativo, que
+ * Playwright no puede pulsar — mismo límite de siempre con «Elegir
+ * archivo» (ver la cabecera de este fichero: ningún test pulsa ESE botón
+ * tampoco). Lo que sí se prueba aquí es la pantalla ANTES de configurar
+ * nada; el resto —detectar fotos en Alta/Normal/Baja, archivarlas,
+ * enganchar la entrada— ya está cubierto por
+ * `servicio-bandeja.carpeta-entrada.test.ts`, sobre disco real.
+ */
+test('la carpeta de entrada (D84): sin configurar todavía, la pantalla lo dice y no deja buscar', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('abrir-bandeja').click()
+
+  // Puede que una sesión anterior de esta MISMA ejecución ya la haya
+  // configurado (los datos del perfil de prueba se comparten entre
+  // tests) — esto solo comprueba lo que se puede comprobar sin el
+  // diálogo: que el botón existe y que, sin carpeta, «Buscar fotos
+  // nuevas» no se puede pulsar.
+  await expect(ventana.getByTestId('elegir-carpeta-entrada')).toBeVisible()
+  const ruta = await ventana.evaluate(() => window.vilamar?.obtenerCarpetaEntrada())
+  if (ruta === null) {
+    await expect(ventana.getByTestId('carpeta-entrada-ruta')).toContainText(
+      'Todavía no has elegido ninguna carpeta.',
+    )
+    await expect(ventana.getByTestId('buscar-fotos-nuevas')).toBeDisabled()
+  }
+
+  await ventana.getByTestId('volver-de-bandeja').click()
+})
+
+/**
+ * Esta suite nunca completa un cálculo de verdad (no habla con Kane/EVO/
+ * Barrett), así que el caso «lente calculada» se escribe directamente en
+ * disco —en la misma carpeta temporal que usa esta ejecución—, sin pasar
+ * por la aplicación. Es el mismo atajo que ya usa esta suite para PDF
+ * sintéticos: lo que se prueba es la pantalla y la IPC, no cómo se llega
+ * a tener un caso terminado.
+ */
+test('eliminar un doctor del dashboard (D85): pide confirmación, y archiva el caso en vez de perderlo', async () => {
+  const codigo = 'CV-TEST-ELIMINAR-DOCTOR'
+  const rutaCaso = join(carpetaDatos, 'casos', `${codigo}.json`)
+  writeFileSync(
+    rutaCaso,
+    JSON.stringify({
+      id: 'test-eliminar-doctor',
+      codigo,
+      estado: 'COMPLETADO',
+      creadoEn: '2026-09-16T10:00:00.000Z',
+      actualizadoEn: '2026-09-16T10:00:00.000Z',
+      documentos: [],
+      ojos: {},
+      resultados: {},
+      nombreCirujano: 'Dra. Eliminar E2E',
+      lente: { modelo: 'LuxSmart' },
+    }),
+    'utf8',
+  )
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('abrir-dashboard').click()
+  await ventana.getByTestId('dashboard-ver-todo').click()
+
+  const filaDoctor = ventana.getByTestId('dashboard-por-doctor')
+  await expect(filaDoctor).toContainText('Dra. Eliminar E2E')
+  const botonEliminar = ventana.getByTestId('eliminar-doctor-Dra. Eliminar E2E')
+
+  // Cancelar el diálogo de confirmación: no debe pasar nada.
+  ventana.once('dialog', (dialogo) => void dialogo.dismiss())
+  await botonEliminar.click()
+  await expect(filaDoctor).toContainText('Dra. Eliminar E2E')
+  expect(existsSync(rutaCaso)).toBe(true)
+
+  // Aceptar el diálogo: ahora sí se archiva, y desaparece del dashboard.
+  ventana.once('dialog', (dialogo) => void dialogo.accept())
+  await botonEliminar.click()
+  await expect(ventana.getByTestId('aviso-eliminar-doctor')).toContainText(
+    'Se ha eliminado 1 caso de «Dra. Eliminar E2E»',
+  )
+  await expect(filaDoctor).not.toContainText('Dra. Eliminar E2E')
+
+  // No se ha borrado para siempre: sigue existiendo, archivado aparte —
+  // con la fecha de HOY en UTC, igual que `creadoEn`/`actualizadoEn` en
+  // todo el resto de la aplicación (puede ir un día por detrás de la
+  // fecha local según la zona horaria, y es lo esperado, no un fallo).
+  expect(existsSync(rutaCaso)).toBe(false)
+  const dia = new Date().toISOString().slice(0, 10)
+  const rutaArchivada = join(carpetaDatos, 'casos-borrados', dia, `${codigo}.json`)
+  expect(existsSync(rutaArchivada)).toBe(true)
+})
+
+/**
+ * D93, 20/09/2026: la lente que el cirujano decide pedir, guardada con el
+ * caso, reabriéndolo desde «Casos guardados» —exactamente el escenario
+ * pedido: «el dr pueda acceder a sus casos e ir decidiendo qué lente
+ * escoge», no necesariamente el mismo día en que se calculó.
+ *
+ * No se pulsa «Pedir al laboratorio» de verdad: abriría el programa de
+ * correo real del equipo que ejecute la prueba (mismo motivo por el que
+ * «Abrir la carpeta», que usa `shell.openPath`, tampoco se prueba aquí) —
+ * se comprueba hasta que el botón aparece, que es la parte que sí depende
+ * de este programa.
+ */
+test('la lente a pedir (D93): se guarda con el caso, reabriéndolo desde «Casos guardados» días después', async () => {
+  const codigo = 'CV-TEST-PEDIDO-LENTE'
+  const rutaCaso = join(carpetaDatos, 'casos', `${codigo}.json`)
+  writeFileSync(
+    rutaCaso,
+    JSON.stringify({
+      id: 'test-pedido-lente',
+      codigo,
+      estado: 'COMPLETADO',
+      creadoEn: '2026-09-20T10:00:00.000Z',
+      actualizadoEn: '2026-09-20T10:00:00.000Z',
+      documentos: [],
+      ojos: {},
+      resultados: {},
+      nombreCirujano: 'Dra. Pedido E2E',
+    }),
+    'utf8',
+  )
+
+  // Primero, un laboratorio guardado — si no, no habría a qué email pedir.
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('abrir-laboratorios').click()
+  await ventana.getByTestId('laboratorio-fabricante').fill('Bausch & Lomb')
+  await ventana.getByTestId('laboratorio-email').fill('pedidos@bl-e2e.example')
+  await ventana.getByTestId('guardar-laboratorio').click()
+  await expect(ventana.getByTestId('tabla-laboratorios')).toContainText('Bausch & Lomb')
+  await ventana.getByTestId('volver-de-laboratorios').click()
+
+  // Se reabre el caso terminado desde «Casos guardados» — no el que se
+  // acaba de calcular en esta sesión.
+  await ventana.getByTestId('tarjeta-casos-guardados').getByRole('button').click()
+  await expect(ventana.getByTestId('tabla-casos-guardados')).toBeVisible()
+  const fila = ventana.locator('tr', { hasText: codigo })
+  await fila.getByRole('button', { name: 'Abrir' }).click()
+
+  // Sin ningún pedido guardado todavía, «Pedir al laboratorio» no aparece.
+  await expect(ventana.getByTestId('pedir-al-laboratorio')).toHaveCount(0)
+
+  await ventana.getByTestId('pedido-fabricante').selectOption('Bausch & Lomb')
+  await ventana.getByTestId('pedido-modelo').fill('B&L Aspire')
+  await ventana.getByTestId('pedido-esfera').fill('21.5')
+  await ventana.getByTestId('pedido-cilindro').fill('1')
+  await ventana.getByTestId('pedido-eje').fill('90')
+  await ventana.getByTestId('guardar-pedido-lente').click()
+
+  await expect(ventana.getByTestId('pedido-guardado-texto')).toContainText('Bausch & Lomb')
+  await expect(ventana.getByTestId('pedido-guardado-texto')).toContainText('B&L Aspire')
+  await expect(ventana.getByTestId('pedir-al-laboratorio')).toBeVisible()
+
+  // Y queda de verdad en el caso guardado en disco, no solo en pantalla.
+  const guardado = JSON.parse(readFileSync(rutaCaso, 'utf8')) as {
+    pedidosLente?: { OD?: { fabricante?: string; esfera?: number } }
+  }
+  expect(guardado.pedidosLente?.OD?.fabricante).toBe('Bausch & Lomb')
+  expect(guardado.pedidosLente?.OD?.esfera).toBe(21.5)
+})
+
+/**
+ * Fallo real reportado por el dueño del proyecto (24/09/2026): «si me voy
+ * a bandeja de casos y luego quiero volver atrás para abrir un cálculo
+ * nuevo no me deja, tengo que cerrar la aplicación y volver a entrar».
+ * `nuevoCalculo()` creaba el caso de verdad por detrás, pero no cerraba
+ * `pantallaExtra` —la pantalla de Bandeja/Doctores/Laboratorios/Dashboard,
+ * que se enseña ANTES que el asistente principal y no depende de
+ * `paso`—, así que la persona se quedaba mirando la Bandeja sin ver nada
+ * distinto, aunque el caso nuevo ya existiera.
+ */
+test('«Nuevo cálculo» desde la Bandeja de casos (D97): vuelve de verdad al asistente principal', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('abrir-bandeja').click()
+  await expect(ventana.getByRole('heading', { name: 'Bandeja de casos' })).toBeVisible()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+
+  await expect(ventana.getByRole('heading', { name: 'Bandeja de casos' })).not.toBeVisible()
+  await expect(ventana.getByRole('button', { name: 'Escribir los datos a mano' })).toBeVisible()
+})
+
+/**
+ * Fallo real reportado por el dueño del proyecto (24/09/2026): «si he
+ * empezado un caso y terminado de la lista de pendientes y ahora cargo
+ * otro caso me aparecen los datos del caso anterior». Causa: el proceso
+ * principal guarda el caso «en curso» en una única variable (`this.caso`,
+ * en `ServicioCasos`) —necesaria para «Añadir otro biómetro», que sí
+ * tiene que seguir escribiendo en el mismo caso—, pero varios caminos de
+ * la pantalla de inicio la reutilizaban SIN mirar si ese caso ya estaba
+ * terminado: «Escribir los datos a mano» (`caso ?? casoNuevo()`), cargar
+ * un documento arrastrándolo o con «Elegir archivo», y empezar un caso
+ * desde un aviso de la Bandeja que ya trae fotos. Los cuatro se arreglan
+ * igual: si el caso en curso ya no es un borrador vacío, se crea uno
+ * limpio antes de seguir.
+ */
+test('«Escribir los datos a mano» (D98): nunca reutiliza los datos de un caso anterior ya terminado', async () => {
+  // Caso A: se carga un documento (basta con que exista, aunque esté
+  // vacío, para que el caso avance de BORRADOR a EN_REVISION — el estado
+  // real de un caso ya trabajado, no el de uno recién creado) y se le
+  // escribe un dato reconocible.
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  const rutaCasoA = join(carpetaDatos, 'caso-a-d98.jpeg')
+  writeFileSync(rutaCasoA, '')
+  await ventana.evaluate(
+    async (ruta) => window.vilamar?.cargarDocumentos([{ nombre: 'caso-a-d98.jpeg', ruta }]),
+    rutaCasoA,
+  )
+  await ventana.evaluate(() => window.vilamar?.editarMedida('OD', 'AL', 24.07, 'Principal'))
+  const casoA = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(casoA?.estado, 'el caso A tiene que haber avanzado de BORRADOR').not.toBe('BORRADOR')
+
+  // La pantalla ya refleja el caso A (misma sincronización que usa el
+  // resto del fichero: esperar el código en la cabecera) — sin pasar por
+  // «Nuevo cálculo», que es justo lo que el dueño dice que no hacía.
+  await expect(ventana.locator('.caso', { hasText: casoA!.codigo })).toBeVisible()
+
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await expect(ventana.getByTestId('manual-campo-AL')).toHaveValue('')
+
+  const casoB = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(casoB?.codigo, 'tiene que ser un caso NUEVO, no el A reutilizado').not.toBe(casoA?.codigo)
+  expect(casoB?.ojos?.OD).toBeUndefined()
+})
+
+/**
+ * Fallo real reportado por el dueño del proyecto (24/09/2026): «hay veces
+ * que no interesa [un aparato] y aunque haya cogido las fotos de los dos
+ * aparatos no te deja eliminar uno y te calcula con los dos... mejor
+ * decidir si calcular con todos los aparatos o solo con alguno». Botón
+ * «Excluir»/«Incluir» por aparato (D100): no borra datos, solo lo saca del
+ * cálculo y del informe — se puede volver a incluir en cualquier momento.
+ */
+test('excluir un aparato (D100): desaparece del resumen antes de calcular, y se puede volver a incluir', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  // OD, aparato «Principal»: datos completos — el único que hace falta
+  // para poder confirmar el caso. El segundo aparato (Pentacam, más abajo)
+  // se deja adrede incompleto: excluido, no tiene por qué bloquear nada.
+  const datosPrincipal: [string, string][] = [
+    ['manual-campo-AL', '24.07'],
+    ['manual-campo-K1', '41.22'],
+    ['manual-campo-K1_EJE', '175'],
+    ['manual-campo-K2', '42.52'],
+    ['manual-campo-K2_EJE', '85'],
+    ['manual-campo-ACD', '3.18'],
+    ['manual-campo-REFRACCION_OBJETIVO', '0'],
+    ['manual-campo-SIA', '0.3'],
+    ['manual-campo-EJE_INCISION', '90'],
+    ['manual-campo-CONSTANTE_A', '119'],
+  ]
+  for (const [id, valor] of datosPrincipal) {
+    await ventana.getByTestId(id).fill(valor)
+    await ventana.getByTestId(id).press('Tab')
+  }
+
+  // OD, segundo aparato: «OCULUS Pentacam», con un solo dato — no hace
+  // falta más, porque se va a excluir.
+  await ventana.getByTestId('manual-anadir-aparato').click()
+  await ventana.getByTestId('manual-anadir-aparato-select').selectOption('OCULUS Pentacam')
+  await ventana.getByTestId('manual-anadir-aparato-confirmar').click()
+  await ventana.getByTestId('manual-campo-AL').fill('23.90')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  await ventana.getByTestId('identificacion-cirujano').fill('Dra. Exclusión E2E')
+  await ventana.getByTestId('identificacion-cirujano').press('Tab')
+  await ventana.getByTestId('identificacion-paciente').fill('Paciente Exclusión E2E')
+  await ventana.getByTestId('identificacion-paciente').press('Tab')
+
+  // Se excluye el Pentacam — la pestaña lo dice, y el propio caso lo guarda.
+  await ventana.getByTestId('alternar-exclusion-OCULUS Pentacam').click()
+  await expect(ventana.getByTestId('manual-aparato-OCULUS Pentacam')).toContainText('excluido')
+  await expect
+    .poll(async () => {
+      const c = await ventana.evaluate(() => window.vilamar?.casoActual())
+      return c?.ojos?.OD?.find((o) => o.aparato === 'OCULUS Pentacam')?.excluido
+    })
+    .toBe(true)
+
+  await ventana.getByTestId('manual-continuar').click()
+  await ventana.getByTestId('confirmar').click()
+
+  // Antes de calcular, el resumen de parámetros ya no enseña el aparato
+  // excluido — es la comprobación visual que hay justo antes del botón
+  // «Calcular», y era donde antes salía igual, con datos que no interesaban.
+  const resumen = ventana.getByTestId('resumen-parametros')
+  await expect(resumen).toContainText('Principal')
+  await expect(resumen).not.toContainText('OCULUS Pentacam')
+
+  // Se vuelve a los datos, se incluye otra vez, y reaparece.
+  await ventana.getByTestId('volver-a-revisar').click()
+  await ventana.getByTestId('alternar-exclusion-OCULUS Pentacam').click()
+  await expect(ventana.getByTestId('manual-aparato-OCULUS Pentacam')).not.toContainText('excluido')
+  await ventana.getByTestId('confirmar').click()
+  await expect(ventana.getByTestId('resumen-parametros')).toContainText('OCULUS Pentacam')
+})
+
+/**
+ * Petición expresa del dueño del proyecto (29/09/2026): poder elegir, antes
+ * de cada PDF, si se incluye la estimación propia (D43) bajo cada captura y
+ * en su cuadro de tarjetas — apagado por defecto (D105). Lo que de verdad
+ * cambia en el HTML según esta casilla ya está probado a fondo, con el
+ * proceso principal real, en `servicio-casos.generar-pdf.test.ts`; esta
+ * prueba comprueba solo lo que le toca a la interfaz: que la casilla existe
+ * en la pantalla de resultados, que empieza apagada, y que se puede marcar.
+ *
+ * Se llega a la pantalla de resultados con un caso «terminado» escrito
+ * directamente en disco —mismo atajo que ya usa esta suite en D85/D93, para
+ * no depender de una calculadora real— y reabierto desde «Casos guardados».
+ */
+test('el PDF (D105): la casilla de la estimación completa existe, empieza apagada y se puede marcar', async () => {
+  const codigo = 'CV-TEST-ESTIMACION-COMPLETA'
+  const rutaCaso = join(carpetaDatos, 'casos', `${codigo}.json`)
+  writeFileSync(
+    rutaCaso,
+    JSON.stringify({
+      id: 'test-estimacion-completa',
+      codigo,
+      estado: 'COMPLETADO',
+      creadoEn: '2026-09-29T10:00:00.000Z',
+      actualizadoEn: '2026-09-29T10:00:00.000Z',
+      documentos: [],
+      ojos: {},
+      resultados: {},
+      nombreCirujano: 'Dra. Estimación E2E',
+    }),
+    'utf8',
+  )
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('tarjeta-casos-guardados').getByRole('button').click()
+  await expect(ventana.getByTestId('tabla-casos-guardados')).toBeVisible()
+  const fila = ventana.locator('tr', { hasText: codigo })
+  await fila.getByRole('button', { name: 'Abrir' }).click()
+
+  const casilla = ventana.getByTestId('incluir-estimacion-completa')
+  await expect(casilla).toBeVisible()
+  await expect(casilla).not.toBeChecked()
+
+  await casilla.check()
+  await expect(casilla).toBeChecked()
+})
+
+/**
+ * Petición expresa del dueño del proyecto (29/09/2026): «hay que añadir el
+ * poder editar el nombre del aparato con que se mide siempre a pesar de que
+ * automáticamente coja los datos de la foto... que se pueda cambiar y
+ * editar por si se equivoca». Antes de D106, renombrar un aparato solo era
+ * posible con UN aparato (el desplegable de «Principal»); en cuanto había
+ * dos o más, las pestañas no tenían ninguna forma de cambiarles el nombre
+ * — ni siquiera para corregir uno que el reconocimiento automático hubiera
+ * puesto mal.
+ */
+test('renombrar un aparato (D106): con dos o más, cada pestaña se puede corregir, y un choque de nombres avisa sin perder nada', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+
+  await ventana.getByTestId('manual-campo-AL').fill('24.07')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  // Segundo aparato, con un dato propio para comprobar que no se pierde al renombrar.
+  await ventana.getByTestId('manual-anadir-aparato').click()
+  await ventana.getByTestId('manual-anadir-aparato-select').selectOption('OCULUS Pentacam')
+  await ventana.getByTestId('manual-anadir-aparato-confirmar').click()
+  await ventana.getByTestId('manual-campo-AL').fill('23.90')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  // Ahora hay dos pestañas — antes de D106, ninguna se podía renombrar.
+  await expect(ventana.getByTestId('renombrar-aparato-OCULUS Pentacam')).toBeVisible()
+
+  await ventana.getByTestId('renombrar-aparato-OCULUS Pentacam').click()
+  await ventana.getByTestId('renombrar-aparato-OCULUS Pentacam-select').selectOption('Otro')
+  await ventana
+    .getByTestId('renombrar-aparato-OCULUS Pentacam-nombre')
+    .fill('Pentacam de la clínica')
+  await ventana.getByTestId('renombrar-aparato-OCULUS Pentacam-nombre').press('Enter')
+
+  // La pestaña vieja desaparece, la nueva la sustituye, y el dato sigue ahí.
+  await expect(ventana.getByTestId('manual-aparato-OCULUS Pentacam')).toHaveCount(0)
+  await expect(ventana.getByTestId('manual-aparato-Pentacam de la clínica')).toBeVisible()
+  await ventana.getByTestId('manual-aparato-Pentacam de la clínica').click()
+  await expect(ventana.getByTestId('manual-campo-AL')).toHaveValue('23.9')
+
+  // Intentar renombrarlo al nombre que YA usa el otro aparato del mismo ojo
+  // se rechaza —invariante 12, D47— y se avisa, sin perder el dato.
+  await ventana.getByTestId('renombrar-aparato-Pentacam de la clínica').click()
+  await ventana.getByTestId('renombrar-aparato-Pentacam de la clínica-select').selectOption('Otro')
+  await ventana.getByTestId('renombrar-aparato-Pentacam de la clínica-nombre').fill('Principal')
+  await ventana.getByTestId('renombrar-aparato-Pentacam de la clínica-nombre').press('Enter')
+
+  // El editor se queda abierto con el aviso —para poder corregir el nombre
+  // sin volver a pulsar «✎»—, y el aparato NO se ha tocado.
+  await expect(ventana.getByTestId('error-renombrar-aparato')).toBeVisible()
+  await ventana.getByTestId('renombrar-aparato-Pentacam de la clínica-cancelar').click()
+  await expect(ventana.getByTestId('manual-aparato-Pentacam de la clínica')).toBeVisible()
+  await ventana.getByTestId('manual-aparato-Pentacam de la clínica').click()
+  await expect(ventana.getByTestId('manual-campo-AL')).toHaveValue('23.9')
+})
+
+/**
+ * Petición expresa del dueño del proyecto (29/09/2026): «cuando se meten a
+ * mano los datos se ve muy claro porque está en casillas de color los datos
+ * obligatorios... en cambio al meter los datos a través de una foto todo es
+ * mucho más lioso». Los mismos campos que `FormularioManual.tsx` destaca en
+ * rojo (`CAMPOS_DESTACADOS`) ahora llevan el mismo fondo en la pantalla de
+ * revisión (documento cargado), no solo un texto pequeño bajo la etiqueta.
+ *
+ * También pedido el mismo día: quitar la línea «Leído de: «...»» bajo cada
+ * dato —en el ejemplo que dio, aparecía literalmente repetida bajo K1 y
+ * bajo el eje de K1, porque los dos vienen de la misma línea del OCR—.
+ */
+test('la revisión (D107): los datos del núcleo se ven en color, igual que a mano, y ya no repite «Leído de»', async () => {
+  test.setTimeout(180_000)
+
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  await p.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <pre>OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85
+ACD (epi)      3.18 mm
+LT             4.53 mm
+CCT             530 um</pre>
+    </body>`)
+  const rutaPdf = join(carpetaDatos, 'd107-nucleo-en-color.pdf')
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.evaluate(
+    async (ruta) =>
+      window.vilamar?.cargarDocumentos([{ nombre: 'd107-nucleo-en-color.pdf', ruta }]),
+    rutaPdf,
+  )
+  await ventana.getByTestId('paso-REVISION').click()
+
+  // AL es del núcleo (CAMPOS_DESTACADOS) y se ha leído bien: fila «obligatorio».
+  const filaAL = ventana.locator('tr', { has: ventana.getByTestId('campo-AL') })
+  await expect(filaAL).toHaveClass(/obligatorio/)
+
+  // LT no es del núcleo: su fila no lleva esa clase.
+  const filaLT = ventana.locator('tr', { has: ventana.getByTestId('campo-LT') })
+  await expect(filaLT).not.toHaveClass(/obligatorio/)
+
+  // La línea repetida bajo cada dato ya no aparece en ningún sitio.
+  await expect(ventana.getByText('Leído de:', { exact: false })).toHaveCount(0)
+})
+
+/**
+ * Petición expresa del dueño del proyecto (06/10/2026): «cuando meto una
+ * foto y falta algún dato necesario... crea un aviso en modo de flash o
+ * cambio de color... para que sea más claro». Antes, un dato del núcleo
+ * que faltaba se veía con el mismo rojo que uno ya puesto —toda la fila
+ * «obligatorio» era igual, da igual si tenía valor o no—, así que un
+ * único hueco entre varios datos ya rellenos no saltaba a la vista.
+ */
+test('la revisión (D117): un dato del núcleo que de verdad falta se distingue de uno ya puesto', async () => {
+  test.setTimeout(180_000)
+
+  const { chromium } = await import('playwright')
+  const nav = await chromium.launch()
+  const p = await nav.newPage({ viewport: { width: 1100, height: 700 } })
+  // Sin ninguna línea de ACD, AQD ni CCT: no hay de dónde leerla ni derivarla,
+  // así que se queda de verdad vacía tras cargar el documento — a diferencia
+  // de REFRACCION_OBJETIVO/SIA/EJE_INCISION, que el programa rellena solo con
+  // un valor por defecto en cuanto falta (petición ya existente del dueño),
+  // así que nunca sirven para probar esto.
+  await p.setContent(`<body style="font-family:Arial;padding:40px;font-size:12pt">
+    <h1>HEIDELBERG ENGINEERING ANTERION</h1>
+    <pre>OD
+AL            24.07 mm
+K1            41.22 D @ 175
+K2            42.52 D @ 85</pre>
+    </body>`)
+  const rutaPdf = join(carpetaDatos, 'd117-falta-dato-nucleo.pdf')
+  await p.pdf({ path: rutaPdf, format: 'A4', printBackground: true })
+  await nav.close()
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.evaluate(
+    async (ruta) =>
+      window.vilamar?.cargarDocumentos([{ nombre: 'd117-falta-dato-nucleo.pdf', ruta }]),
+    rutaPdf,
+  )
+  await ventana.getByTestId('paso-REVISION').click()
+
+  // AL se ha leído bien: fila «obligatorio» de siempre, sin pulso.
+  const filaAL = ventana.locator('tr', { has: ventana.getByTestId('campo-AL') })
+  await expect(filaAL).toHaveClass(/obligatorio/)
+  await expect(filaAL).not.toHaveClass(/falta/)
+
+  // ACD es obligatoria de verdad (las tres calculadoras la necesitan) y no
+  // hay ni ACD ni AQD+CCT de los que derivarla: fila «falta», con el pulso.
+  const filaAcd = ventana.locator('tr', { has: ventana.getByTestId('campo-ACD') })
+  await expect(filaAcd).toHaveClass(/falta/)
+  await expect(filaAcd).not.toHaveClass(/obligatorio\b/)
+
+  // En cuanto se escribe el dato, deja de faltar y el pulso se para.
+  await ventana.getByTestId('campo-ACD').fill('3.2')
+  await ventana.getByTestId('campo-ACD').press('Tab')
+  await expect(filaAcd).not.toHaveClass(/falta/)
+  await expect(filaAcd).toHaveClass(/obligatorio/)
 })

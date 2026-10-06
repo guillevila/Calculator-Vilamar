@@ -1,11 +1,16 @@
 /**
- * PanelResultados.tsx — Los tres resultados, juntos.
+ * PanelResultados.tsx — Los resultados, juntos.
  *
- * La tabla comparativa y las observaciones. Las observaciones son descriptivas:
- * dicen en qué coinciden y en qué no. No dicen qué implantar, y no lo dirán.
+ * La tabla comparativa y las observaciones. Las columnas son las cinco
+ * casillas de siempre — EVO y Barrett, cada una con su Predicted y su
+ * Measured PCA (D45/D48), y Kane — ver `COLUMNAS_COMPARATIVA`. La que no se
+ * haya pedido para este ojo sale como «no calculada», no desaparece.
+ *
+ * Las observaciones son descriptivas: dicen en qué coinciden y en qué no. No
+ * dicen qué implantar, y no lo dirán.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 
 import type {
@@ -13,12 +18,16 @@ import type {
   Caso,
   CeldaComparativa,
   DatoComparativo,
+  Laboratorio,
   Lateralidad,
 } from '@vilamar/domain'
 import {
-  CALCULADORAS,
+  aparatosDe,
+  COLUMNAS_COMPARATIVA,
   compararOjo,
+  fichaDe,
   nombreLateralidad,
+  ojoDe,
   ojosDelCaso,
   resultadoDe,
   textoEstado,
@@ -31,6 +40,9 @@ interface Props {
   readonly caso: Caso
   readonly ojoActivo: Lateralidad
   readonly onCambiarOjo: (ojo: Lateralidad) => void
+  /** Con qué aparato/biómetro de `ojoActivo` se inspecciona el detalle (D47). */
+  readonly aparatoActivo: string
+  readonly onCambiarAparato: (aparato: string) => void
   readonly onReintentar: (calculadora: Calculadora) => void
   readonly onVolverARevisar: () => void
   /** Lo que está pasando ahora mismo, para no decir «no se ha lanzado» de algo que sí. */
@@ -198,36 +210,282 @@ function OpcionesDevueltas({ celda }: { celda: CeldaComparativa }): JSX.Element 
   )
 }
 
+interface FormularioPedido {
+  readonly fabricante: string
+  readonly modelo: string
+  readonly esfera: string
+  readonly cilindro: string
+  readonly eje: string
+}
+
+function formularioDesdeCaso(caso: Caso, ojo: Lateralidad): FormularioPedido {
+  const pedido = caso.pedidosLente?.[ojo]
+  return {
+    fabricante: pedido?.fabricante ?? '',
+    modelo: pedido?.modelo ?? '',
+    esfera: pedido?.esfera !== undefined ? String(pedido.esfera) : '',
+    cilindro: pedido?.cilindro !== undefined ? String(pedido.cilindro) : '',
+    eje: pedido?.eje !== undefined ? String(pedido.eje) : '',
+  }
+}
+
+/**
+ * La lente que el cirujano decide pedir de verdad, una vez visto el informe
+ * (D93, 20/09/2026) — funciona igual reabriendo un caso terminado días
+ * después que justo tras calcular. `key={ojoActivo}`, en el sitio donde se
+ * usa este componente, fuerza que se reinicie al cambiar de ojo — mismo
+ * motivo que ya explica `SelectorAparatoPrincipal` (D47): sin ella, React
+ * conserva el formulario del ojo anterior en pantalla.
+ */
+function TarjetaPedidoLente({
+  caso,
+  ojoActivo,
+}: {
+  readonly caso: Caso
+  readonly ojoActivo: Lateralidad
+}): JSX.Element {
+  const [laboratorios, setLaboratorios] = useState<readonly Laboratorio[] | null>(null)
+  const [form, setForm] = useState<FormularioPedido>(() => formularioDesdeCaso(caso, ojoActivo))
+  const [guardando, setGuardando] = useState(false)
+  const [pidiendo, setPidiendo] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    void api()
+      .listarLaboratorios()
+      .then(setLaboratorios)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+  }, [])
+
+  const pedidoGuardado = caso.pedidosLente?.[ojoActivo]
+
+  async function guardar(): Promise<void> {
+    setError(null)
+    const esfera = Number(form.esfera.replace(',', '.'))
+    if (form.fabricante.trim() === '') {
+      setError('Elige el fabricante.')
+      return
+    }
+    if (form.modelo.trim() === '') {
+      setError('Escribe el modelo de la lente.')
+      return
+    }
+    if (!Number.isFinite(esfera)) {
+      setError('La potencia esférica no es un número válido.')
+      return
+    }
+    const cilindro =
+      form.cilindro.trim() === '' ? undefined : Number(form.cilindro.replace(',', '.'))
+    const eje = form.eje.trim() === '' ? undefined : Number(form.eje.replace(',', '.'))
+    if (cilindro !== undefined && !Number.isFinite(cilindro)) {
+      setError('La potencia cilíndrica no es un número válido.')
+      return
+    }
+    if (eje !== undefined && !Number.isFinite(eje)) {
+      setError('El eje no es un número válido.')
+      return
+    }
+    setGuardando(true)
+    try {
+      await api().guardarPedidoLente(ojoActivo, {
+        fabricante: form.fabricante.trim(),
+        modelo: form.modelo.trim(),
+        esfera,
+        cilindro,
+        eje,
+      })
+      // `caso` se actualiza solo: `guardarPedidoLente()` emite el caso
+      // nuevo por el mismo canal que ya escucha App.tsx (`alCambiarCaso`),
+      // igual que cualquier otro cambio del caso en curso.
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  async function pedir(): Promise<void> {
+    setError(null)
+    setPidiendo(true)
+    try {
+      await api().pedirAlLaboratorio(ojoActivo)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPidiendo(false)
+    }
+  }
+
+  return (
+    <div className="tarjeta">
+      <h2>Lente a pedir · {nombreLateralidad(ojoActivo)}</h2>
+      <p className="sub">
+        Una vez visto el informe, escribe aquí la lente que vas a pedir de verdad — no tiene que
+        coincidir exactamente con ninguna casilla calculada. Se guarda con el caso, así que puedes
+        decidirlo con calma, incluso días después, reabriendo el caso desde «Casos guardados».
+      </p>
+
+      {error && <div className="aviso error">{error}</div>}
+
+      {laboratorios !== null && laboratorios.length === 0 && (
+        <p className="pie-nota">
+          Todavía no has guardado ningún laboratorio — hazlo desde el botón «Laboratorios» de arriba
+          para poder pedir por correo.
+        </p>
+      )}
+
+      <div className="fila" style={{ flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <label htmlFor={`pedido-fabricante-${ojoActivo}`}>Fabricante</label>
+          <select
+            id={`pedido-fabricante-${ojoActivo}`}
+            value={form.fabricante}
+            data-testid="pedido-fabricante"
+            onChange={(e) => setForm((f) => ({ ...f, fabricante: e.target.value }))}
+          >
+            <option value="">(elige uno)</option>
+            {(laboratorios ?? []).map((l) => (
+              <option key={l.id} value={l.fabricante}>
+                {l.fabricante}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor={`pedido-modelo-${ojoActivo}`}>Modelo de la lente</label>
+          <input
+            id={`pedido-modelo-${ojoActivo}`}
+            value={form.modelo}
+            data-testid="pedido-modelo"
+            onChange={(e) => setForm((f) => ({ ...f, modelo: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label htmlFor={`pedido-esfera-${ojoActivo}`}>Potencia esférica (D)</label>
+          <input
+            id={`pedido-esfera-${ojoActivo}`}
+            type="number"
+            step="0.25"
+            value={form.esfera}
+            data-testid="pedido-esfera"
+            onChange={(e) => setForm((f) => ({ ...f, esfera: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label htmlFor={`pedido-cilindro-${ojoActivo}`}>Potencia cilíndrica (D)</label>
+          <input
+            id={`pedido-cilindro-${ojoActivo}`}
+            type="number"
+            step="0.25"
+            value={form.cilindro}
+            data-testid="pedido-cilindro"
+            onChange={(e) => setForm((f) => ({ ...f, cilindro: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label htmlFor={`pedido-eje-${ojoActivo}`}>Eje (°)</label>
+          <input
+            id={`pedido-eje-${ojoActivo}`}
+            type="number"
+            step="1"
+            value={form.eje}
+            data-testid="pedido-eje"
+            onChange={(e) => setForm((f) => ({ ...f, eje: e.target.value }))}
+          />
+        </div>
+      </div>
+
+      <div className="fila" style={{ marginTop: 12, gap: 8, alignItems: 'center' }}>
+        <button
+          className="principal"
+          onClick={() => void guardar()}
+          disabled={guardando}
+          data-testid="guardar-pedido-lente"
+        >
+          {guardando ? 'Guardando…' : 'Guardar la lente a pedir'}
+        </button>
+        {pedidoGuardado && (
+          <button
+            onClick={() => void pedir()}
+            disabled={pidiendo}
+            data-testid="pedir-al-laboratorio"
+          >
+            {pidiendo ? 'Abriendo el correo…' : 'Pedir al laboratorio'}
+          </button>
+        )}
+      </div>
+
+      {pedidoGuardado && (
+        <p className="pie-nota" data-testid="pedido-guardado-texto">
+          Guardado: <strong>{pedidoGuardado.fabricante}</strong> {pedidoGuardado.modelo} ·{' '}
+          {pedidoGuardado.esfera.toFixed(2)} D
+          {pedidoGuardado.cilindro !== undefined
+            ? ` · Cil. ${pedidoGuardado.cilindro.toFixed(2)} D`
+            : ''}
+          {pedidoGuardado.eje !== undefined ? ` · Eje ${pedidoGuardado.eje.toFixed(0)}°` : ''}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export function PanelResultados({
   caso,
   ojoActivo,
   onCambiarOjo,
+  aparatoActivo,
+  onCambiarAparato,
   onReintentar,
   onVolverARevisar,
   estados = [],
 }: Props): JSX.Element {
   const ojos = ojosDelCaso(caso)
-  const [pdf, setPdf] = useState<string | null>(null)
+  const aparatos = aparatosDe(caso, ojoActivo)
+  // Un PDF por ojo (D47, 27/08/2026) — antes era uno solo por caso.
+  const [rutas, setRutas] = useState<readonly { ojo: Lateralidad; ruta: string }[]>([])
+  const [rutasResumen, setRutasResumen] = useState<readonly { ojo: Lateralidad; ruta: string }[]>(
+    [],
+  )
   const [generando, setGenerando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Apagado por defecto (D105, 29/09/2026): petición expresa del dueño del
+  // proyecto para dejar de enseñar la estimación propia (D43) bajo cada
+  // captura y en su cuadro de tarjetas.
+  const [incluirEstimacionCompleta, setIncluirEstimacionCompleta] = useState(false)
+  // Encendido por defecto (D118, 06/10/2026): hasta D118 la tabla comparativa
+  // detallada se enseñaba siempre, sin casilla — por eso esta, a diferencia
+  // de las otras dos, empieza marcada: quien no la toque ve el informe
+  // exactamente igual que antes de D118.
+  const [incluirTablaComparativaDetallada, setIncluirTablaComparativaDetallada] = useState(true)
+  // Apagado por defecto (D118, 06/10/2026): un documento nuevo, además del
+  // normal — no tiene sentido generarlo sin que se pida expresamente.
+  const [generarResumenAparte, setGenerarResumenAparte] = useState(false)
 
+  // Las cinco casillas de siempre (D45/D48): Predicted y Measured PCA de EVO
+  // y de Barrett, más Kane — la que no se haya pedido para este ojo y
+  // aparato sale como «no calculada» en su columna, no desaparece. El PDF
+  // final (generar()) junta todos los aparatos ACTIVOS del ojo (decisión 3,
+  // D47) — uno excluido (D100) no sale ahí, aunque siga eligible aquí para
+  // inspeccionarlo o volver a incluirlo. Este detalle en pantalla es solo
+  // para inspeccionar un aparato a la vez.
   const resultados: Partial<Record<Calculadora, ReturnType<typeof resultadoDe>>> = {}
-  for (const c of CALCULADORAS) {
-    const r = resultadoDe(caso, c, ojoActivo)
+  for (const c of COLUMNAS_COMPARATIVA) {
+    const r = resultadoDe(caso, c, ojoActivo, aparatoActivo)
     if (r) resultados[c] = r
   }
-  const comparativa = compararOjo(ojoActivo, resultados as never, [
-    'KANE',
-    'EVO_TORIC',
-    'BARRETT_TORIC',
-  ])
+  const comparativa = compararOjo(ojoActivo, resultados as never, COLUMNAS_COMPARATIVA)
 
   async function generar(): Promise<void> {
     setGenerando(true)
     setError(null)
     try {
-      const r = await api().generarPdf()
-      setPdf(r.ruta)
+      const r = await api().generarPdf({
+        incluirEstimacionCompleta,
+        incluirTablaComparativaDetallada,
+        generarResumenAparte,
+      })
+      setRutas(r.rutas)
+      setRutasResumen(r.rutasResumen)
     } catch (e) {
       setError(
         `No se ha podido generar el PDF. ${e instanceof Error ? e.message : String(e)} ` +
@@ -256,8 +514,35 @@ export function PanelResultados({
         </div>
       )}
 
+      {aparatos.length > 1 && (
+        <div className="fila" style={{ marginBottom: 14 }}>
+          <div className="selector-ojo">
+            {aparatos.map((a) => {
+              // Excluido (D100) sigue eligible para inspeccionarlo o volver
+              // a incluirlo desde la pantalla de revisión — solo desaparece
+              // del cálculo y del informe, nunca de aquí.
+              const excluido = ojoDe(caso, ojoActivo, a).excluido === true
+              return (
+                <button
+                  key={a}
+                  className={a === aparatoActivo ? 'activo' : ''}
+                  onClick={() => onCambiarAparato(a)}
+                  style={excluido ? { opacity: 0.6 } : undefined}
+                  title={excluido ? 'Excluido del cálculo y del informe' : undefined}
+                >
+                  {excluido ? `${a} (excluido)` : a}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="tarjeta">
-        <h2>Comparación · {nombreLateralidad(ojoActivo)}</h2>
+        <h2>
+          Comparación · {nombreLateralidad(ojoActivo)}
+          {aparatos.length > 1 ? ` — ${aparatoActivo}` : ''}
+        </h2>
         <table className="comparativa" data-testid="tabla-comparativa">
           <thead>
             <tr>
@@ -390,13 +675,12 @@ export function PanelResultados({
         <h2>Reintentar una sola</h2>
         <p className="sub">Si alguna falló, puedes lanzarla otra vez sin perder las demás.</p>
         <div className="fila">
-          {CALCULADORAS.map((c) => {
+          {COLUMNAS_COMPARATIVA.map((c) => {
             const r = resultadoDe(caso, c, ojoActivo)
             const fallo = !r || (r.estado !== 'SUCCESS' && r.estado !== 'PARTIAL')
             return (
               <button key={c} onClick={() => onReintentar(c)} disabled={!fallo && r !== undefined}>
-                {fallo ? 'Reintentar' : 'Repetir'}{' '}
-                {c === 'EVO_TORIC' ? 'EVO' : c === 'BARRETT_TORIC' ? 'Barrett' : 'Kane'}
+                {fallo ? 'Reintentar' : 'Repetir'} {fichaDe(c).nombre}
               </button>
             )
           })}
@@ -407,17 +691,75 @@ export function PanelResultados({
       <div className="tarjeta">
         <h2>Informe</h2>
         <p className="sub">
-          Un PDF con los datos confirmados, de dónde salió cada uno, los tres resultados y las
-          diferencias entre ellos.
+          Un PDF por ojo, con los datos confirmados, de dónde salió cada uno, los resultados de cada
+          calculadora (y de cada aparato, si el ojo tiene más de uno) y las diferencias entre ellos.
         </p>
         {error && <div className="aviso error">{error}</div>}
-        {pdf && (
+        {rutas.length > 0 && (
           <div className="aviso exito">
-            <strong>Informe generado.</strong> Está en <code>{pdf}</code>
+            <strong>{rutas.length === 1 ? 'Informe generado.' : 'Informes generados.'}</strong>
+            {rutas.map((r) => (
+              <div key={r.ojo}>
+                {nombreLateralidad(r.ojo)}: <code>{r.ruta}</code>
+              </div>
+            ))}
           </div>
         )}
+        {rutasResumen.length > 0 && (
+          <div className="aviso exito">
+            <strong>
+              {rutasResumen.length === 1 ? 'Resumen generado.' : 'Resúmenes generados.'}
+            </strong>
+            {rutasResumen.map((r) => (
+              <div key={r.ojo}>
+                {nombreLateralidad(r.ojo)}: <code>{r.ruta}</code>
+              </div>
+            ))}
+          </div>
+        )}
+        <label className="fila" style={{ gap: 8, alignItems: 'center', marginBottom: 12 }}>
+          <input
+            type="checkbox"
+            checked={incluirEstimacionCompleta}
+            onChange={(e) => setIncluirEstimacionCompleta(e.target.checked)}
+            data-testid="incluir-estimacion-completa"
+          />
+          <span>Incluir la estimación propia bajo cada captura y en un cuadro de tarjetas</span>
+        </label>
+        <label className="fila" style={{ gap: 8, alignItems: 'center', marginBottom: 12 }}>
+          <input
+            type="checkbox"
+            checked={incluirTablaComparativaDetallada}
+            onChange={(e) => setIncluirTablaComparativaDetallada(e.target.checked)}
+            data-testid="incluir-tabla-comparativa-detallada"
+          />
+          <span>
+            Incluir la tabla comparativa detallada del final
+            <span className="pie-nota" style={{ display: 'block' }}>
+              Con las dos casillas de arriba apagadas, el PDF normal no lleva la estimación propia
+              en ningún sitio.
+            </span>
+          </span>
+        </label>
+        <label className="fila" style={{ gap: 8, alignItems: 'center', marginBottom: 12 }}>
+          <input
+            type="checkbox"
+            checked={generarResumenAparte}
+            onChange={(e) => setGenerarResumenAparte(e.target.checked)}
+            data-testid="generar-resumen-aparte"
+          />
+          <span>
+            Generar también un PDF-resumen aparte, sin capturas de pantalla
+            <span className="pie-nota" style={{ display: 'block' }}>
+              Un segundo documento por ojo, con los datos de entrada, el cuadro de tarjetas y la
+              tabla comparativa detallada — sin ninguna captura, y sin depender de las dos casillas
+              de arriba. Se guarda junto al PDF normal y, además, en una carpeta «Resúmenes» aparte
+              de «Calculados», dentro de la carpeta del doctor.
+            </span>
+          </span>
+        </label>
         <div className="fila derecha">
-          {pdf && (
+          {rutas.length > 0 && (
             <button onClick={() => void api().abrirCarpetaInformes()}>Abrir la carpeta</button>
           )}
           <button
@@ -430,6 +772,14 @@ export function PanelResultados({
           </button>
         </div>
       </div>
+
+      {/*
+        `key={ojoActivo}`: al cambiar de ojo, es un formulario distinto —sin
+        la clave, React conserva lo que se estuviera escribiendo del ojo
+        anterior en pantalla (mismo motivo que ya explica `SelectorAparato`,
+        D47).
+      */}
+      <TarjetaPedidoLente key={ojoActivo} caso={caso} ojoActivo={ojoActivo} />
     </>
   )
 }
