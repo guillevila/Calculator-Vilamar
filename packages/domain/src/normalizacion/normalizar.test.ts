@@ -464,3 +464,63 @@ function valorCreible(campo: string): number {
   if (v === undefined) throw new Error(`El test no sabe qué valor creíble poner en ${campo}`)
   return v
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Ejes perpendiculares (D122, 07/10/2026)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('si el informe solo trae el eje de un meridiano, el otro es ese +90° (D122)', () => {
+  function posterior(ejes: { pk1?: number; pk2?: number }) {
+    let ojo = ojoVacio('OD')
+    ojo = conMedida(ojo, crearMedida('PK1', 'OD', -6.2, DEL_PDF))
+    ojo = conMedida(ojo, crearMedida('PK2', 'OD', -6.6, DEL_PDF))
+    if (ejes.pk1 !== undefined)
+      ojo = conMedida(ojo, crearMedida('PK1_EJE', 'OD', ejes.pk1, DEL_PDF))
+    if (ejes.pk2 !== undefined)
+      ojo = conMedida(ojo, crearMedida('PK2_EJE', 'OD', ejes.pk2, DEL_PDF))
+    return ojo
+  }
+
+  it('solo PK1_EJE (113.8 → 114) → PK2_EJE = 24, derivado y con aviso', () => {
+    const r = normalizarOjo(posterior({ pk1: 113.8 }), 'PENTACAM', LUEGO)
+    const pk2e = obtener(r.ojo, 'PK2_EJE')
+    expect(pk2e?.valor).toBe(24)
+    expect(pk2e?.procedencia.metodo).toBe('DERIVADO')
+    expect(r.avisos.join(' ')).toMatch(/perpendiculares/)
+  })
+
+  it('solo PK2_EJE → PK1_EJE = +90 (envuelto en 0-180)', () => {
+    const r = normalizarOjo(posterior({ pk2: 100 }), 'PENTACAM', LUEGO)
+    expect(obtener(r.ojo, 'PK1_EJE')?.valor).toBe(10)
+  })
+
+  it('con los dos ejes leídos no se toca ninguno (un astigmatismo irregular se respeta)', () => {
+    const r = normalizarOjo(posterior({ pk1: 10, pk2: 70 }), 'PENTACAM', LUEGO)
+    expect(obtener(r.ojo, 'PK1_EJE')?.valor).toBe(10)
+    expect(obtener(r.ojo, 'PK2_EJE')?.valor).toBe(70)
+    expect(r.avisos).toHaveLength(0)
+  })
+
+  it('sin ningún eje no se inventa ninguno', () => {
+    const r = normalizarOjo(posterior({}), 'PENTACAM', LUEGO)
+    expect(obtener(r.ojo, 'PK1_EJE')).toBeUndefined()
+    expect(obtener(r.ojo, 'PK2_EJE')).toBeUndefined()
+  })
+
+  it('si falta la potencia del otro meridiano, no se crea un meridiano a medias', () => {
+    let ojo = ojoVacio('OD')
+    ojo = conMedida(ojo, crearMedida('PK1', 'OD', -6.2, DEL_PDF))
+    ojo = conMedida(ojo, crearMedida('PK1_EJE', 'OD', 114, DEL_PDF))
+    const r = normalizarOjo(ojo, 'PENTACAM', LUEGO)
+    expect(obtener(r.ojo, 'PK2_EJE')).toBeUndefined()
+  })
+
+  it('lo mismo vale para los ejes de K1/K2 delanteros', () => {
+    let ojo = ojoVacio('OD')
+    ojo = conMedida(ojo, crearMedida('K1', 'OD', 43, DEL_PDF))
+    ojo = conMedida(ojo, crearMedida('K2', 'OD', 44.5, DEL_PDF))
+    ojo = conMedida(ojo, crearMedida('K1_EJE', 'OD', 175, DEL_PDF))
+    const r = normalizarOjo(ojo, 'IOLMASTER_700', LUEGO)
+    expect(obtener(r.ojo, 'K2_EJE')?.valor).toBe(85)
+  })
+})
