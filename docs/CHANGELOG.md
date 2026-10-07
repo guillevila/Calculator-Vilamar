@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.80] — 07/10/2026 (versión visible en pantalla: v1.37)
+
+fix(domain,app): los ejes se redondean a grados enteros; el lector de fotos sabe que la córnea posterior es negativa (D121).
+
+Dos fallos reales con fotos del Pentacam: la córnea posterior (PK1/PK2) no se rellenaba y un eje con decimales (113.8°) no activaba el «K2 = K1 + 90°». Ahora `crearMedida` redondea cualquier eje al entero y el lector de visión recibe la instrucción explícita de que PK1/PK2 son negativos por naturaleza y deben transcribirse. Verificado con tests nuevos (916 unitarios, lint, tipos, build y 66 pruebas de interfaz en verde). **Sin verificar con una foto real de Pentacam** (datos de paciente): hace falta probarlo.
+
+---
+
 ## [1.15.79] — 06/10/2026 (versión visible en pantalla: v1.37)
 
 fix(app): el PDF-resumen tiene su propio botón y se guarda solo en «Resúmenes»; las dos casillas del PDF normal arrancan apagadas (D120).

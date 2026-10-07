@@ -14,7 +14,7 @@ import type { CampoBiometrico } from '@vilamar/domain'
 import { CAMPOS, esLecturaAutomatica, obtener } from '@vilamar/domain'
 import type { DocumentoEntrada } from '@vilamar/extraction'
 
-import { aResultado, crearLectorVision, MODELO } from './vision-claude.js'
+import { aResultado, crearLectorVision, instrucciones, MODELO } from './vision-claude.js'
 
 const CUANDO = '2026-08-11T10:00:00.000Z'
 const DOC: DocumentoEntrada = {
@@ -201,5 +201,34 @@ describe('el catálogo de campos sale del dominio, no de una lista paralela', ()
       )
       expect(obtener(r.ojos.OD!, campo as CampoBiometrico)).toBeDefined()
     }
+  })
+})
+
+describe('córnea posterior y ejes con decimales (D121, 07/10/2026)', () => {
+  it('la córnea posterior negativa entra tal cual, y un eje con decimales se guarda redondeado', () => {
+    const r = aResultado(
+      DOC,
+      leido([
+        {
+          lado: 'OD',
+          comoSeSabe: 'OD',
+          medidas: [
+            { campo: 'PK1', valor: -6.2, textoOriginal: 'K1 Back -6.2 D' },
+            { campo: 'PK1_EJE', valor: 113.8, textoOriginal: 'K1 Back -6.2 D @ 113.8°' },
+            { campo: 'PK2', valor: -6.6, textoOriginal: 'K2 Back -6.6 D' },
+            { campo: 'PK2_EJE', valor: 23.8, textoOriginal: 'K2 Back -6.6 D @ 23.8°' },
+          ],
+        },
+      ]),
+      CUANDO,
+    )
+    expect(obtener(r.ojos.OD!, 'PK1')?.valor).toBe(-6.2)
+    expect(obtener(r.ojos.OD!, 'PK2')?.valor).toBe(-6.6)
+    expect(obtener(r.ojos.OD!, 'PK1_EJE')?.valor).toBe(114)
+    expect(obtener(r.ojos.OD!, 'PK2_EJE')?.valor).toBe(24)
+  })
+
+  it('las instrucciones dicen que la córnea posterior negativa es correcta y hay que devolverla', () => {
+    expect(instrucciones()).toMatch(/CÓRNEA POSTERIOR ES NEGATIVA/)
   })
 })

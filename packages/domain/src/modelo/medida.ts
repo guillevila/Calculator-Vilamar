@@ -175,11 +175,16 @@ export function crearMedida(
         'Un dato desconocido se representa no creando la medida, nunca con un número inventado.',
     )
   }
+  const definicion = definicionDe(campo)
   return {
     campo,
     ojo,
-    valor,
-    unidad: definicionDe(campo).unidad,
+    // D121 (07/10/2026): un eje se guarda en grados enteros. Un informe puede
+    // imprimir 113.8°, pero las calculadoras no lo necesitan con decimales y
+    // con decimal fallaba el «K2 = K1 + 90°» — petición expresa del dueño.
+    // Lo que decía el informe sigue en la evidencia de la medida.
+    valor: definicion.esEje ? Math.round(valor) : valor,
+    unidad: definicion.unidad,
     procedencia,
     confirmadoPorUsuario,
   }

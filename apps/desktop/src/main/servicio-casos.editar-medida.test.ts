@@ -62,6 +62,15 @@ describe('editarMedida — el eje de K2 se rellena solo con el de K1 + 90° (D91
     expect(caso.ojos.OD?.[0]?.medidas.K2_EJE?.valor).toBe(100)
   })
 
+  it('un eje con decimales (113.8) se guarda redondeado, y el de K2 sale exacto a 90° (D121)', () => {
+    const servicio = servicioDePrueba()
+    servicio.nuevo()
+    servicio.editarMedida('OD', 'K1_EJE', 113.8)
+    const medidas = servicio.obtener()!.ojos.OD?.[0]?.medidas
+    expect(medidas?.K1_EJE?.valor).toBe(114)
+    expect(medidas?.K2_EJE?.valor).toBe(24)
+  })
+
   it('el eje de K2 se envuelve dentro de 0-180°, no se pasa de 180', () => {
     const servicio = servicioDePrueba()
     servicio.nuevo()
