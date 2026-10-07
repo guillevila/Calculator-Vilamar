@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.81] — 07/10/2026 (versión visible en pantalla: v1.37)
+
+feat(domain): si un informe solo trae el eje de un meridiano de la córnea, el otro se pone a +90° (D122).
+
+Con el Pentacam, la córnea posterior ya se leía pero quedaba incompleta porque solo venía el eje de K1. `normalizarOjo` completa ahora el eje que falta (K1/K2, TK1/TK2, PK1/PK2) como derivado, con aviso, solo si están las dos potencias y nunca pisando un eje leído. Verificado con tests nuevos (922 unitarios, lint, tipos, build y 66 pruebas de interfaz en verde).
+
+---
+
 ## [1.15.80] — 07/10/2026 (versión visible en pantalla: v1.37)
 
 fix(domain,app): los ejes se redondean a grados enteros; el lector de fotos sabe que la córnea posterior es negativa (D121).

@@ -109,7 +109,59 @@ export function normalizarOjo(
   dispositivo: Dispositivo,
   cuando: string,
 ): ResultadoNormalizacion {
-  return derivarAcd(ojo, dispositivo, cuando)
+  const conAcd = derivarAcd(ojo, dispositivo, cuando)
+  const conEjes = derivarEjesPerpendiculares(conAcd.ojo, cuando)
+  return { ojo: conEjes.ojo, avisos: [...conAcd.avisos, ...conEjes.avisos] }
+}
+
+/**
+ * Los dos meridianos de una córnea son perpendiculares: si un informe solo
+ * trae el eje de uno, el del otro es ese +90° (D122, 07/10/2026, petición
+ * expresa del dueño: las fotos del Pentacam traen a menudo solo el eje de
+ * K1 posterior, y «siempre es así»).
+ *
+ * Solo se completa un eje que FALTA, y solo si el otro eje y las dos
+ * potencias del par están: nunca se pisa un eje leído (un astigmatismo
+ * irregular puede tener ejes no perpendiculares) y nunca se crea un
+ * meridiano a medias. El dato sale marcado como derivado, con la cuenta
+ * escrita, y con un aviso para comprobarlo.
+ */
+const PARES_DE_EJES: readonly (readonly [
+  CampoBiometrico,
+  CampoBiometrico,
+  CampoBiometrico,
+  CampoBiometrico,
+])[] = [
+  ['K1', 'K1_EJE', 'K2', 'K2_EJE'],
+  ['TK1', 'TK1_EJE', 'TK2', 'TK2_EJE'],
+  ['PK1', 'PK1_EJE', 'PK2', 'PK2_EJE'],
+]
+
+function derivarEjesPerpendiculares(ojo: OjoBiometrico, cuando: string): ResultadoNormalizacion {
+  let actual = ojo
+  const avisos: string[] = []
+  for (const [p1, e1, p2, e2] of PARES_DE_EJES) {
+    if (obtener(actual, p1) === undefined || obtener(actual, p2) === undefined) continue
+    const eje1 = obtener(actual, e1)
+    const eje2 = obtener(actual, e2)
+    if ((eje1 === undefined) === (eje2 === undefined)) continue
+    const origen = (eje1 ?? eje2)!
+    const faltante = eje1 === undefined ? e1 : e2
+    const valor = (Math.round(origen.valor) + 90) % 180
+    const explicacion = `${origen.campo} ${formatearConUnidad(origen.campo, origen.valor)} + 90° (los dos meridianos son perpendiculares)`
+    const procedencia: Procedencia = {
+      metodo: 'DERIVADO',
+      documentoId: origen.procedencia.documentoId,
+      dispositivoId: origen.procedencia.dispositivoId,
+      registradoEn: cuando,
+      derivacion: { deCampos: [origen.campo], explicacion },
+    }
+    actual = conMedida(actual, crearMedida(faltante, ojo.lateralidad, valor, procedencia))
+    avisos.push(
+      `El informe no trae ${definicionDe(faltante).etiqueta.toLowerCase()}, así que se ha puesto ${formatearConUnidad(faltante, valor)} (${explicacion}). Sale marcado como «derivado del informe»; compruébalo antes de confirmar.`,
+    )
+  }
+  return { ojo: actual, avisos }
 }
 
 /**
