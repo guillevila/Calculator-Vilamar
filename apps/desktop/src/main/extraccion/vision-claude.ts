@@ -110,7 +110,7 @@ const TIPOS_IMAGEN: Readonly<Record<string, 'image/jpeg' | 'image/png'>> = {
 export function catalogoDeCampos(): string {
   return CAMPOS.map((c) => {
     const d = definicionDe(c)
-    const rango = d.limite ? ` [${d.limite.min}-${d.limite.max}]` : ''
+    const rango = d.limite ? ` [de ${d.limite.min} a ${d.limite.max}]` : ''
     return `- ${c}: ${d.etiqueta} (${d.etiquetaClinica}), en ${d.unidad}${rango}`
   }).join('\n')
 }
@@ -196,6 +196,10 @@ Reglas, por orden de importancia:
 6. SI UN NÚMERO NO SE LEE CON CLARIDAD, no lo adivines: omítelo y dilo en las notas. Un hueco se ve; un número equivocado que parece razonable, no.
 
 7. NO EXPLIQUES EN LAS NOTAS LOS DATOS QUE EL DOCUMENTO TRAE PERO NO ESTÁN EN LA LISTA DE CAMPOS DE ABAJO. Es completamente normal que un informe traiga más datos de los que se piden aquí (tablas de cálculo de otra fórmula, desviaciones estándar, valores derivados, fechas de calibración...) — eso no es un problema ni hace falta decirlo. Las notas son solo para algo que SÍ deba mirar una persona: un valor borroso, una etiqueta de ojo ambigua, un dato marcado como dudoso por el propio informe (por ejemplo, con un símbolo de aviso junto al número). Si una nota no cambia lo que alguien tiene que comprobar, no la escribas.
+
+8. LA CÓRNEA POSTERIOR ES NEGATIVA, Y ESO ES CORRECTO. Los valores de la cara posterior de la córnea (PK1 y PK2; en el Pentacam suelen aparecer como «K1 Back»/«K2 Back» o «Posterior K1/K2») son NEGATIVOS por naturaleza —típicamente entre -4 y -7 D— porque la cara posterior tiene potencia negativa. Un valor negativo ahí NO es un dato dudoso ni un error: transcríbelo con su signo menos, junto con su eje (PK1_EJE, PK2_EJE), y no lo omitas ni lo menciones en las notas. Si el informe trae la córnea posterior, devuélvela siempre.
+
+9. LOS EJES se copian tal y como están impresos, aunque lleven decimales (113.8): el programa los redondea después, tú no.
 
 Campos que puedes devolver (no hay otros):
 

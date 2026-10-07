@@ -787,7 +787,7 @@ export class ServicioCasos {
       if (ojoActual.medidas.K2_EJE === undefined) {
         conElOjo = conOjo(
           conElOjo,
-          corregirMedida(ojoActual, 'K2_EJE', (valor + 90) % 180, this.iso()),
+          corregirMedida(ojoActual, 'K2_EJE', (Math.round(valor) + 90) % 180, this.iso()),
           this.iso(),
         )
       }
