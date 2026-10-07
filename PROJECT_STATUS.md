@@ -9,9 +9,11 @@
 > haya probado contra su web no significa que se haya validado con informes
 > reales.
 
-**Última actualización:** 07/10/2026 · **Ejes en grados enteros y córnea posterior del Pentacam (D121).** Dos fallos con fotos del Pentacam: la córnea posterior no se rellenaba («por ser negativa»), y un eje con decimales (113.8°) no activaba el K2 = K1 + 90°. Los ejes se redondean ya al crear la medida, y el lector de fotos tiene una regla expresa sobre la córnea posterior negativa. Los tests pasan, pero **la parte de la córnea posterior no está comprobada con una foto real de Pentacam**: hay que probarla; si sigue sin rellenarse, se mirará la lectura real. Sin commit todavía.
+**Última actualización:** 07/10/2026 (2) · **Eje que falta de la córnea, a +90° (D122).** Con el Pentacam, la córnea posterior ya se leía (el dueño lo confirmó) pero fallaba el eje de K2 porque la foto solo trae el de K1. Ahora el eje que falta de cualquier par (K, TK, PK) se completa a +90° del otro, marcado como derivado y con aviso. Tests, lint, tipos, build y 66 pruebas de interfaz en verde. Sin commit todavía. Antes de esto, D121 ya está en `master` (PR #23).
 
-Antes de esto — **06/10/2026 (5): **El PDF-resumen tiene su propio botón y se guarda solo en «Resúmenes» (D120).** Tras usar D118 con casos reales, el dueño pidió quitar la copia repetida en «Calculados», dejar las dos casillas del PDF normal apagadas por defecto y poner debajo un botón «PDF resumen» aparte. Hecho y comprobado (tests, lint, tipos, build y 66 pruebas de interfaz en verde). Pendiente de subir a la rama: sin commit todavía.
+Antes de esto — **07/10/2026 (1): ejes en grados enteros y córnea posterior del Pentacam (D121).** Dos fallos con fotos del Pentacam: la córnea posterior no se rellenaba («por ser negativa»), y un eje con decimales (113.8°) no activaba el K2 = K1 + 90°. Los ejes se redondean ya al crear la medida, y el lector de fotos tiene una regla expresa sobre la córnea posterior negativa. Los tests pasan, pero **la parte de la córnea posterior no está comprobada con una foto real de Pentacam**: hay que probarla; si sigue sin rellenarse, se mirará la lectura real. Sin commit todavía.
+
+Antes de esto — **06/10/2026 (5): el PDF-resumen tiene su propio botón y se guarda solo en «Resúmenes» (D120).** Tras usar D118 con casos reales, el dueño pidió quitar la copia repetida en «Calculados», dejar las dos casillas del PDF normal apagadas por defecto y poner debajo un botón «PDF resumen» aparte. Hecho y comprobado (tests, lint, tipos, build y 66 pruebas de interfaz en verde). Pendiente de subir a la rama: sin commit todavía.
 
 Antes de esto — **06/10/2026 (4): comando `pnpm compartir`
 para darle una copia de la aplicación a otro optometrista, en su propio
