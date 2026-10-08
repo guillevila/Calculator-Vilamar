@@ -57,6 +57,29 @@ No hace falta instalar Node, pnpm, ni nada más — el `.zip` ya lleva todo
 lo necesario dentro, incluido el navegador que usa para hablar con EVO,
 Barrett y Kane.
 
+## Su propia clave para leer fotos
+
+La aplicación lee las fotos de los informes con una «clave de API» de
+Anthropic. **Tu clave no viaja dentro del `.zip`**: vive en tu carpeta de
+datos de Windows (`%APPDATA%\calculator-vilamar\.env`), no dentro de la
+aplicación, así que quien reciba la copia no gasta de tu cuenta. Sin
+ninguna clave, la aplicación funciona igual, pero lee las fotos con un
+reconocimiento de texto local que se equivoca más (se lo avisa en
+pantalla).
+
+Para que la otra persona use la suya, en su ordenador:
+
+1. Abrir la aplicación una vez y cerrarla (así se crea su carpeta de datos).
+2. Teclas **Windows + R**, escribir `%APPDATA%\calculator-vilamar` e Intro.
+3. Dentro, crear un archivo de texto llamado `.env` (con el punto delante y
+   sin `.txt` al final).
+4. Escribir una sola línea: `ANTHROPIC_API_KEY=` seguido de su clave, sin
+   comillas ni espacios. Guardar y volver a abrir la aplicación.
+
+No enviéis la clave por mensaje ni la dejéis dentro de la carpeta de la
+aplicación: si alguien más la viera, habría que revocarla en la cuenta de
+Anthropic y crear otra. Cada persona ve en su propia cuenta cuánto gasta.
+
 ## Actualizarla más adelante
 
 Cuando quieras pasarle las mejoras de una sesión nueva, repite
