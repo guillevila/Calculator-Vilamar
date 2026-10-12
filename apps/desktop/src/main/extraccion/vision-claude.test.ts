@@ -94,9 +94,24 @@ describe('lo que devuelve el modelo entra como lectura automática', () => {
     expect(medida.confirmadoPorUsuario).toBe(false)
   })
 
-  it('el aviso de arriba dice claramente que hay que comprobar', () => {
-    const r = aResultado(DOC, leido([]), CUANDO)
-    expect(r.avisos[0]).toMatch(/comprueba cada dato/i)
+  it('ya no antepone el aviso genérico «leído por un modelo de visión» (D123)', () => {
+    const r = aResultado(
+      DOC,
+      leido([
+        {
+          lado: 'OD',
+          comoSeSabe: 'OD',
+          medidas: [{ campo: 'AL', valor: 24.07, textoOriginal: 'AL 24.07' }],
+        },
+      ]),
+      CUANDO,
+    )
+    expect(r.avisos).toHaveLength(0)
+  })
+
+  it('tampoco avisa de que el lector no busca la tabla de constantes de lente (D123)', () => {
+    const r = aResultado(DOC, { ...leido([]), dispositivo: 'ANTERION' }, CUANDO)
+    expect(r.avisos.some((a) => /constante/i.test(a))).toBe(false)
   })
 })
 
@@ -127,8 +142,8 @@ describe('lo dudoso se descarta, no se asigna a medias', () => {
     const r = aResultado(DOC, leido([], ['Las dos columnas están sin etiquetar.']), CUANDO)
     expect(Object.keys(r.ojos)).toHaveLength(0)
     expect(r.avisos.some((a) => a.includes('no mezclarlos'))).toBe(true)
-    // Las notas del modelo llegan al usuario, no se pierden.
-    expect(r.avisos).toContain('Las dos columnas están sin etiquetar.')
+    // La explicación la da el programa; la nota libre del modelo ya no se enseña (D123).
+    expect(r.avisos).not.toContain('Las dos columnas están sin etiquetar.')
   })
 
   it('un valor que no es un número se descarta CON aviso, no en silencio', () => {
@@ -230,5 +245,35 @@ describe('córnea posterior y ejes con decimales (D121, 07/10/2026)', () => {
 
   it('las instrucciones dicen que la córnea posterior negativa es correcta y hay que devolverla', () => {
     expect(instrucciones()).toMatch(/CÓRNEA POSTERIOR ES NEGATIVA/)
+  })
+})
+
+describe('las notas libres del modelo no se enseñan (D123, 12/10/2026)', () => {
+  it('un comentario sobre datos fuera del formulario no llega a los avisos', () => {
+    const r = aResultado(
+      DOC,
+      {
+        ...leido([
+          {
+            lado: 'OD',
+            comoSeSabe: 'OD',
+            medidas: [{ campo: 'AL', valor: 24.07, textoOriginal: 'AL 24.07' }],
+          },
+        ]),
+        notas: ['Los valores de Pupil diameter no corresponden a ningún campo permitido.'],
+      },
+      CUANDO,
+    )
+    expect(r.avisos).toHaveLength(0)
+  })
+
+  it('un ojo repetido sigue avisando: es un aviso propio del programa, no una nota del modelo', () => {
+    const bloque = {
+      lado: 'OD' as const,
+      comoSeSabe: 'OD',
+      medidas: [{ campo: 'AL' as const, valor: 24.07, textoOriginal: 'AL 24.07' }],
+    }
+    const r = aResultado(DOC, leido([bloque, bloque]), CUANDO)
+    expect(r.avisos.some((a) => /dos veces el ojo OD/.test(a))).toBe(true)
   })
 })

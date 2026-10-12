@@ -4,6 +4,22 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.83] — 12/10/2026 (versión visible en pantalla: v1.37)
+
+fix(app): un documento subido después no sustituye los datos de un aparato ya cargado; la pantalla salta al aparato nuevo (D124).
+
+Al subir un segundo documento con «Subir documento…», si su aparato reconocido coincidía con el que ya había en el ojo, sus datos sustituían a los del primero. Ahora conviven con un nombre libre («… (2)») y se avisa. Tras subir, la pantalla pasa al aparato nuevo. Reproducido con un test antes de arreglar. 926 tests unitarios, lint, tipos, build y 66 pruebas de interfaz en verde.
+
+---
+
+## [1.15.82] — 12/10/2026 (versión visible en pantalla: v1.37)
+
+fix(app): al subir un documento solo salen los avisos que importan (D123).
+
+Se quitan el aviso genérico del lector de visión, los de ACD derivada y eje a +90° (el dato sigue derivándose, marcado como derivado), el de la lista de constantes A y las notas libres del modelo. Quedan los avisos propios del programa y las incongruencias entre datos. Verificado: 925 tests unitarios, lint, tipos, build y 66 pruebas de interfaz en verde.
+
+---
+
 ## [1.15.81] — 07/10/2026 (versión visible en pantalla: v1.37)
 
 feat(domain): si un informe solo trae el eje de un meridiano de la córnea, el otro se pone a +90° (D122).

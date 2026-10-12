@@ -479,13 +479,10 @@ describe('ACD: documento completo, de principio a fin', () => {
     expect(origenDe(ojo.medidas.CCT)).toBe('DEL_INFORME')
   })
 
-  it('el aviso dice de qué ojo habla', () => {
-    // Con dos ojos sin ACD saldrían dos mensajes idénticos y no habría forma de
-    // saber a cuál mirar.
+  it('derivar la ACD ya no saca ningún aviso (D123): el dato sale marcado como derivado', () => {
     const r = leer(fx.ANTERION_ANTIGUO_SIN_ACD)
-    const aviso = r.avisos.find((a) => a.includes('AQD'))
-    expect(aviso).toBeDefined()
-    expect(aviso).toContain('Ojo derecho (OD)')
+    expect(r.avisos.find((a) => a.includes('AQD'))).toBeUndefined()
+    expect(origenDe(r.ojos.OD!.medidas.ACD)).toBe('DERIVADO_DEL_INFORME')
   })
 
   it('ANTERION con AQD pero sin grosor corneal: NO se inventa la ACD', () => {
@@ -495,7 +492,7 @@ describe('ACD: documento completo, de principio a fin', () => {
     expect(r.avisos.some((a) => /grosor|CCT/i.test(a) && /a mano/i.test(a))).toBe(true)
   })
 
-  it('aparato desconocido con AQD y CCT: SÍ se calcula, avisando de que el aparato no está confirmado (D116, 06/10/2026)', () => {
+  it('aparato desconocido con AQD y CCT: SÍ se calcula, marcada como derivada (D116; sin aviso desde D123)', () => {
     // Caso real que motivó esto: CV-2026-0299, una foto de WhatsApp recortada
     // sin logo visible. Ningún otro aparato de los que lee este programa
     // publica un campo llamado literalmente «AQD», distinto de la ACD — así
@@ -506,7 +503,7 @@ describe('ACD: documento completo, de principio a fin', () => {
     expect(valorDe(r.ojos.OD!, 'ACD')).toBeCloseTo(3.09, 2)
     expect(origenDe(r.ojos.OD!.medidas.ACD)).toBe('DERIVADO_DEL_INFORME')
     expect(valorDe(r.ojos.OD!, 'AQD')).toBe(2.55)
-    expect(r.avisos.some((a) => /no se ha podido confirmar qué aparato/i.test(a))).toBe(true)
+    expect(r.avisos.some((a) => /AQD/i.test(a))).toBe(false)
   })
 
   it('ACD impresa que no cuadra con AQD + CCT: avisa y no elige', () => {
