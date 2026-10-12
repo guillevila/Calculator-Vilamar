@@ -449,9 +449,25 @@ export function App(): JSX.Element {
     try {
       const r = await api().elegirYCargarDocumentos()
       if (r) {
+        // D124 (12/10/2026): se salta al aparato NUEVO que ha creado este
+        // documento (si crea alguno), para que se vea que se ha subido — antes
+        // la pantalla se quedaba en el aparato anterior y parecía que no había
+        // hecho nada. Se mira primero el ojo activo y, si no, cualquier otro.
+        let nuevo: { ojo: Lateralidad; aparato: string } | null = null
+        if (caso) {
+          const ojosBusqueda = [ojoActivo, ...ojosDelCaso(r.caso).filter((o) => o !== ojoActivo)]
+          for (const o of ojosBusqueda) {
+            const antes = new Set(aparatosDe(caso, o))
+            const aparatoNuevo = aparatosDe(r.caso, o).find((a) => !antes.has(a))
+            if (aparatoNuevo) {
+              nuevo = { ojo: o, aparato: aparatoNuevo }
+              break
+            }
+          }
+        }
         setCaso(r.caso)
         setResumenes((previos) => [...previos, ...r.resumenes])
-        const corregido = ojoYAparatoCorrectos(r.caso, ojoActivo, aparatoActivo)
+        const corregido = nuevo ?? ojoYAparatoCorrectos(r.caso, ojoActivo, aparatoActivo)
         if (corregido) {
           setOjoActivo(corregido.ojo)
           setAparatoActivo(corregido.aparato)
@@ -464,7 +480,7 @@ export function App(): JSX.Element {
     } finally {
       setOcupado(false)
     }
-  }, [refrescarAvisos, ojoActivo, aparatoActivo])
+  }, [refrescarAvisos, ojoActivo, aparatoActivo, caso])
 
   /**
    * Empezar sin documento: todo a mano. Es un caso de uso legítimo.

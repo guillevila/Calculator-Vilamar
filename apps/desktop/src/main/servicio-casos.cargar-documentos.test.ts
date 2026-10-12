@@ -254,6 +254,39 @@ describe('cargarDocumentos — dos fotos del mismo ojo, mismo aparato detectado 
     ])
   })
 
+  it('un documento subido DESPUÉS, con el mismo aparato reconocido, no sustituye al anterior: convive aparte (D124)', async () => {
+    const lector = lectorDePrueba([
+      resultadoDe(
+        'doc-1',
+        { dispositivo: 'IOLMASTER_700', confianza: 0.9, indicios: [] },
+        { AL: 24.0 },
+      ),
+      resultadoDe(
+        'doc-2',
+        { dispositivo: 'IOLMASTER_700', confianza: 0.9, indicios: [] },
+        { AL: 25.0 },
+      ),
+    ])
+    const servicio = servicioDePrueba(lector)
+    servicio.nuevo()
+
+    await servicio.cargarDocumentos([{ nombre: 'a.pdf', datos: new Uint8Array([1, 2, 3]) }])
+    const { caso, resumenes } = await servicio.cargarDocumentos([
+      { nombre: 'b.pdf', datos: new Uint8Array([4, 5, 6]) },
+    ])
+
+    const datasetsOD = datasetsDe(caso, 'OD')
+    expect(datasetsOD.map((d) => d.aparato).sort()).toEqual([
+      'ZEISS IOLMaster 700',
+      'ZEISS IOLMaster 700 (2)',
+    ])
+    expect(datasetsOD.find((d) => d.aparato === 'ZEISS IOLMaster 700')?.medidas.AL?.valor).toBe(24)
+    expect(datasetsOD.find((d) => d.aparato === 'ZEISS IOLMaster 700 (2)')?.medidas.AL?.valor).toBe(
+      25,
+    )
+    expect(resumenes[0]?.avisos.join(' ')).toContain('sin tocar los anteriores')
+  })
+
   it('dos fotos de aparatos REALMENTE distintos siguen creando dos datasets separados', async () => {
     const lector = lectorDePrueba([
       resultadoDe(

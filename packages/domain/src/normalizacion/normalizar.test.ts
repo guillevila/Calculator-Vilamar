@@ -116,12 +116,12 @@ describe('ANTERION antiguo, sin ACD', () => {
     expect(String(acd?.valor)).toBe('3.18')
   })
 
-  it('avisa de que la ha calculado, diciendo con qué', () => {
+  it('no saca ningún aviso (D123), pero la cuenta queda escrita en la procedencia del dato', () => {
     const r = normalizarOjo(anterionAntiguo(), 'ANTERION', LUEGO)
-    expect(r.avisos).toHaveLength(1)
-    expect(r.avisos[0]).toContain('2.65 mm')
-    expect(r.avisos[0]).toContain('530 µm')
-    expect(r.avisos[0]).toContain('3.18 mm')
+    expect(r.avisos).toHaveLength(0)
+    const explicacion = obtener(r.ojo, 'ACD')?.procedencia.derivacion?.explicacion ?? ''
+    expect(explicacion).toContain('2.65 mm')
+    expect(explicacion).toContain('530 µm')
   })
 })
 
@@ -278,11 +278,10 @@ describe('un aparato sin confirmar (D116, 06/10/2026): el campo AQD ya es la pru
     expect(esDerivado(obtener(r.ojo, 'ACD')!.procedencia)).toBe(true)
   })
 
-  it('el aviso deja claro que el aparato no está confirmado, para revisarla con más cuidado', () => {
+  it('tampoco saca aviso (D123): el dato sale marcado como derivado y basta', () => {
     const r = normalizarOjo(anterionAntiguo(), 'DESCONOCIDO', LUEGO)
-    expect(r.avisos).toHaveLength(1)
-    expect(r.avisos[0]).toMatch(/no se ha podido confirmar qué aparato/i)
-    expect(r.avisos[0]).toContain('AQD')
+    expect(r.avisos).toHaveLength(0)
+    expect(obtener(r.ojo, 'ACD')?.procedencia.metodo).toBe('DERIVADO')
   })
 
   it('ni el IOLMaster ni el Pentacam derivan — ahí el aparato SÍ se conoce, y se sabe que no vale', () => {
@@ -481,12 +480,13 @@ describe('si el informe solo trae el eje de un meridiano, el otro es ese +90° (
     return ojo
   }
 
-  it('solo PK1_EJE (113.8 → 114) → PK2_EJE = 24, derivado y con aviso', () => {
+  it('solo PK1_EJE (113.8 → 114) → PK2_EJE = 24, derivado y sin aviso (D123)', () => {
     const r = normalizarOjo(posterior({ pk1: 113.8 }), 'PENTACAM', LUEGO)
     const pk2e = obtener(r.ojo, 'PK2_EJE')
     expect(pk2e?.valor).toBe(24)
     expect(pk2e?.procedencia.metodo).toBe('DERIVADO')
-    expect(r.avisos.join(' ')).toMatch(/perpendiculares/)
+    expect(pk2e?.procedencia.derivacion?.explicacion).toMatch(/perpendiculares/)
+    expect(r.avisos).toHaveLength(0)
   })
 
   it('solo PK2_EJE → PK1_EJE = +90 (envuelto en 0-180)', () => {

@@ -233,6 +233,13 @@ function nombreAparatoLibreParaDesconocido(previos: readonly OjoBiometrico[]): s
   return `${base} (${n})`
 }
 
+/** «Base (2)», «Base (3)»… el primero que no esté ya cogido en ese ojo. */
+function nombreLibreSobre(base: string, previos: readonly OjoBiometrico[]): string {
+  let n = 2
+  while (previos.some((o) => o.aparato === `${base} (${n})`)) n++
+  return `${base} (${n})`
+}
+
 function fusionarMedidas(
   existente: OjoBiometrico,
   leido: OjoBiometrico,
@@ -700,7 +707,7 @@ export class ServicioCasos {
         // convivan distinguibles en vez de que uno pise al otro.
         const otraLateralidad: Lateralidad = lateralidad === 'OD' ? 'OS' : 'OD'
         const aparatoDelOtroOjo = datasetsDe(caso, otraLateralidad)[0]?.aparato
-        const aparato =
+        const aparatoBase =
           previos.length > 0
             ? resultado.dispositivo.dispositivo === 'DESCONOCIDO'
               ? nombreAparatoLibreParaDesconocido(previos)
@@ -708,10 +715,18 @@ export class ServicioCasos {
             : resultado.dispositivo.dispositivo !== 'DESCONOCIDO'
               ? NOMBRE_DISPOSITIVO[resultado.dispositivo.dispositivo]
               : (aparatoDelOtroOjo ?? NOMBRE_DISPOSITIVO.IOLMASTER_700)
-        const yaHabiaEseAparato = previos.some((o) => o.aparato === aparato)
-        if (yaHabiaEseAparato) {
+        // D124 (12/10/2026): un documento NUEVO nunca sustituye los datos de
+        // un aparato que ya estaba en el ojo —antes, si el aparato reconocido
+        // coincidía con el que ya había, «se ha sustituido» sin más: el dueño
+        // subía el documento de otro aparato y sus datos se perdían—. Ahora
+        // convive, con un nombre libre («… (2)»), igual que ya hacían los no
+        // reconocidos y como promete D47.
+        const aparato = previos.some((o) => o.aparato === aparatoBase)
+          ? nombreLibreSobre(aparatoBase, previos)
+          : aparatoBase
+        if (aparato !== aparatoBase) {
           avisos.push(
-            `Ya había un conjunto de «${aparato}» para el ${lateralidad}; se ha sustituido por los datos de «${archivo.nombre}».`,
+            `Ya había un conjunto de «${aparatoBase}» para el ${lateralidad}; los datos de «${archivo.nombre}» se han añadido aparte como «${aparato}», sin tocar los anteriores.`,
           )
         }
         datasetDeEsteLote[lateralidad] = { aparato, dispositivo: resultado.dispositivo.dispositivo }

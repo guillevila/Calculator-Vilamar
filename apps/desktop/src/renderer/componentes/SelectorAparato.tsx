@@ -213,7 +213,7 @@ export function SelectorAparato({
           onClick={() => setAnadiendo(true)}
           data-testid="manual-anadir-aparato"
         >
-          + Añadir otro biómetro
+          + Añadir otro biómetro manualmente
         </button>
       )}
       {!anadiendo && (
@@ -223,7 +223,7 @@ export function SelectorAparato({
           data-testid="manual-subir-documento"
           title="Sube una foto o un PDF de otro aparato, sin tocar los datos que ya tienes"
         >
-          Subir documento…
+          Subir documento de otro biómetro
         </button>
       )}
       {anadiendo && (

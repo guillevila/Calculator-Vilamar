@@ -48,7 +48,6 @@ import {
   nombreLateralidad,
   normalizarOjo,
   ojoVacio,
-  perfilDe,
 } from '@vilamar/domain'
 import type { DocumentoEntrada, LectorVision, ResultadoExtraccion } from '@vilamar/extraction'
 
@@ -409,10 +408,13 @@ export function aResultado(
   cuando: string,
   modelo: string = MODELO,
 ): ResultadoExtraccion {
-  const avisos: string[] = [
-    'Este informe lo ha leído un modelo de visión. Acierta mucho más que el reconocimiento de texto, pero sigue sin ser una lectura exacta: comprueba cada dato contra el documento antes de confirmarlo.',
-    ...leido.notas,
-  ]
+  // D123 (12/10/2026): las notas libres del modelo ya NO se enseñan —petición
+  // expresa del dueño, con una captura real: comentaba datos que el formulario
+  // no tiene (pupila, aberraciones) y por qué no asignaba la ACD o la constante
+  // A. Lo que de verdad importa sigue saliendo por los avisos propios del
+  // programa (ojo ambiguo o repetido, valor que no es un número) y por los
+  // datos que faltan, que se ven en rojo en la revisión.
+  const avisos: string[] = []
 
   const ojos: Partial<Record<Lateralidad, OjoBiometrico>> = {}
   const explicaciones: string[] = []
@@ -460,14 +462,6 @@ export function aResultado(
   if (Object.keys(ojos).length === 0) {
     avisos.push(
       'No se ha podido saber con seguridad de qué ojo son los datos, así que no se ha rellenado ninguno. Es la única forma de no mezclarlos. Escribe tú los valores del ojo que corresponda.',
-    )
-  }
-
-  // Si el aparato es de los que imprimen tabla de lentes, se dice que este lector
-  // no la ha buscado. Callarlo haría pensar que el informe no la trae.
-  if (perfilDe(leido.dispositivo).tablaDeLentes !== 'NINGUNA') {
-    avisos.push(
-      'Este informe suele traer una lista de modelos de lente con su constante A, pero el lector de visión todavía no la busca. Escribe la constante A a mano, o vuelve a leer el informe sin el lector de visión.',
     )
   }
 
