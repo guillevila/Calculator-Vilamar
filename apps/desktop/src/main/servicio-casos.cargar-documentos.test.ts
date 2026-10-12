@@ -254,6 +254,39 @@ describe('cargarDocumentos — dos fotos del mismo ojo, mismo aparato detectado 
     ])
   })
 
+  it('un documento subido DESPUÉS, con el mismo aparato reconocido, no sustituye al anterior: convive aparte (D124)', async () => {
+    const lector = lectorDePrueba([
+      resultadoDe(
+        'doc-1',
+        { dispositivo: 'IOLMASTER_700', confianza: 0.9, indicios: [] },
+        { AL: 24.0 },
+      ),
+      resultadoDe(
+        'doc-2',
+        { dispositivo: 'IOLMASTER_700', confianza: 0.9, indicios: [] },
+        { AL: 25.0 },
+      ),
+    ])
+    const servicio = servicioDePrueba(lector)
+    servicio.nuevo()
+
+    await servicio.cargarDocumentos([{ nombre: 'a.pdf', datos: new Uint8Array([1, 2, 3]) }])
+    const { caso, resumenes } = await servicio.cargarDocumentos([
+      { nombre: 'b.pdf', datos: new Uint8Array([4, 5, 6]) },
+    ])
+
+    const datasetsOD = datasetsDe(caso, 'OD')
+    expect(datasetsOD.map((d) => d.aparato).sort()).toEqual([
+      'ZEISS IOLMaster 700',
+      'ZEISS IOLMaster 700 (2)',
+    ])
+    expect(datasetsOD.find((d) => d.aparato === 'ZEISS IOLMaster 700')?.medidas.AL?.valor).toBe(24)
+    expect(datasetsOD.find((d) => d.aparato === 'ZEISS IOLMaster 700 (2)')?.medidas.AL?.valor).toBe(
+      25,
+    )
+    expect(resumenes[0]?.avisos.join(' ')).toContain('sin tocar los anteriores')
+  })
+
   it('dos fotos de aparatos REALMENTE distintos siguen creando dos datasets separados', async () => {
     const lector = lectorDePrueba([
       resultadoDe(
@@ -315,7 +348,9 @@ describe('cargarDocumentos — avisa si el archivo ya se había cargado antes en
     // Mismos bytes las dos veces — como la misma foto real, aunque llegue
     // con un nombre de archivo distinto la segunda vez.
     const mismosBytes = new Uint8Array([1, 2, 3])
-    await servicio.cargarDocumentos([{ nombre: 'hospital de madrid2/foto.jpg', datos: mismosBytes }])
+    await servicio.cargarDocumentos([
+      { nombre: 'hospital de madrid2/foto.jpg', datos: mismosBytes },
+    ])
     const { resumenes } = await servicio.cargarDocumentos([
       { nombre: 'hospital madrid 1/foto.jpg', datos: mismosBytes },
     ])
@@ -365,12 +400,15 @@ describe('cargarDocumentos — avisa si el archivo ya se había cargado antes en
 
     const mismosBytes = new Uint8Array([1, 2, 3])
     await servicio.cargarDocumentos([{ nombre: 'foto.jpg', datos: mismosBytes }])
-    const { caso } = await servicio.cargarDocumentos([{ nombre: 'foto-repetida.jpg', datos: mismosBytes }])
-
-    expect(datasetsDe(caso, 'OD').map((d) => d.aparato).sort()).toEqual([
-      'Otro',
-      'ZEISS IOLMaster 700',
+    const { caso } = await servicio.cargarDocumentos([
+      { nombre: 'foto-repetida.jpg', datos: mismosBytes },
     ])
+
+    expect(
+      datasetsDe(caso, 'OD')
+        .map((d) => d.aparato)
+        .sort(),
+    ).toEqual(['Otro', 'ZEISS IOLMaster 700'])
   })
 })
 
@@ -415,7 +453,9 @@ describe('cargarDocumentos — el nombre del primer aparato de un ojo (D115, 02/
     const servicio = servicioDePrueba(lector)
     servicio.nuevo()
 
-    await servicio.cargarDocumentos([{ nombre: 'pentacam-od.pdf', datos: new Uint8Array([1, 2, 3]) }])
+    await servicio.cargarDocumentos([
+      { nombre: 'pentacam-od.pdf', datos: new Uint8Array([1, 2, 3]) },
+    ])
     const { caso } = await servicio.cargarDocumentos([
       { nombre: 'sin-reconocer-os.jpg', datos: new Uint8Array([4, 5, 6]) },
     ])
@@ -426,7 +466,11 @@ describe('cargarDocumentos — el nombre del primer aparato de un ojo (D115, 02/
 
   it('sin reconocer el aparato y sin ningún otro ojo del que copiar, se asume «ZEISS IOLMaster 700»', async () => {
     const lector = lectorDePrueba([
-      resultadoDe('doc-1', { dispositivo: 'DESCONOCIDO', confianza: 0, indicios: [] }, { AL: 24.0 }),
+      resultadoDe(
+        'doc-1',
+        { dispositivo: 'DESCONOCIDO', confianza: 0, indicios: [] },
+        { AL: 24.0 },
+      ),
     ])
     const servicio = servicioDePrueba(lector)
     servicio.nuevo()

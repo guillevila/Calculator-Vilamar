@@ -157,9 +157,6 @@ function derivarEjesPerpendiculares(ojo: OjoBiometrico, cuando: string): Resulta
       derivacion: { deCampos: [origen.campo], explicacion },
     }
     actual = conMedida(actual, crearMedida(faltante, ojo.lateralidad, valor, procedencia))
-    avisos.push(
-      `El informe no trae ${definicionDe(faltante).etiqueta.toLowerCase()}, así que se ha puesto ${formatearConUnidad(faltante, valor)} (${explicacion}). Sale marcado como «derivado del informe»; compruébalo antes de confirmar.`,
-    )
   }
   return { ojo: actual, avisos }
 }
@@ -269,20 +266,9 @@ function derivarAcd(
 
   const derivada: Medida = crearMedida('ACD', ojo.lateralidad, valor, procedencia)
 
-  // D116: en el caso 2b, el aviso deja claro que el aparato no está
-  // confirmado, para que se compruebe con más cuidado de lo normal — no es
-  // la misma certeza que un ANTERION reconocido por su maqueta.
-  const notaAparato = aparatoNoConfirmado
-    ? ' No se ha podido confirmar qué aparato es, pero el propio informe trae un dato llamado «AQD», distinto de la ACD, que solo usan aparatos como el ANTERION — compruébala con más cuidado de lo normal.'
-    : ''
-
-  return {
-    ojo: conMedida(ojo, derivada),
-    avisos: [
-      `Este informe no trae la ACD, así que se ha calculado sumando ${explicacion} = ${formatearConUnidad(
-        'ACD',
-        valor,
-      )}.${notaAparato} Sale marcada como «derivada del informe»; compruébala antes de confirmar.`,
-    ],
-  }
+  // D123 (12/10/2026): ya no se avisa de que la ACD se ha derivado —petición
+  // expresa del dueño: demasiados mensajes al subir un documento—. El dato
+  // sigue marcado como «derivado» en su propia fila, con la cuenta escrita en
+  // su procedencia, que es donde se mira.
+  return { ojo: conMedida(ojo, derivada), avisos: [] }
 }
