@@ -579,6 +579,21 @@ export function construirOpcionesDeKane(
   return { opciones, toricasLeidas }
 }
 
+/** Cuántas veces se repite el cálculo de Kane si devuelve una tabla sin potencia marcada (D125). */
+const MAX_INTENTOS_KANE = 3
+
+/**
+ * ¿Es este un resultado de Kane sin ninguna potencia esférica marcada?
+ * Kane marca siempre la suya cuando el cálculo ha terminado bien; sin marca es
+ * una tabla provisional con números sin relación con los reales (D125).
+ */
+export function kaneSinPotenciaMarcada(r: ResultadoCalculadora): boolean {
+  return (
+    (r.estado === 'SUCCESS' || r.estado === 'PARTIAL') &&
+    !(r.opciones ?? []).some((o) => o.recomendada)
+  )
+}
+
 export class AdaptadorKane implements AdaptadorCalculadora {
   readonly calculadora = 'KANE' as const
   readonly nombre = 'Kane'
@@ -601,59 +616,102 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     const pagina = await ctx.contexto.newPage()
 
     try {
-      ctx.progreso({ calculadora: this.calculadora, fase: 'NAVEGANDO', mensaje: 'Abriendo Kane…' })
-      await pagina.goto(URL, { waitUntil: 'domcontentloaded', timeout: 60_000 })
-
-      await this.pasarCondiciones(pagina, ctx)
-
-      ctx.progreso({
-        calculadora: this.calculadora,
-        fase: 'RELLENANDO',
-        mensaje: 'Rellenando los datos en Kane…',
-      })
-      const { puestos: rellenados, modeloEncontrado } = await this.rellenar(pagina, ctx.entradas)
-
-      if (rellenados === 0) {
+      // D125 (15/10/2026): Kane a veces devuelve una tabla SIN ninguna potencia
+      // marcada y con números que no tienen nada que ver con los de EVO o
+      // Barrett (medido sobre 286 resultados reales de Kane: los 263 con
+      // potencia marcada coinciden con EVO casi siempre en medio dioptría; los
+      // 23 sin marca se apartan de 2 a 10 dioptrías). Esa tabla no es un
+      // resultado: es un cálculo a medias. Se repite entero hasta
+      // `MAX_INTENTOS_KANE` veces y, si sigue igual, se da por fallo —no se
+      // enseñan números que parecen buenos y no lo son.
+      let resultado = await this.intentar(pagina, ctx, inicio, 1)
+      for (
+        let intento = 2;
+        intento <= MAX_INTENTOS_KANE && kaneSinPotenciaMarcada(resultado);
+        intento++
+      ) {
+        resultado = await this.intentar(pagina, ctx, inicio, intento)
+      }
+      if (kaneSinPotenciaMarcada(resultado)) {
         throw new ErrorAdaptador(
-          'ADAPTER_BROKEN',
-          'No se han encontrado los campos de la calculadora de Kane. El conector necesita actualizarse: ejecuta «pnpm reconocer:kane» para que aprenda el formulario actual.',
-          'RELLENANDO',
-          'campos por etiqueta',
+          'EXTERNAL_ERROR',
+          `Kane ha devuelto ${MAX_INTENTOS_KANE} veces una tabla sin ninguna potencia marcada, con números que no son fiables ` +
+            '(en el historial de este programa casi siempre han estado muy lejos de EVO y Barrett). ' +
+            'No se enseña ningún resultado de Kane: puedes reintentar solo Kane.',
+          'LEYENDO_RESULTADO',
+          'tbody.res_tab3_lines tr.table-active',
         )
       }
-
-      // Se comprueba lo escrito ANTES de calcular. Sin esto, un campo que se
-      // repinta deja el formulario a medias y el fallo aparece cuatro pasos más
-      // adelante disfrazado de «no hay tabla de resultados».
-      const mal = await this.comprobarLoEscrito(pagina, ctx.entradas, modeloEncontrado)
-      if (mal.length > 0) {
-        throw new ErrorAdaptador(
-          'ADAPTER_BROKEN',
-          `Los datos no se han quedado escritos en el formulario de Kane: ${mal.join('; ')}. ` +
-            'El conector necesita actualizarse: ejecuta «pnpm reconocer:kane».',
-          'RELLENANDO',
-          'valores del formulario',
-        )
-      }
-
-      ctx.progreso({
-        calculadora: this.calculadora,
-        fase: 'CALCULANDO',
-        mensaje: 'Calculando en Kane…',
-      })
-      await this.pulsarCalcular(pagina)
-
-      ctx.progreso({
-        calculadora: this.calculadora,
-        fase: 'LEYENDO_RESULTADO',
-        mensaje: 'Leyendo el resultado de Kane…',
-      })
-      return await this.leerResultado(pagina, ctx, inicio, modeloEncontrado)
+      return resultado
     } catch (error) {
       return await this.aFallo(pagina, ctx, error, inicio)
     } finally {
       await pagina.close().catch(() => undefined)
     }
+  }
+
+  /** Un intento completo: abrir Kane, rellenar, calcular y leer. */
+  private async intentar(
+    pagina: Page,
+    ctx: ContextoEjecucion,
+    inicio: number,
+    intento: number,
+  ): Promise<ResultadoCalculadora> {
+    ctx.progreso({
+      calculadora: this.calculadora,
+      fase: 'NAVEGANDO',
+      mensaje:
+        intento === 1
+          ? 'Abriendo Kane…'
+          : `Kane ha dado un resultado provisional; repitiendo el cálculo (intento ${intento} de ${MAX_INTENTOS_KANE})…`,
+    })
+    await pagina.goto(URL, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+
+    await this.pasarCondiciones(pagina, ctx)
+
+    ctx.progreso({
+      calculadora: this.calculadora,
+      fase: 'RELLENANDO',
+      mensaje: 'Rellenando los datos en Kane…',
+    })
+    const { puestos: rellenados, modeloEncontrado } = await this.rellenar(pagina, ctx.entradas)
+
+    if (rellenados === 0) {
+      throw new ErrorAdaptador(
+        'ADAPTER_BROKEN',
+        'No se han encontrado los campos de la calculadora de Kane. El conector necesita actualizarse: ejecuta «pnpm reconocer:kane» para que aprenda el formulario actual.',
+        'RELLENANDO',
+        'campos por etiqueta',
+      )
+    }
+
+    // Se comprueba lo escrito ANTES de calcular. Sin esto, un campo que se
+    // repinta deja el formulario a medias y el fallo aparece cuatro pasos más
+    // adelante disfrazado de «no hay tabla de resultados».
+    const mal = await this.comprobarLoEscrito(pagina, ctx.entradas, modeloEncontrado)
+    if (mal.length > 0) {
+      throw new ErrorAdaptador(
+        'ADAPTER_BROKEN',
+        `Los datos no se han quedado escritos en el formulario de Kane: ${mal.join('; ')}. ` +
+          'El conector necesita actualizarse: ejecuta «pnpm reconocer:kane».',
+        'RELLENANDO',
+        'valores del formulario',
+      )
+    }
+
+    ctx.progreso({
+      calculadora: this.calculadora,
+      fase: 'CALCULANDO',
+      mensaje: 'Calculando en Kane…',
+    })
+    await this.pulsarCalcular(pagina)
+
+    ctx.progreso({
+      calculadora: this.calculadora,
+      fase: 'LEYENDO_RESULTADO',
+      mensaje: 'Leyendo el resultado de Kane…',
+    })
+    return await this.leerResultado(pagina, ctx, inicio, modeloEncontrado)
   }
 
   private async enLaPuerta(pagina: Page): Promise<boolean> {
