@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.84] — 15/10/2026 (versión visible en pantalla: v1.37)
+
+fix(integrations): un resultado de Kane sin ninguna potencia marcada ya no se enseña; se repite el cálculo hasta 3 veces (D125).
+
+Caso `CV-2026-0367`: Kane daba 10.59 D donde EVO daba 16.5 D con los mismos datos. Los datos enviados eran correctos; la tabla de Kane salía sin fila marcada. Medido sobre 286 resultados guardados: los que tienen potencia marcada concuerdan con EVO; los 23 sin marca se desvían de 2 a 10 D. Ahora se repite el cálculo (máximo 3 intentos) y, si sigue igual, se da por fallo con opción de reintentar. Mitigación basada en medición; la causa exacta no está confirmada en vivo. 929 tests unitarios, lint, tipos, build y 66 pruebas de interfaz en verde.
+
+---
+
 ## [1.15.83] — 12/10/2026 (versión visible en pantalla: v1.37)
 
 fix(app): un documento subido después no sustituye los datos de un aparato ya cargado; la pantalla salta al aparato nuevo (D124).

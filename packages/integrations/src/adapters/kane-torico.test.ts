@@ -23,6 +23,7 @@ import { describe, expect, it } from 'vitest'
 import {
   camposDeKane,
   construirOpcionesDeKane,
+  kaneSinPotenciaMarcada,
   leerFilaToricaDeKane,
   modoParaKane,
   puedePedirseToricoAKane,
@@ -294,5 +295,45 @@ describe('los campos de cada modo y cada ojo', () => {
     expect(camposDeKane('NO_TORICO', 'OS').AL?.selector).toBe('#al-left')
     expect(camposDeKane('TORICO', 'OD').AL?.selector).toBe('#al-right-t')
     expect(camposDeKane('TORICO', 'OS').AL?.selector).toBe('#al-left-t')
+  })
+})
+
+describe('un resultado de Kane sin ninguna potencia marcada no es un resultado (D125, 15/10/2026)', () => {
+  // Caso real CV-2026-0367 (OS): Kane devolvió 10.59 / 10.09 / 9.59… sin fila
+  // destacada, mientras EVO daba 16.5 D con los mismos datos.
+  const base = {
+    calculadora: 'KANE' as const,
+    ojo: 'OS' as const,
+    obtenidoEn: '2026-10-15T16:37:47.377Z',
+  }
+
+  it('sin ninguna opción recomendada se detecta, para repetir el cálculo', () => {
+    const r = {
+      ...base,
+      estado: 'PARTIAL' as const,
+      opciones: [
+        { esfera: 10.59, refraccionPrevista: -0.55, recomendada: false },
+        { esfera: 10.09, refraccionPrevista: -0.22, recomendada: false },
+      ],
+    }
+    expect(kaneSinPotenciaMarcada(r)).toBe(true)
+  })
+
+  it('con una potencia marcada por Kane es un resultado normal', () => {
+    const r = {
+      ...base,
+      estado: 'SUCCESS' as const,
+      opciones: [
+        { esfera: 20.5, refraccionPrevista: -0.06, recomendada: true },
+        { esfera: 20, refraccionPrevista: 0.28, recomendada: false },
+      ],
+    }
+    expect(kaneSinPotenciaMarcada(r)).toBe(false)
+  })
+
+  it('un estado distinto de SUCCESS o PARTIAL no se confunde con una tabla provisional', () => {
+    expect(
+      kaneSinPotenciaMarcada({ ...base, estado: 'MISSING_INPUTS' as const, opciones: [] }),
+    ).toBe(false)
   })
 })
