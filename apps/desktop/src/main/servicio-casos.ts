@@ -1589,6 +1589,9 @@ export class ServicioCasos {
         guardarDiagnostico: this.dep.diagnosticador.guardar,
         guardarCaptura: this.dep.capturas.guardar,
         cancelado: () => this.cancelar,
+        // D126: por defecto, las webs (y OD/OS) a la vez. Para deshacerlo sin
+        // tocar código: `VILAMAR_CALCULOS_EN_SERIE=1` en el fichero `.env`.
+        enParalelo: process.env['VILAMAR_CALCULOS_EN_SERIE'] !== '1',
       })
 
       this.establecer({

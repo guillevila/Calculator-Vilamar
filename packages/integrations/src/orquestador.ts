@@ -260,6 +260,14 @@ export interface OpcionesCaso {
   readonly guardarCaptura: (d: DatosCaptura) => Promise<string>
   readonly cancelado: () => boolean
   /**
+   * D126 (16/10/2026): si es `true` (por defecto), las calculadoras se lanzan A
+   * LA VEZ —una «carretera» por web y por ojo: EVO, Barrett y Kane en paralelo,
+   * y OD y OS a la vez (salvo Kane, una sola)—; dentro de cada carretera las
+   * casillas siguen una detrás de otra. Con `false` vuelve a ser todo en serie, como
+   * antes: es el interruptor para deshacer esto si no gusta.
+   */
+  readonly enParalelo?: boolean
+  /**
    * Los adaptadores a usar. Se puede sustituir para probar el aislamiento de
    * fallos sin abrir tres webs reales, que es lo que hacen los tests.
    */
@@ -289,39 +297,74 @@ export async function ejecutarCaso(
       ...(opciones.ojos !== undefined ? { ojos: opciones.ojos } : {}),
     })
 
-  const resultados: ResultadoCalculadora[] = []
+  // Un hueco por tarea, en el orden original: aunque las webs terminen en otro
+  // orden, quien lea el resultado ve las casillas como las pidió.
+  const porTarea: (ResultadoCalculadora | undefined)[] = tareas.map(() => undefined)
 
   const contexto =
     opciones.contexto ??
     (await opciones.navegador.newContext({ viewport: { width: 1500, height: 1050 } }))
   const contextoPropio = opciones.contexto === undefined
 
+  const ejecutarTarea = async (indice: number): Promise<void> => {
+    const tarea = tareas[indice]!
+    if (opciones.cancelado()) return
+
+    const adaptador = adaptadores[tarea.calculadora]
+    const resultado = await ejecutarUnaCalculadoraParaUnOjo(adaptador, contexto, {
+      caso: opciones.caso,
+      ojo: tarea.ojo,
+      aparato: tarea.aparato,
+      // El adaptador no sabe de qué ojo habla el aviso que emite, así que se
+      // le añade aquí. Sin esto, la pantalla enseñaría «Calculando en EVO…»
+      // dos veces seguidas sin decir de cuál de los dos ojos.
+      progreso: (e) => opciones.progreso({ ...e, ojo: tarea.ojo }),
+      ahora: opciones.ahora,
+      guardarDiagnostico: opciones.guardarDiagnostico,
+      guardarCaptura: opciones.guardarCaptura,
+      cancelado: opciones.cancelado,
+    })
+
+    porTarea[indice] = resultado
+    opciones.alTerminarUna(resultado, tarea)
+  }
+
   try {
-    for (const tarea of tareas) {
-      if (opciones.cancelado()) break
-
-      const adaptador = adaptadores[tarea.calculadora]
-      const resultado = await ejecutarUnaCalculadoraParaUnOjo(adaptador, contexto, {
-        caso: opciones.caso,
-        ojo: tarea.ojo,
-        aparato: tarea.aparato,
-        // El adaptador no sabe de qué ojo habla el aviso que emite, así que se
-        // le añade aquí. Sin esto, la pantalla enseñaría «Calculando en EVO…»
-        // dos veces seguidas sin decir de cuál de los dos ojos.
-        progreso: (e) => opciones.progreso({ ...e, ojo: tarea.ojo }),
-        ahora: opciones.ahora,
-        guardarDiagnostico: opciones.guardarDiagnostico,
-        guardarCaptura: opciones.guardarCaptura,
-        cancelado: opciones.cancelado,
+    if (opciones.enParalelo === false) {
+      for (let i = 0; i < tareas.length; i++) await ejecutarTarea(i)
+    } else {
+      // Una «carretera» por WEB y por OJO: EVO Toric y su variante sin córnea
+      // posterior comparten web y van una detrás de otra, pero el ojo derecho
+      // y el izquierdo van a la vez (cada tarea abre su propia página, así que
+      // no comparten formulario). Kane es la excepción: una sola carretera
+      // para los dos ojos, porque su puerta de condiciones/reCAPTCHA pide un
+      // clic humano y dos páginas de Kane a la vez pedirían dos.
+      const claveDeCarretera = (t: TareaCalculo): string => {
+        const url = adaptadores[t.calculadora].url
+        let web = url
+        try {
+          web = new URL(url).hostname
+        } catch {
+          // una URL rara se usa tal cual como clave
+        }
+        return t.calculadora === 'KANE' ? web : `${web}:${t.ojo}`
+      }
+      const carreteras = new Map<string, number[]>()
+      tareas.forEach((t, i) => {
+        const clave = claveDeCarretera(t)
+        carreteras.set(clave, [...(carreteras.get(clave) ?? []), i])
       })
-
-      resultados.push(resultado)
-      opciones.alTerminarUna(resultado, tarea)
+      await Promise.all(
+        [...carreteras.values()].map(async (indices) => {
+          for (const i of indices) await ejecutarTarea(i)
+        }),
+      )
     }
   } finally {
     if (contextoPropio) await contexto.close().catch(() => undefined)
   }
 
+  const resultados = porTarea.filter((r): r is ResultadoCalculadora => r !== undefined)
   return resultados
 }
 
