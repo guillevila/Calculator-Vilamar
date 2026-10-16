@@ -24,6 +24,7 @@ import {
   camposDeKane,
   construirOpcionesDeKane,
   kaneSinPotenciaMarcada,
+  potenciaElegidaPorKane,
   leerFilaToricaDeKane,
   modoParaKane,
   puedePedirseToricoAKane,
@@ -335,5 +336,27 @@ describe('un resultado de Kane sin ninguna potencia marcada no es un resultado (
     expect(
       kaneSinPotenciaMarcada({ ...base, estado: 'MISSING_INPUTS' as const, opciones: [] }),
     ).toBe(false)
+  })
+})
+
+describe('la potencia que Kane eligió, leída de su respuesta interna (D128, 16/10/2026)', () => {
+  // Respuesta real (recortada) de CV-2026-0375 OS: la tabla dibujada salía
+  // descolocada (25.9–23.9) pero `data_sh` traía la potencia buena, 19.5.
+  const respuesta =
+    '[["vr","code",0],["vr","res",{"eye2":{"data":[[25.9,-1.7],[25.4,-1.37]],"data_sh":[[19.5]],' +
+    '"data2":[[1.5,0.285,42.29]],"code":0,"dispersion":8.9676}}],["vr","report","b4d4"]]'
+
+  it('lee data_sh del ojo pedido', () => {
+    expect(potenciaElegidaPorKane(respuesta, 'eye2')).toBe(19.5)
+  })
+
+  it('no confunde un ojo con el otro', () => {
+    expect(potenciaElegidaPorKane(respuesta, 'eye1')).toBeUndefined()
+  })
+
+  it('una respuesta vacía o que no es JSON no rompe nada', () => {
+    expect(potenciaElegidaPorKane(';', 'eye2')).toBeUndefined()
+    expect(potenciaElegidaPorKane('', 'eye2')).toBeUndefined()
+    expect(potenciaElegidaPorKane('[["vr","code",0]]', 'eye2')).toBeUndefined()
   })
 })

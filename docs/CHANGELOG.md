@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.85] — 17/10/2026 (versión visible en pantalla: v1.37)
+
+feat(integrations): las calculadoras se lanzan a la vez, OD y OS en paralelo (D126); fix(integrations): Kane usa la potencia que él elige cuando su tabla viene descolocada, sin reintentos (D128).
+
+Cálculos en paralelo: una carretera por web y por ojo (Kane, una para los dos ojos); interruptor `VILAMAR_CALCULOS_EN_SERIE=1`. Kane: reproducido en vivo con el caso `CV-2026-0375`; Kane en el navegador daba 19.5 D, el programa leía 25.9–23.9 D; la respuesta interna de Kane (`data_sh`) trae la potencia buena (19.5; en el 0367, 16.5 como EVO). Se retiran los reintentos y esperas de D125/D127. **Causa encontrada y comprobada**: el programa pulsaba «Calculate» antes de que existiera el token de reCAPTCHA de la página (`id2`); con la espera, la tabla sale bien. 935 tests unitarios, lint, tipos, build y 66 pruebas de interfaz en verde.
+
+---
+
 ## [1.15.84] — 15/10/2026 (versión visible en pantalla: v1.37)
 
 fix(integrations): un resultado de Kane sin ninguna potencia marcada ya no se enseña; se repite el cálculo hasta 3 veces (D125).
