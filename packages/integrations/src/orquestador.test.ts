@@ -417,3 +417,107 @@ describe('lo que se envía a una web', () => {
     expect(serializado).not.toMatch(/nombre|paciente|nacimiento|dni|nhc/i)
   })
 })
+
+describe('ejecutarCaso — las calculadoras y los dos ojos A LA VEZ (D126, 16/10/2026)', () => {
+  const PAUSA = 120
+
+  /** Un doble lento, con su propia URL, que apunta cuándo empieza y cuándo acaba. */
+  function lento(
+    calculadora: Calculadora,
+    url: string,
+    registro: { calculadora: Calculadora; ojo: string; ini: number; fin: number }[],
+  ): AdaptadorCalculadora {
+    return {
+      calculadora,
+      nombre: calculadora,
+      url,
+      requiereNavegadorVisible: false,
+      validarEntradas: () => [],
+      ejecutar: async (ctx: ContextoEjecucion): Promise<ResultadoCalculadora> => {
+        const ini = Date.now()
+        await new Promise((r) => setTimeout(r, PAUSA))
+        registro.push({ calculadora, ojo: ctx.entradas.ojo, ini, fin: Date.now() })
+        return {
+          calculadora,
+          ojo: ctx.entradas.ojo,
+          estado: 'SUCCESS',
+          obtenidoEn: ctx.ahora(),
+          opciones: [{ esfera: 20, recomendada: true }],
+          recomendada: { esfera: 20, recomendada: true },
+        }
+      },
+    }
+  }
+
+  function casoConLosDosOjos(): Caso {
+    const base = casoListo()
+    const od = base.ojos.OD![0]!
+    let os = ojoVacio('OS')
+    for (const m of Object.values(od.medidas)) {
+      if (!m) continue
+      os = conMedida(
+        os,
+        crearMedida(m.campo, 'OS', m.valor, { metodo: 'MANUAL', registradoEn: CUANDO }),
+      )
+    }
+    return conOjo(base, confirmarTodas(os), CUANDO)
+  }
+
+  async function lanzar(enParalelo: boolean | undefined) {
+    const registro: { calculadora: Calculadora; ojo: string; ini: number; fin: number }[] = []
+    const inicio = Date.now()
+    const resultados = await ejecutarCaso({
+      caso: casoConLosDosOjos(),
+      ojos: ['OD', 'OS'],
+      calculadoras: ['EVO_TORIC', 'BARRETT_TORIC', 'KANE'],
+      navegador: {} as never,
+      contexto: contextoFalso(),
+      progreso: () => undefined,
+      alTerminarUna: () => undefined,
+      ahora,
+      guardarDiagnostico: async () => 'd',
+      guardarCaptura: async () => 'c',
+      cancelado: () => false,
+      ...(enParalelo !== undefined ? { enParalelo } : {}),
+      adaptadores: {
+        EVO_TORIC: lento('EVO_TORIC', 'https://evo.ejemplo.local/x', registro),
+        BARRETT_TORIC: lento('BARRETT_TORIC', 'https://barrett.ejemplo.local/x', registro),
+        KANE: lento('KANE', 'https://kane.ejemplo.local/x', registro),
+        EVO_TORIC_SIN_CARA_POSTERIOR: adaptadorOk('EVO_TORIC_SIN_CARA_POSTERIOR', 0),
+      } as Record<Calculadora, AdaptadorCalculadora>,
+    })
+    return { resultados, registro, duracion: Date.now() - inicio }
+  }
+
+  it('por defecto: EVO, Barrett y Kane a la vez, y OD y OS a la vez (salvo Kane)', async () => {
+    const { registro, duracion } = await lanzar(undefined)
+    expect(registro).toHaveLength(6)
+    // En serie serían 6 × PAUSA; en paralelo, lo que tarda Kane (2 ojos en serie).
+    expect(duracion).toBeLessThan(PAUSA * 3.5)
+
+    const de = (c: Calculadora, o: string) =>
+      registro.find((r) => r.calculadora === c && r.ojo === o)!
+    // Los dos ojos de EVO se pisan en el tiempo…
+    expect(de('EVO_TORIC', 'OS').ini).toBeLessThan(de('EVO_TORIC', 'OD').fin)
+    // …pero los dos ojos de Kane NO: una sola carretera.
+    const k = [de('KANE', 'OD'), de('KANE', 'OS')].sort((a, b) => a.ini - b.ini)
+    expect(k[1]!.ini).toBeGreaterThanOrEqual(k[0]!.fin - 5)
+  })
+
+  it('con enParalelo: false vuelve a ser todo en serie, como antes', async () => {
+    const { registro, duracion } = await lanzar(false)
+    expect(registro).toHaveLength(6)
+    expect(duracion).toBeGreaterThanOrEqual(PAUSA * 5.5)
+    const ordenados = [...registro].sort((a, b) => a.ini - b.ini)
+    for (let i = 1; i < ordenados.length; i++) {
+      expect(ordenados[i]!.ini).toBeGreaterThanOrEqual(ordenados[i - 1]!.fin - 5)
+    }
+  })
+
+  it('los resultados salen en el orden en que se pidieron, acaben en el orden que acaben', async () => {
+    const serie = await lanzar(false)
+    const paralelo = await lanzar(true)
+    const clave = (r: ResultadoCalculadora) => `${r.calculadora}:${r.ojo}`
+    expect(paralelo.resultados.map(clave)).toEqual(serie.resultados.map(clave))
+  })
+})

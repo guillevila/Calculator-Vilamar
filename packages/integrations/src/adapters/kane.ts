@@ -579,8 +579,43 @@ export function construirOpcionesDeKane(
   return { opciones, toricasLeidas }
 }
 
-/** Cuántas veces se repite el cálculo de Kane si devuelve una tabla sin potencia marcada (D125). */
-const MAX_INTENTOS_KANE = 3
+/**
+ * Saca de la respuesta interna de Kane la potencia que ELLA eligió (`data_sh`)
+ * para un ojo (`eye1` = OD, `eye2` = OS), o `undefined` si no está (D128).
+ * La respuesta es una lista de ternas: `[["vr","res",{eye2:{data_sh:[[19.5]]…}}]]`.
+ */
+export function potenciaElegidaPorKane(texto: string, ojo: 'eye1' | 'eye2'): number | undefined {
+  let entradas: unknown
+  try {
+    entradas = JSON.parse(texto)
+  } catch {
+    return undefined
+  }
+  if (!Array.isArray(entradas)) return undefined
+  for (const e of entradas as unknown[]) {
+    if (!Array.isArray(e) || e[0] !== 'vr' || e[1] !== 'res') continue
+    const valor = (e[2] as Record<string, { data_sh?: number[][] }> | undefined)?.[ojo]
+      ?.data_sh?.[0]?.[0]
+    if (typeof valor === 'number' && Number.isFinite(valor)) return valor
+  }
+  return undefined
+}
+
+/** Escucha la respuesta de Kane al pulsar «Calculate» y guarda la potencia que eligió (D128). */
+function vigilarRespuestaDeKane(pagina: Page, ojo: 'eye1' | 'eye2'): { potenciaElegida?: number } {
+  const estado: { potenciaElegida?: number } = {}
+  pagina.on('response', (r) => {
+    if (!/iolformula\.com\/api\//.test(r.url())) return
+    void r
+      .text()
+      .then((texto) => {
+        const valor = potenciaElegidaPorKane(texto, ojo)
+        if (valor !== undefined) estado.potenciaElegida = valor
+      })
+      .catch(() => undefined)
+  })
+  return estado
+}
 
 /**
  * ¿Es este un resultado de Kane sin ninguna potencia esférica marcada?
@@ -616,31 +651,31 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     const pagina = await ctx.contexto.newPage()
 
     try {
-      // D125 (15/10/2026): Kane a veces devuelve una tabla SIN ninguna potencia
-      // marcada y con números que no tienen nada que ver con los de EVO o
-      // Barrett (medido sobre 286 resultados reales de Kane: los 263 con
-      // potencia marcada coinciden con EVO casi siempre en medio dioptría; los
-      // 23 sin marca se apartan de 2 a 10 dioptrías). Esa tabla no es un
-      // resultado: es un cálculo a medias. Se repite entero hasta
-      // `MAX_INTENTOS_KANE` veces y, si sigue igual, se da por fallo —no se
-      // enseñan números que parecen buenos y no lo son.
-      let resultado = await this.intentar(pagina, ctx, inicio, 1)
-      for (
-        let intento = 2;
-        intento <= MAX_INTENTOS_KANE && kaneSinPotenciaMarcada(resultado);
-        intento++
-      ) {
-        resultado = await this.intentar(pagina, ctx, inicio, intento)
-      }
+      // D125 (15/10/2026) y D127 (16/10/2026): Kane a veces devuelve una tabla
+      // SIN ninguna potencia marcada y con números que no tienen nada que ver
+      // con los de EVO o Barrett (medido sobre 286 resultados reales: los 263
+      // con potencia marcada coinciden con EVO casi siempre en media dioptría;
+      // los 23 sin marca se apartan de 2 a 10). Se probó repetir el cálculo
+      // hasta 3 veces y esperar más: no sirve, porque con los mismos datos
+      // sale siempre lo mismo. Un solo intento; si no hay marca, el resultado
+      // se enseña avisando de que no es fiable.
+      const resultado = await this.intentar(pagina, ctx, inicio, 1)
       if (kaneSinPotenciaMarcada(resultado)) {
-        throw new ErrorAdaptador(
-          'EXTERNAL_ERROR',
-          `Kane ha devuelto ${MAX_INTENTOS_KANE} veces una tabla sin ninguna potencia marcada, con números que no son fiables ` +
-            '(en el historial de este programa casi siempre han estado muy lejos de EVO y Barrett). ' +
-            'No se enseña ningún resultado de Kane: puedes reintentar solo Kane.',
-          'LEYENDO_RESULTADO',
-          'tbody.res_tab3_lines tr.table-active',
-        )
+        // D127 (16/10/2026): repetir no sirve —el mismo caso falla siempre con
+        // los mismos datos (CV-2026-0366 y 0375 son idénticos y los dos
+        // fallaron) y tardaba tres veces más—, y ocultar la tabla tampoco: el
+        // dueño la quiere ver. Se enseña, marcada como NO fiable.
+        return {
+          ...resultado,
+          mensaje: [
+            'ATENCIÓN: Kane NO ha marcado ninguna potencia y sus números no son fiables. ' +
+              'En los casos medidos así, Kane se ha apartado de EVO, de Barrett y de una fórmula ' +
+              'independiente (SRK/T) entre 2 y 10 dioptrías. Compáralo con los otros dos antes de usarlo.',
+            resultado.mensaje,
+          ]
+            .filter(Boolean)
+            .join(' '),
+        }
       }
       return resultado
     } catch (error) {
@@ -663,7 +698,7 @@ export class AdaptadorKane implements AdaptadorCalculadora {
       mensaje:
         intento === 1
           ? 'Abriendo Kane…'
-          : `Kane ha dado un resultado provisional; repitiendo el cálculo (intento ${intento} de ${MAX_INTENTOS_KANE})…`,
+          : `Kane ha dado un resultado provisional; repitiendo el cálculo (intento ${intento})…`,
     })
     await pagina.goto(URL, { waitUntil: 'domcontentloaded', timeout: 60_000 })
 
@@ -704,6 +739,20 @@ export class AdaptadorKane implements AdaptadorCalculadora {
       fase: 'CALCULANDO',
       mensaje: 'Calculando en Kane…',
     })
+    // D128: la página de Kane pide un token de reCAPTCHA al cargar y lo guarda en
+    // `document.kf_gr`; al calcular lo manda como `id2`. Si se pulsa «Calculate»
+    // antes de que exista (comprobado: el programa lo hacía a los ~2 s, y la
+    // petición salía SIN `id2`), Kane recibe una petición sin comprobar. Se
+    // espera a que esté, igual que la espera de unos segundos que el dueño ya
+    // descubrió al crear la aplicación. Si no llega, se calcula igual.
+    await pagina
+      .waitForFunction(
+        () => Boolean((document as unknown as Record<string, unknown>)['kf_gr']),
+        undefined,
+        { timeout: 15_000 },
+      )
+      .catch(() => undefined)
+    const respuesta = vigilarRespuestaDeKane(pagina, ctx.entradas.ojo === 'OD' ? 'eye1' : 'eye2')
     await this.pulsarCalcular(pagina)
 
     ctx.progreso({
@@ -711,7 +760,7 @@ export class AdaptadorKane implements AdaptadorCalculadora {
       fase: 'LEYENDO_RESULTADO',
       mensaje: 'Leyendo el resultado de Kane…',
     })
-    return await this.leerResultado(pagina, ctx, inicio, modeloEncontrado)
+    return await this.leerResultado(pagina, ctx, inicio, modeloEncontrado, respuesta)
   }
 
   private async enLaPuerta(pagina: Page): Promise<boolean> {
@@ -1144,6 +1193,7 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     ctx: ContextoEjecucion,
     inicio: number,
     modeloEncontrado: boolean,
+    respuesta: { potenciaElegida?: number },
   ): Promise<ResultadoCalculadora> {
     const indiceDelOjo = ctx.entradas.ojo === 'OD' ? 0 : 1
     const modo = modoParaKane(ctx.entradas)
@@ -1246,7 +1296,30 @@ export class AdaptadorKane implements AdaptadorCalculadora {
     // 3 — Convertir las tablas en opciones. La regla de «ninguna tórica se marca
     // como recomendada» vive en `construirOpcionesDeKane`, que se prueba sin
     // navegador.
-    const { opciones, toricasLeidas } = construirOpcionesDeKane(leido.filas, leido.filasToricas)
+    const construidas = construirOpcionesDeKane(leido.filas, leido.filasToricas)
+    const { toricasLeidas } = construidas
+    let opciones = construidas.opciones
+    let potenciaDeLaRespuesta = false
+    // D128 (16/10/2026): a veces Kane DIBUJA una tabla de potencias sin ninguna
+    // fila marcada y con números fuera de lugar, pero su respuesta interna
+    // (`data_sh`) trae la potencia que SÍ eligió, correcta: comprobado en vivo
+    // con CV-2026-0375 OS (Kane en el navegador: 19.5 D; el programa leía
+    // 25.9–23.9 D; `data_sh` = 19.5) y con CV-2026-0367 OS (`data_sh` 16.5 D,
+    // igual que EVO 16.5 y SRK/T 16.3). En ese caso se usa la potencia elegida
+    // por Kane como su opción marcada y se conservan sus filas tóricas (que
+    // sí salen bien); la refracción prevista de esa potencia no se conoce y
+    // no se inventa.
+    if (
+      !opciones.some((o) => o.recomendada) &&
+      respuesta.potenciaElegida !== undefined &&
+      Number.isFinite(respuesta.potenciaElegida)
+    ) {
+      opciones = [
+        { esfera: respuesta.potenciaElegida, recomendada: true },
+        ...opciones.filter((o) => o.cilindro !== undefined),
+      ]
+      potenciaDeLaRespuesta = true
+    }
 
     if (modo === 'TORICO' && toricasLeidas === 0) {
       throw new ErrorAdaptador(
@@ -1412,6 +1485,9 @@ export class AdaptadorKane implements AdaptadorCalculadora {
           sobreToricas,
           recomendada === undefined
             ? 'Kane no ha destacado ninguna potencia, así que no se marca ninguna como recomendada. Están todas.'
+            : undefined,
+          potenciaDeLaRespuesta
+            ? `La tabla de potencias que Kane dibujó en pantalla venía descolocada, sin ninguna fila marcada; se ha usado la potencia que Kane eligió (${respuesta.potenciaElegida} D), leída de su respuesta. Su refracción prevista no consta.`
             : undefined,
         ]
           .filter(Boolean)
