@@ -258,7 +258,9 @@ function OpcionesDevueltas({
   const claveDeLente = (o: (typeof celda.opciones)[number]): string => `${o.esfera}|${o.cilindro}`
   const lentesMarcadas = new Set(
     celda.opciones
-      .filter((o) => o.recomendada || o === estimacion?.filaEsfera || o === estimacion?.filaCilindro)
+      .filter(
+        (o) => o.recomendada || o === estimacion?.filaEsfera || o === estimacion?.filaCilindro,
+      )
       .map(claveDeLente),
   )
 
