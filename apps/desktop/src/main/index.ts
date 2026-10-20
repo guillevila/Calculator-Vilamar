@@ -73,7 +73,7 @@ if (app.isPackaged) {
  * este número es lo ÚLTIMO que se hace al cerrar un cambio en la aplicación
  * de escritorio, justo antes de avisar de que está listo para probar.
  */
-const VERSION_VISIBLE = '1.37'
+const VERSION_VISIBLE = '1.41'
 
 function versionDelProducto(): string {
   return VERSION_VISIBLE
@@ -144,7 +144,11 @@ function enviarAlaInterfaz(canal: string, carga: unknown): void {
  * capturas de pantalla en base64 en el mismo HTML y lo cruza sin esfuerzo.
  * Un fichero no tiene ese límite: solo la ruta viaja por la URL.
  */
-async function imprimirPdf(html: string, destino: string): Promise<void> {
+async function imprimirPdf(
+  html: string,
+  destino: string,
+  opciones?: { readonly apaisado?: boolean },
+): Promise<void> {
   const oculta = new BrowserWindow({
     show: false,
     webPreferences: { offscreen: true, javascript: false },
@@ -158,6 +162,7 @@ async function imprimirPdf(html: string, destino: string): Promise<void> {
     await new Promise((r) => setTimeout(r, 400))
     const pdf = await oculta.webContents.printToPDF({
       pageSize: 'A4',
+      landscape: opciones?.apaisado === true,
       printBackground: true,
       // ⚠️ **Margen CERO a propósito, y no es un descuido.**
       //
@@ -486,6 +491,9 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
         soloResumen: boolean
       },
     ) => s().generarPdf(opciones),
+  )
+  ipcMain.handle(CANALES.generarPdfPantalla, (_e, datos: { ojo: Lateralidad; html: string }) =>
+    s().generarPdfPantalla(datos),
   )
   ipcMain.handle(CANALES.abrirCarpetaInformes, () => shell.openPath(carpetas.informes))
 }

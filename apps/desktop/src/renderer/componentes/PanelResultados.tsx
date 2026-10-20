@@ -10,7 +10,7 @@
  * dicen qué implantar, y no lo dirán.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 
 import type {
@@ -18,6 +18,7 @@ import type {
   Caso,
   CeldaComparativa,
   DatoComparativo,
+  EstimacionConFilas,
   Laboratorio,
   Lateralidad,
 } from '@vilamar/domain'
@@ -25,6 +26,9 @@ import {
   aparatosDe,
   COLUMNAS_COMPARATIVA,
   compararOjo,
+  criterioEsferaPara,
+  ejeCurvoDe,
+  estimarConFilas,
   fichaDe,
   nombreLateralidad,
   ojoDe,
@@ -35,6 +39,53 @@ import {
 
 import type { EstadoCalculo } from '../../compartido/ipc.js'
 import { api } from '../api.js'
+
+/**
+ * Un color por calculadora (D129, 20/10/2026): EVO verde azulado, Barrett azul y
+ * Kane violeta, los mismos tres tonos de las hojas del PDF. Las variantes
+ * (con y sin córnea posterior) comparten el color de su calculadora.
+ */
+function claseDeCalculadora(c: Calculadora): string {
+  if (c.startsWith('EVO')) return 'calc-evo'
+  if (c.startsWith('BARRETT')) return 'calc-barrett'
+  if (c === 'KANE') return 'calc-kane'
+  return 'calc-otra'
+}
+
+/**
+ * El documento HTML del PDF de esta pantalla: la zona tal como se ve, con todas
+ * las reglas de estilo de la aplicación (así conserva los colores) y en apaisado.
+ * No lleva ningún script y los botones de la zona no se imprimen.
+ */
+function htmlDePantalla(zona: HTMLElement, ojo: string, codigo: string): string {
+  const reglas: string[] = []
+  for (const hoja of Array.from(document.styleSheets)) {
+    try {
+      for (const regla of Array.from(hoja.cssRules)) reglas.push(regla.cssText)
+    } catch {
+      // Una hoja de otro origen no se puede leer; las de la aplicación sí.
+    }
+  }
+  const ancho = Math.max(zona.getBoundingClientRect().width, 1)
+  const zoom = Math.min(1, 1040 / ancho)
+  const clon = zona.cloneNode(true) as HTMLElement
+  clon.querySelectorAll('.sin-impresion, script').forEach((e) => e.remove())
+  const fecha = new Date().toLocaleDateString('es-ES')
+  return (
+    '<!doctype html><html lang="es"><head><meta charset="utf-8">' +
+    '<title>Resumen de resultados</title><style>' +
+    reglas.join(' ') +
+    '@page { size: A4 landscape; margin: 0 }' +
+    'html, body { height: auto; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact }' +
+    '.pdf-pantalla { padding: 10mm; }' +
+    `.pdf-pantalla .zona { width: ${Math.round(ancho)}px; zoom: ${zoom.toFixed(3)}; }` +
+    '.pdf-cabecera { display: flex; justify-content: space-between; margin-bottom: 6mm; font-size: 12px; color: #475569; }' +
+    '.pdf-cabecera strong { font-size: 18px; color: #153f74; }' +
+    '</style></head><body><div class="pdf-pantalla">' +
+    `<div class="pdf-cabecera"><strong>Resultados · ${ojo}</strong><span>Caso ${codigo} · ${fecha}</span></div>` +
+    `<div class="zona">${clon.outerHTML}</div></div></body></html>`
+  )
+}
 
 interface Props {
   readonly caso: Caso
@@ -62,16 +113,21 @@ interface Props {
  * El texto lo trae el propio dato: lo decide el dominio, así que esta pantalla y
  * el PDF no pueden decir cosas distintas de lo mismo.
  */
+const TITULO_ELEGIDA =
+  'La web no marcó ninguna alternativa: este es el valor de la elegida según el criterio propio (estimación orientativa, no vinculante).'
+
 function CeldaVarias({
   dato,
   nombre,
+  calc,
 }: {
   dato: Extract<DatoComparativo, { estado: 'VARIAS' }>
   nombre: string
+  calc: string
 }): JSX.Element {
   return (
     <td
-      className={dato.lasNombra ? 'varias nombra' : 'varias'}
+      className={`${calc} ${dato.lasNombra ? 'varias nombra' : 'varias'}`}
       title={`${nombre} ha devuelto ${dato.cuantas} alternativas y no ha señalado ninguna. Las tienes todas debajo, en «Opciones devueltas».`}
     >
       {dato.etiqueta}
@@ -95,25 +151,38 @@ function CeldaVarias({
 function CeldaDato({
   dato,
   nombre,
+  calc,
   sufijo = '',
   decimales = 2,
+  elegida,
 }: {
   dato: DatoComparativo
   nombre: string
+  calc: string
   sufijo?: string
   decimales?: number
+  /** Valor de la alternativa elegida por el criterio propio, si la web no marcó ninguna. */
+  elegida?: number | undefined
 }): JSX.Element {
+  if (dato.estado === 'VARIAS' && elegida !== undefined) {
+    return (
+      <td className={calc} title={TITULO_ELEGIDA}>
+        {elegida.toFixed(decimales)}
+        {sufijo}
+      </td>
+    )
+  }
   if (dato.estado === 'VALOR') {
     return (
-      <td>
+      <td className={calc}>
         {dato.valor.toFixed(decimales)}
         {sufijo}
       </td>
     )
   }
-  if (dato.estado === 'VARIAS') return <CeldaVarias dato={dato} nombre={nombre} />
+  if (dato.estado === 'VARIAS') return <CeldaVarias dato={dato} nombre={nombre} calc={calc} />
   return (
-    <td className="na" title={`No disponible en el resultado de ${nombre}`}>
+    <td className={`${calc} na`} title={`No disponible en el resultado de ${nombre}`}>
       —
     </td>
   )
@@ -123,14 +192,25 @@ function CeldaDato({
 function CeldaTexto({
   dato,
   nombre,
+  calc,
+  elegida,
 }: {
   dato: DatoComparativo<string>
   nombre: string
+  calc: string
+  elegida?: string | undefined
 }): JSX.Element {
-  if (dato.estado === 'VALOR') return <td>{dato.valor}</td>
-  if (dato.estado === 'VARIAS') return <CeldaVarias dato={dato} nombre={nombre} />
+  if (dato.estado === 'VARIAS' && elegida !== undefined) {
+    return (
+      <td className={calc} title={TITULO_ELEGIDA}>
+        {elegida}
+      </td>
+    )
+  }
+  if (dato.estado === 'VALOR') return <td className={calc}>{dato.valor}</td>
+  if (dato.estado === 'VARIAS') return <CeldaVarias dato={dato} nombre={nombre} calc={calc} />
   return (
-    <td className="na" title={`No disponible en el resultado de ${nombre}`}>
+    <td className={`${calc} na`} title={`No disponible en el resultado de ${nombre}`}>
       —
     </td>
   )
@@ -153,7 +233,13 @@ const COLUMNAS_DE_OPCION = [
  * Se enseña cuando hay más de una. No añade ninguna columna que la web no haya
  * dado: si Kane solo devuelve potencia y refracción, la tabla tiene dos columnas.
  */
-function OpcionesDevueltas({ celda }: { celda: CeldaComparativa }): JSX.Element | null {
+function OpcionesDevueltas({
+  celda,
+  estimacion,
+}: {
+  celda: CeldaComparativa
+  estimacion: EstimacionConFilas | undefined
+}): JSX.Element | null {
   if (celda.opciones.length <= 1) return null
 
   const columnas = COLUMNAS_DE_OPCION.filter((col) =>
@@ -161,17 +247,43 @@ function OpcionesDevueltas({ celda }: { celda: CeldaComparativa }): JSX.Element 
   )
   if (columnas.length === 0) return null
 
+  // Lo que la propia web marcó y lo que marca el criterio propio (D43/D130) son
+  // dos cosas distintas y se enseñan distintas: la fuerte es la elegida por el
+  // criterio; la de la web queda visible, pero discreta.
   const senalada = celda.seleccion.clase === 'DESTACADA'
+  const hayMarca = senalada || estimacion !== undefined
+  // La misma lente (potencia y cilindro) que una fila marcada o elegida y que
+  // vuelve a aparecer más abajo en la lista: se marca en tono suave para que se
+  // vea que es la misma (D130).
+  const claveDeLente = (o: (typeof celda.opciones)[number]): string => `${o.esfera}|${o.cilindro}`
+  const lentesMarcadas = new Set(
+    celda.opciones
+      .filter(
+        (o) => o.recomendada || o === estimacion?.filaEsfera || o === estimacion?.filaCilindro,
+      )
+      .map(claveDeLente),
+  )
 
   return (
-    <div className="opciones-devueltas">
+    <div className={`opciones-devueltas ${claseDeCalculadora(celda.calculadora)}`}>
       <h3>
         {celda.nombre} · {celda.opciones.length} alternativas devueltas
+        {estimacion && (
+          <span className="insignia" data-testid="eleccion-propia">
+            ★ Elegida: {estimacion.lente.esfera.toFixed(2)} D
+            {estimacion.lente.cilindro !== undefined
+              ? ` · cil. ${estimacion.lente.cilindro.toFixed(2)} D`
+              : ''}
+          </span>
+        )}
       </h3>
       <p className="sub">
         {senalada
-          ? `${celda.nombre} ha señalado una de ellas; va marcada en la tabla y es la que aparece arriba.`
-          : `${celda.nombre} no ha señalado ninguna opción preferente. La elección no la hace Calculator Vilamar.`}
+          ? `${celda.nombre} ha señalado una de ellas (marcada con un borde en la tabla).`
+          : `${celda.nombre} no ha señalado ninguna opción preferente.`}
+        {estimacion
+          ? ' En color pleno, la elección según el criterio propio (estimación orientativa, no vinculante).'
+          : ''}
       </p>
       <table className="opciones">
         <thead>
@@ -179,31 +291,57 @@ function OpcionesDevueltas({ celda }: { celda: CeldaComparativa }): JSX.Element 
             {columnas.map((col) => (
               <th key={col.clave}>{col.titulo}</th>
             ))}
-            {senalada && <th></th>}
+            {hayMarca && <th></th>}
           </tr>
         </thead>
         <tbody>
-          {celda.opciones.map((o, i) => (
-            <tr key={i} className={o.recomendada ? 'destacada' : ''}>
-              {columnas.map((col) => {
-                const v = o[col.clave]
-                return (
-                  <td key={col.clave}>
-                    {v === undefined ? (
-                      <span className="na">—</span>
-                    ) : typeof v === 'number' ? (
-                      `${v.toFixed(col.decimales)}${col.sufijo}`
-                    ) : (
-                      v
-                    )}
-                  </td>
-                )
-              })}
-              {senalada && (
-                <td className="marca">{o.recomendada ? `Destacada por ${celda.nombre}` : ''}</td>
-              )}
-            </tr>
-          ))}
+          {celda.opciones.map((o, i) => {
+            const esEsfera = estimacion?.filaEsfera === o
+            const esCilindro = estimacion?.filaCilindro === o
+            const clases = [
+              o.recomendada ? 'destacada' : '',
+              esEsfera ? 'elegida-esfera' : '',
+              esCilindro ? 'elegida-cilindro' : '',
+              !o.recomendada && !esEsfera && !esCilindro && lentesMarcadas.has(claveDeLente(o))
+                ? 'misma-lente'
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' ')
+            // Dos clases de etiqueta, siempre separadas y visibles: la del criterio
+            // propio (en color pleno) y la que marcó la propia web, aunque las dos
+            // caigan en la misma fila (D130).
+            const marcas = (
+              <>
+                {esEsfera && <span className="etiqueta etiqueta-elegida">★ Esfera elegida</span>}
+                {esCilindro && (
+                  <span className="etiqueta etiqueta-elegida">★ Cilindro elegido</span>
+                )}
+                {o.recomendada && (
+                  <span className="etiqueta etiqueta-web">◆ Marcada por {celda.nombre}</span>
+                )}
+              </>
+            )
+            return (
+              <tr key={i} className={clases}>
+                {columnas.map((col) => {
+                  const v = o[col.clave]
+                  return (
+                    <td key={col.clave}>
+                      {v === undefined ? (
+                        <span className="na">—</span>
+                      ) : typeof v === 'number' ? (
+                        `${v.toFixed(col.decimales)}${col.sufijo}`
+                      ) : (
+                        v
+                      )}
+                    </td>
+                  )
+                })}
+                {hayMarca && <td className="marca">{marcas}</td>}
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -470,6 +608,44 @@ export function PanelResultados({
   }
   const comparativa = compararOjo(ojoActivo, resultados as never, COLUMNAS_COMPARATIVA)
 
+  // La elección según el criterio propio (D43/D52), para cada calculadora de este
+  // ojo y aparato: se resalta en la comparación y en cada tabla (D130).
+  const ejeCurvo = ejeCurvoDe(ojoDe(caso, ojoActivo, aparatoActivo))
+  const criterioEsfera = criterioEsferaPara(caso.lente?.modelo)
+  const estimaciones = new Map<Calculadora, EstimacionConFilas | undefined>(
+    comparativa.celdas.map((c) => [
+      c.calculadora,
+      estimarConFilas(c.opciones, ejeCurvo, criterioEsfera),
+    ]),
+  )
+
+  const pantallaRef = useRef<HTMLDivElement | null>(null)
+  const [generandoPantalla, setGenerandoPantalla] = useState(false)
+  const [rutaPantalla, setRutaPantalla] = useState<string | null>(null)
+
+  /**
+   * PDF de ESTA pantalla (D129): la comparación y el detalle de cada calculadora
+   * del ojo que se está viendo, tal como se ven, con sus colores. Opcional (solo
+   * se crea al pulsar el botón) y se guarda en la carpeta «Resúmenes» de ese ojo.
+   */
+  async function crearPdfDePantalla(): Promise<void> {
+    const zona = pantallaRef.current
+    if (!zona) return
+    setGenerandoPantalla(true)
+    setError(null)
+    try {
+      const html = htmlDePantalla(zona, nombreLateralidad(ojoActivo), caso.codigo)
+      const r = await api().generarPdfPantalla({ ojo: ojoActivo, html })
+      setRutaPantalla(r.ruta)
+    } catch (e) {
+      setError(
+        `No se ha podido crear el PDF de esta pantalla. ${e instanceof Error ? e.message : String(e)}`,
+      )
+    } finally {
+      setGenerandoPantalla(false)
+    }
+  }
+
   async function generar(soloResumen: boolean): Promise<void> {
     setGenerando(true)
     setError(null)
@@ -533,122 +709,240 @@ export function PanelResultados({
         </div>
       )}
 
-      <div className="tarjeta">
-        <h2>
-          Comparación · {nombreLateralidad(ojoActivo)}
-          {aparatos.length > 1 ? ` — ${aparatoActivo}` : ''}
-        </h2>
-        <table className="comparativa" data-testid="tabla-comparativa">
-          <thead>
-            <tr>
-              <th></th>
-              {comparativa.celdas.map((c) => (
-                <th key={c.calculadora}>{c.nombre}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th>Esfera</th>
-              {comparativa.celdas.map((c) => (
-                <CeldaDato key={c.calculadora} dato={c.esfera} nombre={c.nombre} sufijo=" D" />
-              ))}
-            </tr>
-            <tr>
-              <th>Cilindro</th>
-              {comparativa.celdas.map((c) => (
-                <CeldaDato key={c.calculadora} dato={c.cilindro} nombre={c.nombre} sufijo=" D" />
-              ))}
-            </tr>
-            <tr>
-              <th>Eje</th>
-              {comparativa.celdas.map((c) => (
-                <CeldaDato
-                  key={c.calculadora}
-                  dato={c.eje}
-                  nombre={c.nombre}
-                  sufijo="°"
-                  decimales={0}
-                />
-              ))}
-            </tr>
-            <tr>
-              <th>Modelo tórico</th>
-              {comparativa.celdas.map((c) => (
-                <CeldaTexto key={c.calculadora} dato={c.designacion} nombre={c.nombre} />
-              ))}
-            </tr>
-            <tr>
-              <th>Refracción prevista</th>
-              {comparativa.celdas.map((c) => (
-                <CeldaDato
-                  key={c.calculadora}
-                  dato={c.refraccionPrevista}
-                  nombre={c.nombre}
-                  sufijo=" D"
-                />
-              ))}
-            </tr>
-            <tr>
-              <th>Cilindro residual</th>
-              {comparativa.celdas.map((c) => (
-                <CeldaDato
-                  key={c.calculadora}
-                  dato={c.cilindroResidual}
-                  nombre={c.nombre}
-                  sufijo=" D"
-                />
-              ))}
-            </tr>
-            <tr>
-              <th>Eje residual</th>
-              {comparativa.celdas.map((c) => (
-                <CeldaDato
-                  key={c.calculadora}
-                  dato={c.ejeResidual}
-                  nombre={c.nombre}
-                  sufijo="°"
-                  decimales={0}
-                />
-              ))}
-            </tr>
-            <tr>
-              <th>Estado</th>
-              {comparativa.celdas.map((c) => {
-                // Una calculadora sin resultado pero con actividad NO está «sin
-                // lanzar»: está esperando, a menudo a que el usuario haga algo.
-                const enCurso = estados.find(
-                  (e) => e.calculadora === c.calculadora && e.ojo === ojoActivo,
-                )
-                const texto =
-                  c.estado === 'NO_EJECUTADA' && enCurso
-                    ? enCurso.requiereUsuario
-                      ? 'Esperando a que hagas algo en el navegador'
-                      : 'En curso…'
-                    : textoEstado(c.estado)
-                return (
-                  <td key={c.calculadora} style={{ fontSize: 12.5, color: 'var(--gris)' }}>
-                    {texto}
-                  </td>
-                )
-              })}
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <div id="pantalla-resultados" ref={pantallaRef}>
+        <div className="tarjeta">
+          <div className="cabecera-resultados">
+            <h2>
+              Comparación · {nombreLateralidad(ojoActivo)}
+              {aparatos.length > 1 ? ` — ${aparatoActivo}` : ''}
+            </h2>
+            <span className="sin-impresion">
+              <button
+                className="claro"
+                onClick={() => void crearPdfDePantalla()}
+                disabled={generandoPantalla}
+                data-testid="pdf-de-esta-pantalla"
+                title="Crea un PDF con esta comparación y el detalle de cada calculadora, y lo guarda en la carpeta «Resúmenes» de este ojo"
+              >
+                {generandoPantalla ? 'Creando PDF…' : 'Crear PDF de esta pantalla'}
+              </button>
+            </span>
+          </div>
+          {rutaPantalla && (
+            <div className="aviso exito sin-impresion" data-testid="ruta-pdf-pantalla">
+              PDF guardado en <code>{rutaPantalla}</code>
+            </div>
+          )}
+          <div className="contenedor-comparativa">
+            <table className="comparativa" data-testid="tabla-comparativa">
+              <thead>
+                <tr>
+                  <th></th>
+                  {comparativa.celdas.map((c) => (
+                    <th key={c.calculadora} className={claseDeCalculadora(c.calculadora)}>
+                      {c.nombre}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="separador">
+                  <th colSpan={comparativa.celdas.length + 1}>
+                    Elección propia · estimación orientativa, no vinculante
+                  </th>
+                </tr>
+                <tr className="fila-eleccion" data-testid="fila-esfera-elegida">
+                  <th>Esfera elegida</th>
+                  {comparativa.celdas.map((c) => {
+                    const e = estimaciones.get(c.calculadora)
+                    return e ? (
+                      <td
+                        key={c.calculadora}
+                        className={`${claseDeCalculadora(c.calculadora)} eleccion`}
+                      >
+                        <strong>{e.lente.esfera.toFixed(2)} D</strong>
+                        {e.lente.refraccionPrevista !== undefined && (
+                          <small>refracción {e.lente.refraccionPrevista.toFixed(2)} D</small>
+                        )}
+                      </td>
+                    ) : (
+                      <td key={c.calculadora} className={`${claseDeCalculadora(c.calculadora)} na`}>
+                        —
+                      </td>
+                    )
+                  })}
+                </tr>
+                <tr className="fila-eleccion" data-testid="fila-cilindro-elegido">
+                  <th>Cilindro elegido</th>
+                  {comparativa.celdas.map((c) => {
+                    const e = estimaciones.get(c.calculadora)
+                    return e?.lente.cilindro !== undefined ? (
+                      <td
+                        key={c.calculadora}
+                        className={`${claseDeCalculadora(c.calculadora)} eleccion`}
+                      >
+                        <strong>{e.lente.cilindro.toFixed(2)} D</strong>
+                        {e.lente.ejeResidual !== undefined && (
+                          <small>
+                            residual{' '}
+                            {e.lente.cilindroResidual !== undefined
+                              ? `${e.lente.cilindroResidual.toFixed(2)} D `
+                              : ''}
+                            @ {e.lente.ejeResidual.toFixed(0)}°
+                          </small>
+                        )}
+                      </td>
+                    ) : (
+                      <td key={c.calculadora} className={`${claseDeCalculadora(c.calculadora)} na`}>
+                        —
+                      </td>
+                    )
+                  })}
+                </tr>
+                <tr className="separador">
+                  <th colSpan={comparativa.celdas.length + 1}>Lo que respondió cada calculadora</th>
+                </tr>
+                <tr>
+                  <th>Esfera</th>
+                  {comparativa.celdas.map((c) => (
+                    <CeldaDato
+                      key={c.calculadora}
+                      dato={c.esfera}
+                      nombre={c.nombre}
+                      calc={claseDeCalculadora(c.calculadora)}
+                      sufijo=" D"
+                    />
+                  ))}
+                </tr>
+                <tr>
+                  <th>Cilindro</th>
+                  {comparativa.celdas.map((c) => (
+                    <CeldaDato
+                      key={c.calculadora}
+                      dato={c.cilindro}
+                      elegida={estimaciones.get(c.calculadora)?.filaCilindro?.cilindro}
+                      nombre={c.nombre}
+                      calc={claseDeCalculadora(c.calculadora)}
+                      sufijo=" D"
+                    />
+                  ))}
+                </tr>
+                <tr>
+                  <th>Eje</th>
+                  {comparativa.celdas.map((c) => (
+                    <CeldaDato
+                      key={c.calculadora}
+                      dato={c.eje}
+                      nombre={c.nombre}
+                      calc={claseDeCalculadora(c.calculadora)}
+                      sufijo="°"
+                      decimales={0}
+                    />
+                  ))}
+                </tr>
+                <tr>
+                  <th>Modelo tórico</th>
+                  {comparativa.celdas.map((c) => (
+                    <CeldaTexto
+                      key={c.calculadora}
+                      dato={c.designacion}
+                      elegida={estimaciones.get(c.calculadora)?.filaCilindro?.designacion}
+                      nombre={c.nombre}
+                      calc={claseDeCalculadora(c.calculadora)}
+                    />
+                  ))}
+                </tr>
+                <tr>
+                  <th>Refracción prevista</th>
+                  {comparativa.celdas.map((c) => (
+                    <CeldaDato
+                      key={c.calculadora}
+                      dato={c.refraccionPrevista}
+                      nombre={c.nombre}
+                      calc={claseDeCalculadora(c.calculadora)}
+                      sufijo=" D"
+                    />
+                  ))}
+                </tr>
+                <tr>
+                  <th>Cilindro residual</th>
+                  {comparativa.celdas.map((c) => (
+                    <CeldaDato
+                      key={c.calculadora}
+                      dato={c.cilindroResidual}
+                      elegida={estimaciones.get(c.calculadora)?.filaCilindro?.cilindroResidual}
+                      nombre={c.nombre}
+                      calc={claseDeCalculadora(c.calculadora)}
+                      sufijo=" D"
+                    />
+                  ))}
+                </tr>
+                <tr>
+                  <th>Eje residual</th>
+                  {comparativa.celdas.map((c) => (
+                    <CeldaDato
+                      key={c.calculadora}
+                      dato={c.ejeResidual}
+                      elegida={estimaciones.get(c.calculadora)?.filaCilindro?.ejeResidual}
+                      nombre={c.nombre}
+                      calc={claseDeCalculadora(c.calculadora)}
+                      sufijo="°"
+                      decimales={0}
+                    />
+                  ))}
+                </tr>
+                <tr>
+                  <th>Estado</th>
+                  {comparativa.celdas.map((c) => {
+                    // Una calculadora sin resultado pero con actividad NO está «sin
+                    // lanzar»: está esperando, a menudo a que el usuario haga algo.
+                    const enCurso = estados.find(
+                      (e) => e.calculadora === c.calculadora && e.ojo === ojoActivo,
+                    )
+                    const texto =
+                      c.estado === 'NO_EJECUTADA' && enCurso
+                        ? enCurso.requiereUsuario
+                          ? 'Esperando a que hagas algo en el navegador'
+                          : 'En curso…'
+                        : textoEstado(c.estado)
+                    return (
+                      <td
+                        key={c.calculadora}
+                        className={`${claseDeCalculadora(c.calculadora)} estado-calculadora`}
+                      >
+                        {texto}
+                      </td>
+                    )
+                  })}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="pie-nota" data-testid="criterio-eleccion">
+            Elección propia: la primera esfera con refracción prevista negativa (positiva en
+            LuxSmart, LuxLife y LuxGood) y el cilindro tórico más alto que sigue compartiendo el
+            eje. Es una estimación orientativa y no vinculante; lo que cada calculadora respondió de
+            verdad está debajo y en su captura.
+          </p>
+        </div>
 
-      {/*
+        {/*
         El detalle de las alternativas. Va aquí, debajo de la comparación, porque
         es lo primero que hace falta cuando una columna dice «3 opciones»: verlas.
       */}
-      {comparativa.celdas.some((c) => c.opciones.length > 1) && (
-        <div className="tarjeta">
-          <h2>Opciones devueltas · {nombreLateralidad(ojoActivo)}</h2>
-          {comparativa.celdas.map((c) => (
-            <OpcionesDevueltas key={c.calculadora} celda={c} />
-          ))}
-        </div>
-      )}
+        {comparativa.celdas.some((c) => c.opciones.length > 1) && (
+          <div className="tarjeta">
+            <h2>Opciones devueltas · {nombreLateralidad(ojoActivo)}</h2>
+            {comparativa.celdas.map((c) => (
+              <OpcionesDevueltas
+                key={c.calculadora}
+                celda={c}
+                estimacion={estimaciones.get(c.calculadora)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="tarjeta">
         <h2>Qué dicen estos resultados</h2>

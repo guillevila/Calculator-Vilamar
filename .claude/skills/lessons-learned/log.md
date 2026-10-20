@@ -2140,3 +2140,32 @@ distinguir "cambió el ojo" de "cambió el caso"), sin la guarda de
 `apps/desktop/e2e/flujo.spec.ts` → «renombrar el aparato de UN ojo no
 deja al OTRO mirando un dataset vacío al cambiar de pestaña» (confirmada
 fallando sin el fix, pasando con él).
+
+## 21/10/2026 — El número de versión que se ve en pantalla no se subió durante semanas, y el dueño no podía saber si estaba en la versión nueva
+
+**Error o aprendizaje:** El dueño preguntó por qué la barra superior seguía
+diciendo «v1.37» después de tantas mejoras: «así no sé si estoy en la
+versión correcta». El propio código (`apps/desktop/src/main/index.ts`,
+`VERSION_VISIBLE`) deja escrita la convención que él pidió el 15/09/2026:
+subir 0,01 cada vez que se le entrega una versión, y que subirlo sea lo
+ÚLTIMO antes de avisarle de que está lista para probar. No se cumplió: varias
+versiones de prueba se le entregaron con el mismo número, y él no tenía forma
+de distinguirlas ni de saber si había cerrado del todo la aplicación vieja.
+
+**Causa raíz:** El número es una constante que se sube a mano, y no había nada
+que avisara de que se había olvidado. Además, durante las sesiones de
+investigación (Kane, paralelo) se generaron varias versiones de prueba seguidas
+con `pnpm compartir` sin pasar por el paso «subir el número» — se trató como
+parte de un cierre formal, no de cada entrega. Y se había explicado como si
+fuera un detalle interno («el contador técnico es otro»), cuando para el dueño
+es la única forma de saber qué versión está usando.
+
+**Lección:** Cada vez que se genere una versión para que el dueño la pruebe
+(`pnpm compartir` o `pnpm dist`), ANTES se sube `VERSION_VISIBLE` y se le dice
+el número en el aviso («está lista: v1.38»). El número que se ve en pantalla es
+parte de la entrega, no un adorno. Una protección automática lo vigila:
+`apps/desktop/src/main/version-visible.test.ts` falla si la cabecera más
+reciente de `docs/CHANGELOG.md` no coincide con `VERSION_VISIBLE`.
+
+**Contexto:** `VERSION_VISIBLE` pasó de '1.37' a '1.38'; las dos entradas más
+recientes del changelog (D129, D130) llevan «v1.38».
