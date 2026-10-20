@@ -4,6 +4,46 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.90] — 21/10/2026 (versión visible en pantalla: v1.41)
+
+fix(app): en la comparación, las filas de Kane enseñan el cilindro elegido y su residual; la lente repetida más abajo se marca en tono suave; la esfera y el cilindro elegidos, del mismo color (D130)
+
+(1) En la parte «Lo que respondió cada calculadora», donde Kane no marca ninguna alternativa tórica, las filas Cilindro, Modelo tórico, Cilindro residual y Eje residual enseñan ahora la alternativa elegida por el criterio propio (con su aviso en el título de la casilla), igual que EVO y Barrett. (2) En las tablas de alternativas, la misma lente (potencia y cilindro) que una fila marcada o elegida, cuando se repite más abajo, se pinta en tono suave. (3) La fila marcada por la fórmula sube al 32 % del color pleno. (4) La esfera elegida y el cilindro elegido usan el mismo color pleno (antes el cilindro iba más oscuro y se veían como dos violetas casi iguales en Kane).
+
+---
+
+## [1.15.89] — 21/10/2026 (versión visible en pantalla: v1.40)
+
+fix(app): la comparación de Kane vuelve a enseñar solo el cilindro elegido y su residual, como EVO y Barrett; la fila marcada por la fórmula, con el mismo tono relativo en las tres calculadoras (D130)
+
+Dos ajustes pedidos por el dueño. (1) Se quitan de la comparación las cifras de las tres alternativas tóricas de Kane (cilindro, modelo, residuales): liaban; quedan en la tabla de Kane de más abajo y la comparación enseña, como en EVO y Barrett, solo el cilindro elegido por el criterio propio y su residual. (2) La fila «marcada por la fórmula» usa el 22 % del color pleno de cada calculadora (antes, del tono suave): en EVO se distingue y en Kane ya no se confunde con la elegida.
+
+---
+
+## [1.15.88] — 21/10/2026 (versión visible en pantalla: v1.39)
+
+fix(app): en la comparación, las cifras de las alternativas tóricas de Kane; la fila marcada por la web, más discreta; y etiquetas separadas «★ elegida» / «◆ marcada por la calculadora» (D130).
+
+Tres ajustes pedidos por el dueño tras ver la pantalla con un caso real. (1) Donde la web no señala ninguna alternativa tórica (Kane), la comparación enseñaba solo «Ver alternativas»; ahora pone debajo las cifras («2.50 · 3.00 · 3.50 D»), también en cilindro residual, eje residual y modelo tórico. (2) La fila que marca la propia web pasa a un fondo casi blanco con borde fino de puntos, para no confundirla con la elegida por el criterio propio. (3) Las marcas de cada fila son ahora etiquetas separadas y siempre visibles —«★ Esfera elegida», «★ Cilindro elegido», «◆ Marcada por EVO/Barrett/Kane»—, de modo que cuando la elegida y la marcada por la calculadora coinciden (EVO) se siguen viendo las dos. Comprobado dibujando la pantalla real con los datos del caso 0397. Número visible subido a v1.39.
+
+---
+
+## [1.15.87] — 21/10/2026 (versión visible en pantalla: v1.38)
+
+feat(app,domain): la pantalla de resultados resalta la elección según el criterio propio — esfera y cilindro elegidos — en la comparación y en la tabla de cada calculadora (D130).
+
+Dos filas nuevas en la comparación («Esfera elegida» y «Cilindro elegido», en el color de cada calculadora) y las filas elegidas en color pleno en cada tabla; lo que marcó cada web queda visible y discreto. `estimarConFilas()` devuelve ahora también las filas elegidas. Constitución actualizada con una frase. 939 tests unitarios y pruebas de interfaz en verde.
+
+---
+
+## [1.15.86] — 20/10/2026 (versión visible en pantalla: v1.38)
+
+feat(app): pantalla de resultados rediseñada, con un color por calculadora, la lente señalada bien destacada y un botón opcional para crear un PDF de esa pantalla (D129).
+
+Comparación y detalle por calculadora con diseño más moderno: EVO verde azulado, Barrett azul, Kane violeta (los tonos del PDF), fila de la esfera en grande, y la lente que SEÑALA cada web en color pleno con estrella e insignia. Nuevo botón «Crear PDF de esta pantalla» (opcional): PDF apaisado del ojo que se ve, guardado en `Resúmenes/<paciente>/<ojo>/`. 939 tests unitarios, lint, tipos, build y pruebas de interfaz en verde.
+
+---
+
 ## [1.15.85] — 17/10/2026 (versión visible en pantalla: v1.37)
 
 feat(integrations): las calculadoras se lanzan a la vez, OD y OS en paralelo (D126); fix(integrations): Kane usa la potencia que él elige cuando su tabla viene descolocada, sin reintentos (D128).

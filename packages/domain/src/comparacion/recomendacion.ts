@@ -185,6 +185,28 @@ export function estimarLenteRecomendada(
   ejeCurvo: number | undefined,
   criterioEsfera: CriterioEsfera = 'PRIMERA_NEGATIVA',
 ): LenteEstimada | undefined {
+  return estimarConFilas(opciones, ejeCurvo, criterioEsfera)?.lente
+}
+
+/**
+ * La estimación y, además, LAS FILAS de `opciones` en las que se apoya (D130,
+ * 21/10/2026): la pantalla de resultados necesita saber cuál es la fila de la
+ * esfera elegida y cuál la del cilindro elegido para resaltarlas en cada tabla,
+ * sin tener que volver a buscarlas por valor —dos filas pueden repetir la misma
+ * esfera con cilindros distintos—. Son los MISMOS objetos de `opciones`, no
+ * copias. `filaCilindro` solo existe si hay cilindro elegido.
+ */
+export interface EstimacionConFilas {
+  readonly lente: LenteEstimada
+  readonly filaEsfera: OpcionLente
+  readonly filaCilindro?: OpcionLente
+}
+
+export function estimarConFilas(
+  opciones: readonly OpcionLente[],
+  ejeCurvo: number | undefined,
+  criterioEsfera: CriterioEsfera = 'PRIMERA_NEGATIVA',
+): EstimacionConFilas | undefined {
   const conEsferaYRefraccion = opciones
     .filter(
       (o): o is OpcionLente & { esfera: number; refraccionPrevista: number } =>
@@ -212,7 +234,12 @@ export function estimarLenteRecomendada(
 
   const conRefraccion = { refraccionPrevista: elegidaEsfera.refraccionPrevista }
 
-  if (ejeCurvo === undefined) return { esfera: elegidaEsfera.esfera, ...conRefraccion }
+  const soloEsfera: EstimacionConFilas = {
+    lente: { esfera: elegidaEsfera.esfera, ...conRefraccion },
+    filaEsfera: elegidaEsfera,
+  }
+
+  if (ejeCurvo === undefined) return soloEsfera
 
   const toricas = opciones
     .filter(
@@ -221,7 +248,7 @@ export function estimarLenteRecomendada(
     )
     .sort((a, b) => a.cilindro - b.cilindro)
   const primera = toricas[0]
-  if (!primera) return { esfera: elegidaEsfera.esfera, ...conRefraccion }
+  if (!primera) return soloEsfera
 
   // El cilindro 0 (sin corrección tórica) es SIEMPRE un punto de partida
   // válido: no hay ninguna lente tórica puesta, así que no hay ningún eje
@@ -239,10 +266,13 @@ export function estimarLenteRecomendada(
   let ultima: (typeof toricas)[number] | undefined
   if (primera.cilindro === 0) {
     ultima = primera
-  } else if (ejeCurvo !== undefined && separacionDeEjes(primera.ejeResidual, ejeCurvo) < UMBRAL_MISMO_EJE) {
+  } else if (
+    ejeCurvo !== undefined &&
+    separacionDeEjes(primera.ejeResidual, ejeCurvo) < UMBRAL_MISMO_EJE
+  ) {
     ultima = primera
   }
-  if (!ultima) return { esfera: elegidaEsfera.esfera, ...conRefraccion }
+  if (!ultima) return soloEsfera
 
   // A partir de ahí, cada escalón se compara con el ANTERIOR ya aceptado —
   // no con el eje curvo— porque lo que importa es si el eje sigue girando
@@ -257,12 +287,33 @@ export function estimarLenteRecomendada(
     ultima = siguiente
   }
 
+  // D130 (21/10/2026): si la fila de la esfera elegida YA tiene ese mismo
+  // cilindro y ese mismo eje —lo normal en Barrett, que da esfera y cilindro en
+  // cada fila, con varias filas de igual cilindro—, esa es la fila del cilindro:
+  // una sola fila coherente, en vez de otra con la misma cifra pero otra
+  // esfera. El criterio del cilindro no cambia: solo desempata entre filas
+  // idénticas en cilindro y eje.
+  const mismaFila = toricas.find((o) => o === elegidaEsfera)
+  if (
+    mismaFila !== undefined &&
+    mismaFila.cilindro === ultima.cilindro &&
+    mismaFila.ejeResidual === ultima.ejeResidual
+  ) {
+    ultima = mismaFila
+  }
+
   return {
-    esfera: elegidaEsfera.esfera,
-    cilindro: ultima.cilindro,
-    eje: ejeCurvo,
-    ...conRefraccion,
-    ...(ultima.cilindroResidual !== undefined ? { cilindroResidual: ultima.cilindroResidual } : {}),
-    ejeResidual: ultima.ejeResidual,
+    lente: {
+      esfera: elegidaEsfera.esfera,
+      cilindro: ultima.cilindro,
+      eje: ejeCurvo,
+      ...conRefraccion,
+      ...(ultima.cilindroResidual !== undefined
+        ? { cilindroResidual: ultima.cilindroResidual }
+        : {}),
+      ejeResidual: ultima.ejeResidual,
+    },
+    filaEsfera: elegidaEsfera,
+    filaCilindro: ultima,
   }
 }

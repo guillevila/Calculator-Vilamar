@@ -538,31 +538,166 @@ table.revision tr.bandeja-urgente {
 
 /* ── Comparativa ────────────────────────────────────────────────────────── */
 
+/*
+ * Rediseño de la pantalla de resultados (D129, 20/10/2026, petición expresa del
+ * dueño con dos capturas): la comparación y el detalle por calculadora pasan de
+ * «sobrio, azul y gris» a un diseño más moderno, con UN COLOR POR CALCULADORA
+ * —los mismos tres tonos que ya usan las hojas del PDF: EVO verde azulado,
+ * Barrett azul, Kane violeta— y la lente señalada por cada web bien destacada.
+ * Los nombres de clase de antes se conservan (`comparativa`, `opciones`,
+ * `destacada`…); lo que cambia es solo el aspecto.
+ */
+:root {
+  --calc-evo: #0f766e;
+  --calc-evo-suave: #e6f4f2;
+  --calc-evo-medio: #99d5cf;
+  --calc-barrett: #1d4ed8;
+  --calc-barrett-suave: #e8eefc;
+  --calc-barrett-medio: #a9bff3;
+  --calc-kane: #7c3aed;
+  --calc-kane-suave: #f1eafd;
+  --calc-kane-medio: #c9b3f5;
+  --calc-otra: #475569;
+  --calc-otra-suave: #eef1f5;
+  --calc-otra-medio: #c3cbd6;
+}
+.calc-evo {
+  --c: var(--calc-evo);
+  --c-suave: var(--calc-evo-suave);
+  --c-medio: var(--calc-evo-medio);
+}
+.calc-barrett {
+  --c: var(--calc-barrett);
+  --c-suave: var(--calc-barrett-suave);
+  --c-medio: var(--calc-barrett-medio);
+}
+.calc-kane {
+  --c: var(--calc-kane);
+  --c-suave: var(--calc-kane-suave);
+  --c-medio: var(--calc-kane-medio);
+}
+.calc-otra {
+  --c: var(--calc-otra);
+  --c-suave: var(--calc-otra-suave);
+  --c-medio: var(--calc-otra-medio);
+}
+
+.cabecera-resultados {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.cabecera-resultados h2 {
+  margin: 0;
+}
+
+.contenedor-comparativa {
+  border: 1px solid var(--linea);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(21, 63, 116, 0.07);
+}
 table.comparativa {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-variant-numeric: tabular-nums;
 }
 table.comparativa th,
 table.comparativa td {
-  padding: 8px 10px;
+  padding: 11px 14px;
   border-bottom: 1px solid var(--linea);
   text-align: left;
 }
 table.comparativa thead th {
-  background: var(--gris-claro);
-  color: var(--azul);
-  font-size: 11px;
+  color: #fff;
+  background: var(--c, var(--azul));
+  font-size: 12px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
+  border-bottom: none;
+  text-align: center;
+  padding: 14px 10px;
+}
+table.comparativa thead th:first-child {
+  background: #f1f5fa;
+  border-bottom: none;
 }
 table.comparativa tbody th {
   font-weight: 600;
-  color: #333;
-  width: 26%;
+  color: #3b4a5c;
+  width: 20%;
+  background: #f7f9fc;
+  font-size: 13px;
+}
+table.comparativa tbody td {
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  background: var(--c-suave, #fff);
+  color: #14202e;
+}
+table.comparativa tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--c-suave, #fff) 55%, #fff);
+}
+table.comparativa tbody tr:hover td {
+  background: var(--c-medio, #e8f0f8);
+}
+table.comparativa tbody tr:last-child th,
+table.comparativa tbody tr:last-child td {
+  border-bottom: none;
+}
+/* Franjas que separan «la elección propia» de «lo que respondió cada calculadora». */
+table.comparativa tbody tr.separador th {
+  width: auto;
+  text-align: left;
+  background: #eef2f8;
+  color: var(--azul);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  padding: 7px 14px;
+}
+/*
+ * La elección propia (D43/D130): color pleno de la calculadora, cifra grande y,
+ * debajo, el dato que la acompaña. Es lo que más debe verse de toda la tabla.
+ */
+table.comparativa tbody tr.fila-eleccion th {
+  color: var(--azul);
+  font-weight: 800;
+  font-size: 13.5px;
+}
+table.comparativa tbody tr.fila-eleccion td.eleccion {
+  background: var(--c, var(--azul));
+  color: #fff;
+  padding: 12px 10px;
+  border-bottom-color: rgba(255, 255, 255, 0.35);
+}
+table.comparativa tbody tr.fila-eleccion td.eleccion strong {
+  display: block;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+table.comparativa tbody tr.fila-eleccion td.eleccion small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-weight: 500;
+  opacity: 0.92;
+}
+table.comparativa tbody tr.fila-eleccion td.na {
+  background: #f4f6f9;
 }
 table.comparativa td.na {
-  color: var(--gris);
+  color: #9aa5b3;
+  font-weight: 400;
+  cursor: help;
 }
 /*
  * Tres estados, tres aspectos. La diferencia importa:
@@ -576,6 +711,7 @@ table.comparativa td.na {
 table.comparativa td.varias {
   color: var(--gris);
   font-style: italic;
+  font-weight: 500;
   font-size: 12.5px;
   cursor: help;
 }
@@ -585,54 +721,153 @@ table.comparativa td.varias {
  * pregunta se queda sin contestar.
  */
 table.comparativa td.varias.nombra {
-  color: var(--azul);
+  color: var(--c, var(--azul));
   font-style: normal;
-  font-weight: 600;
+  font-weight: 700;
 }
-table.comparativa td.na {
-  cursor: help;
+table.comparativa td.estado-calculadora {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--gris);
 }
 
 /* El detalle: todas las alternativas tal y como vinieron de la web. */
+.opciones-devueltas {
+  border: 1px solid var(--c-medio, var(--linea));
+  border-left: 6px solid var(--c, var(--azul));
+  border-radius: 12px;
+  background: #fff;
+  padding: 14px 16px 16px;
+  box-shadow: 0 2px 10px rgba(21, 63, 116, 0.06);
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
 .opciones-devueltas + .opciones-devueltas {
   margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--linea);
 }
 .opciones-devueltas h3 {
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
   margin: 0 0 2px;
-  color: var(--azul);
+  color: var(--c, var(--azul));
+}
+.opciones-devueltas h3 .insignia {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--c, var(--azul));
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
 }
 .opciones-devueltas .sub {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
 }
 table.opciones {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--c-medio, var(--linea));
+  border-radius: 10px;
+  overflow: hidden;
 }
 table.opciones th,
 table.opciones td {
-  border: 1px solid var(--linea);
-  padding: 5px 8px;
+  padding: 8px 10px;
   text-align: center;
+  border-bottom: 1px solid var(--linea);
 }
-table.opciones th {
-  background: var(--fondo-suave, #f5f7fa);
-  font-weight: 600;
-}
-table.opciones tr.destacada td {
+table.opciones thead th {
+  background: var(--c-suave, #f5f7fa);
+  color: var(--c, var(--azul));
+  font-size: 11.5px;
   font-weight: 700;
-  background: var(--fondo-suave, #f5f7fa);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-bottom: 2px solid var(--c-medio, var(--linea));
+}
+table.opciones tbody tr:nth-child(even) td {
+  background: #fafbfd;
+}
+table.opciones tbody tr:last-child td {
+  border-bottom: none;
+}
+/*
+ * Lo que la propia WEB marcó: discreto (D130, 21/10/2026, a petición del dueño:
+ * en Kane el tono era tan fuerte que se confundía con la elegida; en EVO, tan
+ * claro que no se veía). El mismo 32 % del color PLENO de cada calculadora, no
+ * de su tono suave: así se ve igual de claro en las tres y en ninguna se parece
+ * a la elegida, que va en color pleno. La etiqueta «◆ Marcada por …» lo dice.
+ */
+table.opciones tbody tr.destacada td {
+  background: color-mix(in srgb, var(--c, #475569) 32%, #fff);
+  font-weight: 600;
+  border-top: 1px dashed color-mix(in srgb, var(--c, #475569) 55%, #fff);
+  border-bottom: 1px dashed color-mix(in srgb, var(--c, #475569) 55%, #fff);
+}
+/*
+ * Lo que marca el CRITERIO PROPIO (D43/D130): color pleno, letra grande y una
+ * estrella. La esfera elegida y el cilindro elegido pueden ser filas distintas
+ * (en Kane lo son); el cilindro va un punto más oscuro para distinguirlos.
+ * Va después de `.destacada` y con la misma especificidad: si una fila es las
+ * dos cosas, gana la elegida.
+ */
+/* La misma lente que una marcada, repetida más abajo en la lista: tono suave. */
+table.opciones tbody tr.misma-lente td {
+  background: color-mix(in srgb, var(--c, #475569) 32%, #fff);
+}
+table.opciones tbody tr.elegida-esfera td,
+table.opciones tbody tr.elegida-cilindro td {
+  background: var(--c, var(--azul));
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+  border-top-color: var(--c, var(--azul));
+  border-bottom-color: var(--c, var(--azul));
 }
 table.opciones td.marca {
-  font-size: 12px;
-  color: var(--gris);
-  font-style: italic;
+  text-align: left;
+  white-space: nowrap;
+}
+/* Etiquetas: siempre visibles y separadas, aunque las dos cosas caigan en la misma fila. */
+.etiqueta {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-style: normal;
+  line-height: 1.6;
+}
+.etiqueta-web {
+  border: 1.5px solid var(--c, var(--azul));
+  background: #fff;
+  color: var(--c, var(--azul));
+}
+table.opciones tbody tr.elegida-esfera .etiqueta-elegida,
+table.opciones tbody tr.elegida-cilindro .etiqueta-elegida {
+  background: #fff;
+  color: var(--c, var(--azul));
+  border: 1.5px solid #fff;
+}
+table.opciones tbody tr.elegida-esfera .etiqueta-web,
+table.opciones tbody tr.elegida-cilindro .etiqueta-web {
+  background: transparent;
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.85);
 }
 table.opciones .na {
-  color: var(--gris);
+  color: #9aa5b3;
+}
+table.opciones tbody tr.elegida-esfera .na,
+table.opciones tbody tr.elegida-cilindro .na {
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .observacion {

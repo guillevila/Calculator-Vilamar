@@ -449,6 +449,15 @@ export interface ApiVilamar {
    * PDF-resumen por ojo, sin capturas, y llega en `rutasResumen` (`rutas`
    * va vacío). Ver `ServicioCasos.generarPdf`.
    */
+  /**
+   * D129 (20/10/2026): crea un PDF de la pantalla de resultados que se está
+   * viendo (comparación y detalle de cada calculadora, de UN ojo) y lo guarda en
+   * la carpeta «Resúmenes» de ese ojo. Opcional: solo al pulsar su botón.
+   */
+  readonly generarPdfPantalla: (datos: {
+    readonly ojo: Lateralidad
+    readonly html: string
+  }) => Promise<{ readonly ruta: string }>
   readonly generarPdf: (opciones: {
     readonly incluirEstimacionCompleta: boolean
     readonly incluirTablaComparativaDetallada: boolean
@@ -517,6 +526,7 @@ export const CANALES = {
   reintentar: 'vilamar:reintentar',
   cancelarCalculo: 'vilamar:cancelar-calculo',
   generarPdf: 'vilamar:generar-pdf',
+  generarPdfPantalla: 'vilamar:generar-pdf-pantalla',
   abrirCarpetaInformes: 'vilamar:abrir-carpeta-informes',
   progreso: 'vilamar:progreso',
   casoCambiado: 'vilamar:caso-cambiado',
