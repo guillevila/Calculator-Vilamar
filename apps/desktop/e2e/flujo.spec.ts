@@ -837,6 +837,42 @@ test('el PDF se guarda en una carpeta por doctor y, dentro, una por paciente (D8
   await ventana.screenshot({ path: 'test-results/11c-carpeta-por-doctor.png', fullPage: true })
 })
 
+test('el PDF de la pantalla de resultados (D129) se imprime de verdad, apaisado, en «Resúmenes» del ojo', async () => {
+  test.setTimeout(180_000)
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByTestId('identificacion-paciente').fill('Paciente Pantalla E2E')
+  await ventana.getByTestId('identificacion-paciente').press('Tab')
+  await ventana.getByTestId('identificacion-cirujano').fill('Dra. Pantalla')
+  await ventana.getByTestId('identificacion-cirujano').press('Tab')
+  await ventana.getByTestId('manual-campo-AL').fill('24.00')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+
+  const html =
+    '<!doctype html><html><head><meta charset="utf-8"><style>' +
+    '@page { size: A4 landscape; margin: 0 } body { -webkit-print-color-adjust: exact }' +
+    '.c { background: #7c3aed; color: #fff; padding: 20px; font-size: 30px }' +
+    '</style></head><body><div class="c">Kane · 22.50 D</div></body></html>'
+  const r = await ventana.evaluate(
+    (h) => window.vilamar?.generarPdfPantalla({ ojo: 'OD', html: h }),
+    html,
+  )
+  const ruta = r?.ruta ?? ''
+  expect(ruta, 'no ha generado ningún PDF').not.toBe('')
+  expect(ruta).toContain(
+    join('Dra. Pantalla', 'Resúmenes', 'Paciente Pantalla E2E', 'Ojo derecho (OD)'),
+  )
+  expect(statSync(ruta).size).toBeGreaterThan(1000)
+
+  // Un PDF de verdad, y apaisado: su caja de página (MediaBox) es más ancha que alta.
+  const texto = readFileSync(ruta).toString('latin1')
+  const caja = /\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*\]/.exec(texto)
+  expect(texto.startsWith('%PDF')).toBe(true)
+  expect(caja, 'el PDF no declara su tamaño de página').not.toBeNull()
+  expect(Number(caja?.[1])).toBeGreaterThan(Number(caja?.[2]))
+})
+
 test('el PDF se guarda en «Sin doctor» cuando el caso no tiene ninguno asignado (D87)', async () => {
   test.setTimeout(180_000)
 

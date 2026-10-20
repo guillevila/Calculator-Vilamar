@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest'
 
 import { conMedida, crearMedida, ojoVacio } from '../modelo/medida.js'
 import type { OpcionLente } from '../modelo/calculadoras.js'
-import { criterioEsferaPara, ejeCurvoDe, estimarLenteRecomendada } from './recomendacion.js'
+import {
+  criterioEsferaPara,
+  ejeCurvoDe,
+  estimarConFilas,
+  estimarLenteRecomendada,
+} from './recomendacion.js'
 
 const CUANDO = new Date().toISOString()
 const AUTOR = { metodo: 'MANUAL', registradoEn: CUANDO } as const
@@ -246,5 +251,80 @@ describe('criterioEsferaPara', () => {
   it('cualquier otra lente, o ninguna elegida, usa PRIMERA_NEGATIVA por defecto', () => {
     expect(criterioEsferaPara('Alcon Vivity')).toBe('PRIMERA_NEGATIVA')
     expect(criterioEsferaPara(undefined)).toBe('PRIMERA_NEGATIVA')
+  })
+})
+
+describe('estimarConFilas — las filas elegidas (D130, 21/10/2026)', () => {
+  it('devuelve LA fila de la esfera y LA del cilindro, los mismos objetos de la lista', () => {
+    // Dos filas con la misma esfera 22.5 y cilindros distintos: buscar por valor
+    // sería ambiguo; por eso se devuelven las filas mismas.
+    const esfera225 = opcion({ esfera: 22.5, refraccionPrevista: -0.04 })
+    const otra225 = opcion({
+      esfera: 22.5,
+      refraccionPrevista: -0.04,
+      cilindro: 0.9,
+      ejeResidual: 22,
+    })
+    const opciones = [
+      opcion({ esfera: 23.0, refraccionPrevista: -0.4 }),
+      esfera225,
+      opcion({ esfera: 22.0, refraccionPrevista: 0.29 }),
+      opcion({ esfera: 22.5, cilindro: 0, cilindroResidual: 0.23, ejeResidual: 91 }),
+      otra225,
+    ]
+    const r = estimarConFilas(opciones, 91)
+    expect(r?.filaEsfera).toBe(esfera225)
+    expect(r?.filaCilindro?.cilindro).toBe(0)
+    expect(r?.lente.esfera).toBe(22.5)
+    expect(opciones).toContain(r?.filaCilindro)
+  })
+
+  it('sin eje curvo solo hay fila de esfera, y la estimación coincide con estimarLenteRecomendada', () => {
+    const opciones = [
+      opcion({ esfera: 21.0, refraccionPrevista: 0.18 }),
+      opcion({ esfera: 21.5, refraccionPrevista: -0.06 }),
+    ]
+    const r = estimarConFilas(opciones, undefined)
+    expect(r?.filaCilindro).toBeUndefined()
+    expect(r?.lente).toEqual(estimarLenteRecomendada(opciones, undefined))
+  })
+
+  it('sin ninguna esfera que cumpla el criterio, no hay fila que resaltar', () => {
+    expect(
+      estimarConFilas([opcion({ esfera: 20.5, refraccionPrevista: 0.42 })], undefined),
+    ).toBeUndefined()
+  })
+})
+
+describe('estimarConFilas — varias filas con el mismo cilindro (Barrett, D130)', () => {
+  it('la fila del cilindro elegido es la de la esfera elegida, no otra con la misma cifra', () => {
+    // Barrett da esfera y cilindro en cada fila; aquí las tres con cilindro 0 y
+    // el mismo eje. La esfera elegida es 23.0 (la única negativa): su fila es
+    // también la del cilindro.
+    const f23 = opcion({
+      esfera: 23.0,
+      refraccionPrevista: -0.34,
+      cilindro: 0,
+      cilindroResidual: 0.15,
+      ejeResidual: 105,
+    })
+    const f225 = opcion({
+      esfera: 22.5,
+      refraccionPrevista: 0.02,
+      cilindro: 0,
+      cilindroResidual: 0.15,
+      ejeResidual: 105,
+    })
+    const f22 = opcion({
+      esfera: 22.0,
+      refraccionPrevista: 0.38,
+      cilindro: 0,
+      cilindroResidual: 0.15,
+      ejeResidual: 105,
+    })
+    const r = estimarConFilas([f23, f225, f22], 105)
+    expect(r?.filaEsfera).toBe(f23)
+    expect(r?.filaCilindro).toBe(f23)
+    expect(r?.lente.cilindro).toBe(0)
   })
 })

@@ -141,7 +141,11 @@ export interface DependenciasServicio {
   /** Abre el navegador para las calculadoras. Se inyecta para poder probarlo. */
   readonly abrirNavegador: (conVentana: boolean) => Promise<Browser>
   /** Convierte HTML en PDF. Lo hace Electron; se inyecta para poder probarlo. */
-  readonly imprimirPdf: (html: string, destino: string) => Promise<void>
+  readonly imprimirPdf: (
+    html: string,
+    destino: string,
+    opciones?: { readonly apaisado?: boolean },
+  ) => Promise<void>
   /** Avisos hacia la interfaz. */
   readonly emitirProgreso: (estado: EstadoCalculo) => void
   readonly emitirCaso: (caso: Caso) => void
@@ -1603,6 +1607,41 @@ export class ServicioCasos {
     } finally {
       await navegador?.close().catch(() => undefined)
     }
+  }
+
+  /**
+   * PDF de la pantalla de resultados de UN ojo (D129, 20/10/2026).
+   *
+   * El HTML lo monta la propia interfaz a partir de lo que se ve en pantalla
+   * (con sus colores); aquí solo se imprime y se guarda en
+   * `<carpetaDoctor>/Resúmenes/<paciente>/<ojo>/`, la misma carpeta de los
+   * PDF-resumen. Se quita cualquier `<script>` por si acaso: este documento
+   * nunca debe ejecutar nada.
+   */
+  async generarPdfPantalla(datos: {
+    readonly ojo: Lateralidad
+    readonly html: string
+  }): Promise<{ ruta: string }> {
+    const caso = this.exigirCaso()
+    if (typeof datos.html !== 'string' || datos.html.trim() === '') {
+      throw new Error('No hay nada que imprimir: la pantalla llegó vacía.')
+    }
+    const html = datos.html.replace(/<script[\s\S]*?<\/script>/gi, '')
+    const carpetaDoctor = join(
+      this.dep.carpetas.informes,
+      nombreDeCarpeta(caso.nombreCirujano, NOMBRE_CARPETA_SIN_DOCTOR),
+    )
+    const carpeta = join(
+      carpetaDoctor,
+      'Resúmenes',
+      nombreDeCarpeta(caso.nombrePaciente, caso.codigo),
+      nombreLateralidad(datos.ojo),
+    )
+    mkdirSync(carpeta, { recursive: true })
+    const marca = this.iso().replace(/[:.]/g, '-').slice(0, 19)
+    const destino = join(carpeta, `${caso.codigo}_${datos.ojo}_${marca}_pantalla.pdf`)
+    await this.dep.imprimirPdf(html, destino, { apaisado: true })
+    return { ruta: destino }
   }
 
   cancelarCalculo(): void {

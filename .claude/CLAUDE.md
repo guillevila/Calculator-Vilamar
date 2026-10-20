@@ -348,7 +348,12 @@ cualquier consideración técnica:
   redujeron a un único párrafo legal final (D109, 30/09/2026) — salvo el de
   la tabla comparativa detallada, que el dueño pidió recuperar el mismo día
   (D110): sigue siendo el único párrafo de prosa de todo el informe, aparte
-  del legal, en las hojas donde aparece.
+  del legal, en las hojas donde aparece. **Desde D130 (21/10/2026), a
+  petición expresa del dueño, esa misma estimación se resalta también en la
+  pantalla de resultados de la aplicación** —en la comparación y en la tabla
+  de cada calculadora, en color pleno—, siempre rotulada «estimación
+  orientativa, no vinculante» y sin ocultar lo que cada calculadora marcó de
+  verdad, que se sigue viendo con su propio borde.
 
 ---
 

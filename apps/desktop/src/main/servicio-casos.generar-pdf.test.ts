@@ -558,3 +558,87 @@ describe('generarPdf — el PDF-resumen aparte (D118, 06/10/2026)', () => {
     expect(existsSync(join(carpetas.informes, 'Dra. Ruiz', 'Calculados'))).toBe(false)
   })
 })
+
+/**
+ * D129 (20/10/2026): el PDF de «esta pantalla» de resultados, opcional, que se
+ * guarda en la carpeta «Resúmenes» de cada ojo de cada paciente.
+ */
+describe('generarPdfPantalla — el PDF de la pantalla de resultados (D129, 20/10/2026)', () => {
+  function servicioConImprimirEspiado(): {
+    servicio: InstanceType<typeof ServicioCasos>
+    carpetas: ReturnType<typeof prepararCarpetas>
+    imprimirPdf: ReturnType<typeof vi.fn>
+  } {
+    const imprimirPdf = vi.fn(() => Promise.resolve())
+    const carpetas = prepararCarpetas(raizTemporal())
+    const dep: DependenciasServicio = {
+      carpetas,
+      proveedor: {
+        nombre: 'test',
+        puedeCon: () => false,
+        extraer: () => Promise.reject(new Error('no usado')),
+      },
+      diagnosticador: { carpeta: '', guardar: () => Promise.resolve('') },
+      capturas: { carpeta: '', guardar: () => Promise.resolve(''), leer: () => null },
+      version: '0.0.0-test',
+      ahora: () => new Date('2026-10-20T10:00:00.000Z'),
+      abrirNavegador: () => Promise.resolve({ close: () => Promise.resolve() } as never),
+      imprimirPdf,
+      emitirProgreso: () => {},
+      emitirCaso: () => {},
+    }
+    return { servicio: new ServicioCasos(dep), carpetas, imprimirPdf }
+  }
+
+  it('lo guarda en «Resúmenes/<paciente>/<ojo>» del doctor, en apaisado', async () => {
+    const { servicio, carpetas, imprimirPdf } = servicioConImprimirEspiado()
+    servicio.nuevo()
+    servicio.establecerIdentificacion({
+      nombrePaciente: 'Paciente De Prueba',
+      nombreCirujano: 'Dra. Ruiz',
+    })
+
+    const { ruta } = await servicio.generarPdfPantalla({ ojo: 'OD', html: '<p>hola</p>' })
+
+    const carpeta = join(
+      carpetas.informes,
+      'Dra. Ruiz',
+      'Resúmenes',
+      'Paciente De Prueba',
+      'Ojo derecho (OD)',
+    )
+    expect(ruta.startsWith(carpeta)).toBe(true)
+    expect(ruta.endsWith('_pantalla.pdf')).toBe(true)
+    expect(imprimirPdf).toHaveBeenCalledTimes(1)
+    expect(imprimirPdf.mock.calls[0]?.[2]).toEqual({ apaisado: true })
+  })
+
+  it('cada ojo va a su carpeta', async () => {
+    const { servicio } = servicioConImprimirEspiado()
+    servicio.nuevo()
+    servicio.establecerIdentificacion({ nombrePaciente: 'Paciente De Prueba' })
+    const od = await servicio.generarPdfPantalla({ ojo: 'OD', html: '<p>a</p>' })
+    const os = await servicio.generarPdfPantalla({ ojo: 'OS', html: '<p>b</p>' })
+    expect(od.ruta).toContain('Ojo derecho (OD)')
+    expect(os.ruta).toContain('Ojo izquierdo (OS)')
+  })
+
+  it('nunca imprime un script', async () => {
+    const { servicio, imprimirPdf } = servicioConImprimirEspiado()
+    servicio.nuevo()
+    await servicio.generarPdfPantalla({
+      ojo: 'OD',
+      html: '<p>ok</p><script>alert(1)</script><SCRIPT type="x">x()</SCRIPT>',
+    })
+    const impreso = imprimirPdf.mock.calls[0]?.[0] as string
+    expect(impreso).toContain('<p>ok</p>')
+    expect(impreso.toLowerCase()).not.toContain('<script')
+  })
+
+  it('una pantalla vacía es un error claro, no un PDF en blanco', async () => {
+    const { servicio, imprimirPdf } = servicioConImprimirEspiado()
+    servicio.nuevo()
+    await expect(servicio.generarPdfPantalla({ ojo: 'OD', html: '   ' })).rejects.toThrow(/vacía/)
+    expect(imprimirPdf).not.toHaveBeenCalled()
+  })
+})

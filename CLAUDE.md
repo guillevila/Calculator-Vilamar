@@ -41,4 +41,8 @@ Está en la constitución, pero se repite aquí porque es lo que define el produ
   que es justo lo que esta regla evita. Desde D118 (06/10/2026) ya no hay
   un sitio garantizado donde tenga que aparecer siempre: con las tres
   casillas apagadas, un PDF puede no llevarla en ningún lado — elección
-  consciente del dueño, avisado primero de esa consecuencia exacta.
+  consciente del dueño, avisado primero de esa consecuencia exacta. Desde
+  D130 (21/10/2026), a petición expresa del dueño, también se resalta en la
+  pantalla de resultados de la aplicación (comparación y tabla de cada
+  calculadora), siempre rotulada «estimación orientativa, no vinculante» y
+  distinta de lo que cada calculadora marcó de verdad, que se sigue viendo.
