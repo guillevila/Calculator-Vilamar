@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.91] — 21/10/2026 (versión visible en pantalla: v1.42)
+
+feat(report): el PDF ocupa menos páginas — las dos variantes de EVO (estimado y medido), y las dos de Barrett, comparten hoja (D131)
+
+Petición del dueño: reducir el tamaño de los pantallazos y juntar en la misma hoja, de un mismo aparato, EVO estimado con EVO medido, y Barrett estimado con Barrett medido, cada uno con su rótulo; si solo hay una de la familia, la hoja es la de siempre. Kane y el resto no cambian. Orden por aparato: EVO, Barrett, Kane. Medido con una impresión real: cada hoja mide exactamente 297 mm, sin desbordes.
+
+---
+
 ## [1.15.90] — 21/10/2026 (versión visible en pantalla: v1.41)
 
 fix(app): en la comparación, las filas de Kane enseñan el cilindro elegido y su residual; la lente repetida más abajo se marca en tono suave; la esfera y el cilindro elegidos, del mismo color (D130)
