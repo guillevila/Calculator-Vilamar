@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.95] — 21/10/2026 (versión visible en pantalla: v1.46)
+
+fix(app): las barras de «Calcular» ya no dan por «Completado» el resultado de una tanda anterior (D136)
+
+Fallo real del dueño con la v1.44: al volver a calcular un caso ya calculado, todas las calculadoras salían «Completado, 100 %» desde el primer segundo, mientras la web de Barrett seguía trabajando. Causa: la fila daba prioridad al resultado guardado en el caso, que era el de la tanda anterior. Ahora la aplicación sabe desde cuándo y con qué calculadoras y ojo empezó la tanda en marcha: un resultado anterior a ese momento no cuenta (la fila vuelve a «En cola» y avanza con los avisos reales de cada calculadora hasta que llega el resultado nuevo), y una calculadora que no está en la tanda dice «Resultado de antes (no se vuelve a calcular)», sin barra. La lógica es una función pura con sus pruebas (`estadoDeFila`).
+
+---
+
 ## [1.15.94] — 21/10/2026 (versión visible en pantalla: v1.45)
 
 feat(app): «Crear Excel de estudio» desde «Análisis de resultados» (D137)

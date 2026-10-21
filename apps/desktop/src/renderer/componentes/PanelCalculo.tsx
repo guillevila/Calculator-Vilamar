@@ -35,14 +35,20 @@ import {
 } from '@vilamar/domain'
 
 import type { EstadoCalculo } from '../../compartido/ipc.js'
-import { porcentajeDeFase } from '../../compartido/progreso.js'
+import { estadoDeFila } from '../../compartido/progreso.js'
+import type { TandaEnMarcha } from '../../compartido/progreso.js'
 import { BarraDeProgreso } from './BarraDeProgreso.js'
+
+/** La tanda de cálculo en marcha (ver `estadoDeFila`). */
+export type CorridaDeCalculo = TandaEnMarcha
 
 interface Props {
   readonly caso: Caso
   readonly ojo: Lateralidad
   readonly estados: readonly EstadoCalculo[]
   readonly ocupado: boolean
+  /** La tanda en marcha, si la hay; sin ella no se distingue un resultado viejo de uno nuevo. */
+  readonly corrida?: CorridaDeCalculo | null
   readonly onCalcular: (
     calculadoras?: readonly Calculadora[],
     filtro?: { readonly ojo?: Lateralidad },
@@ -163,6 +169,7 @@ export function PanelCalculo({
   ojo,
   estados,
   ocupado,
+  corrida = null,
   onCalcular,
   onCancelar,
   onVerResultados,
@@ -207,50 +214,18 @@ export function PanelCalculo({
         <div className="calculadoras">
           {ORDEN.map((clave) => {
             const ficha = fichaDe(clave)
-            const resultado = resultadoDe(caso, clave, ojo)
-            const estado = estados.find((e) => e.calculadora === clave && e.ojo === ojo)
-
-            let clase = ''
-            let marca = '·'
-            let detalle = 'Pendiente'
-            // La barra de cada calculadora (21/10/2026): `undefined` = sin barra
-            // (un fallo no «avanza»); `null` = no se puede saber (espera a la persona).
-            let porcentaje: number | null | undefined = ocupado ? 0 : undefined
-            let tono: 'normal' | 'exito' | 'atencion' = 'normal'
-            if (ocupado) detalle = 'En cola'
-
-            if (resultado) {
-              if (resultado.estado === 'SUCCESS') {
-                clase = 'exito'
-                marca = '✓'
-                detalle = 'Completado'
-                porcentaje = 100
-                tono = 'exito'
-              } else if (resultado.estado === 'PARTIAL') {
-                clase = 'exito'
-                marca = '~'
-                detalle = resultado.mensaje ?? 'Completado, con el resultado incompleto'
-                porcentaje = 100
-                tono = 'exito'
-              } else if (resultado.estado === 'NEEDS_USER_ACTION') {
-                clase = 'requiere-usuario'
-                marca = '!'
-                detalle = resultado.mensaje ?? textoEstado(resultado.estado)
-                porcentaje = null
-                tono = 'atencion'
-              } else {
-                porcentaje = undefined
-                clase = 'fallo'
-                marca = '✕'
-                detalle = resultado.mensaje ?? textoEstado(resultado.estado)
-              }
-            } else if (estado) {
-              clase = estado.requiereUsuario ? 'requiere-usuario' : ''
-              marca = estado.requiereUsuario ? '!' : '…'
-              detalle = estado.mensaje
-              porcentaje = estado.requiereUsuario ? null : porcentajeDeFase(estado.fase)
-              tono = estado.requiereUsuario ? 'atencion' : 'normal'
-            }
+            const guardado = resultadoDe(caso, clave, ojo)
+            const progreso = estados.find((e) => e.calculadora === clave && e.ojo === ojo)
+            const fila = estadoDeFila({
+              clave,
+              ojo,
+              ...(guardado ? { resultado: guardado } : {}),
+              ...(progreso ? { progreso } : {}),
+              ocupado,
+              tanda: corrida,
+              textoDeEstado: (estado) => textoEstado(estado as never),
+            })
+            const { clase, marca, detalle, porcentaje, tono } = fila
 
             return (
               <div className={`calc ${clase}`} key={clave} data-testid={`calc-${clave}`}>
@@ -270,13 +245,13 @@ export function PanelCalculo({
                       </span>
                     </div>
                   )}
-                  {ficha.intervencionHumana.length > 0 && !resultado && (
+                  {ficha.intervencionHumana.length > 0 && !fila.hayResultadoVigente && (
                     <div style={{ marginTop: 3, fontSize: 12 }}>
                       Puede pedirte: {ficha.intervencionHumana[0]}
                     </div>
                   )}
                 </span>
-                {resultado && resultado.estado !== 'SUCCESS' && (
+                {fila.sePuedeReintentar && (
                   <button onClick={() => onCalcular([clave])} disabled={ocupado}>
                     Reintentar
                   </button>

@@ -20,6 +20,7 @@ import { BandejaScreen } from './componentes/BandejaScreen.js'
 import { CasosGuardados } from './componentes/CasosGuardados.js'
 import { AnalisisScreen } from './componentes/AnalisisScreen.js'
 import { CargaDeDocumentos } from './componentes/BarraDeProgreso.js'
+import type { CorridaDeCalculo } from './componentes/PanelCalculo.js'
 import type { ProgresoCarga } from '../compartido/progreso.js'
 import { DashboardScreen } from './componentes/DashboardScreen.js'
 import { DoctoresScreen } from './componentes/DoctoresScreen.js'
@@ -89,6 +90,9 @@ export function App(): JSX.Element {
   // selector se enseña hasta que se añade un segundo.
   const [aparatoActivo, setAparatoActivo] = useState<string>(NOMBRE_DISPOSITIVO.IOLMASTER_700)
   const [ocupado, setOcupado] = useState(false)
+  // La tanda de cálculo en marcha: desde cuándo y con qué calculadoras. Sirve para no
+  // dar por «Completado» un resultado de una tanda ANTERIOR (21/10/2026).
+  const [corrida, setCorrida] = useState<CorridaDeCalculo | null>(null)
   // Por qué documento va la carga de fotos, para su barra de progreso (21/10/2026).
   const [progresoCarga, setProgresoCarga] = useState<ProgresoCarga | null>(null)
   useEffect(() => {
@@ -540,6 +544,11 @@ export function App(): JSX.Element {
     ) => {
       setError(null)
       setOcupado(true)
+      setCorrida({
+        desde: Date.now(),
+        ...(calculadoras ? { calculadoras } : {}),
+        ...(filtro?.ojo ? { ojo: filtro.ojo } : {}),
+      })
       setEstados((p) =>
         calculadoras ? p.filter((e) => !calculadoras.includes(e.calculadora)) : [],
       )
@@ -550,6 +559,7 @@ export function App(): JSX.Element {
         setError(e instanceof Error ? e.message : String(e))
       } finally {
         setOcupado(false)
+        setCorrida(null)
       }
     },
     [],
@@ -805,6 +815,7 @@ export function App(): JSX.Element {
                   ojo={ojoActivo}
                   estados={estados}
                   ocupado={ocupado}
+                  corrida={corrida}
                   // Por defecto, sin filtro: calcula TODO el caso (los dos
                   // ojos, todos los aparatos que ya estén confirmados) — igual
                   // que siempre. El filtro por ojo aquí es una ELECCIÓN
