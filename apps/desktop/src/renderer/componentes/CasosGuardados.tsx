@@ -36,8 +36,24 @@ function fecha(iso: string): string {
   }
 }
 
+/** Cuántos casos se enseñan por página (instrucciones del dueño, 21/10/2026). */
+export const CASOS_POR_PAGINA = 20
+
+/**
+ * Qué casos se enseñan aquí: los calculados y los que se quedaron a medias pero
+ * ya tienen los documentos leídos. Un caso que nunca pasó de «Nuevo cálculo» no
+ * tiene nada que recuperar y solo estorbaba en la lista.
+ */
+export function casosParaRevisar(
+  casos: readonly ResumenCasoGuardado[],
+): readonly ResumenCasoGuardado[] {
+  return casos.filter((c) => c.estado !== 'BORRADOR')
+}
+
 export function CasosGuardados({ onAbrir, onVolver }: Props): JSX.Element {
-  const [casos, setCasos] = useState<readonly ResumenCasoGuardado[] | null>(null)
+  const [todos, setCasos] = useState<readonly ResumenCasoGuardado[] | null>(null)
+  const casos = todos === null ? null : casosParaRevisar(todos)
+  const [pagina, setPagina] = useState(0)
   const [abriendo, setAbriendo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -70,7 +86,7 @@ export function CasosGuardados({ onAbrir, onVolver }: Props): JSX.Element {
       )}
       {casos === null && <p className="sub">Buscando…</p>}
       {casos !== null && casos.length === 0 && (
-        <p className="sub">Todavía no has guardado ningún caso.</p>
+        <p className="sub">Todavía no hay ningún caso calculado ni con documentos leídos.</p>
       )}
       {casos !== null && casos.length > 0 && (
         <table className="revision" data-testid="tabla-casos-guardados">
@@ -84,7 +100,7 @@ export function CasosGuardados({ onAbrir, onVolver }: Props): JSX.Element {
             </tr>
           </thead>
           <tbody>
-            {casos.map((c) => (
+            {casos.slice(pagina * CASOS_POR_PAGINA, (pagina + 1) * CASOS_POR_PAGINA).map((c) => (
               <tr key={c.codigo}>
                 <td>{c.codigo}</td>
                 <td>{c.nombrePaciente ?? '—'}</td>
@@ -104,6 +120,38 @@ export function CasosGuardados({ onAbrir, onVolver }: Props): JSX.Element {
             ))}
           </tbody>
         </table>
+      )}
+      {casos !== null && casos.length > CASOS_POR_PAGINA && (
+        <div
+          className="fila"
+          style={{ marginTop: 12, alignItems: 'center', gap: 12 }}
+          data-testid="paginacion-casos"
+        >
+          <button
+            className="claro"
+            onClick={() => setPagina((p) => Math.max(0, p - 1))}
+            disabled={pagina === 0}
+            aria-label="Página anterior"
+            data-testid="pagina-anterior"
+          >
+            ◀
+          </button>
+          <span className="sub">
+            Página {pagina + 1} de {Math.ceil(casos.length / CASOS_POR_PAGINA)} · {casos.length}{' '}
+            casos
+          </span>
+          <button
+            className="claro"
+            onClick={() =>
+              setPagina((p) => Math.min(Math.ceil(casos.length / CASOS_POR_PAGINA) - 1, p + 1))
+            }
+            disabled={(pagina + 1) * CASOS_POR_PAGINA >= casos.length}
+            aria-label="Página siguiente"
+            data-testid="pagina-siguiente"
+          >
+            ▶
+          </button>
+        </div>
       )}
       <div className="fila" style={{ marginTop: 14 }}>
         <button className="claro" onClick={onVolver} disabled={abriendo !== null}>

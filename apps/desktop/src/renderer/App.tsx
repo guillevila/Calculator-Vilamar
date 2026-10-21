@@ -18,6 +18,10 @@ import { api, hayApi } from './api.js'
 import type { ArchivoEntrante, EstadoCalculo, ResumenExtraccion } from '../compartido/ipc.js'
 import { BandejaScreen } from './componentes/BandejaScreen.js'
 import { CasosGuardados } from './componentes/CasosGuardados.js'
+import { AnalisisScreen } from './componentes/AnalisisScreen.js'
+import { CargaDeDocumentos } from './componentes/BarraDeProgreso.js'
+import type { CorridaDeCalculo } from './componentes/PanelCalculo.js'
+import type { ProgresoCarga } from '../compartido/progreso.js'
 import { DashboardScreen } from './componentes/DashboardScreen.js'
 import { DoctoresScreen } from './componentes/DoctoresScreen.js'
 import { LaboratoriosScreen } from './componentes/LaboratoriosScreen.js'
@@ -86,6 +90,14 @@ export function App(): JSX.Element {
   // selector se enseña hasta que se añade un segundo.
   const [aparatoActivo, setAparatoActivo] = useState<string>(NOMBRE_DISPOSITIVO.IOLMASTER_700)
   const [ocupado, setOcupado] = useState(false)
+  // La tanda de cálculo en marcha: desde cuándo y con qué calculadoras. Sirve para no
+  // dar por «Completado» un resultado de una tanda ANTERIOR (21/10/2026).
+  const [corrida, setCorrida] = useState<CorridaDeCalculo | null>(null)
+  // Por qué documento va la carga de fotos, para su barra de progreso (21/10/2026).
+  const [progresoCarga, setProgresoCarga] = useState<ProgresoCarga | null>(null)
+  useEffect(() => {
+    if (!ocupado) setProgresoCarga(null)
+  }, [ocupado])
   // Las pantallas ortogonales al caso (D80/D81/D82): agenda de doctores,
   // bandeja de casos, dashboard. Se pueden abrir desde cualquier paso, sin
   // perder dónde se estaba — por eso es un interruptor aparte y no un
@@ -94,7 +106,7 @@ export function App(): JSX.Element {
   // independientes, abrir una sin acordarse de cerrar las demás a mano
   // dejaría dos superpuestas a la vez.
   const [pantallaExtra, setPantallaExtra] = useState<
-    'DOCTORES' | 'LABORATORIOS' | 'BANDEJA' | 'DASHBOARD' | null
+    'DOCTORES' | 'LABORATORIOS' | 'BANDEJA' | 'DASHBOARD' | 'ANALISIS' | null
   >(null)
 
   const disponible = hayApi()
@@ -111,6 +123,7 @@ export function App(): JSX.Element {
         }
       })
     const bajaCaso = api().alCambiarCaso(setCaso)
+    const bajaCarga = api().alProgresarCarga(setProgresoCarga)
     const bajaProgreso = api().alProgresar((estado) => {
       setEstados((previos) => {
         const otros = previos.filter(
@@ -122,6 +135,7 @@ export function App(): JSX.Element {
     return () => {
       bajaCaso()
       bajaProgreso()
+      bajaCarga()
     }
   }, [disponible])
 
@@ -343,6 +357,15 @@ export function App(): JSX.Element {
     [refrescarAvisos],
   )
 
+  /** Desde «Análisis de resultados»: abre el caso directamente, en su resultado. */
+  const abrirCasoDesdeAnalisis = useCallback(
+    async (codigo: string) => {
+      await abrirCasoGuardado(codigo)
+      setPantallaExtra(null)
+    },
+    [abrirCasoGuardado],
+  )
+
   /** Un aviso de la bandeja que ya tenía caso: se abre igual que «Casos guardados». */
   const abrirCasoDesdeBandeja = useCallback(
     async (codigo: string) => {
@@ -521,6 +544,11 @@ export function App(): JSX.Element {
     ) => {
       setError(null)
       setOcupado(true)
+      setCorrida({
+        desde: Date.now(),
+        ...(calculadoras ? { calculadoras } : {}),
+        ...(filtro?.ojo ? { ojo: filtro.ojo } : {}),
+      })
       setEstados((p) =>
         calculadoras ? p.filter((e) => !calculadoras.includes(e.calculadora)) : [],
       )
@@ -531,6 +559,7 @@ export function App(): JSX.Element {
         setError(e instanceof Error ? e.message : String(e))
       } finally {
         setOcupado(false)
+        setCorrida(null)
       }
     },
     [],
@@ -567,6 +596,14 @@ export function App(): JSX.Element {
             data-testid="abrir-dashboard"
           >
             Dashboard
+          </button>
+          <button
+            className="boton-cabecera boton-cabecera-dashboard"
+            onClick={() => setPantallaExtra('ANALISIS')}
+            disabled={ocupado}
+            data-testid="abrir-analisis"
+          >
+            Análisis de resultados
           </button>
           <button
             className="boton-cabecera boton-cabecera-bandeja"
@@ -634,6 +671,17 @@ export function App(): JSX.Element {
         <main className="contenido">
           <div className="centrado">
             <DashboardScreen onVolver={() => setPantallaExtra(null)} />
+          </div>
+        </main>
+      )}
+
+      {pantallaExtra === 'ANALISIS' && (
+        <main className="contenido">
+          <div className="centrado">
+            <AnalisisScreen
+              onAbrirResultado={abrirCasoDesdeAnalisis}
+              onVolver={() => setPantallaExtra(null)}
+            />
           </div>
         </main>
       )}
@@ -729,15 +777,15 @@ export function App(): JSX.Element {
                 />
               )}
 
+              {ocupado && progresoCarga !== null && paso !== 'CARGANDO' && (
+                <div className="tarjeta">
+                  <CargaDeDocumentos progreso={progresoCarga} />
+                </div>
+              )}
+
               {paso === 'CARGANDO' && (
                 <div className="tarjeta">
-                  <div className="cargando">
-                    Leyendo el informe…
-                    <div className="pie-nota">
-                      Si es un documento escaneado hay que reconocer el texto, y eso tarda unos
-                      segundos.
-                    </div>
-                  </div>
+                  <CargaDeDocumentos progreso={progresoCarga} />
                 </div>
               )}
 
@@ -767,6 +815,7 @@ export function App(): JSX.Element {
                   ojo={ojoActivo}
                   estados={estados}
                   ocupado={ocupado}
+                  corrida={corrida}
                   // Por defecto, sin filtro: calcula TODO el caso (los dos
                   // ojos, todos los aparatos que ya estén confirmados) — igual
                   // que siempre. El filtro por ojo aquí es una ELECCIÓN

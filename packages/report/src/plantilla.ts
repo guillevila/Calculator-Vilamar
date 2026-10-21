@@ -1307,6 +1307,19 @@ const ESTILOS = `
   .captura { display: flex; justify-content: center; align-items: flex-start; margin-top: 10px; }
   .captura img { max-width: 100%; max-height: 210mm; object-fit: contain; border: 1px solid var(--linea); border-radius: 4px; }
   .captura-ausente { color: var(--gris); font-style: italic; margin-top: 10px; }
+  /*
+   * Dos capturas en la misma hoja (petición del dueño, 21/10/2026): las dos
+   * variantes de EVO —o de Barrett— de un mismo aparato, una al lado de otra,
+   * para que el PDF no ocupe una página por cada captura.
+   */
+  .capturas-dobles { display: flex; gap: 10px; margin-top: 10px; align-items: flex-start; }
+  .captura-doble { flex: 1 1 0; min-width: 0; }
+  .captura-doble .rotulo-captura {
+    background: var(--azul); color: #fff; font-weight: 700; font-size: 10.5pt;
+    text-align: center; padding: 5px 8px; border-radius: 4px;
+  }
+  .captura-doble .captura img { max-height: 170mm; }
+  .captura-doble .lente-recomendada { margin-top: 8px; font-size: 9.5pt; }
   .lente-recomendada { margin-top: 16px; font-size: 11pt; text-align: center; }
   .lente-recomendada strong { font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace; }
   .no-vinculante { font-size: 8.5pt; color: var(--gris); font-style: italic; }
@@ -1734,6 +1747,68 @@ function hojaResumenFinal(
   }
 }
 
+type GrupoDeHoja = readonly [ResultadoInforme, ...ResultadoInforme[]]
+
+/**
+ * Qué casillas comparten hoja (petición del dueño, 21/10/2026): las dos
+ * variantes de EVO de un mismo ojo y aparato van juntas, y lo mismo las dos de
+ * Barrett. Lo demás (Kane, Barrett True-K…) sigue siendo una hoja por casilla.
+ * Si de una familia solo hay una casilla, su hoja es la de siempre. El orden es
+ * el de la primera casilla de cada hoja, así que no cambia el de las hojas.
+ */
+function agruparEnHojas(resultados: readonly ResultadoInforme[]): GrupoDeHoja[] {
+  const familia = (c: Calculadora): string | undefined =>
+    c === 'EVO_TORIC' || c === 'EVO_TORIC_SIN_CARA_POSTERIOR'
+      ? 'EVO'
+      : c === 'BARRETT_TORIC' || c === 'BARRETT_TORIC_CON_CARA_POSTERIOR'
+        ? 'BARRETT'
+        : undefined
+  const grupos: ResultadoInforme[][] = []
+  const porClave = new Map<string, ResultadoInforme[]>()
+  for (const r of resultados) {
+    const f = familia(r.calculadora)
+    const clave = f === undefined ? undefined : `${r.ojo}|${r.aparato}|${f}`
+    const existente = clave === undefined ? undefined : porClave.get(clave)
+    if (existente) {
+      existente.push(r)
+      continue
+    }
+    const nuevo = [r]
+    grupos.push(nuevo)
+    if (clave !== undefined) porClave.set(clave, nuevo)
+  }
+  return grupos as unknown as GrupoDeHoja[]
+}
+
+/** La hoja con varias capturas de la misma familia, una al lado de otra. */
+function hojaDeGrupo(caso: Caso, grupo: GrupoDeHoja, incluirEstimacionCompleta: boolean): Hoja {
+  const primera = grupo[0]
+  const variosAparatos = datasetsActivosDe(caso, primera.ojo).length > 1
+  const familia = primera.calculadora.startsWith('EVO') ? 'EVO Toric' : 'Barrett Toric'
+  const columnas = grupo
+    .map((r) => {
+      const nombre = tituloCalculadoraInforme(r.calculadora, true)
+      const contenido =
+        r.fallo !== undefined
+          ? `<p class="captura-ausente">${esc(r.fallo)}</p>`
+          : `${
+              r.dataUri
+                ? `<div class="captura"><img src="${esc(r.dataUri)}" alt="Captura de ${esc(nombre)}, ${esc(r.ojo)}"></div>`
+                : `<p class="captura-ausente">No se pudo guardar la captura de pantalla de este resultado.</p>`
+            }${incluirEstimacionCompleta ? lenteRecomendadaTexto(r.recomendada) : ''}`
+      return `<div class="captura-doble"><div class="rotulo-captura">${esc(nombre)}</div>${contenido}</div>`
+    })
+    .join('')
+  return {
+    ...(variosAparatos ? { aparatoDestacado: primera.aparato } : {}),
+    titulo: familia,
+    apunte: 'Capturas de pantalla · tal cual las devolvió la web, sin recortar',
+    refExtra: ` · ${primera.ojo}`,
+    cuerpo: `<div class="capturas-dobles">${columnas}</div>`,
+    pie: `Capturas sin editar de las pantallas de resultado de ${esc(familia)}.`,
+  }
+}
+
 /**
  * El informe simplificado: una hoja por casilla intentada, y nada más.
  *
@@ -1805,7 +1880,9 @@ export function generarHtmlInforme(datos: DatosInforme): string {
             pie: 'Genera el informe después de calcular con al menos una calculadora.',
           },
         ]
-      : datos.resultados.map((r) => {
+      : agruparEnHojas(datos.resultados).map((grupo) => {
+          if (grupo.length > 1) return hojaDeGrupo(caso, grupo, incluirEstimacionCompleta)
+          const [r] = grupo
           // Aparato a aparato (petición expresa del dueño, 27/08/2026): las
           // hojas ya llegan en ese orden desde `recopilarResultadosParaInforme`
           // — aquí solo se decide si hace falta la banda grande del aparato,

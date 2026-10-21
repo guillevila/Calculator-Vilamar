@@ -592,6 +592,12 @@ test('reabrir un caso guardado tras haber renombrado su aparato: la pantalla no 
   const codigo = antesDeCerrar?.codigo
   expect(antesDeCerrar?.ojos?.OD?.[0]?.aparato).toBe('Heidelberg ANTERION')
 
+  // «Casos guardados» solo enseña los calculados o los que ya tienen los datos
+  // leídos (21/10/2026): un caso recién creado y sin confirmar no sale. Se
+  // confirma para que cuente como «a medias».
+  await ventana.getByTestId('manual-continuar').click()
+  await ventana.getByTestId('confirmar').click()
+
   // Se cierra el caso (como reiniciar la aplicación) y se reabre desde
   // «Casos guardados» — igual que la prueba ya existente de esa pantalla,
   // pero esta vez el aparato del dataset NO es el que arranca por defecto.
@@ -1227,6 +1233,10 @@ test('un caso guardado se puede volver a abrir, con sus datos intactos', async (
   await ventana.getByTestId('manual-campo-AL').press('Tab')
   await ventana.getByTestId('manual-continuar').click()
 
+  // Un caso sin confirmar todavía es un borrador: «Casos guardados» no lo
+  // enseña (21/10/2026). Se confirma para que cuente como «a medias».
+  await ventana.getByTestId('confirmar').click()
+
   const creado = await ventana.evaluate(() => window.vilamar?.casoActual())
   const codigo = creado?.codigo
   expect(codigo).toBeTruthy()
@@ -1238,12 +1248,9 @@ test('un caso guardado se puede volver a abrir, con sus datos intactos', async (
   await ventana.getByTestId('tarjeta-casos-guardados').getByRole('button').click()
   await expect(ventana.getByTestId('tabla-casos-guardados')).toBeVisible()
 
-  // Escribir datos y pulsar «Continuar» no confirma el caso —eso es una
-  // acción explícita, en la revisión— así que el estado sigue siendo el de
-  // un caso recién creado.
   const fila = ventana.locator('tr', { hasText: codigo ?? '' })
   await expect(fila).toContainText('Paciente Casos Guardados')
-  await expect(fila).toContainText('Nuevo cálculo')
+  await expect(fila).toContainText('Datos confirmados')
   await fila.getByRole('button', { name: 'Abrir' }).click()
 
   // Aterriza en revisión, con el dato tal cual se dejó.
@@ -2477,4 +2484,125 @@ K2            42.52 D @ 85</pre>
   await ventana.getByTestId('campo-ACD').press('Tab')
   await expect(filaAcd).not.toHaveClass(/falta/)
   await expect(filaAcd).toHaveClass(/obligatorio/)
+})
+
+/**
+ * Instrucciones del dueño (21/10/2026): «Casos guardados» ya no enseña los casos
+ * que nunca pasaron de «Nuevo cálculo» —solo los calculados o los que se
+ * quedaron a medias con los datos leídos—.
+ */
+test('«Casos guardados» no enseña un caso que nunca pasó de «Nuevo cálculo»', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByLabel('Nombre del paciente').fill('Paciente Borrador E2E')
+  await ventana.getByTestId('manual-campo-AL').fill('23.10')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  const creado = await ventana.evaluate(() => window.vilamar?.casoActual())
+  const codigo = creado?.codigo ?? ''
+  expect(codigo).not.toBe('')
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByTestId('tarjeta-casos-guardados').getByRole('button').click()
+  await expect(ventana.getByRole('heading', { name: 'Casos guardados' })).toBeVisible()
+  await expect(ventana.locator('tr', { hasText: codigo })).toHaveCount(0)
+})
+
+test('«Análisis de resultados»: se abre, filtra y lleva directamente al caso', async () => {
+  test.setTimeout(180_000)
+
+  // Un caso confirmado (a medias, con datos leídos) que el análisis ofrece
+  // si se marca «Incluir los que quedaron a medias».
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByLabel('Nombre del doctor').fill('Dra. Análisis E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Paciente Análisis E2E')
+  await ventana.getByTestId('manual-campo-AL').fill('23.40')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-continuar').click()
+  await ventana.getByTestId('confirmar').click()
+  const creado = await ventana.evaluate(() => window.vilamar?.casoActual())
+  const codigo = creado?.codigo ?? ''
+  expect(codigo).not.toBe('')
+
+  await ventana.getByTestId('abrir-analisis').click()
+  await expect(ventana.getByTestId('pantalla-analisis')).toBeVisible()
+  await expect(ventana.getByTestId('analisis-resumen')).toBeVisible()
+
+  // Por defecto solo los terminados: este caso no sale.
+  await expect(ventana.getByTestId(`analisis-abrir-${codigo}`)).toHaveCount(0)
+
+  await ventana.getByTestId('analisis-a-medias').check()
+  await ventana.getByTestId('analisis-texto').fill('Análisis E2E')
+  await expect(ventana.getByTestId(`analisis-abrir-${codigo}`)).toBeVisible()
+  await expect(ventana.getByTestId('analisis-excel-estudio')).toBeEnabled()
+
+  // Un doctor que no existe → ningún caso.
+  await ventana.getByTestId('analisis-texto').fill('no-existe-este-texto')
+  await expect(ventana.getByTestId('analisis-vacio')).toBeVisible()
+  await ventana.getByTestId('analisis-limpiar').click()
+
+  await ventana.getByTestId('analisis-a-medias').check()
+  await ventana.getByTestId('analisis-texto').fill(codigo)
+  await ventana.getByTestId(`analisis-abrir-${codigo}`).click()
+
+  // Y aterriza en el caso, con su dato.
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('23.4')
+  const abierto = await ventana.evaluate(() => window.vilamar?.casoActual())
+  expect(abierto?.codigo).toBe(codigo)
+})
+
+/**
+ * Barras de progreso (21/10/2026, petición del dueño): una por calculadora al
+ * calcular, y una al cargar fotos. Aquí se mandan los mismos avisos que manda el
+ * proceso principal y se comprueba lo que se ve.
+ */
+test('cada calculadora enseña su barra de progreso y pone «Completado» al terminar', async () => {
+  test.setTimeout(120_000)
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByLabel('Nombre del doctor').fill('Dra. Barras E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Paciente Barras E2E')
+  await ventana.getByTestId('manual-campo-AL').fill('23.60')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-continuar').click()
+  await ventana.getByTestId('confirmar').click()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
+
+  const mandar = (canal: string, datos: unknown): Promise<void> =>
+    app.evaluate(
+      ({ BrowserWindow }, [c, d]) => {
+        BrowserWindow.getAllWindows()[0]?.webContents.send(c as string, d)
+      },
+      [canal, datos],
+    )
+
+  await mandar('vilamar:progreso', {
+    calculadora: 'EVO_TORIC_SIN_CARA_POSTERIOR',
+    ojo: 'OD',
+    fase: 'CALCULANDO',
+    mensaje: 'Calculando en EVO…',
+    requiereUsuario: false,
+  })
+  await expect(ventana.getByTestId('porcentaje-EVO_TORIC_SIN_CARA_POSTERIOR')).toHaveText('65 %')
+
+  await mandar('vilamar:progreso', {
+    calculadora: 'EVO_TORIC_SIN_CARA_POSTERIOR',
+    ojo: 'OD',
+    fase: 'LEYENDO_RESULTADO',
+    mensaje: 'Leyendo el resultado…',
+    requiereUsuario: false,
+  })
+  await expect(ventana.getByTestId('porcentaje-EVO_TORIC_SIN_CARA_POSTERIOR')).toHaveText('85 %')
+
+  // Kane espera a la persona: barra sin cifra.
+  await mandar('vilamar:progreso', {
+    calculadora: 'KANE',
+    ojo: 'OD',
+    fase: 'ESPERANDO_AL_USUARIO',
+    mensaje: 'Acepta las condiciones de Kane',
+    requiereUsuario: true,
+  })
+  await expect(ventana.getByTestId('porcentaje-KANE')).toHaveText('esperando')
+  await ventana.screenshot({ path: 'test-results/barras-calculo.png', fullPage: true })
 })

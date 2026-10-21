@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { casoNuevo } from '../modelo/caso.js'
+import { casoNuevo, claveResultado } from '../modelo/caso.js'
 import type { Caso } from '../modelo/caso.js'
 import { calcularResumenDashboard, casosCalculadosDeDoctor } from './dashboard.js'
 
@@ -247,5 +247,43 @@ describe('casosCalculadosDeDoctor', () => {
       rango: { desde: '2026-09-01', hasta: '2026-09-30' },
     })
     expect(resultado.map((c) => c.id)).toEqual(['1'])
+  })
+})
+
+describe('el dashboard cuenta ojos, no casos (21/10/2026)', () => {
+  function conResultados(
+    id: string,
+    ojos: readonly ('OD' | 'OS')[],
+    datos: Partial<Caso> = {},
+  ): Caso {
+    const resultados: Record<string, unknown> = {}
+    for (const ojo of ojos) {
+      resultados[claveResultado('KANE', ojo, 'Principal')] = {
+        calculadora: 'KANE',
+        ojo,
+        estado: 'SUCCESS',
+        obtenidoEn: CUANDO,
+        opciones: [],
+      } as never
+    }
+    return casoCompletado(id, {
+      lente: { modelo: 'LuxSmart' },
+      resultados: resultados as Caso['resultados'],
+      ...datos,
+    })
+  }
+
+  it('un paciente con los dos ojos calculados cuenta dos', () => {
+    const resumen = calcularResumenDashboard([
+      conResultados('1', ['OD', 'OS'], { nombreCirujano: 'Dra. López' }),
+      conResultados('2', ['OD'], { nombreCirujano: 'Dra. López' }),
+    ])
+    expect(resumen.totalCalculados).toBe(3)
+    expect(resumen.porDoctor).toEqual([{ etiqueta: 'Dra. López', cantidad: 3 }])
+    expect(resumen.porModeloLente).toEqual([{ etiqueta: 'LuxSmart', cantidad: 3 }])
+  })
+
+  it('un caso con resultados de un solo ojo cuenta uno', () => {
+    expect(calcularResumenDashboard([conResultados('1', ['OS'])]).totalCalculados).toBe(1)
   })
 })

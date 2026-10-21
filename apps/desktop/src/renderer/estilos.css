@@ -1247,3 +1247,63 @@ table.opciones tbody tr.elegida-cilindro .na {
   color: var(--rojo);
   font-weight: 700;
 }
+
+/* ── Barras de progreso (21/10/2026): carga de fotos y cada calculadora ──── */
+.barra-progreso {
+  flex: 1;
+  height: 10px;
+  background: var(--gris-claro, #e8ecf1);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.barra-progreso > span {
+  display: block;
+  height: 100%;
+  background: var(--azul);
+  border-radius: 6px;
+  transition: width 0.5s ease;
+}
+.barra-progreso.exito > span {
+  background: var(--verde);
+}
+.barra-progreso.atencion > span {
+  background: var(--ambar);
+}
+.barra-progreso.indeterminada > span {
+  animation: barra-indeterminada 1.4s ease-in-out infinite;
+}
+@keyframes barra-indeterminada {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+.calc-progreso {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.calc-porcentaje {
+  min-width: 64px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 600;
+}
+.carga-documentos {
+  padding: 28px 24px;
+}
+.carga-cabecera {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+.carga-documentos .barra-progreso {
+  height: 14px;
+}
+.carga-documentos .pie-nota {
+  margin-top: 8px;
+}
