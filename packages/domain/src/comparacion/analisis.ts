@@ -109,6 +109,48 @@ function entra(caso: Caso, incluirAMedias: boolean, excluidos: ReadonlySet<strin
   return incluirAMedias && caso.estado !== 'BORRADOR'
 }
 
+/** Los casos que cumplen el filtro (sobre casos que ya pueden analizarse). */
+function aplicarFiltro(candidatos: readonly Caso[], filtro: FiltroAnalisis): readonly Caso[] {
+  const texto = filtro.texto ? normalizar(filtro.texto) : ''
+  return candidatos.filter((c) => {
+    if (filtro.rango && !dentroDelRango(c.actualizadoEn, filtro.rango)) return false
+    if (filtro.doctor && etiquetaDoctor(c).toLowerCase() !== filtro.doctor.trim().toLowerCase()) {
+      return false
+    }
+    if (filtro.lente && claveDeLenteParaAgrupar(c.lente) !== filtro.lente) return false
+    if (filtro.ojo && !ojosDelAnalisis(c).includes(filtro.ojo)) return false
+    if (
+      filtro.calculadora &&
+      !resultadosUtiles(c).some(
+        (r) => r.calculadora === filtro.calculadora && (!filtro.ojo || r.ojo === filtro.ojo),
+      )
+    ) {
+      return false
+    }
+    if (texto !== '') {
+      const pajar = normalizar(`${c.codigo} ${c.nombrePaciente ?? ''}`)
+      if (!pajar.includes(texto)) return false
+    }
+    return true
+  })
+}
+
+/**
+ * Los casos que ve el análisis con este filtro —los mismos que enseña la lista—,
+ * para quien necesita más datos de cada uno (el Excel de estudio).
+ */
+export function casosDelAnalisis(
+  casos: readonly Caso[],
+  filtro: FiltroAnalisis = {},
+  doctoresExcluidos: readonly string[] = [],
+): readonly Caso[] {
+  const excluidos = new Set(doctoresExcluidos.map((d) => d.trim().toLowerCase()))
+  return aplicarFiltro(
+    casos.filter((c) => entra(c, filtro.incluirAMedias === true, excluidos)),
+    filtro,
+  )
+}
+
 export function analizarCasos(
   casos: readonly Caso[],
   filtro: FiltroAnalisis = {},
@@ -139,28 +181,7 @@ export function analizarCasos(
       .sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, 'es')),
   }
 
-  const texto = filtro.texto ? normalizar(filtro.texto) : ''
-  const elegidos = candidatos.filter((c) => {
-    if (filtro.rango && !dentroDelRango(c.actualizadoEn, filtro.rango)) return false
-    if (filtro.doctor && etiquetaDoctor(c).toLowerCase() !== filtro.doctor.trim().toLowerCase()) {
-      return false
-    }
-    if (filtro.lente && claveDeLenteParaAgrupar(c.lente) !== filtro.lente) return false
-    if (filtro.ojo && !ojosDelAnalisis(c).includes(filtro.ojo)) return false
-    if (
-      filtro.calculadora &&
-      !resultadosUtiles(c).some(
-        (r) => r.calculadora === filtro.calculadora && (!filtro.ojo || r.ojo === filtro.ojo),
-      )
-    ) {
-      return false
-    }
-    if (texto !== '') {
-      const pajar = normalizar(`${c.codigo} ${c.nombrePaciente ?? ''}`)
-      if (!pajar.includes(texto)) return false
-    }
-    return true
-  })
+  const elegidos = aplicarFiltro(candidatos, filtro)
 
   const filas: FilaAnalisis[] = elegidos
     .map((c) => ({

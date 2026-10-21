@@ -26,6 +26,7 @@ const api: ApiVilamar = {
   resumenDashboard: (rango) => ipcRenderer.invoke(CANALES.resumenDashboard, rango),
   analizarCasos: (filtro) => ipcRenderer.invoke(CANALES.analizarCasos, filtro),
   exportarAnalisis: (filtro) => ipcRenderer.invoke(CANALES.exportarAnalisis, filtro),
+  exportarEstudioExcel: (filtro) => ipcRenderer.invoke(CANALES.exportarEstudioExcel, filtro),
   listarDoctoresExcluidosDeEstadisticas: () =>
     ipcRenderer.invoke(CANALES.listarDoctoresExcluidosDeEstadisticas),
   excluirDoctorDeEstadisticas: (nombre) =>

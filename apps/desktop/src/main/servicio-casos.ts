@@ -44,6 +44,7 @@ import {
   aparatosDe,
   analizarCasos,
   calcularResumenDashboard,
+  filasDeEstudio,
   NOMBRE_ESTADO,
   CARPETA_IMPORTADAS,
   casosCalculadosDeDoctor,
@@ -113,6 +114,7 @@ import type {
   ResumenExtraccion,
 } from '../compartido/ipc.js'
 import type { ProgresoCarga } from '../compartido/progreso.js'
+import { descripcionDeFiltro, libroDeEstudio } from './estudio-excel.js'
 import type { Carpetas } from './almacen.js'
 import {
   guardarCaso,
@@ -403,6 +405,35 @@ export class ServicioCasos {
    */
   analizarCasos(filtro: FiltroAnalisis): ResultadoAnalisis {
     return analizarCasos(this.casosGuardados(), filtro, leerDoctoresExcluidos(this.dep.carpetas))
+  }
+
+  /**
+   * El Excel de estudio de esa búsqueda (instrucciones del dueño, 21/10/2026):
+   * una fila por caso, ojo y aparato, con el preoperatorio y la lente de cada
+   * calculadora (`libroDeEstudio`). Lleva el nombre del paciente, porque así lo
+   * pidió el dueño; la hoja de notas del propio Excel lo avisa. Si no hay ninguna
+   * fila, no se crea nada y se dice por qué.
+   */
+  async exportarEstudioExcel(
+    filtro: FiltroAnalisis,
+    elegirDestino: (nombreSugerido: string) => Promise<string | null>,
+  ): Promise<{ ruta: string; filas: number } | null> {
+    const casos = this.casosGuardados()
+    const excluidos = leerDoctoresExcluidos(this.dep.carpetas)
+    const filas = filasDeEstudio(casos, filtro, excluidos)
+    if (filas.length === 0) {
+      throw new Error('Con estos filtros no hay ninguna fila que guardar en el Excel.')
+    }
+    const destino = await elegirDestino(
+      `estudio_${this.iso().replace(/[:.]/g, '-').slice(0, 10)}.xlsx`,
+    )
+    if (destino === null) return null
+    const descripcion = descripcionDeFiltro(
+      filtro,
+      analizarCasos(casos, filtro, excluidos).opciones,
+    )
+    writeFileSync(destino, libroDeEstudio(filas, descripcion, this.iso()))
+    return { ruta: destino, filas: filas.length }
   }
 
   /**

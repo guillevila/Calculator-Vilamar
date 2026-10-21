@@ -107,6 +107,14 @@ export interface ApiVilamar {
    * trae el código para abrir el caso directamente en su resultado.
    */
   readonly analizarCasos: (filtro: FiltroAnalisis) => Promise<ResultadoAnalisis>
+  /**
+   * Crea un Excel de estudio con los casos de esa búsqueda: una fila por caso, ojo
+   * y aparato, con la biometría preoperatoria y la lente de cada calculadora. Abre
+   * el cuadro «Guardar como»; `null` si se cancela.
+   */
+  readonly exportarEstudioExcel: (
+    filtro: FiltroAnalisis,
+  ) => Promise<{ readonly ruta: string; readonly filas: number } | null>
   /** Guarda esa misma búsqueda en un CSV (cuadro «Guardar como»); `null` si se cancela. */
   readonly exportarAnalisis: (filtro: FiltroAnalisis) => Promise<{ readonly ruta: string } | null>
   /** Doctores excluidos del dashboard (D83, 16/09/2026) — pruebas o errores, sin borrar el caso. */
@@ -552,6 +560,7 @@ export const CANALES = {
   generarPdfPantalla: 'vilamar:generar-pdf-pantalla',
   analizarCasos: 'vilamar:analizar-casos',
   exportarAnalisis: 'vilamar:exportar-analisis',
+  exportarEstudioExcel: 'vilamar:exportar-estudio-excel',
   guardarPdfDeOjo: 'vilamar:guardar-pdf-de-ojo',
   abrirCarpetaInformes: 'vilamar:abrir-carpeta-informes',
   progreso: 'vilamar:progreso',

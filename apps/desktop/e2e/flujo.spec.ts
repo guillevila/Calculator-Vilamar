@@ -2534,6 +2534,7 @@ test('«Análisis de resultados»: se abre, filtra y lleva directamente al caso'
   await ventana.getByTestId('analisis-a-medias').check()
   await ventana.getByTestId('analisis-texto').fill('Análisis E2E')
   await expect(ventana.getByTestId(`analisis-abrir-${codigo}`)).toBeVisible()
+  await expect(ventana.getByTestId('analisis-excel-estudio')).toBeEnabled()
 
   // Un doctor que no existe → ningún caso.
   await ventana.getByTestId('analisis-texto').fill('no-existe-este-texto')

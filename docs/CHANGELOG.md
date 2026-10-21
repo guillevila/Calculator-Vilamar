@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.94] — 21/10/2026 (versión visible en pantalla: v1.45)
+
+feat(app): «Crear Excel de estudio» desde «Análisis de resultados» (D137)
+
+Petición del dueño, con la plantilla «LuxLife Experience Tracker» como ejemplo de estilo. Con la búsqueda que esté puesta (fechas, doctor, lente, ojo, calculadora, texto, casos a medias) se crea un .xlsx con una fila por caso, ojo y aparato: paciente, nº de caso, fecha, doctor, ojo, aparato y, dentro del campo PREOPERATORIO, la biometría de ese aparato (longitud axial, K1 y eje, K2 y eje, ACD), el tipo de lente y, por cada calculadora con resultado, potencia esférica, potencia cilíndrica, eje, residual esférico y residual cilíndrico. Colores de la plantilla (azul petróleo y celeste) y de cada calculadora, cabeceras en dos niveles, filas alternas, formatos de número, panel y filtros inmovilizados, y una hoja de notas que explica la búsqueda y cada columna. Un dato que falta queda vacío. Sin dependencias nuevas: el escritor de .xlsx va dentro de la aplicación.
+
+---
+
 ## [1.15.93] — 21/10/2026 (versión visible en pantalla: v1.44)
 
 feat(app): barra de progreso al cargar las fotos y una por calculadora al calcular, con «Completado» al terminar (D136)

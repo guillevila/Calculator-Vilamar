@@ -62,6 +62,7 @@ export function AnalisisScreen({ onAbrirResultado, onVolver }: Props): JSX.Eleme
   const [pagina, setPagina] = useState(0)
   const [abriendo, setAbriendo] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  const [creandoExcel, setCreandoExcel] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const filtro: FiltroAnalisis = {
@@ -114,6 +115,20 @@ export function AnalisisScreen({ onAbrirResultado, onVolver }: Props): JSX.Eleme
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setAbriendo(null)
+    }
+  }
+
+  async function crearExcelDeEstudio(): Promise<void> {
+    setError(null)
+    setAviso(null)
+    setCreandoExcel(true)
+    try {
+      const r = await api().exportarEstudioExcel(filtro)
+      if (r) setAviso(`Excel de estudio guardado (${r.filas} filas) en ${r.ruta}`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setCreandoExcel(false)
     }
   }
 
@@ -410,6 +425,15 @@ export function AnalisisScreen({ onAbrirResultado, onVolver }: Props): JSX.Eleme
       <div className="fila" style={{ marginTop: 14, gap: 10 }}>
         <button className="claro" onClick={onVolver} disabled={abriendo !== null}>
           Volver
+        </button>
+        <button
+          className="principal"
+          onClick={() => void crearExcelDeEstudio()}
+          disabled={filas.length === 0 || creandoExcel}
+          data-testid="analisis-excel-estudio"
+          title="Crea un Excel con los casos de esta búsqueda: paciente, nº de caso, fecha, biometría preoperatoria de cada aparato y la lente de cada calculadora"
+        >
+          {creandoExcel ? 'Creando Excel…' : 'Crear Excel de estudio'}
         </button>
         <button
           onClick={() => void exportar()}
