@@ -35,7 +35,7 @@ import {
 } from '@vilamar/domain'
 
 import type { EstadoCalculo } from '../../compartido/ipc.js'
-import { estadoDeFila } from '../../compartido/progreso.js'
+import { combinarResultados, estadoDeFila } from '../../compartido/progreso.js'
 import type { TandaEnMarcha } from '../../compartido/progreso.js'
 import { BarraDeProgreso } from './BarraDeProgreso.js'
 
@@ -175,7 +175,13 @@ export function PanelCalculo({
   onVerResultados,
   onVolverARevisar,
 }: Props): JSX.Element {
-  const hayAlguno = ORDEN.some((c) => resultadoDe(caso, c, ojo) !== undefined)
+  // «Ya hay algo calculado»: en cualquier aparato activo del ojo, no solo el «Principal».
+  const aparatosDelOjo = datasetsActivosDe(caso, ojo).map((d) => d.aparato)
+  const hayAlguno = ORDEN.some((c) =>
+    (aparatosDelOjo.length > 0 ? aparatosDelOjo : [undefined]).some(
+      (a) => resultadoDe(caso, c, ojo, a) !== undefined,
+    ),
+  )
   const requiereUsuario = estados.filter((e) => e.requiereUsuario)
 
   const [seleccionadas, setSeleccionadas] = useState<readonly Calculadora[]>(SELECCION_POR_DEFECTO)
@@ -214,7 +220,13 @@ export function PanelCalculo({
         <div className="calculadoras">
           {ORDEN.map((clave) => {
             const ficha = fichaDe(clave)
-            const guardado = resultadoDe(caso, clave, ojo)
+            // Todos los aparatos activos del ojo, no solo el «Principal» (21/10/2026).
+            const aparatos = datasetsActivosDe(caso, ojo).map((d) => d.aparato)
+            const guardado = combinarResultados(
+              (aparatos.length > 0 ? aparatos : [undefined]).map((a) =>
+                resultadoDe(caso, clave, ojo, a),
+              ),
+            )
             const progreso = estados.find((e) => e.calculadora === clave && e.ojo === ojo)
             const fila = estadoDeFila({
               clave,

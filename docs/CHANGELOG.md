@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.96] — 21/10/2026 (versión visible en pantalla: v1.47)
+
+fix(app): las barras de «Calcular» llegan al 100 % y ponen «Completado» en cuanto cada calculadora termina (D136)
+
+Observación del dueño con la v1.46: las barras avanzaban bien, pero al llegar al 85 % se paraban aunque la web ya hubiera acabado y nunca llegaban al 100 %; de golpe aparecían todos los resultados. Causa real (no era «solo falta ponerlo en el PDF»): la pantalla de «Calcular» buscaba el resultado únicamente bajo el aparato «Principal», y un caso con el aparato con su nombre real («ZEISS IOLMaster 700»…) nunca lo encontraba hasta que la aplicación saltaba sola a los resultados. Ahora cada fila mira todos los aparatos activos del ojo: pasa a «Completado» cuando todos tienen su resultado de esta tanda, y basta uno pendiente o de la tanda anterior para que siga en marcha. También el botón «Ver los resultados que ya hay» usa todos los aparatos.
+
+---
+
 ## [1.15.95] — 21/10/2026 (versión visible en pantalla: v1.46)
 
 fix(app): las barras de «Calcular» ya no dan por «Completado» el resultado de una tanda anterior (D136)

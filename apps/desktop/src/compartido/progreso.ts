@@ -75,6 +75,36 @@ export function porcentajeDeFase(fase: string): number | null {
 
 // ── Una fila de «Calcular» ──────────────────────────────────────────────────
 
+type ResultadoDeFila = NonNullable<EntradaDeFila['resultado']>
+
+/**
+ * Junta los resultados de UNA calculadora y ojo en todos los aparatos activos (una
+ * fila de «Calcular» es por calculadora, no por aparato — 21/10/2026: antes se
+ * miraba solo el aparato «Principal», y un caso con el aparato con nombre real
+ * nunca encontraba su resultado hasta el final: las barras se quedaban en el 85 %).
+ *
+ *  - Si a algún aparato todavía le falta el resultado, no hay resultado: la fila
+ *    sigue en marcha.
+ *  - Si están todos, el estado es el del primero que no sea un éxito (o éxito si
+ *    todos lo son) y la hora es la del MÁS ANTIGUO: basta uno de la tanda anterior
+ *    para que la fila no se dé por terminada.
+ */
+export function combinarResultados(
+  lista: readonly (ResultadoDeFila | undefined)[],
+): ResultadoDeFila | undefined {
+  if (lista.length === 0 || lista.some((r) => r === undefined)) return undefined
+  const todos = lista as readonly ResultadoDeFila[]
+  const peor = todos.find((r) => r.estado !== 'SUCCESS')
+  const masAntiguo = todos.reduce((a, b) =>
+    Date.parse(b.obtenidoEn) < Date.parse(a.obtenidoEn) ? b : a,
+  )
+  return {
+    estado: peor?.estado ?? 'SUCCESS',
+    ...(peor?.mensaje !== undefined ? { mensaje: peor.mensaje } : {}),
+    obtenidoEn: masAntiguo.obtenidoEn,
+  }
+}
+
 /** La tanda de cálculo en marcha: desde cuándo y con qué calculadoras y ojo. */
 export interface TandaEnMarcha {
   readonly desde: number

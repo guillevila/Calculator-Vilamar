@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  combinarResultados,
   estadoDeFila,
   porcentajeDeCarga,
   porcentajeDeFase,
@@ -122,5 +123,49 @@ describe('estadoDeFila — no dar por completado un resultado de la tanda anteri
     })
     expect(f.porcentaje).toBeNull()
     expect(f.tono).toBe('atencion')
+  })
+})
+
+describe('combinarResultados — todos los aparatos de un ojo, no solo el «Principal»', () => {
+  const ok = (obtenidoEn: string) => ({ estado: 'SUCCESS', obtenidoEn })
+
+  it('sin resultado en algún aparato, no hay resultado: la fila sigue en marcha', () => {
+    expect(combinarResultados([ok('2026-10-21T22:00:00.000Z'), undefined])).toBeUndefined()
+    expect(combinarResultados([])).toBeUndefined()
+  })
+
+  it('todos con éxito: éxito, con la hora del más antiguo', () => {
+    expect(
+      combinarResultados([ok('2026-10-21T22:05:00.000Z'), ok('2026-10-21T22:01:00.000Z')]),
+    ).toEqual({ estado: 'SUCCESS', obtenidoEn: '2026-10-21T22:01:00.000Z' })
+  })
+
+  it('basta un fallo para que el conjunto no sea un éxito, con su mensaje', () => {
+    const r = combinarResultados([
+      ok('2026-10-21T22:00:00.000Z'),
+      {
+        estado: 'EXTERNAL_ERROR',
+        mensaje: 'La web no respondió',
+        obtenidoEn: '2026-10-21T22:00:00.000Z',
+      },
+    ])
+    expect(r).toMatchObject({ estado: 'EXTERNAL_ERROR', mensaje: 'La web no respondió' })
+  })
+
+  it('un aparato con el resultado de la tanda anterior mantiene la fila sin terminar', () => {
+    const tanda = { desde: Date.parse('2026-10-21T22:03:00.000Z') }
+    const juntos = combinarResultados([
+      ok('2026-10-21T22:05:00.000Z'),
+      ok('2026-10-21T22:00:00.000Z'),
+    ])
+    const f = estadoDeFila({
+      clave: 'KANE',
+      ojo: 'OD',
+      ocupado: true,
+      tanda,
+      textoDeEstado: (e) => e,
+      ...(juntos ? { resultado: juntos } : {}),
+    })
+    expect(f.detalle).toBe('En cola')
   })
 })
