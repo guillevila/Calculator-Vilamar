@@ -10,7 +10,7 @@
  * completa cada tarea que se le pida sin tocar ninguna web, para poder
  * comprobar `generarPdf()` sin depender de una calculadora externa.
  */
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -640,5 +640,97 @@ describe('generarPdfPantalla — el PDF de la pantalla de resultados (D129, 20/1
     servicio.nuevo()
     await expect(servicio.generarPdfPantalla({ ojo: 'OD', html: '   ' })).rejects.toThrow(/vacía/)
     expect(imprimirPdf).not.toHaveBeenCalled()
+  })
+})
+
+describe('guardarPdfDeOjo — el PDF de un ojo donde la persona elija (21/10/2026)', () => {
+  function casoCalculado(): {
+    servicio: InstanceType<typeof ServicioCasos>
+    carpetas: ReturnType<typeof prepararCarpetas>
+  } {
+    const r = servicioDePrueba()
+    r.servicio.nuevo()
+    r.servicio.establecerIdentificacion({
+      nombrePaciente: 'Paciente De Prueba',
+      nombreCirujano: 'Dra. Prueba',
+    })
+    r.servicio.editarMedida('OD', 'AL', 24.0)
+    r.servicio.editarMedida('OS', 'AL', 24.3)
+    return r
+  }
+  const OPC = (ojo: 'OD' | 'OS') => ({
+    ojo,
+    incluirEstimacionCompleta: false,
+    incluirTablaComparativaDetallada: false,
+  })
+
+  it('imprime en la ruta elegida y ofrece un nombre con el código y el ojo', async () => {
+    const { servicio } = casoCalculado()
+    await servicio.calcular(['KANE'])
+    const destino = join(raizTemporal(), 'temporal.pdf')
+    let sugerido = ''
+    const r = await servicio.guardarPdfDeOjo(OPC('OS'), (nombre) => {
+      sugerido = nombre
+      return Promise.resolve(destino)
+    })
+    expect(r).toEqual({ ruta: destino })
+    expect(sugerido).toMatch(/^CV-.*_OS_.*\.pdf$/)
+  })
+
+  it('si la persona cancela, no se imprime nada', async () => {
+    const { servicio } = casoCalculado()
+    await servicio.calcular(['KANE'])
+    const r = await servicio.guardarPdfDeOjo(OPC('OD'), () => Promise.resolve(null))
+    expect(r).toBeNull()
+  })
+
+  it('no escribe nada en las carpetas del programa (ni «Calculados» ni «Datos previos»)', async () => {
+    const { servicio, carpetas: c } = casoCalculado()
+    await servicio.calcular(['KANE'])
+    await servicio.guardarPdfDeOjo(OPC('OD'), () => Promise.resolve(join(raizTemporal(), 'x.pdf')))
+    expect(existsSync(join(c.informes, 'Dra. Prueba'))).toBe(false)
+  })
+})
+
+describe('análisis de resultados — búsqueda y CSV (21/10/2026)', () => {
+  function casoGuardado(): InstanceType<typeof ServicioCasos> {
+    const { servicio } = servicioDePrueba()
+    servicio.nuevo()
+    servicio.establecerIdentificacion({
+      nombrePaciente: 'Paciente Secreto',
+      nombreCirujano: 'Dra. Prueba',
+    })
+    servicio.editarMedida('OD', 'AL', 24.0)
+    return servicio
+  }
+
+  it('encuentra el caso guardado y lo ofrece para abrirlo', async () => {
+    const servicio = casoGuardado()
+    await servicio.calcular(['KANE'])
+    const r = servicio.analizarCasos({ incluirAMedias: true })
+    expect(r.filas).toHaveLength(1)
+    expect(r.filas[0]?.doctor).toBe('Dra. Prueba')
+    expect(r.filas[0]?.ojos).toEqual(['OD'])
+  })
+
+  it('el CSV lleva cabecera y una fila, con BOM, y NO el nombre del paciente', async () => {
+    const servicio = casoGuardado()
+    await servicio.calcular(['KANE'])
+    const destino = join(raizTemporal(), 'analisis.csv')
+    const r = await servicio.exportarAnalisis({ incluirAMedias: true }, () =>
+      Promise.resolve(destino),
+    )
+    expect(r).toEqual({ ruta: destino })
+    const texto = readFileSync(destino, 'utf8')
+    expect(texto.startsWith('\uFEFFCódigo;Fecha;Doctor')).toBe(true)
+    expect(texto.trim().split('\r\n')).toHaveLength(2)
+    expect(texto).toContain('Dra. Prueba')
+    expect(texto).not.toContain('Paciente Secreto')
+  })
+
+  it('si la persona cancela, no se escribe nada', async () => {
+    const servicio = casoGuardado()
+    await servicio.calcular(['KANE'])
+    expect(await servicio.exportarAnalisis({}, () => Promise.resolve(null))).toBeNull()
   })
 })

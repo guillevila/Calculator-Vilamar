@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.92] — 21/10/2026 (versión visible en pantalla: v1.43)
+
+feat(app): PDF de cada ojo donde se elija (D132); «Casos guardados» solo con casos calculados o leídos y de 20 en 20 (D133); el dashboard cuenta ojos (D134); nueva pantalla «Análisis de resultados» (D135)
+
+Cuatro cambios de las instrucciones del dueño (documento «Instrucciones mejorar la aplicación»). (1) Junto a «Generar PDF», que sigue guardando todo en sus carpetas, un botón por ojo con resultados —«Guardar PDF del ojo … en…»— que abre el cuadro «Guardar como» y no toca las carpetas del programa. (2) «Casos guardados» ya no enseña los casos que nunca pasaron de «Nuevo cálculo»: solo los calculados o los que quedaron a medias con los documentos leídos, 20 por página con flechas. (3) El dashboard cuenta lentes por OJO calculado, no por caso. (4) Botón «Análisis de resultados» en el menú: búsqueda entre fechas, por doctor, lente, ojo, calculadora usada y texto (código o paciente), con o sin los casos a medias; resumen (casos, ojos, por doctor, lente, calculadora y mes), un botón «Ver resultado» al lado de cada caso y exportación a CSV para Excel sin el nombre del paciente.
+
+---
+
 ## [1.15.91] — 21/10/2026 (versión visible en pantalla: v1.42)
 
 feat(report): el PDF ocupa menos páginas — las dos variantes de EVO (estimado y medido), y las dos de Barrett, comparten hoja (D131)

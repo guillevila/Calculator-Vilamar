@@ -17,7 +17,9 @@ import type {
   Lateralidad,
   CampoBiometrico,
   PrioridadBandeja,
+  FiltroAnalisis,
   RangoFechas,
+  ResultadoAnalisis,
   Sexo,
   Aviso,
   ResultadoCalculadora,
@@ -97,6 +99,14 @@ export interface ApiVilamar {
    *   siempre.
    */
   readonly resumenDashboard: (rango?: RangoFechas) => Promise<ResumenDashboard>
+  /**
+   * «Análisis de resultados» (21/10/2026): busca entre los casos ya hechos —por
+   * fechas, doctor, lente, ojo, calculadora o texto— y los resume. Cada fila
+   * trae el código para abrir el caso directamente en su resultado.
+   */
+  readonly analizarCasos: (filtro: FiltroAnalisis) => Promise<ResultadoAnalisis>
+  /** Guarda esa misma búsqueda en un CSV (cuadro «Guardar como»); `null` si se cancela. */
+  readonly exportarAnalisis: (filtro: FiltroAnalisis) => Promise<{ readonly ruta: string } | null>
   /** Doctores excluidos del dashboard (D83, 16/09/2026) — pruebas o errores, sin borrar el caso. */
   readonly listarDoctoresExcluidosDeEstadisticas: () => Promise<readonly string[]>
   readonly excluirDoctorDeEstadisticas: (nombre: string) => Promise<readonly string[]>
@@ -458,6 +468,15 @@ export interface ApiVilamar {
     readonly ojo: Lateralidad
     readonly html: string
   }) => Promise<{ readonly ruta: string }>
+  /**
+   * El PDF de un ojo, en el sitio que la persona elija (cuadro «Guardar como»).
+   * `null` si cancela. No toca las carpetas del programa.
+   */
+  readonly guardarPdfDeOjo: (opciones: {
+    readonly ojo: Lateralidad
+    readonly incluirEstimacionCompleta: boolean
+    readonly incluirTablaComparativaDetallada: boolean
+  }) => Promise<{ readonly ruta: string } | null>
   readonly generarPdf: (opciones: {
     readonly incluirEstimacionCompleta: boolean
     readonly incluirTablaComparativaDetallada: boolean
@@ -527,6 +546,9 @@ export const CANALES = {
   cancelarCalculo: 'vilamar:cancelar-calculo',
   generarPdf: 'vilamar:generar-pdf',
   generarPdfPantalla: 'vilamar:generar-pdf-pantalla',
+  analizarCasos: 'vilamar:analizar-casos',
+  exportarAnalisis: 'vilamar:exportar-analisis',
+  guardarPdfDeOjo: 'vilamar:guardar-pdf-de-ojo',
   abrirCarpetaInformes: 'vilamar:abrir-carpeta-informes',
   progreso: 'vilamar:progreso',
   casoCambiado: 'vilamar:caso-cambiado',

@@ -38,7 +38,7 @@ import type { ConteoDashboard, ResumenDashboard } from '@vilamar/domain'
 
 import { api } from '../api.js'
 
-function GraficoBarras({
+export function GraficoBarras({
   titulo,
   datos,
   color,
@@ -173,7 +173,7 @@ export function DashboardScreen({ onVolver }: { readonly onVolver: () => void })
     setAvisoEliminar(null)
     const cuantos = resumen?.porDoctor.find((d) => d.etiqueta === nombre)?.cantidad ?? 0
     const confirmado = window.confirm(
-      `¿Seguro que quieres eliminar los ${cuantos} caso${cuantos === 1 ? '' : 's'} de «${nombre}»?\n\n` +
+      `¿Seguro que quieres eliminar todos los casos de «${nombre}» (${cuantos} ojo${cuantos === 1 ? '' : 's'} calculado${cuantos === 1 ? '' : 's'})?\n\n` +
         'No se borran para siempre: se archivan fuera de la lista de casos, por si hace falta recuperarlos. ' +
         'Dejarán de contar aquí y de poder abrirse desde «Casos guardados».',
     )
@@ -194,7 +194,8 @@ export function DashboardScreen({ onVolver }: { readonly onVolver: () => void })
       <h2>Dashboard</h2>
       <p className="pie-nota" style={{ marginTop: -6, marginBottom: 12 }}>
         Cuenta las lentes calculadas —casos ya terminados, con una lente elegida— por doctor y por
-        modelo. No es un dato nuevo: sale de los mismos casos que ya tienes guardados.
+        modelo, contando cada OJO calculado (un paciente con los dos ojos son dos lentes). No es un
+        dato nuevo: sale de los mismos casos que ya tienes guardados.
       </p>
 
       <div className="fila" style={{ gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>

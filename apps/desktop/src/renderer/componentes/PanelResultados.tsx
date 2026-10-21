@@ -646,6 +646,34 @@ export function PanelResultados({
     }
   }
 
+  // Un PDF suelto por ojo, en el sitio que se elija (cuadro «Guardar como»):
+  // para quien solo lo quiere en una carpeta temporal. No toca las carpetas
+  // del programa.
+  const [guardandoOjo, setGuardandoOjo] = useState<Lateralidad | null>(null)
+  const [rutaGuardada, setRutaGuardada] = useState<{ ojo: Lateralidad; ruta: string } | null>(null)
+  const ojosConResultado = ojos.filter((o) =>
+    COLUMNAS_COMPARATIVA.some((c) => resultadoDe(caso, c, o) !== undefined),
+  )
+  async function guardarPdfDe(ojo: Lateralidad): Promise<void> {
+    setGuardandoOjo(ojo)
+    setError(null)
+    try {
+      const r = await api().guardarPdfDeOjo({
+        ojo,
+        incluirEstimacionCompleta,
+        incluirTablaComparativaDetallada,
+      })
+      if (r) setRutaGuardada({ ojo, ruta: r.ruta })
+    } catch (e) {
+      setError(
+        `No se ha podido guardar el PDF. ${e instanceof Error ? e.message : String(e)} ` +
+          'Tus resultados siguen aquí: puedes intentarlo otra vez.',
+      )
+    } finally {
+      setGuardandoOjo(null)
+    }
+  }
+
   async function generar(soloResumen: boolean): Promise<void> {
     setGenerando(true)
     setError(null)
@@ -1044,6 +1072,35 @@ export function PanelResultados({
             {generando ? 'Generando…' : 'Generar PDF'}
           </button>
         </div>
+        {ojosConResultado.length > 0 && (
+          <>
+            <p className="pie-nota" style={{ marginTop: 14 }}>
+              Guardar el PDF de un ojo donde tú elijas (por ejemplo, una carpeta temporal). No se
+              guarda en las carpetas del programa.
+            </p>
+            {rutaGuardada && (
+              <div className="aviso exito" data-testid="ruta-pdf-guardado">
+                PDF del {nombreLateralidad(rutaGuardada.ojo)} guardado en{' '}
+                <code>{rutaGuardada.ruta}</code>
+              </div>
+            )}
+            <div className="fila derecha">
+              {ojosConResultado.map((o) => (
+                <button
+                  key={o}
+                  className="claro"
+                  onClick={() => void guardarPdfDe(o)}
+                  disabled={guardandoOjo !== null || generando}
+                  data-testid={`guardar-pdf-${o}`}
+                >
+                  {guardandoOjo === o
+                    ? 'Guardando…'
+                    : `Guardar PDF del ${nombreLateralidad(o)} en…`}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
         <p className="pie-nota" style={{ marginTop: 14 }}>
           PDF resumen: sin capturas, con los datos de entrada, el cuadro de tarjetas y la tabla
           comparativa. Se guarda solo en la carpeta «Resúmenes» del doctor. No depende de las

@@ -18,6 +18,7 @@ import { api, hayApi } from './api.js'
 import type { ArchivoEntrante, EstadoCalculo, ResumenExtraccion } from '../compartido/ipc.js'
 import { BandejaScreen } from './componentes/BandejaScreen.js'
 import { CasosGuardados } from './componentes/CasosGuardados.js'
+import { AnalisisScreen } from './componentes/AnalisisScreen.js'
 import { DashboardScreen } from './componentes/DashboardScreen.js'
 import { DoctoresScreen } from './componentes/DoctoresScreen.js'
 import { LaboratoriosScreen } from './componentes/LaboratoriosScreen.js'
@@ -94,7 +95,7 @@ export function App(): JSX.Element {
   // independientes, abrir una sin acordarse de cerrar las demás a mano
   // dejaría dos superpuestas a la vez.
   const [pantallaExtra, setPantallaExtra] = useState<
-    'DOCTORES' | 'LABORATORIOS' | 'BANDEJA' | 'DASHBOARD' | null
+    'DOCTORES' | 'LABORATORIOS' | 'BANDEJA' | 'DASHBOARD' | 'ANALISIS' | null
   >(null)
 
   const disponible = hayApi()
@@ -343,6 +344,15 @@ export function App(): JSX.Element {
     [refrescarAvisos],
   )
 
+  /** Desde «Análisis de resultados»: abre el caso directamente, en su resultado. */
+  const abrirCasoDesdeAnalisis = useCallback(
+    async (codigo: string) => {
+      await abrirCasoGuardado(codigo)
+      setPantallaExtra(null)
+    },
+    [abrirCasoGuardado],
+  )
+
   /** Un aviso de la bandeja que ya tenía caso: se abre igual que «Casos guardados». */
   const abrirCasoDesdeBandeja = useCallback(
     async (codigo: string) => {
@@ -569,6 +579,14 @@ export function App(): JSX.Element {
             Dashboard
           </button>
           <button
+            className="boton-cabecera boton-cabecera-dashboard"
+            onClick={() => setPantallaExtra('ANALISIS')}
+            disabled={ocupado}
+            data-testid="abrir-analisis"
+          >
+            Análisis de resultados
+          </button>
+          <button
             className="boton-cabecera boton-cabecera-bandeja"
             onClick={() => setPantallaExtra('BANDEJA')}
             disabled={ocupado}
@@ -634,6 +652,17 @@ export function App(): JSX.Element {
         <main className="contenido">
           <div className="centrado">
             <DashboardScreen onVolver={() => setPantallaExtra(null)} />
+          </div>
+        </main>
+      )}
+
+      {pantallaExtra === 'ANALISIS' && (
+        <main className="contenido">
+          <div className="centrado">
+            <AnalisisScreen
+              onAbrirResultado={abrirCasoDesdeAnalisis}
+              onVolver={() => setPantallaExtra(null)}
+            />
           </div>
         </main>
       )}
