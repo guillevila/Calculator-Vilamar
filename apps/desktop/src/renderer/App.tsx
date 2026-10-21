@@ -19,6 +19,8 @@ import type { ArchivoEntrante, EstadoCalculo, ResumenExtraccion } from '../compa
 import { BandejaScreen } from './componentes/BandejaScreen.js'
 import { CasosGuardados } from './componentes/CasosGuardados.js'
 import { AnalisisScreen } from './componentes/AnalisisScreen.js'
+import { CargaDeDocumentos } from './componentes/BarraDeProgreso.js'
+import type { ProgresoCarga } from '../compartido/progreso.js'
 import { DashboardScreen } from './componentes/DashboardScreen.js'
 import { DoctoresScreen } from './componentes/DoctoresScreen.js'
 import { LaboratoriosScreen } from './componentes/LaboratoriosScreen.js'
@@ -87,6 +89,11 @@ export function App(): JSX.Element {
   // selector se enseña hasta que se añade un segundo.
   const [aparatoActivo, setAparatoActivo] = useState<string>(NOMBRE_DISPOSITIVO.IOLMASTER_700)
   const [ocupado, setOcupado] = useState(false)
+  // Por qué documento va la carga de fotos, para su barra de progreso (21/10/2026).
+  const [progresoCarga, setProgresoCarga] = useState<ProgresoCarga | null>(null)
+  useEffect(() => {
+    if (!ocupado) setProgresoCarga(null)
+  }, [ocupado])
   // Las pantallas ortogonales al caso (D80/D81/D82): agenda de doctores,
   // bandeja de casos, dashboard. Se pueden abrir desde cualquier paso, sin
   // perder dónde se estaba — por eso es un interruptor aparte y no un
@@ -112,6 +119,7 @@ export function App(): JSX.Element {
         }
       })
     const bajaCaso = api().alCambiarCaso(setCaso)
+    const bajaCarga = api().alProgresarCarga(setProgresoCarga)
     const bajaProgreso = api().alProgresar((estado) => {
       setEstados((previos) => {
         const otros = previos.filter(
@@ -123,6 +131,7 @@ export function App(): JSX.Element {
     return () => {
       bajaCaso()
       bajaProgreso()
+      bajaCarga()
     }
   }, [disponible])
 
@@ -758,15 +767,15 @@ export function App(): JSX.Element {
                 />
               )}
 
+              {ocupado && progresoCarga !== null && paso !== 'CARGANDO' && (
+                <div className="tarjeta">
+                  <CargaDeDocumentos progreso={progresoCarga} />
+                </div>
+              )}
+
               {paso === 'CARGANDO' && (
                 <div className="tarjeta">
-                  <div className="cargando">
-                    Leyendo el informe…
-                    <div className="pie-nota">
-                      Si es un documento escaneado hay que reconocer el texto, y eso tarda unos
-                      segundos.
-                    </div>
-                  </div>
+                  <CargaDeDocumentos progreso={progresoCarga} />
                 </div>
               )}
 

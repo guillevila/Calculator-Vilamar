@@ -49,6 +49,8 @@ export interface ArchivoEntrante {
   readonly datos?: Uint8Array
 }
 
+import type { ProgresoCarga } from './progreso.js'
+
 export interface ResumenExtraccion {
   readonly documentoId: string
   readonly nombreArchivo: string
@@ -489,6 +491,8 @@ export interface ApiVilamar {
 
   /** Suscripciones. Devuelven una función para darse de baja. */
   readonly alProgresar: (escucha: (estado: EstadoCalculo) => void) => () => void
+  /** Avisos de «empieza a leerse el documento N de M», para la barra de carga (21/10/2026). */
+  readonly alProgresarCarga: (escucha: (progreso: ProgresoCarga) => void) => () => void
   readonly alCambiarCaso: (escucha: (caso: Caso) => void) => () => void
 }
 
@@ -551,5 +555,6 @@ export const CANALES = {
   guardarPdfDeOjo: 'vilamar:guardar-pdf-de-ojo',
   abrirCarpetaInformes: 'vilamar:abrir-carpeta-informes',
   progreso: 'vilamar:progreso',
+  progresoCarga: 'vilamar:progreso-carga',
   casoCambiado: 'vilamar:caso-cambiado',
 } as const

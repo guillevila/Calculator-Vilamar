@@ -35,6 +35,8 @@ import {
 } from '@vilamar/domain'
 
 import type { EstadoCalculo } from '../../compartido/ipc.js'
+import { porcentajeDeFase } from '../../compartido/progreso.js'
+import { BarraDeProgreso } from './BarraDeProgreso.js'
 
 interface Props {
   readonly caso: Caso
@@ -211,21 +213,33 @@ export function PanelCalculo({
             let clase = ''
             let marca = '·'
             let detalle = 'Pendiente'
+            // La barra de cada calculadora (21/10/2026): `undefined` = sin barra
+            // (un fallo no «avanza»); `null` = no se puede saber (espera a la persona).
+            let porcentaje: number | null | undefined = ocupado ? 0 : undefined
+            let tono: 'normal' | 'exito' | 'atencion' = 'normal'
+            if (ocupado) detalle = 'En cola'
 
             if (resultado) {
               if (resultado.estado === 'SUCCESS') {
                 clase = 'exito'
                 marca = '✓'
-                detalle = 'Resultado obtenido'
+                detalle = 'Completado'
+                porcentaje = 100
+                tono = 'exito'
               } else if (resultado.estado === 'PARTIAL') {
                 clase = 'exito'
                 marca = '~'
-                detalle = resultado.mensaje ?? 'Resultado incompleto'
+                detalle = resultado.mensaje ?? 'Completado, con el resultado incompleto'
+                porcentaje = 100
+                tono = 'exito'
               } else if (resultado.estado === 'NEEDS_USER_ACTION') {
                 clase = 'requiere-usuario'
                 marca = '!'
                 detalle = resultado.mensaje ?? textoEstado(resultado.estado)
+                porcentaje = null
+                tono = 'atencion'
               } else {
+                porcentaje = undefined
                 clase = 'fallo'
                 marca = '✕'
                 detalle = resultado.mensaje ?? textoEstado(resultado.estado)
@@ -234,6 +248,8 @@ export function PanelCalculo({
               clase = estado.requiereUsuario ? 'requiere-usuario' : ''
               marca = estado.requiereUsuario ? '!' : '…'
               detalle = estado.mensaje
+              porcentaje = estado.requiereUsuario ? null : porcentajeDeFase(estado.fase)
+              tono = estado.requiereUsuario ? 'atencion' : 'normal'
             }
 
             return (
@@ -242,6 +258,18 @@ export function PanelCalculo({
                 <span className="nombre">{etiquetaDe(clave)}</span>
                 <span className="detalle">
                   {detalle}
+                  {porcentaje !== undefined && (
+                    <div className="calc-progreso">
+                      <BarraDeProgreso
+                        porcentaje={porcentaje}
+                        tono={tono}
+                        testId={`barra-${clave}`}
+                      />
+                      <span className="calc-porcentaje" data-testid={`porcentaje-${clave}`}>
+                        {porcentaje === null ? 'esperando' : `${porcentaje} %`}
+                      </span>
+                    </div>
+                  )}
                   {ficha.intervencionHumana.length > 0 && !resultado && (
                     <div style={{ marginTop: 3, fontSize: 12 }}>
                       Puede pedirte: {ficha.intervencionHumana[0]}

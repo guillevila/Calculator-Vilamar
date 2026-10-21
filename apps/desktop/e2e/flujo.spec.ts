@@ -2549,3 +2549,59 @@ test('«Análisis de resultados»: se abre, filtra y lleva directamente al caso'
   const abierto = await ventana.evaluate(() => window.vilamar?.casoActual())
   expect(abierto?.codigo).toBe(codigo)
 })
+
+/**
+ * Barras de progreso (21/10/2026, petición del dueño): una por calculadora al
+ * calcular, y una al cargar fotos. Aquí se mandan los mismos avisos que manda el
+ * proceso principal y se comprueba lo que se ve.
+ */
+test('cada calculadora enseña su barra de progreso y pone «Completado» al terminar', async () => {
+  test.setTimeout(120_000)
+
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  await ventana.getByRole('button', { name: 'Escribir los datos a mano' }).click()
+  await ventana.getByLabel('Nombre del doctor').fill('Dra. Barras E2E')
+  await ventana.getByLabel('Nombre del paciente').fill('Paciente Barras E2E')
+  await ventana.getByTestId('manual-campo-AL').fill('23.60')
+  await ventana.getByTestId('manual-campo-AL').press('Tab')
+  await ventana.getByTestId('manual-continuar').click()
+  await ventana.getByTestId('confirmar').click()
+  await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
+
+  const mandar = (canal: string, datos: unknown): Promise<void> =>
+    app.evaluate(
+      ({ BrowserWindow }, [c, d]) => {
+        BrowserWindow.getAllWindows()[0]?.webContents.send(c as string, d)
+      },
+      [canal, datos],
+    )
+
+  await mandar('vilamar:progreso', {
+    calculadora: 'EVO_TORIC_SIN_CARA_POSTERIOR',
+    ojo: 'OD',
+    fase: 'CALCULANDO',
+    mensaje: 'Calculando en EVO…',
+    requiereUsuario: false,
+  })
+  await expect(ventana.getByTestId('porcentaje-EVO_TORIC_SIN_CARA_POSTERIOR')).toHaveText('65 %')
+
+  await mandar('vilamar:progreso', {
+    calculadora: 'EVO_TORIC_SIN_CARA_POSTERIOR',
+    ojo: 'OD',
+    fase: 'LEYENDO_RESULTADO',
+    mensaje: 'Leyendo el resultado…',
+    requiereUsuario: false,
+  })
+  await expect(ventana.getByTestId('porcentaje-EVO_TORIC_SIN_CARA_POSTERIOR')).toHaveText('85 %')
+
+  // Kane espera a la persona: barra sin cifra.
+  await mandar('vilamar:progreso', {
+    calculadora: 'KANE',
+    ojo: 'OD',
+    fase: 'ESPERANDO_AL_USUARIO',
+    mensaje: 'Acepta las condiciones de Kane',
+    requiereUsuario: true,
+  })
+  await expect(ventana.getByTestId('porcentaje-KANE')).toHaveText('esperando')
+  await ventana.screenshot({ path: 'test-results/barras-calculo.png', fullPage: true })
+})

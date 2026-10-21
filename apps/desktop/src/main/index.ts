@@ -73,7 +73,7 @@ if (app.isPackaged) {
  * este número es lo ÚLTIMO que se hace al cerrar un cambio en la aplicación
  * de escritorio, justo antes de avisar de que está listo para probar.
  */
-const VERSION_VISIBLE = '1.43'
+const VERSION_VISIBLE = '1.44'
 
 function versionDelProducto(): string {
   return VERSION_VISIBLE
@@ -318,6 +318,7 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
       )
       enviarAlaInterfaz(CANALES.progreso, estado)
     },
+    emitirProgresoCarga: (progreso) => enviarAlaInterfaz(CANALES.progresoCarga, progreso),
     emitirCaso: (caso) => {
       for (const [clave, resultado] of Object.entries(caso.resultados)) {
         if (ultimoEstadoPorCasilla.get(clave) !== resultado.estado) {

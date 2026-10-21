@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.93] — 21/10/2026 (versión visible en pantalla: v1.44)
+
+feat(app): barra de progreso al cargar las fotos y una por calculadora al calcular, con «Completado» al terminar (D136)
+
+Petición del dueño. (1) Al cargar fotos o PDF sale una barra con el porcentaje, «documento N de M» y los segundos que faltan, más o menos. El proceso principal avisa de cada documento que empieza; dentro de cada uno el porcentaje es una estimación que se acerca sin llegar a 100 hasta que termina de verdad (el lector no dice cuánto le falta). (2) En «Calcular», cada calculadora enseña su propia barra según la fase real en que va (abriendo, rellenando, calculando, leyendo el resultado), «En cola» si aún no le toca, una barra sin cifra mientras espera a que la persona haga algo, y «Completado» en verde al terminar.
+
+---
+
 ## [1.15.92] — 21/10/2026 (versión visible en pantalla: v1.43)
 
 feat(app): PDF de cada ojo donde se elija (D132); «Casos guardados» solo con casos calculados o leídos y de 20 en 20 (D133); el dashboard cuenta ojos (D134); nueva pantalla «Análisis de resultados» (D135)

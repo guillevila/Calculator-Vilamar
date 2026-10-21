@@ -734,3 +734,37 @@ describe('análisis de resultados — búsqueda y CSV (21/10/2026)', () => {
     expect(await servicio.exportarAnalisis({}, () => Promise.resolve(null))).toBeNull()
   })
 })
+
+describe('barra de carga de fotos — avisos de progreso (21/10/2026)', () => {
+  it('avisa de cada documento, N de M, aunque luego no se pueda leer', async () => {
+    const carpetasDePrueba = prepararCarpetas(raizTemporal())
+    const avisos: { indice: number; total: number; nombre: string }[] = []
+    const dep: DependenciasServicio = {
+      carpetas: carpetasDePrueba,
+      proveedor: {
+        nombre: 'test',
+        puedeCon: () => false,
+        extraer: () => Promise.reject(new Error('no usado')),
+      },
+      diagnosticador: { carpeta: '', guardar: () => Promise.resolve('') },
+      capturas: { carpeta: '', guardar: () => Promise.resolve(''), leer: () => null },
+      version: '0.0.0-test',
+      ahora: () => new Date('2026-09-15T10:00:00.000Z'),
+      abrirNavegador: () => Promise.resolve({ close: () => Promise.resolve() } as never),
+      imprimirPdf: () => Promise.resolve(),
+      emitirProgreso: () => {},
+      emitirProgresoCarga: (p) => avisos.push(p),
+      emitirCaso: () => {},
+    }
+    const servicio = new ServicioCasos(dep)
+    servicio.nuevo()
+    await servicio.cargarDocumentos([
+      { nombre: 'uno.txt', datos: new Uint8Array([1]) },
+      { nombre: 'dos.txt', datos: new Uint8Array([1]) },
+    ])
+    expect(avisos).toEqual([
+      { indice: 1, total: 2, nombre: 'uno.txt' },
+      { indice: 2, total: 2, nombre: 'dos.txt' },
+    ])
+  })
+})

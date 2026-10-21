@@ -111,6 +111,13 @@ const api: ApiVilamar = {
     return () => ipcRenderer.removeListener(CANALES.progreso, manejador)
   },
 
+  alProgresarCarga: (escucha) => {
+    const manejador = (_e: unknown, progreso: Parameters<typeof escucha>[0]): void =>
+      escucha(progreso)
+    ipcRenderer.on(CANALES.progresoCarga, manejador)
+    return () => ipcRenderer.removeListener(CANALES.progresoCarga, manejador)
+  },
+
   alCambiarCaso: (escucha) => {
     const manejador = (_e: unknown, caso: Parameters<typeof escucha>[0]): void => escucha(caso)
     ipcRenderer.on(CANALES.casoCambiado, manejador)

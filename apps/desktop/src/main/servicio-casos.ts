@@ -112,6 +112,7 @@ import type {
   ResumenCasoGuardado,
   ResumenExtraccion,
 } from '../compartido/ipc.js'
+import type { ProgresoCarga } from '../compartido/progreso.js'
 import type { Carpetas } from './almacen.js'
 import {
   guardarCaso,
@@ -152,6 +153,8 @@ export interface DependenciasServicio {
   ) => Promise<void>
   /** Avisos hacia la interfaz. */
   readonly emitirProgreso: (estado: EstadoCalculo) => void
+  /** «Empieza a leerse el documento N de M» — para la barra de carga. Opcional: los tests no lo usan. */
+  readonly emitirProgresoCarga?: (progreso: ProgresoCarga) => void
   readonly emitirCaso: (caso: Caso) => void
 }
 
@@ -554,7 +557,12 @@ export class ServicioCasos {
       Record<Lateralidad, { aparato: string; dispositivo: Dispositivo }>
     > = {}
 
-    for (const archivo of archivos) {
+    for (const [posicion, archivo] of archivos.entries()) {
+      this.dep.emitirProgresoCarga?.({
+        indice: posicion + 1,
+        total: archivos.length,
+        nombre: archivo.nombre,
+      })
       // Si viene la ruta, se lee del disco aquí —una sola vez, y sin copiar
       // nada por IPC—. Si viene el contenido, se usa: es el caso de un fichero
       // arrastrado, cuando Electron no da la ruta.
