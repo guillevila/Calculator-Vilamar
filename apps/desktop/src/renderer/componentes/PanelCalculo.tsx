@@ -35,12 +35,20 @@ import {
 } from '@vilamar/domain'
 
 import type { EstadoCalculo } from '../../compartido/ipc.js'
+import { combinarResultados, estadoDeFila } from '../../compartido/progreso.js'
+import type { TandaEnMarcha } from '../../compartido/progreso.js'
+import { BarraDeProgreso } from './BarraDeProgreso.js'
+
+/** La tanda de cálculo en marcha (ver `estadoDeFila`). */
+export type CorridaDeCalculo = TandaEnMarcha
 
 interface Props {
   readonly caso: Caso
   readonly ojo: Lateralidad
   readonly estados: readonly EstadoCalculo[]
   readonly ocupado: boolean
+  /** La tanda en marcha, si la hay; sin ella no se distingue un resultado viejo de uno nuevo. */
+  readonly corrida?: CorridaDeCalculo | null
   readonly onCalcular: (
     calculadoras?: readonly Calculadora[],
     filtro?: { readonly ojo?: Lateralidad },
@@ -161,12 +169,19 @@ export function PanelCalculo({
   ojo,
   estados,
   ocupado,
+  corrida = null,
   onCalcular,
   onCancelar,
   onVerResultados,
   onVolverARevisar,
 }: Props): JSX.Element {
-  const hayAlguno = ORDEN.some((c) => resultadoDe(caso, c, ojo) !== undefined)
+  // «Ya hay algo calculado»: en cualquier aparato activo del ojo, no solo el «Principal».
+  const aparatosDelOjo = datasetsActivosDe(caso, ojo).map((d) => d.aparato)
+  const hayAlguno = ORDEN.some((c) =>
+    (aparatosDelOjo.length > 0 ? aparatosDelOjo : [undefined]).some(
+      (a) => resultadoDe(caso, c, ojo, a) !== undefined,
+    ),
+  )
   const requiereUsuario = estados.filter((e) => e.requiereUsuario)
 
   const [seleccionadas, setSeleccionadas] = useState<readonly Calculadora[]>(SELECCION_POR_DEFECTO)
@@ -205,36 +220,24 @@ export function PanelCalculo({
         <div className="calculadoras">
           {ORDEN.map((clave) => {
             const ficha = fichaDe(clave)
-            const resultado = resultadoDe(caso, clave, ojo)
-            const estado = estados.find((e) => e.calculadora === clave && e.ojo === ojo)
-
-            let clase = ''
-            let marca = '·'
-            let detalle = 'Pendiente'
-
-            if (resultado) {
-              if (resultado.estado === 'SUCCESS') {
-                clase = 'exito'
-                marca = '✓'
-                detalle = 'Resultado obtenido'
-              } else if (resultado.estado === 'PARTIAL') {
-                clase = 'exito'
-                marca = '~'
-                detalle = resultado.mensaje ?? 'Resultado incompleto'
-              } else if (resultado.estado === 'NEEDS_USER_ACTION') {
-                clase = 'requiere-usuario'
-                marca = '!'
-                detalle = resultado.mensaje ?? textoEstado(resultado.estado)
-              } else {
-                clase = 'fallo'
-                marca = '✕'
-                detalle = resultado.mensaje ?? textoEstado(resultado.estado)
-              }
-            } else if (estado) {
-              clase = estado.requiereUsuario ? 'requiere-usuario' : ''
-              marca = estado.requiereUsuario ? '!' : '…'
-              detalle = estado.mensaje
-            }
+            // Todos los aparatos activos del ojo, no solo el «Principal» (21/10/2026).
+            const aparatos = datasetsActivosDe(caso, ojo).map((d) => d.aparato)
+            const guardado = combinarResultados(
+              (aparatos.length > 0 ? aparatos : [undefined]).map((a) =>
+                resultadoDe(caso, clave, ojo, a),
+              ),
+            )
+            const progreso = estados.find((e) => e.calculadora === clave && e.ojo === ojo)
+            const fila = estadoDeFila({
+              clave,
+              ojo,
+              ...(guardado ? { resultado: guardado } : {}),
+              ...(progreso ? { progreso } : {}),
+              ocupado,
+              tanda: corrida,
+              textoDeEstado: (estado) => textoEstado(estado as never),
+            })
+            const { clase, marca, detalle, porcentaje, tono } = fila
 
             return (
               <div className={`calc ${clase}`} key={clave} data-testid={`calc-${clave}`}>
@@ -242,13 +245,25 @@ export function PanelCalculo({
                 <span className="nombre">{etiquetaDe(clave)}</span>
                 <span className="detalle">
                   {detalle}
-                  {ficha.intervencionHumana.length > 0 && !resultado && (
+                  {porcentaje !== undefined && (
+                    <div className="calc-progreso">
+                      <BarraDeProgreso
+                        porcentaje={porcentaje}
+                        tono={tono}
+                        testId={`barra-${clave}`}
+                      />
+                      <span className="calc-porcentaje" data-testid={`porcentaje-${clave}`}>
+                        {porcentaje === null ? 'esperando' : `${porcentaje} %`}
+                      </span>
+                    </div>
+                  )}
+                  {ficha.intervencionHumana.length > 0 && !fila.hayResultadoVigente && (
                     <div style={{ marginTop: 3, fontSize: 12 }}>
                       Puede pedirte: {ficha.intervencionHumana[0]}
                     </div>
                   )}
                 </span>
-                {resultado && resultado.estado !== 'SUCCESS' && (
+                {fila.sePuedeReintentar && (
                   <button onClick={() => onCalcular([clave])} disabled={ocupado}>
                     Reintentar
                   </button>

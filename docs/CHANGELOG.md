@@ -4,6 +4,54 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.96] — 21/10/2026 (versión visible en pantalla: v1.47)
+
+fix(app): las barras de «Calcular» llegan al 100 % y ponen «Completado» en cuanto cada calculadora termina (D136)
+
+Observación del dueño con la v1.46: las barras avanzaban bien, pero al llegar al 85 % se paraban aunque la web ya hubiera acabado y nunca llegaban al 100 %; de golpe aparecían todos los resultados. Causa real (no era «solo falta ponerlo en el PDF»): la pantalla de «Calcular» buscaba el resultado únicamente bajo el aparato «Principal», y un caso con el aparato con su nombre real («ZEISS IOLMaster 700»…) nunca lo encontraba hasta que la aplicación saltaba sola a los resultados. Ahora cada fila mira todos los aparatos activos del ojo: pasa a «Completado» cuando todos tienen su resultado de esta tanda, y basta uno pendiente o de la tanda anterior para que siga en marcha. También el botón «Ver los resultados que ya hay» usa todos los aparatos.
+
+---
+
+## [1.15.95] — 21/10/2026 (versión visible en pantalla: v1.46)
+
+fix(app): las barras de «Calcular» ya no dan por «Completado» el resultado de una tanda anterior (D136)
+
+Fallo real del dueño con la v1.44: al volver a calcular un caso ya calculado, todas las calculadoras salían «Completado, 100 %» desde el primer segundo, mientras la web de Barrett seguía trabajando. Causa: la fila daba prioridad al resultado guardado en el caso, que era el de la tanda anterior. Ahora la aplicación sabe desde cuándo y con qué calculadoras y ojo empezó la tanda en marcha: un resultado anterior a ese momento no cuenta (la fila vuelve a «En cola» y avanza con los avisos reales de cada calculadora hasta que llega el resultado nuevo), y una calculadora que no está en la tanda dice «Resultado de antes (no se vuelve a calcular)», sin barra. La lógica es una función pura con sus pruebas (`estadoDeFila`).
+
+---
+
+## [1.15.94] — 21/10/2026 (versión visible en pantalla: v1.45)
+
+feat(app): «Crear Excel de estudio» desde «Análisis de resultados» (D137)
+
+Petición del dueño, con la plantilla «LuxLife Experience Tracker» como ejemplo de estilo. Con la búsqueda que esté puesta (fechas, doctor, lente, ojo, calculadora, texto, casos a medias) se crea un .xlsx con una fila por caso, ojo y aparato: paciente, nº de caso, fecha, doctor, ojo, aparato y, dentro del campo PREOPERATORIO, la biometría de ese aparato (longitud axial, K1 y eje, K2 y eje, ACD), el tipo de lente y, por cada calculadora con resultado, potencia esférica, potencia cilíndrica, eje, residual esférico y residual cilíndrico. Colores de la plantilla (azul petróleo y celeste) y de cada calculadora, cabeceras en dos niveles, filas alternas, formatos de número, panel y filtros inmovilizados, y una hoja de notas que explica la búsqueda y cada columna. Un dato que falta queda vacío. Sin dependencias nuevas: el escritor de .xlsx va dentro de la aplicación.
+
+---
+
+## [1.15.93] — 21/10/2026 (versión visible en pantalla: v1.44)
+
+feat(app): barra de progreso al cargar las fotos y una por calculadora al calcular, con «Completado» al terminar (D136)
+
+Petición del dueño. (1) Al cargar fotos o PDF sale una barra con el porcentaje, «documento N de M» y los segundos que faltan, más o menos. El proceso principal avisa de cada documento que empieza; dentro de cada uno el porcentaje es una estimación que se acerca sin llegar a 100 hasta que termina de verdad (el lector no dice cuánto le falta). (2) En «Calcular», cada calculadora enseña su propia barra según la fase real en que va (abriendo, rellenando, calculando, leyendo el resultado), «En cola» si aún no le toca, una barra sin cifra mientras espera a que la persona haga algo, y «Completado» en verde al terminar.
+
+---
+
+## [1.15.92] — 21/10/2026 (versión visible en pantalla: v1.43)
+
+feat(app): PDF de cada ojo donde se elija (D132); «Casos guardados» solo con casos calculados o leídos y de 20 en 20 (D133); el dashboard cuenta ojos (D134); nueva pantalla «Análisis de resultados» (D135)
+
+Cuatro cambios de las instrucciones del dueño (documento «Instrucciones mejorar la aplicación»). (1) Junto a «Generar PDF», que sigue guardando todo en sus carpetas, un botón por ojo con resultados —«Guardar PDF del ojo … en…»— que abre el cuadro «Guardar como» y no toca las carpetas del programa. (2) «Casos guardados» ya no enseña los casos que nunca pasaron de «Nuevo cálculo»: solo los calculados o los que quedaron a medias con los documentos leídos, 20 por página con flechas. (3) El dashboard cuenta lentes por OJO calculado, no por caso. (4) Botón «Análisis de resultados» en el menú: búsqueda entre fechas, por doctor, lente, ojo, calculadora usada y texto (código o paciente), con o sin los casos a medias; resumen (casos, ojos, por doctor, lente, calculadora y mes), un botón «Ver resultado» al lado de cada caso y exportación a CSV para Excel sin el nombre del paciente.
+
+---
+
+## [1.15.91] — 21/10/2026 (versión visible en pantalla: v1.42)
+
+feat(report): el PDF ocupa menos páginas — las dos variantes de EVO (estimado y medido), y las dos de Barrett, comparten hoja (D131)
+
+Petición del dueño: reducir el tamaño de los pantallazos y juntar en la misma hoja, de un mismo aparato, EVO estimado con EVO medido, y Barrett estimado con Barrett medido, cada uno con su rótulo; si solo hay una de la familia, la hoja es la de siempre. Kane y el resto no cambian. Orden por aparato: EVO, Barrett, Kane. Medido con una impresión real: cada hoja mide exactamente 297 mm, sin desbordes.
+
+---
+
 ## [1.15.90] — 21/10/2026 (versión visible en pantalla: v1.41)
 
 fix(app): en la comparación, las filas de Kane enseñan el cilindro elegido y su residual; la lente repetida más abajo se marca en tono suave; la esfera y el cilindro elegidos, del mismo color (D130)

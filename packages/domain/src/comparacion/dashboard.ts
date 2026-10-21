@@ -13,8 +13,13 @@
  * criterio que ya usa `NOMBRE_ESTADO`) y tiene un modelo de lente elegido.
  * Un caso que se quedó a medias, o donde nunca se eligió lente, no cuenta:
  * no sería una lente «calculada», sería un caso sin terminar.
+ *
+ * **Se cuenta por OJOS, no por caso** (instrucciones del dueño, 21/10/2026):
+ * un paciente con los dos ojos calculados son dos lentes, no una. Ver
+ * `ojosContados`.
  */
 
+import { ojosDelCaso } from '../modelo/caso.js'
 import type { Caso } from '../modelo/caso.js'
 import { claveLente } from '../modelo/lente.js'
 
@@ -57,7 +62,7 @@ const SIN_DOCTOR = 'Sin doctor'
 const SIN_MODELO = 'Sin modelo'
 
 /** «B&L LuxSmart» si hay fabricante y no está ya repetido en el modelo; si no, solo el modelo. */
-function etiquetaLente(lente: Caso['lente']): string {
+export function etiquetaLente(lente: Caso['lente']): string {
   const modelo = (lente?.modelo ?? '').trim()
   if (modelo === '') return SIN_MODELO
   const fabricante = (lente?.fabricante ?? '').trim()
@@ -65,11 +70,28 @@ function etiquetaLente(lente: Caso['lente']): string {
   return `${fabricante} ${modelo}`
 }
 
+/**
+ * Cuántos ojos aporta un caso a las cuentas: los que tienen algún resultado
+ * de calculadora (con éxito, total o parcial); si no hay ninguno guardado —un
+ * caso antiguo—, los ojos que tienen datos; y si tampoco, 1, para que un caso
+ * terminado nunca desaparezca de la cuenta. Un ojo con datos pero que nunca se
+ * pidió calcular no cuenta.
+ */
+export function ojosContados(caso: Caso): number {
+  const calculados = new Set(
+    Object.values(caso.resultados)
+      .filter((r) => r.estado === 'SUCCESS' || r.estado === 'PARTIAL')
+      .map((r) => r.ojo),
+  )
+  if (calculados.size > 0) return calculados.size
+  return Math.max(1, ojosDelCaso(caso).length)
+}
+
 function contarPor(casos: readonly Caso[], clave: (c: Caso) => string): readonly ConteoDashboard[] {
   const cuenta = new Map<string, number>()
   for (const caso of casos) {
     const etiqueta = clave(caso)
-    cuenta.set(etiqueta, (cuenta.get(etiqueta) ?? 0) + 1)
+    cuenta.set(etiqueta, (cuenta.get(etiqueta) ?? 0) + ojosContados(caso))
   }
   return [...cuenta.entries()]
     .map(([etiqueta, cantidad]) => ({ etiqueta, cantidad }))
@@ -94,6 +116,16 @@ function contarPor(casos: readonly Caso[], clave: (c: Caso) => string): readonly
  */
 function sinAbreviaturaDeFabricante(texto: string): string {
   return texto.replace(/\bb\s*[&+]\s*l\b/gi, ' ')
+}
+
+/**
+ * La clave con la que se agrupa la lente de un caso («Sin modelo» si no tiene),
+ * la misma que usan las barras del dashboard (D90). Para el análisis de
+ * resultados.
+ */
+export function claveDeLenteParaAgrupar(lente: Caso['lente']): string {
+  if (etiquetaLente(lente) === SIN_MODELO) return SIN_MODELO
+  return claveLenteParaDashboard({ fabricante: lente?.fabricante, modelo: lente?.modelo ?? '' })
 }
 
 /** La clave de agrupación de una lente, para el dashboard (D90, ver arriba). */
@@ -134,8 +166,9 @@ function contarPorLente(casos: readonly Caso[]): readonly ConteoDashboard[] {
             modelo: caso.lente?.modelo ?? '',
           })
     const grupo = grupos.get(clave) ?? { etiquetas: new Map<string, number>(), total: 0 }
-    grupo.etiquetas.set(etiqueta, (grupo.etiquetas.get(etiqueta) ?? 0) + 1)
-    grupo.total += 1
+    const ojos = ojosContados(caso)
+    grupo.etiquetas.set(etiqueta, (grupo.etiquetas.get(etiqueta) ?? 0) + ojos)
+    grupo.total += ojos
     grupos.set(clave, grupo)
   }
   return [...grupos.values()]
@@ -149,7 +182,7 @@ function contarPorLente(casos: readonly Caso[]): readonly ConteoDashboard[] {
 }
 
 /** El día de `actualizadoEn` (YYYY-MM-DD) cae dentro de [desde, hasta], inclusive. */
-function dentroDelRango(actualizadoEn: string, rango: RangoFechas): boolean {
+export function dentroDelRango(actualizadoEn: string, rango: RangoFechas): boolean {
   const dia = actualizadoEn.slice(0, 10)
   if (rango.desde && dia < rango.desde) return false
   if (rango.hasta && dia > rango.hasta) return false
@@ -157,7 +190,7 @@ function dentroDelRango(actualizadoEn: string, rango: RangoFechas): boolean {
 }
 
 /** El nombre del doctor tal como se agrupa y se enseña — «Sin doctor» si el caso no lo trae. */
-function etiquetaDoctor(c: Caso): string {
+export function etiquetaDoctor(c: Caso): string {
   return (c.nombreCirujano ?? '').trim() || SIN_DOCTOR
 }
 
@@ -186,7 +219,7 @@ export function calcularResumenDashboard(
 ): ResumenDashboard {
   const calculados = seleccionarCalculados(casos, opciones)
   return {
-    totalCalculados: calculados.length,
+    totalCalculados: calculados.reduce((suma, c) => suma + ojosContados(c), 0),
     porDoctor: contarPor(calculados, etiquetaDoctor),
     porModeloLente: contarPorLente(calculados),
   }

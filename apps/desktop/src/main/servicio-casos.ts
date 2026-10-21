@@ -33,6 +33,8 @@ import type {
   Aviso,
   RangoFechas,
   ResultadoCalculadora,
+  FiltroAnalisis,
+  ResultadoAnalisis,
   ResumenDashboard,
   Sexo,
   SituacionCornealEspecial,
@@ -40,7 +42,10 @@ import type {
 import {
   APARATO_PRINCIPAL,
   aparatosDe,
+  analizarCasos,
   calcularResumenDashboard,
+  filasDeEstudio,
+  NOMBRE_ESTADO,
   CARPETA_IMPORTADAS,
   casosCalculadosDeDoctor,
   COLUMNAS_COMPARATIVA,
@@ -108,6 +113,8 @@ import type {
   ResumenCasoGuardado,
   ResumenExtraccion,
 } from '../compartido/ipc.js'
+import type { ProgresoCarga } from '../compartido/progreso.js'
+import { descripcionDeFiltro, libroDeEstudio } from './estudio-excel.js'
 import type { Carpetas } from './almacen.js'
 import {
   guardarCaso,
@@ -148,6 +155,8 @@ export interface DependenciasServicio {
   ) => Promise<void>
   /** Avisos hacia la interfaz. */
   readonly emitirProgreso: (estado: EstadoCalculo) => void
+  /** «Empieza a leerse el documento N de M» — para la barra de carga. Opcional: los tests no lo usan. */
+  readonly emitirProgresoCarga?: (progreso: ProgresoCarga) => void
   readonly emitirCaso: (caso: Caso) => void
 }
 
@@ -383,6 +392,97 @@ export class ServicioCasos {
     })
   }
 
+  /** Todos los casos guardados, leídos del almacén. */
+  private casosGuardados(): readonly Caso[] {
+    return listarCasosDelAlmacen(this.dep.carpetas)
+      .map((codigo) => leerCasoDelAlmacen(this.dep.carpetas, codigo))
+      .filter((c): c is Caso => c !== null)
+  }
+
+  /**
+   * «Análisis de resultados»: la búsqueda y el resumen de `analizarCasos`, sobre
+   * los casos guardados y sin los doctores excluidos de las estadísticas.
+   */
+  analizarCasos(filtro: FiltroAnalisis): ResultadoAnalisis {
+    return analizarCasos(this.casosGuardados(), filtro, leerDoctoresExcluidos(this.dep.carpetas))
+  }
+
+  /**
+   * El Excel de estudio de esa búsqueda (instrucciones del dueño, 21/10/2026):
+   * una fila por caso, ojo y aparato, con el preoperatorio y la lente de cada
+   * calculadora (`libroDeEstudio`). Lleva el nombre del paciente, porque así lo
+   * pidió el dueño; la hoja de notas del propio Excel lo avisa. Si no hay ninguna
+   * fila, no se crea nada y se dice por qué.
+   */
+  async exportarEstudioExcel(
+    filtro: FiltroAnalisis,
+    elegirDestino: (nombreSugerido: string) => Promise<string | null>,
+  ): Promise<{ ruta: string; filas: number } | null> {
+    const casos = this.casosGuardados()
+    const excluidos = leerDoctoresExcluidos(this.dep.carpetas)
+    const filas = filasDeEstudio(casos, filtro, excluidos)
+    if (filas.length === 0) {
+      throw new Error('Con estos filtros no hay ninguna fila que guardar en el Excel.')
+    }
+    const destino = await elegirDestino(
+      `estudio_${this.iso().replace(/[:.]/g, '-').slice(0, 10)}.xlsx`,
+    )
+    if (destino === null) return null
+    const descripcion = descripcionDeFiltro(
+      filtro,
+      analizarCasos(casos, filtro, excluidos).opciones,
+    )
+    writeFileSync(destino, libroDeEstudio(filas, descripcion, this.iso()))
+    return { ruta: destino, filas: filas.length }
+  }
+
+  /**
+   * Esa misma búsqueda en un CSV para Excel (separador «;», con BOM para las
+   * tildes). A propósito NO lleva el nombre del paciente: el fichero sale de la
+   * carpeta del programa y la persona puede mandarlo a cualquier sitio.
+   */
+  async exportarAnalisis(
+    filtro: FiltroAnalisis,
+    elegirDestino: (nombreSugerido: string) => Promise<string | null>,
+  ): Promise<{ ruta: string } | null> {
+    const r = this.analizarCasos(filtro)
+    const destino = await elegirDestino(
+      `analisis_${this.iso().replace(/[:.]/g, '-').slice(0, 10)}.csv`,
+    )
+    if (destino === null) return null
+    const celda = (v: string | number): string => {
+      const t = String(v)
+      // Un valor que empieza por = + - @ lo interpretaría Excel como fórmula.
+      const seguro = /^[=+\-@]/.test(t) ? `'${t}` : t
+      return /[;"\n]/.test(seguro) ? `"${seguro.replace(/"/g, '""')}"` : seguro
+    }
+    const filas = [
+      [
+        'Código',
+        'Fecha',
+        'Doctor',
+        'Lente',
+        'Estado',
+        'Ojos calculados',
+        'Calculadoras',
+        'Casillas con fallo',
+      ],
+      ...r.filas.map((f) => [
+        f.codigo,
+        f.actualizadoEn.slice(0, 10),
+        f.doctor,
+        f.lente,
+        NOMBRE_ESTADO[f.estado],
+        f.ojos.join(' + '),
+        f.calculadoras.map((c) => fichaDe(c).nombre).join(' + '),
+        f.fallos,
+      ]),
+    ]
+    const csv = filas.map((fila) => fila.map(celda).join(';')).join('\r\n')
+    writeFileSync(destino, `\uFEFF${csv}\r\n`, 'utf8')
+    return { ruta: destino }
+  }
+
   /** Doctores cuyos casos no cuentan en el dashboard (D83, 16/09/2026). */
   listarDoctoresExcluidos(): readonly string[] {
     return leerDoctoresExcluidos(this.dep.carpetas)
@@ -488,7 +588,12 @@ export class ServicioCasos {
       Record<Lateralidad, { aparato: string; dispositivo: Dispositivo }>
     > = {}
 
-    for (const archivo of archivos) {
+    for (const [posicion, archivo] of archivos.entries()) {
+      this.dep.emitirProgresoCarga?.({
+        indice: posicion + 1,
+        total: archivos.length,
+        nombre: archivo.nombre,
+      })
       // Si viene la ruta, se lee del disco aquí —una sola vez, y sin copiar
       // nada por IPC—. Si viene el contenido, se usa: es el caso de un fichero
       // arrastrado, cuando Electron no da la ruta.
@@ -1641,6 +1746,47 @@ export class ServicioCasos {
     const marca = this.iso().replace(/[:.]/g, '-').slice(0, 19)
     const destino = join(carpeta, `${caso.codigo}_${datos.ojo}_${marca}_pantalla.pdf`)
     await this.dep.imprimirPdf(html, destino, { apaisado: true })
+    return { ruta: destino }
+  }
+
+  /**
+   * El PDF de UN ojo, guardado donde la persona elija (instrucciones del dueño,
+   * 21/10/2026): para quien solo quiere dejarlo en una carpeta temporal y
+   * borrarlo después. Es el mismo PDF que «Generar PDF» —misma plantilla, mismas
+   * casillas—, pero NO toca las carpetas del programa: ni «Calculados», ni
+   * «Datos previos», ni deja el HTML al lado. `elegirDestino` recibe el nombre
+   * sugerido y devuelve la ruta elegida, o `null` si la persona cancela (entonces
+   * no se imprime nada y el resultado es `null`).
+   */
+  async guardarPdfDeOjo(
+    opciones: {
+      readonly ojo: Lateralidad
+      readonly incluirEstimacionCompleta: boolean
+      readonly incluirTablaComparativaDetallada: boolean
+    },
+    elegirDestino: (nombreSugerido: string) => Promise<string | null>,
+  ): Promise<{ ruta: string } | null> {
+    const caso = this.exigirCaso()
+    const resultadosDelOjo = this.recopilarResultadosParaInforme(caso).filter(
+      (r) => r.ojo === opciones.ojo,
+    )
+    if (!ojosDelCaso(caso).includes(opciones.ojo)) {
+      throw new Error(`Este caso no tiene datos del ${nombreLateralidad(opciones.ojo)}.`)
+    }
+    const marca = this.iso().replace(/[:.]/g, '-').slice(0, 19)
+    const destino = await elegirDestino(`${caso.codigo}_${opciones.ojo}_${marca}.pdf`)
+    if (destino === null) return null
+    const html = generarHtmlInforme(
+      recopilarInforme(caso, {
+        version: this.dep.version,
+        generadoEn: this.iso(),
+        resultados: resultadosDelOjo,
+        soloOjo: opciones.ojo,
+        incluirEstimacionCompleta: opciones.incluirEstimacionCompleta,
+        incluirTablaComparativaDetallada: opciones.incluirTablaComparativaDetallada,
+      }),
+    )
+    await this.dep.imprimirPdf(html, destino)
     return { ruta: destino }
   }
 

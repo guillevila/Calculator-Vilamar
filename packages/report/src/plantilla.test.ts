@@ -325,6 +325,68 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
     expect(h).toContain('Eje 81°')
   })
 
+  describe('capturas de la misma familia, en la misma hoja (21/10/2026)', () => {
+    const img = (n: string): string => `data:image/png;base64,${n}`
+    const hojas = (h: string): number => (h.match(/<section class="hoja">/g) ?? []).length
+
+    it('EVO estimado y EVO medido comparten hoja; Barrett y Kane, la suya', () => {
+      const h = htmlSimple([
+        { calculadora: 'EVO_TORIC_SIN_CARA_POSTERIOR', ojo: 'OD', dataUri: img('RVNU') },
+        { calculadora: 'EVO_TORIC', ojo: 'OD', dataUri: img('TUVE') },
+        { calculadora: 'BARRETT_TORIC', ojo: 'OD', dataUri: img('QkE=') },
+        { calculadora: 'BARRETT_TORIC_CON_CARA_POSTERIOR', ojo: 'OD', dataUri: img('QkI=') },
+        { calculadora: 'KANE', ojo: 'OD', dataUri: img('S0E=') },
+      ])
+      // Biometría + EVO + Barrett + Kane + tabla comparativa detallada.
+      expect(hojas(h)).toBe(5)
+      expect(h.match(/class="capturas-dobles"/g)).toHaveLength(2)
+      expect(h).toContain('EVO Toric — estimado')
+      expect(h).toContain('EVO Toric — con córnea posterior medida')
+    })
+
+    it('con una sola de la familia, la hoja es la de siempre', () => {
+      const h = htmlSimple([
+        { calculadora: 'EVO_TORIC_SIN_CARA_POSTERIOR', ojo: 'OD', dataUri: img('RVNU') },
+        { calculadora: 'KANE', ojo: 'OD', dataUri: img('S0E=') },
+      ])
+      expect(hojas(h)).toBe(4)
+      expect(h).not.toContain('class="capturas-dobles"')
+    })
+
+    it('no mezcla aparatos: dos aparatos con dos EVO cada uno sacan dos hojas de EVO', () => {
+      const h = htmlSimple([
+        {
+          calculadora: 'EVO_TORIC_SIN_CARA_POSTERIOR',
+          ojo: 'OD',
+          aparato: 'A',
+          dataUri: img('QQ=='),
+        },
+        { calculadora: 'EVO_TORIC', ojo: 'OD', aparato: 'A', dataUri: img('QUE=') },
+        {
+          calculadora: 'EVO_TORIC_SIN_CARA_POSTERIOR',
+          ojo: 'OD',
+          aparato: 'B',
+          dataUri: img('Qg=='),
+        },
+        { calculadora: 'EVO_TORIC', ojo: 'OD', aparato: 'B', dataUri: img('QkI=') },
+      ])
+      expect(h.match(/class="capturas-dobles"/g)).toHaveLength(2)
+    })
+
+    it('si una de las dos no salió, lo dice en su columna', () => {
+      const h = htmlSimple([
+        { calculadora: 'EVO_TORIC_SIN_CARA_POSTERIOR', ojo: 'OD', dataUri: img('RVNU') },
+        {
+          calculadora: 'EVO_TORIC',
+          ojo: 'OD',
+          fallo: 'EVO no pudo calcular con córnea posterior.',
+        },
+      ])
+      expect(h).toContain('EVO no pudo calcular con córnea posterior.')
+      expect(h).toContain(img('RVNU'))
+    })
+  })
+
   it('una casilla con resultado pero sin captura legible explica la ausencia, sin inventar una imagen', () => {
     const h = htmlSimple([{ calculadora: 'KANE', ojo: 'OD' }])
     expect(h).toContain('No se pudo guardar la captura de pantalla')

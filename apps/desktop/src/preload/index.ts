@@ -24,6 +24,9 @@ const api: ApiVilamar = {
   listarCasosGuardados: () => ipcRenderer.invoke(CANALES.listarCasosGuardados),
   abrirCaso: (codigo) => ipcRenderer.invoke(CANALES.abrirCaso, codigo),
   resumenDashboard: (rango) => ipcRenderer.invoke(CANALES.resumenDashboard, rango),
+  analizarCasos: (filtro) => ipcRenderer.invoke(CANALES.analizarCasos, filtro),
+  exportarAnalisis: (filtro) => ipcRenderer.invoke(CANALES.exportarAnalisis, filtro),
+  exportarEstudioExcel: (filtro) => ipcRenderer.invoke(CANALES.exportarEstudioExcel, filtro),
   listarDoctoresExcluidosDeEstadisticas: () =>
     ipcRenderer.invoke(CANALES.listarDoctoresExcluidosDeEstadisticas),
   excluirDoctorDeEstadisticas: (nombre) =>
@@ -99,6 +102,7 @@ const api: ApiVilamar = {
   cancelarCalculo: () => ipcRenderer.invoke(CANALES.cancelarCalculo),
 
   generarPdf: (opciones) => ipcRenderer.invoke(CANALES.generarPdf, opciones),
+  guardarPdfDeOjo: (opciones) => ipcRenderer.invoke(CANALES.guardarPdfDeOjo, opciones),
   generarPdfPantalla: (datos) => ipcRenderer.invoke(CANALES.generarPdfPantalla, datos),
   abrirCarpetaInformes: () => ipcRenderer.invoke(CANALES.abrirCarpetaInformes),
 
@@ -106,6 +110,13 @@ const api: ApiVilamar = {
     const manejador = (_e: unknown, estado: Parameters<typeof escucha>[0]): void => escucha(estado)
     ipcRenderer.on(CANALES.progreso, manejador)
     return () => ipcRenderer.removeListener(CANALES.progreso, manejador)
+  },
+
+  alProgresarCarga: (escucha) => {
+    const manejador = (_e: unknown, progreso: Parameters<typeof escucha>[0]): void =>
+      escucha(progreso)
+    ipcRenderer.on(CANALES.progresoCarga, manejador)
+    return () => ipcRenderer.removeListener(CANALES.progresoCarga, manejador)
   },
 
   alCambiarCaso: (escucha) => {

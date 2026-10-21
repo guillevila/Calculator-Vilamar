@@ -2169,3 +2169,28 @@ reciente de `docs/CHANGELOG.md` no coincide con `VERSION_VISIBLE`.
 
 **Contexto:** `VERSION_VISIBLE` pasó de '1.37' a '1.38'; las dos entradas más
 recientes del changelog (D129, D130) llevan «v1.38».
+
+## 21/10/2026 — Las barras de progreso de «Calcular» daban todo por completado desde el primer segundo
+
+**Error o aprendizaje:** Se entregó la v1.44 con una barra de progreso por
+calculadora. El dueño la probó al VOLVER a calcular un caso ya calculado y vio
+todas las filas en «Completado, 100 %» desde el principio, mientras la web de
+Barrett seguía trabajando. «No corresponde al estado real.»
+
+**Causa raíz:** La fila daba prioridad a «hay un resultado guardado en el caso»
+sobre el progreso en vivo. En un caso que ya se había calculado, esos
+resultados guardados son de la tanda ANTERIOR: la fila los enseñaba como si
+fueran los de la que acababa de empezar. La prueba que se hizo (mandar avisos de
+progreso a un caso nuevo, sin resultados previos) no cubría justo el caso real
+más común: recalcular.
+
+**Lección:** Un indicador de estado en vivo se prueba SIEMPRE con el caso que
+ya tiene un estado anterior guardado (recalcular, reintentar), no solo con uno
+limpio. «Lo guardado» y «lo que está pasando ahora» son cosas distintas: hay que
+distinguirlas por momento (`obtenidoEn` frente al inicio de la tanda). La lógica
+vive ahora en una función pura, `estadoDeFila` (`compartido/progreso.ts`), con
+sus pruebas.
+
+**Contexto:** v1.46. Un resultado anterior al inicio de la tanda, de una
+calculadora que está en ella, vuelve a «En cola» y avanza con los avisos reales;
+las que no están en la tanda dicen «Resultado de antes».

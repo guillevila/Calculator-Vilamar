@@ -73,7 +73,7 @@ if (app.isPackaged) {
  * este número es lo ÚLTIMO que se hace al cerrar un cambio en la aplicación
  * de escritorio, justo antes de avisar de que está listo para probar.
  */
-const VERSION_VISIBLE = '1.41'
+const VERSION_VISIBLE = '1.47'
 
 function versionDelProducto(): string {
   return VERSION_VISIBLE
@@ -318,6 +318,7 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
       )
       enviarAlaInterfaz(CANALES.progreso, estado)
     },
+    emitirProgresoCarga: (progreso) => enviarAlaInterfaz(CANALES.progresoCarga, progreso),
     emitirCaso: (caso) => {
       for (const [clave, resultado] of Object.entries(caso.resultados)) {
         if (ultimoEstadoPorCasilla.get(clave) !== resultado.estado) {
@@ -344,6 +345,29 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   ipcMain.handle(CANALES.listarCasosGuardados, () => s().listarCasosGuardados())
   ipcMain.handle(CANALES.abrirCaso, (_e, codigo) => s().abrirCaso(codigo))
   ipcMain.handle(CANALES.resumenDashboard, (_e, rango) => s().resumenDashboard(rango))
+  ipcMain.handle(CANALES.analizarCasos, (_e, filtro) => s().analizarCasos(filtro))
+  ipcMain.handle(CANALES.exportarEstudioExcel, (_e, filtro) =>
+    s().exportarEstudioExcel(filtro, async (nombreSugerido) => {
+      if (!ventana) return null
+      const r = await dialog.showSaveDialog(ventana, {
+        title: 'Guardar el Excel de estudio',
+        defaultPath: join(app.getPath('desktop'), nombreSugerido),
+        filters: [{ name: 'Excel', extensions: ['xlsx'] }],
+      })
+      return r.canceled || !r.filePath ? null : r.filePath
+    }),
+  )
+  ipcMain.handle(CANALES.exportarAnalisis, (_e, filtro) =>
+    s().exportarAnalisis(filtro, async (nombreSugerido) => {
+      if (!ventana) return null
+      const r = await dialog.showSaveDialog(ventana, {
+        title: 'Guardar el análisis (se abre con Excel)',
+        defaultPath: join(app.getPath('desktop'), nombreSugerido),
+        filters: [{ name: 'CSV', extensions: ['csv'] }],
+      })
+      return r.canceled || !r.filePath ? null : r.filePath
+    }),
+  )
   ipcMain.handle(CANALES.listarDoctoresExcluidosDeEstadisticas, () => s().listarDoctoresExcluidos())
   ipcMain.handle(CANALES.excluirDoctorDeEstadisticas, (_e, nombre) =>
     s().excluirDoctorDeEstadisticas(nombre),
@@ -494,6 +518,26 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   )
   ipcMain.handle(CANALES.generarPdfPantalla, (_e, datos: { ojo: Lateralidad; html: string }) =>
     s().generarPdfPantalla(datos),
+  )
+  ipcMain.handle(
+    CANALES.guardarPdfDeOjo,
+    (
+      _e,
+      opciones: {
+        ojo: Lateralidad
+        incluirEstimacionCompleta: boolean
+        incluirTablaComparativaDetallada: boolean
+      },
+    ) =>
+      s().guardarPdfDeOjo(opciones, async (nombreSugerido) => {
+        if (!ventana) return null
+        const r = await dialog.showSaveDialog(ventana, {
+          title: 'Guardar el PDF de este ojo',
+          defaultPath: join(app.getPath('desktop'), nombreSugerido),
+          filters: [{ name: 'PDF', extensions: ['pdf'] }],
+        })
+        return r.canceled || !r.filePath ? null : r.filePath
+      }),
   )
   ipcMain.handle(CANALES.abrirCarpetaInformes, () => shell.openPath(carpetas.informes))
 }
