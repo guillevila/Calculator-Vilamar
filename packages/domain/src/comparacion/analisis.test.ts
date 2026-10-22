@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { casoNuevo, claveResultado } from '../modelo/caso.js'
 import type { Caso } from '../modelo/caso.js'
 import { analizarCasos } from './analisis.js'
+import { calcularResumenDashboard } from './dashboard.js'
+import { filasDeEstudio } from './estudio.js'
 
 const CUANDO = '2026-09-15T10:00:00.000Z'
 
@@ -102,5 +104,77 @@ describe('analizarCasos', () => {
     expect(filas.map((f) => f.codigo)).toEqual(['CV-2026-2', 'CV-2026-1'])
     expect(filas[0]).toMatchObject({ doctor: 'Dra. López', lente: 'LuxSmart', ojos: ['OD'] })
     expect(filas[0]?.calculadoras).toEqual(['KANE'])
+  })
+})
+
+describe('casos importados de otra app (22/10/2026)', () => {
+  function importado(id: string, ojo: 'OD' | 'OS' = 'OD'): Caso {
+    return {
+      ...casoNuevo(id, `IM-2026-${id}`, CUANDO),
+      estado: 'COMPLETADO',
+      nombreCirujano: 'Dra. López',
+      lente: { modelo: 'EnVista' },
+      importado: {
+        origen: 'RESUMEN_CALCULADORES',
+        ficheroOriginal: 'a.pdf',
+        rutaPdf: 'C:/x/a.pdf',
+        huella: 'h' + id,
+        ojo,
+        aparatos: ['Pentacam'],
+        calculadoras: ['EVO_TORIC_SIN_CARA_POSTERIOR', 'KANE'],
+      },
+    }
+  }
+
+  it('cuentan como un ojo, con su doctor y su lente', () => {
+    const r = analizarCasos([importado('0001'), importado('0002', 'OS')])
+    expect(r.totalCasos).toBe(2)
+    expect(r.totalOjos).toBe(2)
+    expect(r.ojosOD).toBe(1)
+    expect(r.ojosOS).toBe(1)
+    expect(r.porDoctor).toEqual([{ etiqueta: 'Dra. López', cantidad: 2 }])
+    expect(r.porLente).toEqual([{ etiqueta: 'EnVista', cantidad: 2 }])
+    expect(r.filas[0]?.importado).toBe(true)
+  })
+
+  it('un PDF con los dos ojos cuenta dos ojos: uno en OD y otro en OS, y dos filas en el Excel', () => {
+    const ambos: Caso = {
+      ...importado('0003'),
+      importado: {
+        ...importado('0003').importado!,
+        ojos: ['OD', 'OS'],
+      },
+    }
+    const r = analizarCasos([ambos])
+    expect(r.totalCasos).toBe(1)
+    expect(r.totalOjos).toBe(2)
+    expect(r.ojosOD).toBe(1)
+    expect(r.ojosOS).toBe(1)
+    expect(r.porLente).toEqual([{ etiqueta: 'EnVista', cantidad: 2 }])
+    expect(analizarCasos([ambos], { ojo: 'OS' }).totalCasos).toBe(1)
+    expect(filasDeEstudio([ambos]).map((f) => f.ojo)).toEqual(['OD', 'OS'])
+  })
+
+  it('uno sin lente cuenta igual en el dashboard (por doctor y ojo), como «Sin modelo»', () => {
+    const { lente: _lente, ...sinLente } = importado('0004')
+    const r = calcularResumenDashboard([sinLente as Caso])
+    expect(r.totalCalculados).toBe(1)
+    expect(r.porDoctor).toEqual([{ etiqueta: 'Dra. López', cantidad: 1 }])
+    expect(r.porModeloLente).toEqual([{ etiqueta: 'Sin modelo', cantidad: 1 }])
+  })
+
+  it('se pueden buscar por ojo y por calculadora', () => {
+    const casos = [importado('0001'), importado('0002', 'OS')]
+    expect(analizarCasos(casos, { ojo: 'OS' }).filas.map((f) => f.codigo)).toEqual(['IM-2026-0002'])
+    expect(analizarCasos(casos, { calculadora: 'KANE' }).totalCasos).toBe(2)
+    expect(analizarCasos(casos, { calculadora: 'BARRETT_TORIC' }).totalCasos).toBe(0)
+  })
+
+  it('y salen en el Excel de estudio con lo que dice el PDF, sin biometría', () => {
+    const filas = filasDeEstudio([importado('0001')])
+    expect(filas).toHaveLength(1)
+    expect(filas[0]).toMatchObject({ aparato: 'Pentacam', tipoDeLente: 'EnVista', ojo: 'OD' })
+    expect(filas[0]?.longitudAxial).toBeUndefined()
+    expect(filas[0]?.lentes).toEqual({})
   })
 })

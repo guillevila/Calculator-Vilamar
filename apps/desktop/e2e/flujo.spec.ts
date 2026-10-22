@@ -2526,6 +2526,8 @@ test('«Análisis de resultados»: se abre, filtra y lleva directamente al caso'
 
   await ventana.getByTestId('abrir-analisis').click()
   await expect(ventana.getByTestId('pantalla-analisis')).toBeVisible()
+  await expect(ventana.getByTestId('importar-resumenes')).toBeVisible()
+  await expect(ventana.getByTestId('elegir-carpeta-resumenes')).toBeVisible()
   await expect(ventana.getByTestId('analisis-resumen')).toBeVisible()
 
   // Por defecto solo los terminados: este caso no sale.

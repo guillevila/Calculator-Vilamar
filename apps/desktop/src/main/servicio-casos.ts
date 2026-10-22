@@ -110,18 +110,24 @@ import type { Browser } from 'playwright'
 import type {
   ArchivoEntrante,
   EstadoCalculo,
+  ResultadoImportacion,
   ResumenCasoGuardado,
   ResumenExtraccion,
 } from '../compartido/ipc.js'
 import type { ProgresoCarga } from '../compartido/progreso.js'
 import { descripcionDeFiltro, libroDeEstudio } from './estudio-excel.js'
+import { crearLectorPdf } from './extraccion/lector-pdf.js'
+import { importarResumenes } from './importador-resumenes.js'
 import type { Carpetas } from './almacen.js'
 import {
   guardarCaso,
+  guardarCarpetaResumenes,
   guardarDocumento,
   guardarDoctoresExcluidos,
   leerCaso as leerCasoDelAlmacen,
   leerCarpetaEntrada,
+  leerCarpetaResumenes,
+  leerDoctores,
   leerDoctoresExcluidos,
   listarCasos as listarCasosDelAlmacen,
   moverCasoABorrados,
@@ -147,6 +153,8 @@ export interface DependenciasServicio {
   readonly ahora: () => Date
   /** Abre el navegador para las calculadoras. Se inyecta para poder probarlo. */
   readonly abrirNavegador: (conVentana: boolean) => Promise<Browser>
+  /** Manda un fichero a la papelera. Lo hace Electron; sin esto, la importación de PDF no quita los originales. */
+  readonly mandarAPapelera?: (ruta: string) => Promise<void>
   /** Convierte HTML en PDF. Lo hace Electron; se inyecta para poder probarlo. */
   readonly imprimirPdf: (
     html: string,
@@ -368,7 +376,59 @@ export class ServicioCasos {
         estado: c.estado,
         actualizadoEn: c.actualizadoEn,
         ...(c.nombrePaciente ? { nombrePaciente: c.nombrePaciente } : {}),
+        ...(c.importado ? { importado: true } : {}),
       }))
+  }
+
+  // ── PDF de «Resumen Calculadores» ───────────────────────────────────────
+
+  obtenerCarpetaResumenes(): string | null {
+    return leerCarpetaResumenes(this.dep.carpetas)
+  }
+
+  configurarCarpetaResumenes(ruta: string): void {
+    guardarCarpetaResumenes(this.dep.carpetas, ruta)
+  }
+
+  /**
+   * Busca PDF nuevos de «Resumen Calculadores» en la carpeta elegida y los
+   * importa (ver `importarResumenes`): copia en la carpeta del doctor y un caso
+   * importado que cuenta en el análisis y las estadísticas.
+   */
+  async importarResumenes(): Promise<ResultadoImportacion> {
+    const origen = leerCarpetaResumenes(this.dep.carpetas)
+    if (!origen) throw new Error('Elige primero la carpeta donde están los PDF.')
+    return importarResumenes({
+      carpetas: this.dep.carpetas,
+      origen,
+      ahora: this.dep.ahora(),
+      casos: this.casosGuardados(),
+      doctoresConocidos: leerDoctores(this.dep.carpetas).map((d) => d.nombre),
+      // Dentro de «Calculados», junto a los PDF hechos aquí (instrucciones del dueño,
+      // 22/10/2026): <doctor>/Calculados/<paciente>/<ojo>, y «Ambos ojos» si el PDF
+      // trae los dos en el mismo fichero.
+      carpetaDeCopia: ({ doctor, paciente, ojos, codigo }) =>
+        join(
+          this.dep.carpetas.informes,
+          nombreDeCarpeta(doctor, NOMBRE_CARPETA_SIN_DOCTOR),
+          'Calculados',
+          nombreDeCarpeta(paciente, codigo),
+          ojos.length > 1 ? 'Ambos ojos' : nombreLateralidad(ojos[0] ?? 'OD'),
+        ),
+      ...(this.dep.mandarAPapelera ? { mandarAPapelera: this.dep.mandarAPapelera } : {}),
+      leerTexto: async (datos) => (await crearLectorPdf().leer(datos)).map((p) => p.texto),
+    })
+  }
+
+  /** La ruta del PDF guardado de un caso importado; falla si no lo es o ya no está. */
+  rutaDePdfImportado(codigo: string): string {
+    const caso = leerCasoDelAlmacen(this.dep.carpetas, codigo)
+    const ruta = caso?.importado?.rutaPdf
+    if (!ruta) throw new Error(`El caso ${codigo} no es un PDF importado.`)
+    if (!existsSync(ruta)) {
+      throw new Error('El PDF ya no está en su carpeta: puede que se haya movido o borrado.')
+    }
+    return ruta
   }
 
   /**

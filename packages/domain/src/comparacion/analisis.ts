@@ -17,7 +17,7 @@
 
 import type { Calculadora } from '../modelo/calculadoras.js'
 import type { Caso, EstadoCaso } from '../modelo/caso.js'
-import { ojosDelCaso } from '../modelo/caso.js'
+import { ojosDeImportado, ojosDelCaso } from '../modelo/caso.js'
 import type { Lateralidad } from '../modelo/lateralidad.js'
 import {
   claveDeLenteParaAgrupar,
@@ -53,6 +53,8 @@ export interface FilaAnalisis {
   readonly ojos: readonly Lateralidad[]
   /** Las calculadoras con algún resultado utilizable. */
   readonly calculadoras: readonly Calculadora[]
+  /** Viene de un PDF de otra app: no tiene biometría ni se abre como caso, solo su PDF. */
+  readonly importado?: boolean
   /** Cuántas casillas se intentaron y no salieron. */
   readonly fallos: number
 }
@@ -89,9 +91,16 @@ function resultadosUtiles(caso: Caso): Caso['resultados'][string][] {
 
 /** Los ojos que aporta un caso: los que tienen resultado; si ninguno, los que tienen datos. */
 function ojosDelAnalisis(caso: Caso): readonly Lateralidad[] {
+  if (caso.importado) return ojosDeImportado(caso.importado)
   const conResultado = new Set(resultadosUtiles(caso).map((r) => r.ojo))
   const ojos = conResultado.size > 0 ? [...conResultado] : [...ojosDelCaso(caso)]
   return (['OD', 'OS'] as const).filter((o) => ojos.includes(o))
+}
+
+/** Las calculadoras que aporta un caso: las de sus resultados, o las que dice el PDF importado. */
+function calculadorasDe(caso: Caso): readonly Calculadora[] {
+  if (caso.importado) return caso.importado.calculadoras
+  return [...new Set(resultadosUtiles(caso).map((r) => r.calculadora))]
 }
 
 function contar(etiquetas: readonly string[]): readonly ConteoDashboard[] {
@@ -119,14 +128,7 @@ function aplicarFiltro(candidatos: readonly Caso[], filtro: FiltroAnalisis): rea
     }
     if (filtro.lente && claveDeLenteParaAgrupar(c.lente) !== filtro.lente) return false
     if (filtro.ojo && !ojosDelAnalisis(c).includes(filtro.ojo)) return false
-    if (
-      filtro.calculadora &&
-      !resultadosUtiles(c).some(
-        (r) => r.calculadora === filtro.calculadora && (!filtro.ojo || r.ojo === filtro.ojo),
-      )
-    ) {
-      return false
-    }
+    if (filtro.calculadora && !calculadorasDe(c).includes(filtro.calculadora)) return false
     if (texto !== '') {
       const pajar = normalizar(`${c.codigo} ${c.nombrePaciente ?? ''}`)
       if (!pajar.includes(texto)) return false
@@ -192,7 +194,8 @@ export function analizarCasos(
       estado: c.estado,
       actualizadoEn: c.actualizadoEn,
       ojos: ojosDelAnalisis(c),
-      calculadoras: [...new Set(resultadosUtiles(c).map((r) => r.calculadora))],
+      calculadoras: calculadorasDe(c),
+      ...(c.importado ? { importado: true } : {}),
       fallos: Object.values(c.resultados).filter(
         (r) => r.estado !== 'SUCCESS' && r.estado !== 'PARTIAL',
       ).length,
@@ -205,9 +208,7 @@ export function analizarCasos(
     Array.from({ length: ojosContados(c) }, () => valor)
   // La misma etiqueta para todas las formas de escribir una lente (D90).
   const etiquetaDeGrupo = new Map(opciones.lentes.map((l) => [l.clave, l.etiqueta]))
-  const porCalculadora = contar(
-    elegidos.flatMap((c) => resultadosUtiles(c).map((r) => r.calculadora as string)),
-  )
+  const porCalculadora = contar(elegidos.flatMap((c) => calculadorasDe(c).map((k) => k as string)))
 
   return {
     filas,

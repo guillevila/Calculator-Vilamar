@@ -18,6 +18,7 @@ import type { Caso } from '../modelo/caso.js'
 import {
   COLUMNAS_COMPARATIVA,
   datasetsActivosDe,
+  ojosDeImportado,
   ojosDelCaso,
   resultadoDe,
 } from '../modelo/caso.js'
@@ -75,6 +76,26 @@ export function filasDeEstudio(
   )
   const filas: FilaEstudio[] = []
   for (const caso of elegidos) {
+    if (caso.importado) {
+      // Importado de otra app (22/10/2026): sin biometría ni lentes por calculadora;
+      // solo lo que dice el PDF. Una fila por aparato que enseña.
+      for (const ojo of ojosDeImportado(caso.importado)) {
+        if (filtro.ojo && ojo !== filtro.ojo) continue
+        for (const aparato of caso.importado.aparatos.length > 0 ? caso.importado.aparatos : ['']) {
+          filas.push({
+            ...(caso.nombrePaciente ? { nombrePaciente: caso.nombrePaciente } : {}),
+            codigo: caso.codigo,
+            fecha: caso.actualizadoEn.slice(0, 10),
+            doctor: etiquetaDoctor(caso),
+            ojo,
+            aparato: aparato || 'Importado de otra app',
+            tipoDeLente: etiquetaLente(caso.lente),
+            lentes: {},
+          })
+        }
+      }
+      continue
+    }
     const criterio = criterioEsferaPara(caso.lente?.modelo)
     for (const ojo of ojosDelCaso(caso)) {
       if (filtro.ojo && ojo !== filtro.ojo) continue

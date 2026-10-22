@@ -4,6 +4,62 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.103] — 22/10/2026 (versión visible en pantalla: v1.54)
+
+feat(app): importar PDF aunque falte un dato — lo importante es guardarlo en su sitio (D138)
+
+Petición del dueño: si falla la lente pero en la cabecera se ve el doctor y el ojo, con eso vale para guardarlo en su carpeta correcta, aunque luego en las estadísticas no salga la lente. Ahora el mínimo que se exige a un PDF de «Resumen Calculadores» es la **fecha y el ojo**: si faltan la lente, el paciente o incluso el doctor, el PDF se importa igual y lo que falta queda ausente (sin doctor va a «Sin doctor»; sin paciente, a una carpeta con el código del caso). Si la cabecera no se puede leer pero el nombre del fichero trae fecha, doctor, paciente, lente y ojo, se saca de ahí (pierde tildes y mayúsculas, pero no se queda sin guardar). Un caso importado sin lente cuenta igualmente en el dashboard por doctor y ojo, como «Sin modelo» en el gráfico de lentes. La tarjeta avisa de qué datos le faltaban a cada PDF guardado («se ha guardado, pero no trae lente»).
+
+---
+
+## [1.15.102] — 22/10/2026 (versión visible en pantalla: v1.53)
+
+fix(app): importar PDF de «Resumen Calculadores» con la cabecera sin «tipo», franjas de tres trozos e identificador al final del nombre (D138)
+
+Segundo fallo real del dueño con un PDF de otro ejemplo («2026-10-15 · Israel · Catalina · EnVista Envy · OD»): salía «no tiene cabecera». Tres causas, todas por suponer demasiado del formato: (1) la cabecera de ese PDF no trae «· Tórica» al final, y el lector daba por hecho que el ojo iba el penúltimo; ahora el ojo puede ir último (sin tipo) o antes del tipo. (2) Las franjas de aparato son de tres trozos («IOLMaster · EnVista Envy · EVO estimado»), sin «SimK · Tórica», y se exigían cuatro; ahora bastan tres, y un rótulo de ojo («OD · EVO estimado · …») no se toma por un aparato. (3) El identificador del caso se buscaba en una posición fija del nombre del fichero; ahora se busca el trozo con forma «números-letras» («130214306-7c0a4a») esté donde esté, antes o después del tipo. Comprobado con el fichero real del dueño (lectura): sale doctor Israel, paciente Catalina, lente EnVista Envy, ojo OD, IOLMaster, EVO y Kane. Además: un PDF de 0 bytes (el segundo de su captura, copiado vacío) se avisa como «vacío, vuelve a guardarlo desde la otra app» en vez de un error en inglés, y cuando un original no se puede quitar de la carpeta, la tarjeta dice por qué (por ejemplo, que está abierto en otro programa).
+
+---
+
+## [1.15.101] — 22/10/2026 (versión visible en pantalla: v1.52)
+
+feat(app): al importar un PDF de otra app, el original se manda a la papelera una vez copiado y comprobado (D138)
+
+Petición del dueño: que la carpeta de entrada no se llene de PDF ya importados. Tras copiar el PDF a la carpeta del doctor, se comprueba que la copia existe y es idéntica (misma huella SHA-256) y SOLO entonces el original se manda a la **papelera de Windows** —no se borra para siempre—. También se quita el original de un PDF que ya estaba importado, si su copia sigue en su sitio e idéntica. Un PDF que no se reconoce, o uno distinto del mismo caso (recalculado), se deja donde está. Si la papelera falla, el original se queda y la tarjeta lo dice. Sin papelera disponible (pruebas), no se quita nada. La tarjeta cuenta cuántos originales se han mandado a la papelera. Aparte, la carpeta de entrada del dueño pasa de llamarse «terminados» a «importados de la otra app» (con su ruta ya actualizada en la configuración).
+
+---
+
+## [1.15.100] — 22/10/2026 (versión visible en pantalla: v1.51)
+
+fix(app): importación de PDF — se saltan los PDF de este mismo programa, el doctor se reconoce sin «Dr/Dra» y el texto de la tarjeta dice «Calculados» (D138)
+
+Prueba del dueño con la v1.49: su PDF con los dos ojos («… · OD-OI · Tórica») salía «no se ha podido leer». Era la versión: los dos ojos se admiten desde la v1.50. Comprobado con su fichero real (solo lectura): con el código actual se lee entero (doctor, paciente, lente EnVista Envy, los dos ojos, IOLMaster, EVO y Kane, identificador). Además: (1) los PDF que hace este mismo programa («CV-2026-0419_OD_….pdf»), que estaban en la misma carpeta, se saltan en silencio en vez de salir como «no se han podido leer»; (2) el doctor se reconoce sin contar «Dr»/«Dra»: «Aurelio rocha» se escribe como el «Dr aurelio Rocha» que ya existe, para no crear un doctor repetido; (3) la tarjeta decía que los PDF se copian a «Importados»: ahora dice «Calculados», que es donde van desde la v1.50.
+
+---
+
+## [1.15.99] — 22/10/2026 (versión visible en pantalla: v1.50)
+
+feat(app): importar PDF de «Resumen Calculadores» con los dos ojos («Ambos ojos»), y guardar todos los importados en «Calculados» (D138)
+
+Petición del dueño, con un PDF de ejemplo con los dos ojos en el mismo fichero (cabecera «… · OD-OI · Tórica»). (1) La cabecera con los dos ojos («OD-OI», «OD / OI») se reconoce y el caso cuenta **dos ojos** (uno en OD y otro en OS) en el Dashboard, el Análisis y el Excel de estudio (dos filas por aparato). (2) La copia del PDF va a `<doctor>/Calculados/<paciente>/Ambos ojos/`; los de un solo ojo, a `<doctor>/Calculados/<paciente>/<ojo>/`, junto a los PDF hechos aquí (antes iban a una carpeta «Importados»; los ya importados se quedan donde están). (3) La franja de Kane de ese PDF no acaba en «KANE» («… · KANE · OD / OI»): ahora se busca la calculadora en cualquier parte de la franja. (4) El identificador del caso en la otra app se saca del penúltimo trozo del nombre, aunque haya un trozo extra («…_OD-OI_personalizado_085542495-902041_Torica.pdf»). «EnVista Envy» se traduce a la lente B&L Envy del catálogo. Comprobado con un PDF real de dos columnas generado aquí, no con el fichero original.
+
+---
+
+## [1.15.98] — 22/10/2026 (versión visible en pantalla: v1.49)
+
+fix(app): los casos importados usan la lente exacta del catálogo, para sumar con los hechos aquí (D138)
+
+Petición del dueño: la cabecera de los PDF de «Resumen Calculadores» solo dice «EnVista», «Aspire»…, mientras que la lente exacta va dentro de las capturas («Toric Model: B&L MX60ET/PT» en EVO, «IOL: B+L enVista Toric» en Kane). Para no leer las imágenes, el nombre de la cabecera se traduce a la lente del catálogo del programa: EnVista → B&L MX60ET/PT, Envy → B&L Envy, Aspire → B&L Aspire, LuxSmart, LuxLife y LuxGood → B&L LuxSmart, LuxLife y LuxGood (todas de Bausch & Lomb). Así un caso importado suma en la misma barra del dashboard y del análisis que los calculados aquí. Un nombre que no se reconoce se conserva tal como viene en el PDF (no se adivina). Por ahora no se leen las imágenes; queda como mejora si algún día hiciera falta (por ejemplo si «EnVista» pudiera ser otra variante).
+
+---
+
+## [1.15.97] — 22/10/2026 (versión visible en pantalla: v1.48)
+
+feat(app): importar los PDF de «Resumen Calculadores»: se guardan en la carpeta del doctor y cuentan en el análisis y las estadísticas (D138)
+
+Petición del dueño: tener en un mismo sitio los cálculos hechos con la app de su compañera. En «Análisis de resultados» hay una tarjeta nueva: se elige la carpeta donde están esos PDF y «Buscar PDF nuevos» (también se busca sola al abrir la pantalla). De cada PDF se lee la cabecera que su app escribe en cada página —fecha, doctor, paciente, lente, ojo y tipo— y las franjas de aparato y calculadora (EVO, Barrett, Kane; estimado o medido). Cada PDF nuevo: (1) se copia a `<doctor>/Importados/<paciente>/<ojo>/` —el original no se toca—, (2) crea un caso «importado» (código `IM-AAAA-NNNN`) ya terminado, con la fecha del PDF, que cuenta como un ojo en el Dashboard y en el Análisis (filtros de fecha, doctor, lente, ojo y calculadora) y sale en el Excel de estudio sin biometría, y (3) en la lista tiene el botón «Abrir PDF». No se importa dos veces: por huella del contenido y por el identificador del caso en la otra app. El doctor se escribe como ya existe en el programa (sin mirar mayúsculas ni tildes). Un PDF que no es de esa app no se importa y se dice por qué. Lo que el PDF no dice no se inventa. Los casos importados no salen en «Casos guardados» (no se pueden abrir como caso).
+
+---
+
 ## [1.15.96] — 21/10/2026 (versión visible en pantalla: v1.47)
 
 fix(app): las barras de «Calcular» llegan al 100 % y ponen «Completado» en cuanto cada calculadora termina (D136)
