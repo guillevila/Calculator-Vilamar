@@ -73,6 +73,31 @@ export interface ResumenCasoGuardado {
   readonly actualizadoEn: string
   /** Si el caso lo tiene — nunca sale de este ordenador (D44), y aquí tampoco. */
   readonly nombrePaciente?: string
+  /** Viene de un PDF de otra app: no se abre como caso. */
+  readonly importado?: boolean
+}
+
+/** Lo que pasó al buscar PDF de «Resumen Calculadores» en la carpeta (22/10/2026). */
+export interface ResultadoImportacion {
+  /** PDF que se han importado ahora. */
+  readonly nuevos: number
+  /** PDF que ya estaban importados (mismo contenido o mismo caso). */
+  readonly repetidos: number
+  /** PDF que no se han podido leer como un caso, con el motivo. */
+  readonly noReconocidos: readonly { readonly fichero: string; readonly motivo: string }[]
+  /** Cuántos PDF había en la carpeta. */
+  readonly total: number
+  /** Originales mandados a la papelera de la carpeta, una vez copiados y comprobados. */
+  readonly quitados: number
+  /** Originales que se quisieron quitar y no se pudo (siguen en la carpeta). */
+  readonly noQuitados: number
+  /** PDF importados a los que les faltaba algún dato (doctor, paciente, lente): se guardaron igual. */
+  readonly conDatosQueFaltan: readonly {
+    readonly fichero: string
+    readonly faltan: readonly string[]
+  }[]
+  /** Por qué no se pudo quitar el primero (p. ej. el PDF está abierto en otro programa). */
+  readonly motivoNoQuitado?: string
 }
 
 export interface EstadoCalculo {
@@ -115,6 +140,14 @@ export interface ApiVilamar {
   readonly exportarEstudioExcel: (
     filtro: FiltroAnalisis,
   ) => Promise<{ readonly ruta: string; readonly filas: number } | null>
+  /** La carpeta donde se buscan los PDF de «Resumen Calculadores», si ya se eligió. */
+  readonly obtenerCarpetaResumenes: () => Promise<string | null>
+  /** Abre el cuadro para elegir esa carpeta y la guarda; `null` si se cancela. */
+  readonly elegirCarpetaResumenes: () => Promise<string | null>
+  /** Busca PDF nuevos en esa carpeta: guarda su copia en la carpeta del doctor y los cuenta como casos. */
+  readonly importarResumenes: () => Promise<ResultadoImportacion>
+  /** Abre el PDF guardado de un caso importado con el programa del sistema. */
+  readonly abrirPdfImportado: (codigo: string) => Promise<void>
   /** Guarda esa misma búsqueda en un CSV (cuadro «Guardar como»); `null` si se cancela. */
   readonly exportarAnalisis: (filtro: FiltroAnalisis) => Promise<{ readonly ruta: string } | null>
   /** Doctores excluidos del dashboard (D83, 16/09/2026) — pruebas o errores, sin borrar el caso. */
@@ -560,6 +593,10 @@ export const CANALES = {
   generarPdfPantalla: 'vilamar:generar-pdf-pantalla',
   analizarCasos: 'vilamar:analizar-casos',
   exportarAnalisis: 'vilamar:exportar-analisis',
+  obtenerCarpetaResumenes: 'vilamar:obtener-carpeta-resumenes',
+  elegirCarpetaResumenes: 'vilamar:elegir-carpeta-resumenes',
+  importarResumenes: 'vilamar:importar-resumenes',
+  abrirPdfImportado: 'vilamar:abrir-pdf-importado',
   exportarEstudioExcel: 'vilamar:exportar-estudio-excel',
   guardarPdfDeOjo: 'vilamar:guardar-pdf-de-ojo',
   abrirCarpetaInformes: 'vilamar:abrir-carpeta-informes',

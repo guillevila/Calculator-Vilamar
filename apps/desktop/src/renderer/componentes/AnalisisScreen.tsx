@@ -18,6 +18,7 @@ import type { JSX } from 'react'
 import { COLUMNAS_COMPARATIVA, NOMBRE_ESTADO, fichaDe } from '@vilamar/domain'
 import type { Calculadora, FiltroAnalisis, Lateralidad, ResultadoAnalisis } from '@vilamar/domain'
 
+import type { ResultadoImportacion } from '../../compartido/ipc.js'
 import { api } from '../api.js'
 import { CASOS_POR_PAGINA } from './CasosGuardados.js'
 import { GraficoBarras } from './DashboardScreen.js'
@@ -63,6 +64,11 @@ export function AnalisisScreen({ onAbrirResultado, onVolver }: Props): JSX.Eleme
   const [abriendo, setAbriendo] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [creandoExcel, setCreandoExcel] = useState(false)
+  // PDF de «Resumen Calculadores» (22/10/2026): carpeta, búsqueda y resultado.
+  const [carpetaResumenes, setCarpetaResumenes] = useState<string | null>(null)
+  const [importando, setImportando] = useState(false)
+  const [importacion, setImportacion] = useState<ResultadoImportacion | null>(null)
+  const [recarga, setRecarga] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
   const filtro: FiltroAnalisis = {
@@ -77,6 +83,64 @@ export function AnalisisScreen({ onAbrirResultado, onVolver }: Props): JSX.Eleme
     ...(incluirAMedias ? { incluirAMedias } : {}),
   }
   const clave = JSON.stringify(filtro)
+
+  async function importar(): Promise<void> {
+    setError(null)
+    setImportando(true)
+    try {
+      const r = await api().importarResumenes()
+      setImportacion(r)
+      if (r.nuevos > 0) setRecarga((n) => n + 1)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setImportando(false)
+    }
+  }
+
+  async function elegirCarpetaDeResumenes(): Promise<void> {
+    setError(null)
+    try {
+      const ruta = await api().elegirCarpetaResumenes()
+      if (ruta) {
+        setCarpetaResumenes(ruta)
+        await importar()
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function abrirPdf(codigo: string): Promise<void> {
+    setError(null)
+    try {
+      await api().abrirPdfImportado(codigo)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  // Al abrir la pantalla: si ya hay carpeta elegida, se buscan PDF nuevos solos.
+  useEffect(() => {
+    let vigente = true
+    void api()
+      .obtenerCarpetaResumenes()
+      .then((ruta) => {
+        if (!vigente || !ruta) return
+        setCarpetaResumenes(ruta)
+        return api()
+          .importarResumenes()
+          .then((r) => {
+            if (!vigente) return
+            setImportacion(r)
+            if (r.nuevos > 0) setRecarga((n) => n + 1)
+          })
+      })
+      .catch(() => undefined)
+    return () => {
+      vigente = false
+    }
+  }, [])
 
   // La búsqueda se repite sola al cambiar cualquier filtro.
   useEffect(() => {
@@ -93,7 +157,7 @@ export function AnalisisScreen({ onAbrirResultado, onVolver }: Props): JSX.Eleme
     return () => {
       vigente = false
     }
-  }, [clave])
+  }, [clave, recarga])
 
   function limpiar(): void {
     setDesde('')
@@ -266,6 +330,67 @@ export function AnalisisScreen({ onAbrirResultado, onVolver }: Props): JSX.Eleme
         </button>
       </div>
 
+      <div
+        className="tarjeta-seccion"
+        style={{ margin: '12px 0' }}
+        data-testid="importar-resumenes"
+      >
+        <strong>Importar cálculos de otra app (PDF de Resumen Calculadores)</strong>
+        <p className="pie-nota" style={{ margin: '4px 0 8px' }}>
+          Elige la carpeta donde guardas esos PDF. Se copian a la carpeta de su doctor
+          («Calculados») y cuentan en el análisis y las estadísticas. Una vez copiado y comprobado,
+          el original se manda a la papelera.
+        </p>
+        <div className="fila" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => void elegirCarpetaDeResumenes()}
+            disabled={importando}
+            data-testid="elegir-carpeta-resumenes"
+          >
+            {carpetaResumenes ? 'Cambiar carpeta' : 'Elegir carpeta'}
+          </button>
+          {carpetaResumenes && (
+            <>
+              <code data-testid="carpeta-resumenes">{carpetaResumenes}</code>
+              <button
+                className="principal"
+                onClick={() => void importar()}
+                disabled={importando}
+                data-testid="buscar-pdf-nuevos"
+              >
+                {importando ? 'Buscando…' : 'Buscar PDF nuevos'}
+              </button>
+            </>
+          )}
+        </div>
+        {importacion && (
+          <div className="pie-nota" style={{ marginTop: 8 }} data-testid="resultado-importacion">
+            {importacion.total === 0
+              ? 'No hay ningún PDF en esa carpeta.'
+              : `${importacion.nuevos} nuevo${importacion.nuevos === 1 ? '' : 's'} importado${importacion.nuevos === 1 ? '' : 's'}, ${importacion.repetidos} ya estaban` +
+                (importacion.noReconocidos.length > 0
+                  ? `, ${importacion.noReconocidos.length} no se han podido leer.`
+                  : '.') +
+                (importacion.quitados > 0
+                  ? ` ${importacion.quitados} original${importacion.quitados === 1 ? '' : 'es'} a la papelera.`
+                  : '') +
+                (importacion.noQuitados > 0
+                  ? ` ${importacion.noQuitados} no se ha podido quitar (siguen en la carpeta)${importacion.motivoNoQuitado ? `: ${importacion.motivoNoQuitado}. Si el PDF está abierto en otro programa, ciérralo y vuelve a buscar` : ''}.`
+                  : '')}
+            {importacion.conDatosQueFaltan.map((n) => (
+              <div key={`falta-${n.fichero}`}>
+                · {n.fichero}: se ha guardado, pero no trae {n.faltan.join(', ')}.
+              </div>
+            ))}
+            {importacion.noReconocidos.map((n) => (
+              <div key={n.fichero}>
+                · {n.fichero}: {n.motivo}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {error && (
         <div className="aviso error" role="alert" style={{ marginTop: 12 }}>
           {error}
@@ -359,6 +484,7 @@ export function AnalisisScreen({ onAbrirResultado, onVolver }: Props): JSX.Eleme
                     <tr key={f.codigo}>
                       <td>
                         {f.codigo}
+                        {f.importado ? <span className="sub"> · importado</span> : null}
                         {f.nombrePaciente ? (
                           <span className="sub" style={{ display: 'block' }}>
                             {f.nombrePaciente}
@@ -376,15 +502,17 @@ export function AnalisisScreen({ onAbrirResultado, onVolver }: Props): JSX.Eleme
                       <td>
                         <button
                           className="principal"
-                          onClick={() => void abrir(f.codigo)}
+                          onClick={() => void (f.importado ? abrirPdf(f.codigo) : abrir(f.codigo))}
                           disabled={abriendo !== null}
                           data-testid={`analisis-abrir-${f.codigo}`}
                         >
                           {abriendo === f.codigo
                             ? 'Abriendo…'
-                            : f.estado === 'COMPLETADO'
-                              ? 'Ver resultado'
-                              : 'Abrir caso'}
+                            : f.importado
+                              ? 'Abrir PDF'
+                              : f.estado === 'COMPLETADO'
+                                ? 'Ver resultado'
+                                : 'Abrir caso'}
                         </button>
                       </td>
                     </tr>

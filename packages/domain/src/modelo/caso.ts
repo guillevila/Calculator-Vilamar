@@ -42,6 +42,36 @@ export const NOMBRE_ESTADO: Readonly<Record<EstadoCaso, string>> = {
   COMPLETADO: 'Terminado',
 }
 
+/**
+ * Un caso que NO se hizo en este programa: viene de un PDF de «Resumen
+ * Calculadores» (22/10/2026). No tiene biometría ni resultados por calculadora —
+ * solo lo que el PDF dice—, pero cuenta en el análisis y las estadísticas y su PDF
+ * se guarda en la carpeta del doctor.
+ */
+export interface DatosImportados {
+  readonly origen: 'RESUMEN_CALCULADORES'
+  /** Nombre del PDF original. */
+  readonly ficheroOriginal: string
+  /** Dónde se guardó la copia (carpeta del doctor). */
+  readonly rutaPdf: string
+  /** Huella (SHA-256) del contenido: el mismo PDF no se importa dos veces. */
+  readonly huella: string
+  /** Identificador del caso en la otra app, si el nombre del fichero lo traía. */
+  readonly idExterno?: string
+  /** El ojo del PDF; si trae los dos, el primero (ver `ojos`). */
+  readonly ojo: Lateralidad
+  /** Solo si el PDF trae LOS DOS ojos (OD-OI): los dos, en orden. Ver `ojosDeImportado`. */
+  readonly ojos?: readonly Lateralidad[]
+  /** Aparatos y calculadoras que el PDF enseña. */
+  readonly aparatos: readonly string[]
+  readonly calculadoras: readonly Calculadora[]
+}
+
+/** Los ojos de un caso importado: uno o los dos. */
+export function ojosDeImportado(i: DatosImportados): readonly Lateralidad[] {
+  return i.ojos ?? [i.ojo]
+}
+
 export interface Caso {
   readonly id: string
   /**
@@ -156,6 +186,8 @@ export interface Caso {
    * desde «Casos guardados» — nunca se pierde con la sesión.
    */
   readonly pedidosLente?: Readonly<Partial<Record<Lateralidad, PedidoLente>>>
+  /** Solo en un caso importado de otra app (ver `DatosImportados`). */
+  readonly importado?: DatosImportados
 }
 
 /**

@@ -26,6 +26,10 @@ const api: ApiVilamar = {
   resumenDashboard: (rango) => ipcRenderer.invoke(CANALES.resumenDashboard, rango),
   analizarCasos: (filtro) => ipcRenderer.invoke(CANALES.analizarCasos, filtro),
   exportarAnalisis: (filtro) => ipcRenderer.invoke(CANALES.exportarAnalisis, filtro),
+  obtenerCarpetaResumenes: () => ipcRenderer.invoke(CANALES.obtenerCarpetaResumenes),
+  elegirCarpetaResumenes: () => ipcRenderer.invoke(CANALES.elegirCarpetaResumenes),
+  importarResumenes: () => ipcRenderer.invoke(CANALES.importarResumenes),
+  abrirPdfImportado: (codigo) => ipcRenderer.invoke(CANALES.abrirPdfImportado, codigo),
   exportarEstudioExcel: (filtro) => ipcRenderer.invoke(CANALES.exportarEstudioExcel, filtro),
   listarDoctoresExcluidosDeEstadisticas: () =>
     ipcRenderer.invoke(CANALES.listarDoctoresExcluidosDeEstadisticas),
