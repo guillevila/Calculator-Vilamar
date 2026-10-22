@@ -338,7 +338,8 @@ export function AnalisisScreen({ onAbrirResultado, onVolver }: Props): JSX.Eleme
         <strong>Importar cálculos de otra app (PDF de Resumen Calculadores)</strong>
         <p className="pie-nota" style={{ margin: '4px 0 8px' }}>
           Elige la carpeta donde guardas esos PDF. Se copian a la carpeta de su doctor
-          («Calculados») y cuentan en el análisis y las estadísticas. Los originales no se tocan.
+          («Calculados») y cuentan en el análisis y las estadísticas. Una vez copiado y comprobado,
+          el original se manda a la papelera.
         </p>
         <div className="fila" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <button
@@ -369,7 +370,13 @@ export function AnalisisScreen({ onAbrirResultado, onVolver }: Props): JSX.Eleme
               : `${importacion.nuevos} nuevo${importacion.nuevos === 1 ? '' : 's'} importado${importacion.nuevos === 1 ? '' : 's'}, ${importacion.repetidos} ya estaban` +
                 (importacion.noReconocidos.length > 0
                   ? `, ${importacion.noReconocidos.length} no se han podido leer.`
-                  : '.')}
+                  : '.') +
+                (importacion.quitados > 0
+                  ? ` ${importacion.quitados} original${importacion.quitados === 1 ? '' : 'es'} a la papelera.`
+                  : '') +
+                (importacion.noQuitados > 0
+                  ? ` ${importacion.noQuitados} no se ha podido quitar (siguen en la carpeta).`
+                  : '')}
             {importacion.noReconocidos.map((n) => (
               <div key={n.fichero}>
                 · {n.fichero}: {n.motivo}

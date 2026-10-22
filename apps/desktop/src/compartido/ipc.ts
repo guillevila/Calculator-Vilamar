@@ -87,6 +87,10 @@ export interface ResultadoImportacion {
   readonly noReconocidos: readonly { readonly fichero: string; readonly motivo: string }[]
   /** Cuántos PDF había en la carpeta. */
   readonly total: number
+  /** Originales mandados a la papelera de la carpeta, una vez copiados y comprobados. */
+  readonly quitados: number
+  /** Originales que se quisieron quitar y no se pudo (siguen en la carpeta). */
+  readonly noQuitados: number
 }
 
 export interface EstadoCalculo {

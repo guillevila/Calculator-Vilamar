@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.101] — 22/10/2026 (versión visible en pantalla: v1.52)
+
+feat(app): al importar un PDF de otra app, el original se manda a la papelera una vez copiado y comprobado (D138)
+
+Petición del dueño: que la carpeta de entrada no se llene de PDF ya importados. Tras copiar el PDF a la carpeta del doctor, se comprueba que la copia existe y es idéntica (misma huella SHA-256) y SOLO entonces el original se manda a la **papelera de Windows** —no se borra para siempre—. También se quita el original de un PDF que ya estaba importado, si su copia sigue en su sitio e idéntica. Un PDF que no se reconoce, o uno distinto del mismo caso (recalculado), se deja donde está. Si la papelera falla, el original se queda y la tarjeta lo dice. Sin papelera disponible (pruebas), no se quita nada. La tarjeta cuenta cuántos originales se han mandado a la papelera. Aparte, la carpeta de entrada del dueño pasa de llamarse «terminados» a «importados de la otra app» (con su ruta ya actualizada en la configuración).
+
+---
+
 ## [1.15.100] — 22/10/2026 (versión visible en pantalla: v1.51)
 
 fix(app): importación de PDF — se saltan los PDF de este mismo programa, el doctor se reconoce sin «Dr/Dra» y el texto de la tarjeta dice «Calculados» (D138)

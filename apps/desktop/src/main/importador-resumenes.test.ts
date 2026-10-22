@@ -27,9 +27,14 @@ function entorno(textoPorContenido: Record<string, readonly string[]> = {}) {
   const carpetas = prepararCarpetas(join(raiz, 'datos'))
   const origen = join(raiz, 'pdfs')
   mkdirSync(origen)
-  const ejecutar = (casos: readonly Caso[] = [], doctores: readonly string[] = []) =>
+  const ejecutar = (
+    casos: readonly Caso[] = [],
+    doctores: readonly string[] = [],
+    papelera?: (ruta: string) => Promise<void>,
+  ) =>
     importarResumenes({
       carpetas,
+      ...(papelera ? { mandarAPapelera: papelera } : {}),
       origen,
       ahora: new Date('2026-10-22T10:00:00.000Z'),
       casos,
@@ -146,6 +151,72 @@ IOLMaster · SimK · Tórica · EnVista Envy · KANE · OD / OI`
     writeFileSync(join(origen, 'CV-2026-0419_OD_2026-10-21T21-03-16.pdf'), 'propio')
     const r = await ejecutar()
     expect(r).toMatchObject({ nuevos: 0, total: 0, noReconocidos: [] })
+  })
+
+  describe('quitar el original de la carpeta de entrada', () => {
+    it('lo manda a la papelera DESPUÉS de importarlo y comprobar la copia', async () => {
+      const { origen, ejecutar, casos } = entorno()
+      writeFileSync(join(origen, NOMBRE), 'pdf-uno')
+      const enviados: string[] = []
+      const r = await ejecutar([], [], (ruta) => {
+        // en ese momento la copia ya existe y es idéntica
+        expect(readFileSync(casos()[0]?.importado?.rutaPdf ?? '', 'utf8')).toBe('pdf-uno')
+        enviados.push(ruta)
+        return Promise.resolve()
+      })
+      expect(r).toMatchObject({ nuevos: 1, quitados: 1, noQuitados: 0 })
+      expect(enviados).toEqual([join(origen, NOMBRE)])
+    })
+
+    it('sin papelera disponible, no se quita nada', async () => {
+      const { origen, ejecutar } = entorno()
+      writeFileSync(join(origen, NOMBRE), 'pdf-uno')
+      const r = await ejecutar()
+      expect(r).toMatchObject({ nuevos: 1, quitados: 0, noQuitados: 0 })
+      expect(existsSync(join(origen, NOMBRE))).toBe(true)
+    })
+
+    it('un PDF ya importado cuyo original sigue en la carpeta también se quita; uno distinto del mismo caso, no', async () => {
+      const { origen, ejecutar, casos } = entorno()
+      writeFileSync(join(origen, NOMBRE), 'pdf-uno')
+      await ejecutar() // se importa, sin papelera: el original se queda
+      const enviados: string[] = []
+      writeFileSync(
+        join(
+          origen,
+          '2026-10-23_hospital-perpetuo-socorro_maria-pilar_EnVista_OD_162128960-b05857_Torica.pdf',
+        ),
+        'pdf-recalculado',
+      )
+      const r = await ejecutar(casos(), [], (ruta) => {
+        enviados.push(ruta)
+        return Promise.resolve()
+      })
+      expect(r.repetidos).toBe(2)
+      // solo el idéntico (misma huella) se quita; el recalculado se deja para que lo mires
+      expect(enviados).toEqual([join(origen, NOMBRE)])
+      expect(r).toMatchObject({ quitados: 1 })
+    })
+
+    it('un PDF que no se reconoce no se quita', async () => {
+      const { origen, ejecutar } = entorno({ otro: ['Informe de biometría'] })
+      writeFileSync(join(origen, 'biometria.pdf'), 'otro')
+      const enviados: string[] = []
+      const r = await ejecutar([], [], (ruta) => {
+        enviados.push(ruta)
+        return Promise.resolve()
+      })
+      expect(r.noReconocidos).toHaveLength(1)
+      expect(enviados).toEqual([])
+    })
+
+    it('si la papelera falla, el original se queda y se dice', async () => {
+      const { origen, ejecutar } = entorno()
+      writeFileSync(join(origen, NOMBRE), 'pdf-uno')
+      const r = await ejecutar([], [], () => Promise.reject(new Error('bloqueado')))
+      expect(r).toMatchObject({ nuevos: 1, quitados: 0, noQuitados: 1 })
+      expect(existsSync(join(origen, NOMBRE))).toBe(true)
+    })
   })
 
   it('con una carpeta que no existe, lo dice', async () => {

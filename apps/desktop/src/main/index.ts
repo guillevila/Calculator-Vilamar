@@ -73,7 +73,7 @@ if (app.isPackaged) {
  * este número es lo ÚLTIMO que se hace al cerrar un cambio en la aplicación
  * de escritorio, justo antes de avisar de que está listo para probar.
  */
-const VERSION_VISIBLE = '1.51'
+const VERSION_VISIBLE = '1.52'
 
 function versionDelProducto(): string {
   return VERSION_VISIBLE
@@ -311,6 +311,7 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
     ahora: () => new Date(),
     abrirNavegador: (conVentana) => abrirNavegador(conVentana, carpetas.sesiones),
     imprimirPdf,
+    mandarAPapelera: (ruta) => shell.trashItem(ruta),
     emitirProgreso: (estado: EstadoCalculo) => {
       registrar(
         carpetas,

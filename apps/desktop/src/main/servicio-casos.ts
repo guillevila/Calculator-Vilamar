@@ -153,6 +153,8 @@ export interface DependenciasServicio {
   readonly ahora: () => Date
   /** Abre el navegador para las calculadoras. Se inyecta para poder probarlo. */
   readonly abrirNavegador: (conVentana: boolean) => Promise<Browser>
+  /** Manda un fichero a la papelera. Lo hace Electron; sin esto, la importación de PDF no quita los originales. */
+  readonly mandarAPapelera?: (ruta: string) => Promise<void>
   /** Convierte HTML en PDF. Lo hace Electron; se inyecta para poder probarlo. */
   readonly imprimirPdf: (
     html: string,
@@ -413,6 +415,7 @@ export class ServicioCasos {
           nombreDeCarpeta(paciente, codigo),
           ojos.length > 1 ? 'Ambos ojos' : nombreLateralidad(ojos[0] ?? 'OD'),
         ),
+      ...(this.dep.mandarAPapelera ? { mandarAPapelera: this.dep.mandarAPapelera } : {}),
       leerTexto: async (datos) => (await crearLectorPdf().leer(datos)).map((p) => p.texto),
     })
   }

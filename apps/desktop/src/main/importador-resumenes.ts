@@ -8,9 +8,11 @@
  * terminado, para que cuente en el análisis y en las estadísticas.
  *
  * Reglas:
- *  - **No toca el original**: ni lo mueve ni lo borra. Para no importarlo dos veces
- *    se guarda su huella (SHA-256) y, si el nombre trae el identificador del caso en
- *    la otra app, ese identificador + el ojo.
+ *  - **El original solo se quita DESPUÉS de comprobar la copia** (misma huella) y
+ *    mandándolo a la papelera, no borrándolo (22/10/2026, petición del dueño: que la
+ *    carpeta de entrada no se llene de PDF ya importados). Sin papelera disponible,
+ *    no se quita nada. Para no importarlo dos veces se guarda su huella (SHA-256) y,
+ *    si el nombre trae el identificador del caso en la otra app, ese identificador + el ojo.
  *  - **Lo que el PDF no dice no se inventa.** Un PDF que no es de esa app no se
  *    importa, y se dice por qué.
  *  - El doctor se escribe como ya existe en el programa si es el mismo sin contar
@@ -51,6 +53,8 @@ export interface EntornoImportacion {
     ojos: readonly ('OD' | 'OS')[]
     codigo: string
   }) => string
+  /** Manda un fichero a la papelera (Electron). Sin esto, los originales no se quitan. */
+  readonly mandarAPapelera?: (ruta: string) => Promise<void>
   /** El texto de cada página del PDF. */
   readonly leerTexto: (datos: Uint8Array) => Promise<readonly string[]>
 }
@@ -82,7 +86,12 @@ export async function importarResumenes(e: EntornoImportacion): Promise<Resultad
     throw new Error(`No puedo abrir la carpeta «${e.origen}». ¿Sigue existiendo?`)
   }
 
-  const huellas = new Set(e.casos.flatMap((c) => (c.importado ? [c.importado.huella] : [])))
+  // Huella → dónde quedó su copia, de lo ya importado.
+  const huellas = new Map(
+    e.casos.flatMap((c) =>
+      c.importado ? [[c.importado.huella, c.importado.rutaPdf] as const] : [],
+    ),
+  )
   const idsYaVistos = new Set(
     e.casos.flatMap((c) =>
       c.importado?.idExterno
@@ -96,6 +105,23 @@ export async function importarResumenes(e: EntornoImportacion): Promise<Resultad
 
   let nuevos = 0
   let repetidos = 0
+  let quitados = 0
+  let noQuitados = 0
+
+  /** Quita el original si la copia está y es idéntica; si no, lo deja donde está. */
+  const quitarOriginal = async (ruta: string, copia: string, huella: string): Promise<void> => {
+    if (!e.mandarAPapelera) return
+    try {
+      if (!existsSync(copia) || huellaDe(new Uint8Array(readFileSync(copia))) !== huella) {
+        noQuitados += 1
+        return
+      }
+      await e.mandarAPapelera(ruta)
+      quitados += 1
+    } catch {
+      noQuitados += 1
+    }
+  }
   const noReconocidos: { fichero: string; motivo: string }[] = []
 
   for (const nombre of nombres.sort()) {
@@ -111,8 +137,11 @@ export async function importarResumenes(e: EntornoImportacion): Promise<Resultad
       continue
     }
     const huella = huellaDe(datos)
-    if (huellas.has(huella)) {
+    const copiaYaGuardada = huellas.get(huella)
+    if (copiaYaGuardada !== undefined) {
       repetidos += 1
+      // Ya importado: si su copia sigue ahí e idéntica, el original sobra.
+      await quitarOriginal(ruta, copiaYaGuardada, huella)
       continue
     }
 
@@ -167,10 +196,11 @@ export async function importarResumenes(e: EntornoImportacion): Promise<Resultad
       },
     }
     guardarCaso(e.carpetas, caso)
-    huellas.add(huella)
+    huellas.set(huella, join(carpetaCopia, nombreCopia))
     if (clave) idsYaVistos.add(clave)
     nuevos += 1
+    await quitarOriginal(ruta, join(carpetaCopia, nombreCopia), huella)
   }
 
-  return { nuevos, repetidos, noReconocidos, total: nombres.length }
+  return { nuevos, repetidos, noReconocidos, total: nombres.length, quitados, noQuitados }
 }
