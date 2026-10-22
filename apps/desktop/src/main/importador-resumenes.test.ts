@@ -57,7 +57,8 @@ describe('importarResumenes', () => {
       nombrePaciente: 'maria pilar',
       // el doctor se escribe como ya existía en el programa
       nombreCirujano: 'Hospital Perpetuo Socorro',
-      lente: { modelo: 'EnVista' },
+      // «EnVista» se traduce a la lente del catálogo, para sumar con las hechas aquí
+      lente: { fabricante: 'Bausch & Lomb', modelo: 'B&L MX60ET/PT' },
       actualizadoEn: '2026-10-22T12:00:00.000Z',
     })
     expect(c?.importado).toMatchObject({

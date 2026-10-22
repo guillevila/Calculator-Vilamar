@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.98] — 22/10/2026 (versión visible en pantalla: v1.49)
+
+fix(app): los casos importados usan la lente exacta del catálogo, para sumar con los hechos aquí (D138)
+
+Petición del dueño: la cabecera de los PDF de «Resumen Calculadores» solo dice «EnVista», «Aspire»…, mientras que la lente exacta va dentro de las capturas («Toric Model: B&L MX60ET/PT» en EVO, «IOL: B+L enVista Toric» en Kane). Para no leer las imágenes, el nombre de la cabecera se traduce a la lente del catálogo del programa: EnVista → B&L MX60ET/PT, Envy → B&L Envy, Aspire → B&L Aspire, LuxSmart, LuxLife y LuxGood → B&L LuxSmart, LuxLife y LuxGood (todas de Bausch & Lomb). Así un caso importado suma en la misma barra del dashboard y del análisis que los calculados aquí. Un nombre que no se reconoce se conserva tal como viene en el PDF (no se adivina). Por ahora no se leen las imágenes; queda como mejora si algún día hiciera falta (por ejemplo si «EnVista» pudiera ser otra variante).
+
+---
+
 ## [1.15.97] — 22/10/2026 (versión visible en pantalla: v1.48)
 
 feat(app): importar los PDF de «Resumen Calculadores»: se guardan en la carpeta del doctor y cuentan en el análisis y las estadísticas (D138)

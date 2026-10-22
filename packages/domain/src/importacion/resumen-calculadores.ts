@@ -157,6 +157,31 @@ export function leerResumenCalculadores(
   }
 }
 
+/**
+ * La lente del catálogo del programa que corresponde al nombre que escribe esa app
+ * en la cabecera («EnVista», «Envy», «LuxSmart»…), para que un caso importado sume
+ * en la MISMA barra del dashboard que los hechos aquí (22/10/2026, a petición del
+ * dueño: la lente exacta se ve en las capturas —«B&L MX60ET/PT» en EVO,
+ * «B+L enVista Toric» en Kane—, mientras que la cabecera solo dice «EnVista»).
+ *
+ * Solo se traduce lo que está claro; si no se reconoce, devuelve `undefined` y el
+ * caso conserva el nombre tal como viene en el PDF. No se adivina.
+ */
+export function lenteDelCatalogo(
+  nombre: string,
+): { readonly fabricante: string; readonly modelo: string } | undefined {
+  const t = normalizarNombre(nombre).replace(/[^a-z0-9]/g, '')
+  const bl = (modelo: string) => ({ fabricante: 'Bausch & Lomb', modelo })
+  if (t.includes('luxsmart')) return bl('B&L LuxSmart')
+  if (t.includes('luxlife')) return bl('B&L LuxLife')
+  if (t.includes('luxgood')) return bl('B&L LuxGood')
+  if (t.includes('envy')) return bl('B&L Envy')
+  if (t.includes('aspire')) return bl('B&L Aspire')
+  // «EnVista» a secas es la tórica MX60ET/PT (la que EVO muestra como «B&L MX60ET/PT»).
+  if (t === 'envista' || t === 'blenvista') return bl('B&L MX60ET/PT')
+  return undefined
+}
+
 /** Para comparar nombres sin mayúsculas, tildes ni espacios de más. */
 export function normalizarNombre(texto: string): string {
   return texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()

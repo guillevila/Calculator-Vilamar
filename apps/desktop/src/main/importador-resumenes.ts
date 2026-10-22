@@ -22,7 +22,12 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from '
 import { basename, extname, join } from 'node:path'
 
 import type { Caso } from '@vilamar/domain'
-import { casoNuevo, doctorComoYaExiste, leerResumenCalculadores } from '@vilamar/domain'
+import {
+  casoNuevo,
+  doctorComoYaExiste,
+  leerResumenCalculadores,
+  lenteDelCatalogo,
+} from '@vilamar/domain'
 
 import type { ResultadoImportacion } from '../compartido/ipc.js'
 import type { Carpetas } from './almacen.js'
@@ -140,7 +145,8 @@ export async function importarResumenes(e: EntornoImportacion): Promise<Resultad
       estado: 'COMPLETADO',
       ...(d.paciente ? { nombrePaciente: d.paciente } : {}),
       ...(doctor ? { nombreCirujano: doctor } : {}),
-      ...(d.lente ? { lente: { modelo: d.lente } } : {}),
+      // La lente del catálogo si se reconoce (para sumar con las hechas aquí); si no, tal como viene.
+      ...(d.lente ? { lente: lenteDelCatalogo(d.lente) ?? { modelo: d.lente } } : {}),
       importado: {
         origen: 'RESUMEN_CALCULADORES',
         ficheroOriginal: nombre,

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   doctorComoYaExiste,
   leerResumenCalculadores,
+  lenteDelCatalogo,
   normalizarNombre,
 } from './resumen-calculadores.js'
 
@@ -94,5 +95,23 @@ describe('doctorComoYaExiste', () => {
   })
   it('normalizarNombre', () => {
     expect(normalizarNombre('  Dra.  MÁRQUEZ ')).toBe('dra. marquez')
+  })
+})
+
+describe('lenteDelCatalogo', () => {
+  it('traduce los nombres claros a la lente del catálogo', () => {
+    const modelo = (n: string) => lenteDelCatalogo(n)?.modelo
+    expect(modelo('EnVista')).toBe('B&L MX60ET/PT')
+    expect(modelo('enVista Envy')).toBe('B&L Envy')
+    expect(modelo('Aspire')).toBe('B&L Aspire')
+    expect(modelo('LuxSmart')).toBe('B&L LuxSmart')
+    expect(modelo('B+L LuxLife Toric')).toBe('B&L LuxLife')
+    expect(modelo('lux good')).toBe('B&L LuxGood')
+    expect(lenteDelCatalogo('EnVista')?.fabricante).toBe('Bausch & Lomb')
+  })
+
+  it('lo que no se reconoce, no se adivina', () => {
+    expect(lenteDelCatalogo('Vivity')).toBeUndefined()
+    expect(lenteDelCatalogo('Tecnis Eyhance')).toBeUndefined()
   })
 })
