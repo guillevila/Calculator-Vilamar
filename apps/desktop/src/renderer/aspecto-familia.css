@@ -1,0 +1,250 @@
+/*
+ * aspecto-familia.css — El «aspecto nuevo» (23/10/2026, petición del dueño): que
+ * Calculator Vilamar se vea de la misma familia que la web «Resumen Calculadores»
+ * de su compañera (con su visto bueno), sin cambiar NADA de lo que hace.
+ *
+ * Es una capa aparte: solo se aplica con `data-aspecto="familia"` en <html>, que
+ * pone el interruptor «Aspecto» de la barra superior. Sin ese atributo, la
+ * aplicación se ve exactamente como antes (`estilos.css`). Volver atrás = pulsar
+ * el interruptor, o borrar este fichero y su `import` en `main.tsx`.
+ *
+ * Reglas que mandan sobre la similitud (dueño, 23/10/2026): se lee bien por encima
+ * de todo. Por eso:
+ *  - el texto blanco va siempre sobre un turquesa OSCURO (#007A83 o más), nunca
+ *    sobre el turquesa claro de su web (contraste 3,5:1) ni sobre el azul claro (2,1:1);
+ *  - los colores de las calculadoras (EVO, Barrett, Kane) NO se tocan: son lo que
+ *    permite distinguirlas de un vistazo;
+ *  - nada de iconos, nombre ni logotipo de su web.
+ *
+ * Paleta tomada de su hoja de estilos (guía de estilo del 23/10/2026).
+ */
+
+html[data-aspecto='familia'] {
+  --f-turquesa: #0097a0;
+  --f-turquesa-osc: #008c95;
+  /* El que se usa con texto blanco: contraste ≥ 4,5:1 */
+  --f-turquesa-fuerte: #007a83;
+  --f-turquesa-suave: #e8f7f8;
+  --f-borde-turquesa: #bfe6ea;
+  --f-azul-claro: #57c0d8;
+  --f-sombra: 0 7px 24px rgba(44, 62, 110, 0.07);
+
+  /* Los tokens que ya usa toda la aplicación */
+  --azul: #007a83;
+  --azul-claro: #00959f;
+  --azul-suave: #e8f7f8;
+  --gris: #667085;
+  --gris-claro: #f5f9fa;
+  --linea: #e3e8f0;
+  --texto: #16324f;
+  --rojo: #c7352a;
+  --rojo-suave: #fff0ef;
+  --verde: #1e7a52;
+  --verde-suave: #edf8f2;
+  --radio: 12px;
+}
+
+/* ── Letra y fondo ────────────────────────────────────────────────────── */
+
+html[data-aspecto='familia'] body {
+  font-family: 'Inter', 'Segoe UI', Arial, system-ui, sans-serif;
+  background: var(--gris-claro);
+  color: var(--texto);
+}
+
+/* Títulos: azul marino y letra fuerte, como en su web. */
+html[data-aspecto='familia'] .tarjeta > h2,
+html[data-aspecto='familia'] .soltar h2,
+html[data-aspecto='familia'] .cabecera-resultados h2,
+html[data-aspecto='familia'] .cabecera-bio h2,
+html[data-aspecto='familia'] .seccion-titulo h3,
+html[data-aspecto='familia'] .opciones-devueltas h3 {
+  color: var(--texto);
+  font-weight: 800;
+}
+
+/* ── Barra superior ───────────────────────────────────────────────────── */
+
+html[data-aspecto='familia'] header.barra {
+  min-height: 70px;
+  padding: 0 28px;
+  background: #fff;
+  border-bottom: 1px solid var(--linea);
+}
+html[data-aspecto='familia'] header.barra h1 {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--texto);
+}
+
+/* ── Botones ──────────────────────────────────────────────────────────── */
+
+html[data-aspecto='familia'] button {
+  border-radius: 12px;
+  border-color: var(--linea);
+  font-weight: 600;
+  padding: 9px 16px;
+}
+html[data-aspecto='familia'] button:hover:not(:disabled) {
+  background: var(--f-turquesa-suave);
+}
+html[data-aspecto='familia'] button.principal,
+html[data-aspecto='familia'] button.activo {
+  background: linear-gradient(100deg, var(--f-turquesa-fuerte), var(--f-turquesa-osc));
+  border-color: transparent;
+  color: #fff;
+  font-weight: 700;
+}
+html[data-aspecto='familia'] button.principal:hover:not(:disabled),
+html[data-aspecto='familia'] button.activo:hover:not(:disabled) {
+  background: linear-gradient(100deg, #006d75, var(--f-turquesa-fuerte));
+}
+html[data-aspecto='familia'] button.claro {
+  background: var(--f-turquesa-suave);
+  border-color: var(--f-borde-turquesa);
+  color: var(--f-turquesa-fuerte);
+}
+html[data-aspecto='familia'] button.claro:hover:not(:disabled) {
+  background: #d3eff2;
+}
+
+/* Los botones de la barra: suaves, como su «Cerrar sesión»; «Nuevo cálculo», el principal. */
+html[data-aspecto='familia'] button.boton-cabecera {
+  background: var(--f-turquesa-suave);
+  color: var(--f-turquesa-fuerte);
+  box-shadow: none;
+  border: 1px solid var(--f-borde-turquesa);
+  font-weight: 700;
+}
+html[data-aspecto='familia'] button.boton-cabecera:hover:not(:disabled) {
+  filter: none;
+  background: #d3eff2;
+}
+html[data-aspecto='familia'] button.boton-cabecera:active:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+html[data-aspecto='familia'] button.boton-cabecera-nuevo {
+  background: linear-gradient(100deg, var(--f-turquesa-fuerte), var(--f-turquesa-osc));
+  color: #fff;
+  border-color: transparent;
+}
+html[data-aspecto='familia'] button.boton-cabecera-nuevo:hover:not(:disabled) {
+  background: linear-gradient(100deg, #006d75, var(--f-turquesa-fuerte));
+}
+html[data-aspecto='familia'] button.boton-aspecto {
+  background: transparent;
+  color: var(--gris);
+  border: 1px dashed var(--linea);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+}
+
+/* ── Campos ───────────────────────────────────────────────────────────── */
+
+html[data-aspecto='familia'] input,
+html[data-aspecto='familia'] select,
+html[data-aspecto='familia'] textarea {
+  border: 1px solid var(--linea);
+  border-radius: 12px;
+  padding: 9px 12px;
+  background: #fff;
+}
+html[data-aspecto='familia'] input:focus,
+html[data-aspecto='familia'] select:focus,
+html[data-aspecto='familia'] textarea:focus {
+  outline: none;
+  border-color: var(--f-turquesa);
+  box-shadow: 0 0 0 3px var(--f-turquesa-suave);
+}
+
+/* ── Tarjetas ─────────────────────────────────────────────────────────── */
+
+html[data-aspecto='familia'] .tarjeta {
+  border: 1px solid #eef2f7;
+  border-radius: 22px;
+  padding: 24px 26px;
+  box-shadow: var(--f-sombra);
+}
+html[data-aspecto='familia'] .tarjeta-seccion {
+  border-radius: 18px;
+}
+html[data-aspecto='familia'] .tarjeta-destacada {
+  border-left: 4px solid var(--f-turquesa);
+}
+html[data-aspecto='familia'] .aviso {
+  border-radius: 12px;
+}
+
+/* ── Pasos: cuatro cajas iguales, la activa en turquesa suave ──────────── */
+
+html[data-aspecto='familia'] .pasos {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  background: transparent;
+  border-bottom: none;
+  padding: 18px 24px 4px;
+  gap: 10px;
+}
+html[data-aspecto='familia'] .pasos .paso {
+  flex: 1;
+  padding: 12px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--linea);
+  background: #fff;
+  color: var(--gris);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+html[data-aspecto='familia'] .pasos .paso.activo {
+  background: var(--f-turquesa-suave);
+  color: var(--f-turquesa-fuerte);
+  border-color: var(--f-borde-turquesa);
+}
+html[data-aspecto='familia'] .pasos .paso.hecho {
+  color: var(--verde);
+}
+html[data-aspecto='familia'] .pasos .paso:not(:disabled):hover {
+  background: var(--f-turquesa-suave);
+}
+
+/* ── Zona de subir archivos ───────────────────────────────────────────── */
+
+html[data-aspecto='familia'] .soltar {
+  border: 2px dashed #cfe3e8;
+  border-radius: 18px;
+}
+html[data-aspecto='familia'] .soltar.encima {
+  border-color: var(--f-turquesa);
+  background: var(--f-turquesa-suave);
+}
+
+/* ── Tablas y filas ───────────────────────────────────────────────────── */
+
+/* Los campos de la tabla de revisión son estrechos: sin el relleno grande de los demás. */
+html[data-aspecto='familia'] table.revision td.valor input {
+  padding: 6px 10px;
+}
+
+html[data-aspecto='familia'] table.revision thead th {
+  background: var(--gris-claro);
+  color: var(--gris);
+}
+html[data-aspecto='familia'] .calc {
+  border-radius: 12px;
+}
+html[data-aspecto='familia'] .barra-progreso {
+  background: #e8eef2;
+}
+html[data-aspecto='familia'] .barra-progreso > span {
+  background: linear-gradient(100deg, var(--f-turquesa-fuerte), var(--f-turquesa-osc));
+}
+html[data-aspecto='familia'] .barra-progreso.exito > span {
+  background: var(--verde);
+}
+html[data-aspecto='familia'] .barra-progreso.atencion > span {
+  background: var(--ambar);
+}

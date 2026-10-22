@@ -339,7 +339,7 @@ function opcionesDevueltas(c: Comparativa): string {
 
     const nota = senalada
       ? `${esc(celdaComp.nombre)} ha señalado una de ellas; es la que aparece en la comparación.`
-      : `${esc(celdaComp.nombre)} no ha señalado ninguna opción preferente. La elección no la hace el Resumen de calculadores.`
+      : `${esc(celdaComp.nombre)} no ha señalado ninguna opción preferente. La elección no la hace Gestión Integral de Calculadores.`
 
     return `<div class="bloque-opciones">
       <h3>${esc(celdaComp.nombre)} · ${celdaComp.opciones.length} alternativas devueltas</h3>
@@ -438,7 +438,7 @@ function seccionAuditoria(caso: Caso): string {
   return `<section class="auditoria">
     <h2>Qué dice cada calculadora haber recibido</h2>
     <p class="nota">
-      Esto no es lo que el Resumen de calculadores cree haber enviado: es lo que cada web
+      Esto no es lo que Gestión Integral de Calculadores cree haber enviado: es lo que cada web
       ha mostrado en su propia pantalla como datos de entrada. Permite comprobar
       que entrada y resultado se corresponden.
     </p>
@@ -1430,7 +1430,7 @@ function documentoDeHojas(
         <path d="M3.4 15 A 13 9 0 0 0 26.6 15" fill="none" stroke="#12506E" stroke-width="1.6" opacity="0.35"></path>
       </svg>
       <div>
-        <h1>Resumen Calculadores IOL</h1>
+        <h1>Gestión Integral de Calculadores</h1>
         <div class="sub">Informe comparativo de cálculo de LIO</div>
       </div>
     </div>
@@ -1463,7 +1463,7 @@ function documentoDeHojas(
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Resumen Calculadores IOL · ${esc(caso.codigo)}</title>
+<title>Gestión Integral de Calculadores · ${esc(caso.codigo)}</title>
 <style>${ESTILOS}</style>
 </head>
 <body>
@@ -1494,7 +1494,7 @@ function lenteRecomendadaTexto(recomendada: ResultadoInforme['recomendada']): st
   if (recomendada.ejeResidual !== undefined) {
     partes.push(`Eje ${recomendada.ejeResidual.toFixed(0)}°`)
   }
-  return `<p class="lente-recomendada">Estimación del Resumen de calculadores <span class="no-vinculante">(no vinculante)</span>: <strong>${esc(partes.join(' · '))}</strong></p>`
+  return `<p class="lente-recomendada">Estimación de Gestión Integral de Calculadores <span class="no-vinculante">(no vinculante)</span>: <strong>${esc(partes.join(' · '))}</strong></p>`
 }
 
 /** Clase CSS de cada calculadora, solo para las tarjetas del cuadro final. */
@@ -1595,7 +1595,7 @@ const TONOS_APARATO: readonly { readonly fondo: string; readonly borde: string }
  * explicarlo junto a la tabla comparativa detallada. Vuelto a añadir en
  * D110 (30/09/2026): D109 lo había quitado junto con el resto de la prosa
  * del informe, pero el dueño pidió recuperar justo este, el que explica el
- * criterio del Resumen de calculadores — el único de los que se quitaron
+ * criterio de Gestión Integral de Calculadores — el único de los que se quitaron
  * que sí vuelve.
  */
 function criterioEsferaTexto(criterio: CriterioEsfera): string {
@@ -1668,7 +1668,7 @@ function tablaComparativaDetallada(
     apunte: 'No vinculante',
     refExtra: ` · ${ojo}`,
     cuerpo: `<p class="aviso-no-vinculante">
-      La lente de esta tabla es una estimación propia del Resumen de calculadores, con un criterio fijo y el
+      La lente de esta tabla es una estimación propia de Gestión Integral de Calculadores, con un criterio fijo y el
       mismo para todas las calculadoras: <strong>${esc(criterioEsferaTexto(criterio))}</strong>, y el cilindro
       tórico más alto que sigue compartiendo el eje corneal curvo — o el primero, antes de que el eje cambie
       de orientación.
@@ -2098,7 +2098,7 @@ export function generarHtmlInformeDetallado(datos: DatosInforme): string {
       refExtra: ` · ${c.ojo}`,
       cuerpo: detalle,
       pie: `Cuando una calculadora no señala ninguna opción, la elección es de quien
-      opera. El Resumen de calculadores no elige, ni la de menor cilindro residual.`,
+      opera. Gestión Integral de Calculadores no elige, ni la de menor cilindro residual.`,
     })
   }
 
@@ -2157,7 +2157,7 @@ const PIE_LEGAL = `<footer class="principal">
       Este documento es únicamente un <strong>organizador de cálculos</strong>. Los
       resultados <strong>proceden de las calculadoras externas</strong> Kane
       (iolformula.com), EVO Toric (evoiolcalculator.com) y Barrett Toric
-      (ASCRS/APACRS): el Resumen de calculadores <strong>no calcula ninguna potencia de
+      (ASCRS/APACRS): Gestión Integral de Calculadores <strong>no calcula ninguna potencia de
       lente</strong> por su cuenta, <strong>no emite ninguna recomendación clínica</strong>,
       y no interpreta ni corrige lo que cada web devuelve — se limita a introducir los
       datos, capturar la pantalla de cada resultado tal cual y presentarlos juntos.

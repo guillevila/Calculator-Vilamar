@@ -2608,3 +2608,25 @@ test('cada calculadora enseña su barra de progreso y pone «Completado» al ter
   await expect(ventana.getByTestId('porcentaje-KANE')).toHaveText('esperando')
   await ventana.screenshot({ path: 'test-results/barras-calculo.png', fullPage: true })
 })
+
+/**
+ * «Aspecto» (23/10/2026): el aspecto nuevo es una preferencia aparte; por defecto se
+ * ve el de siempre, se cambia con un interruptor y se puede volver atrás.
+ */
+test('el interruptor de aspecto cambia entre el aspecto actual y el nuevo, y se puede volver', async () => {
+  await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
+  const html = ventana.locator('html')
+  await expect(html).not.toHaveAttribute('data-aspecto', 'familia')
+  await expect(ventana.getByTestId('cambiar-aspecto')).toHaveText('Aspecto: actual')
+
+  await ventana.getByTestId('cambiar-aspecto').click()
+  await expect(html).toHaveAttribute('data-aspecto', 'familia')
+  await expect(ventana.getByTestId('cambiar-aspecto')).toHaveText('Aspecto: nuevo')
+  // Nada de lo que hace la aplicación cambia con el aspecto.
+  await expect(ventana.getByTestId('zona-soltar')).toBeVisible()
+  await ventana.screenshot({ path: 'test-results/aspecto-nuevo.png' })
+
+  await ventana.getByTestId('cambiar-aspecto').click()
+  await expect(html).not.toHaveAttribute('data-aspecto', 'familia')
+  await expect(ventana.getByTestId('cambiar-aspecto')).toHaveText('Aspecto: actual')
+})

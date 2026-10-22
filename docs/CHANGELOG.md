@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.104] — 23/10/2026 (versión visible en pantalla: v1.55)
+
+feat(app): «aspecto nuevo» de la misma familia que Resumen Calculadores, como opción con interruptor; el PDF pasa a titularse «Gestión Integral de Calculadores» (D139)
+
+Petición del dueño, con el visto bueno de la autora de la otra app. (1) Interruptor **«Aspecto: actual / nuevo»** en la barra superior: de partida se ve el de siempre; el nuevo se activa y se desactiva sin instalar nada, y se recuerda en ese ordenador. Es una capa de estilos aparte (`aspecto-familia.css`), solo activa con `data-aspecto="familia"`: paleta turquesa y azul marino de la otra web, letra Inter (incluida dentro del programa, sin internet), esquinas redondeadas, sombras suaves, botones de la barra en suave y «Nuevo cálculo» como principal, campos con halo turquesa, pasos en cuatro cajas iguales, zona de subir archivos con borde discontinuo. Donde chocan la fidelidad y la legibilidad manda la legibilidad: el texto blanco va solo sobre turquesa oscuro (#007A83), los colores de las calculadoras (EVO, Barrett, Kane) y el aviso rojo de datos que faltan no se tocan, y no se copia ningún nombre, logotipo ni icono de la otra web. (2) El título de los PDF y los textos que nombraban el producto pasan de «Resumen Calculadores IOL» a **«Gestión Integral de Calculadores»**, para no confundirse con la otra app. Para volver atrás: pulsar el interruptor; el estado anterior de todo está en la etiqueta de Git `v1.54-aspecto-actual` y en `Calculator-Vilamar-v1.54-aspecto-actual.zip`.
+
+---
+
 ## [1.15.103] — 22/10/2026 (versión visible en pantalla: v1.54)
 
 feat(app): importar PDF aunque falte un dato — lo importante es guardarlo en su sitio (D138)

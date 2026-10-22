@@ -108,7 +108,7 @@ describe('6 · el informe conserva las alternativas sin inventar una elegida', (
   it('dice que la calculadora no ha señalado ninguna, y que no elige el programa', () => {
     const h = html()
     expect(h).toContain('no ha señalado ninguna opción preferente')
-    expect(h).toContain('La elección no la hace el Resumen de calculadores')
+    expect(h).toContain('La elección no la hace Gestión Integral de Calculadores')
   })
 
   it('NO marca ninguna como destacada', () => {
