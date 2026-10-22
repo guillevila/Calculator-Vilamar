@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.99] — 22/10/2026 (versión visible en pantalla: v1.50)
+
+feat(app): importar PDF de «Resumen Calculadores» con los dos ojos («Ambos ojos»), y guardar todos los importados en «Calculados» (D138)
+
+Petición del dueño, con un PDF de ejemplo con los dos ojos en el mismo fichero (cabecera «… · OD-OI · Tórica»). (1) La cabecera con los dos ojos («OD-OI», «OD / OI») se reconoce y el caso cuenta **dos ojos** (uno en OD y otro en OS) en el Dashboard, el Análisis y el Excel de estudio (dos filas por aparato). (2) La copia del PDF va a `<doctor>/Calculados/<paciente>/Ambos ojos/`; los de un solo ojo, a `<doctor>/Calculados/<paciente>/<ojo>/`, junto a los PDF hechos aquí (antes iban a una carpeta «Importados»; los ya importados se quedan donde están). (3) La franja de Kane de ese PDF no acaba en «KANE» («… · KANE · OD / OI»): ahora se busca la calculadora en cualquier parte de la franja. (4) El identificador del caso en la otra app se saca del penúltimo trozo del nombre, aunque haya un trozo extra («…_OD-OI_personalizado_085542495-902041_Torica.pdf»). «EnVista Envy» se traduce a la lente B&L Envy del catálogo. Comprobado con un PDF real de dos columnas generado aquí, no con el fichero original.
+
+---
+
 ## [1.15.98] — 22/10/2026 (versión visible en pantalla: v1.49)
 
 fix(app): los casos importados usan la lente exacta del catálogo, para sumar con los hechos aquí (D138)

@@ -34,7 +34,7 @@ describe('leerResumenCalculadores', () => {
       doctor: 'hospital perpetuo socorro',
       paciente: 'maria pilar',
       lente: 'EnVista',
-      ojo: 'OD',
+      ojos: ['OD'],
       tipoDeLente: 'Tórica',
       aparatos: ['IOLMaster Advanced Technology', 'Pentacam'],
       calculadoras: ['EVO_TORIC_SIN_CARA_POSTERIOR', 'BARRETT_TORIC', 'KANE'],
@@ -49,7 +49,7 @@ describe('leerResumenCalculadores', () => {
       ],
       'otro.pdf',
     )
-    expect(r.ok && r.datos.ojo).toBe('OS')
+    expect(r.ok && r.datos.ojos).toEqual(['OS'])
     expect(r.ok && r.datos.calculadoras).toEqual(['EVO_TORIC', 'BARRETT_TORIC_CON_CARA_POSTERIOR'])
     expect(r.ok && r.datos.idExterno).toBeUndefined()
   })
@@ -113,5 +113,44 @@ describe('lenteDelCatalogo', () => {
   it('lo que no se reconoce, no se adivina', () => {
     expect(lenteDelCatalogo('Vivity')).toBeUndefined()
     expect(lenteDelCatalogo('Tecnis Eyhance')).toBeUndefined()
+  })
+})
+
+// Un PDF con los dos ojos en el mismo fichero (caso inventado de prueba).
+const DOS_OJOS = `2026-10-22 · Aurelio rocha · 007-009 Ángeles · EnVista Envy · OD-OI · Tórica
+IOLMaster · SimK · Tórica · EnVista Envy · EVO estimado
+OD · EVO estimado OI · EVO estimado
+IOLMaster · SimK · Tórica · EnVista Envy · KANE · OD / OI
+OD / OI · KANE estimado`
+const FICHERO_DOS_OJOS =
+  '2026-10-22_Aurelio-rocha_007-009-Angeles_EnVista-Envy_OD-OI_personalizado_085542495-902041_Torica.pdf'
+
+describe('un PDF con los dos ojos', () => {
+  it('lee «OD-OI» como los dos ojos, la franja de Kane que no acaba en «KANE» y el identificador', () => {
+    const r = leerResumenCalculadores([DOS_OJOS], FICHERO_DOS_OJOS)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.datos).toMatchObject({
+      fecha: '2026-10-22',
+      doctor: 'Aurelio rocha',
+      paciente: '007-009 Ángeles',
+      lente: 'EnVista Envy',
+      ojos: ['OD', 'OS'],
+      aparatos: ['IOLMaster'],
+      calculadoras: ['EVO_TORIC_SIN_CARA_POSTERIOR', 'KANE'],
+      idExterno: '085542495-902041',
+    })
+    // «EnVista Envy» es la lente Envy del catálogo.
+    expect(lenteDelCatalogo(r.datos.lente ?? '')?.modelo).toBe('B&L Envy')
+  })
+
+  it('el identificador se saca también con un trozo extra («personalizado») en el nombre', () => {
+    const r = leerResumenCalculadores([DOS_OJOS], FICHERO_DOS_OJOS)
+    expect(r.ok && r.datos.idExterno).toBe('085542495-902041')
+  })
+
+  it('un «ojo» que no es ojo no se acepta', () => {
+    const r = leerResumenCalculadores(['2026-10-22 · Dr · pac · Envy · OD-XX · Tórica'], 'a.pdf')
+    expect(r.ok).toBe(false)
   })
 })

@@ -34,8 +34,14 @@ function entorno(textoPorContenido: Record<string, readonly string[]> = {}) {
       ahora: new Date('2026-10-22T10:00:00.000Z'),
       casos,
       doctoresConocidos: doctores,
-      carpetaDeCopia: ({ doctor, paciente, ojo }) =>
-        join(carpetas.informes, doctor ?? 'Sin doctor', 'Importados', paciente ?? 'x', ojo),
+      carpetaDeCopia: ({ doctor, paciente, ojos }) =>
+        join(
+          carpetas.informes,
+          doctor ?? 'Sin doctor',
+          'Calculados',
+          paciente ?? 'x',
+          ojos.length > 1 ? 'Ambos ojos' : (ojos[0] ?? 'OD'),
+        ),
       leerTexto: (datos) =>
         Promise.resolve(textoPorContenido[Buffer.from(datos).toString()] ?? TEXTO),
     })
@@ -68,10 +74,33 @@ describe('importarResumenes', () => {
       aparatos: ['IOLMaster Advanced Technology', 'Pentacam'],
     })
     const copia = c?.importado?.rutaPdf ?? ''
-    expect(copia).toContain(join(carpetas.informes, 'Hospital Perpetuo Socorro', 'Importados'))
+    expect(copia).toContain(join(carpetas.informes, 'Hospital Perpetuo Socorro', 'Calculados'))
     expect(readFileSync(copia, 'utf8')).toBe('pdf-uno')
     // el original no se toca
     expect(existsSync(join(origen, NOMBRE))).toBe(true)
+  })
+
+  it('un PDF con los dos ojos va a la carpeta «Ambos ojos» y cuenta dos ojos', async () => {
+    const dosOjos = `2026-10-22 · Aurelio rocha · 007-009 Ángeles · EnVista Envy · OD-OI · Tórica
+IOLMaster · SimK · Tórica · EnVista Envy · EVO estimado
+IOLMaster · SimK · Tórica · EnVista Envy · KANE · OD / OI`
+    const nombre =
+      '2026-10-22_Aurelio-rocha_007-009-Angeles_EnVista-Envy_OD-OI_personalizado_085542495-902041_Torica.pdf'
+    const { origen, ejecutar, casos } = entorno({
+      ambos: [dosOjos],
+      'ambos recalculado': [dosOjos],
+    })
+    writeFileSync(join(origen, nombre), 'ambos')
+    const r = await ejecutar()
+    expect(r.nuevos).toBe(1)
+    const [c] = casos()
+    expect(c?.importado?.ojos).toEqual(['OD', 'OS'])
+    expect(c?.importado?.rutaPdf).toContain(join('Calculados', '007-009 Ángeles', 'Ambos ojos'))
+    expect(c?.lente).toEqual({ fabricante: 'Bausch & Lomb', modelo: 'B&L Envy' })
+    // El mismo caso otra vez, aunque cambie el contenido, no se repite.
+    writeFileSync(join(origen, 'otro-nombre_085542495-902041_Torica.pdf'), 'ambos recalculado')
+    const otra = await ejecutar(casos())
+    expect(otra.nuevos).toBe(0)
   })
 
   it('el mismo PDF dos veces, o el mismo caso con otro contenido, no se cuenta dos veces', async () => {

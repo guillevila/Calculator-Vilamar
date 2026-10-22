@@ -136,6 +136,24 @@ describe('casos importados de otra app (22/10/2026)', () => {
     expect(r.filas[0]?.importado).toBe(true)
   })
 
+  it('un PDF con los dos ojos cuenta dos ojos: uno en OD y otro en OS, y dos filas en el Excel', () => {
+    const ambos: Caso = {
+      ...importado('0003'),
+      importado: {
+        ...importado('0003').importado!,
+        ojos: ['OD', 'OS'],
+      },
+    }
+    const r = analizarCasos([ambos])
+    expect(r.totalCasos).toBe(1)
+    expect(r.totalOjos).toBe(2)
+    expect(r.ojosOD).toBe(1)
+    expect(r.ojosOS).toBe(1)
+    expect(r.porLente).toEqual([{ etiqueta: 'EnVista', cantidad: 2 }])
+    expect(analizarCasos([ambos], { ojo: 'OS' }).totalCasos).toBe(1)
+    expect(filasDeEstudio([ambos]).map((f) => f.ojo)).toEqual(['OD', 'OS'])
+  })
+
   it('se pueden buscar por ojo y por calculadora', () => {
     const casos = [importado('0001'), importado('0002', 'OS')]
     expect(analizarCasos(casos, { ojo: 'OS' }).filas.map((f) => f.codigo)).toEqual(['IM-2026-0002'])

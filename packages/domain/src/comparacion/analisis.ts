@@ -17,7 +17,7 @@
 
 import type { Calculadora } from '../modelo/calculadoras.js'
 import type { Caso, EstadoCaso } from '../modelo/caso.js'
-import { ojosDelCaso } from '../modelo/caso.js'
+import { ojosDeImportado, ojosDelCaso } from '../modelo/caso.js'
 import type { Lateralidad } from '../modelo/lateralidad.js'
 import {
   claveDeLenteParaAgrupar,
@@ -91,7 +91,7 @@ function resultadosUtiles(caso: Caso): Caso['resultados'][string][] {
 
 /** Los ojos que aporta un caso: los que tienen resultado; si ninguno, los que tienen datos. */
 function ojosDelAnalisis(caso: Caso): readonly Lateralidad[] {
-  if (caso.importado) return [caso.importado.ojo]
+  if (caso.importado) return ojosDeImportado(caso.importado)
   const conResultado = new Set(resultadosUtiles(caso).map((r) => r.ojo))
   const ojos = conResultado.size > 0 ? [...conResultado] : [...ojosDelCaso(caso)]
   return (['OD', 'OS'] as const).filter((o) => ojos.includes(o))

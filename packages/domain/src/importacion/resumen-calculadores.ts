@@ -27,7 +27,8 @@ export interface DatosDeResumen {
   readonly paciente?: string
   /** La lente tal como la escribe el PDF («EnVista»). */
   readonly lente?: string
-  readonly ojo: Lateralidad
+  /** El ojo, o los dos si el PDF trae «OD-OI». */
+  readonly ojos: readonly Lateralidad[]
   /** «Tórica», «Esférica»… tal como lo escribe el PDF. */
   readonly tipoDeLente?: string
   /** Los biómetros/aparatos que aparecen en las franjas, sin repetir. */
@@ -52,6 +53,17 @@ function ojoDe(texto: string): Lateralidad | undefined {
   return undefined
 }
 
+/** «OD», «OI», o los dos juntos: «OD-OI», «OD / OI»… Si algún trozo no es un ojo, nada. */
+function ojosDe(texto: string): Lateralidad[] | undefined {
+  const ojos: Lateralidad[] = []
+  for (const trozo of texto.split(/[-/\s]+/).filter((t) => t !== '')) {
+    const ojo = ojoDe(trozo)
+    if (!ojo) return undefined
+    if (!ojos.includes(ojo)) ojos.push(ojo)
+  }
+  return ojos.length > 0 ? ojos : undefined
+}
+
 function calculadoraDe(nombre: string, variante: string): Calculadora | undefined {
   const n = nombre.trim().toUpperCase()
   const medido = variante.trim().toLowerCase().startsWith('medid')
@@ -61,9 +73,13 @@ function calculadoraDe(nombre: string, variante: string): Calculadora | undefine
   return undefined
 }
 
-/** El identificador del caso en la otra app: lo que va justo antes del último trozo del nombre. */
+/**
+ * El identificador del caso en la otra app: el penúltimo trozo del nombre, justo
+ * antes del tipo («…_162128960-b05857_Torica.pdf»). Vale aunque haya un trozo extra
+ * antes («…_OD-OI_personalizado_085542495-902041_Torica.pdf»).
+ */
 function idDelNombre(nombreFichero: string): string | undefined {
-  const m = /_(?:OD|OI|OS)_([^_]+)_[^_]+\.pdf$/i.exec(nombreFichero)
+  const m = /_([^_]+)_[^_]+\.pdf$/i.exec(nombreFichero)
   return m?.[1]
 }
 
@@ -100,7 +116,7 @@ export function leerResumenCalculadores(
     if (
       partes.length >= 5 &&
       FECHA.test(partes[0] ?? '') &&
-      ojoDe(partes[partes.length - 2] ?? '')
+      ojosDe(partes[partes.length - 2] ?? '')
     ) {
       cabecera = partes
       break
@@ -115,7 +131,7 @@ export function leerResumenCalculadores(
   }
 
   const fecha = cabecera[0] as string
-  const ojo = ojoDe(cabecera[cabecera.length - 2] as string) as Lateralidad
+  const ojos = ojosDe(cabecera[cabecera.length - 2] as string) as Lateralidad[]
   const tipoDeLente = cabecera[cabecera.length - 1]
   // Entre la fecha y el ojo: doctor, paciente y lente (esta puede llevar « · » dentro).
   const medio = cabecera.slice(1, -2)
@@ -129,9 +145,12 @@ export function leerResumenCalculadores(
   for (const linea of lineas) {
     const partes = linea.split(' · ').map((p) => p.trim())
     if (partes.length < 4) continue
-    const m = /^(EVO|BARRETT|KANE)\s*(estimad[oa]|medid[oa])?$/i.exec(
-      partes[partes.length - 1] ?? '',
-    )
+    // La calculadora puede no ir al final: «… · KANE · OD / OI».
+    let m: RegExpExecArray | null = null
+    for (const parte of partes.slice(3)) {
+      m = /^(EVO|BARRETT|KANE)\s*(estimad[oa]|medid[oa])?$/i.exec(parte)
+      if (m) break
+    }
     if (!m) continue
     const calculadora = calculadoraDe(m[1] as string, m[2] ?? '')
     if (!calculadora) continue
@@ -148,7 +167,7 @@ export function leerResumenCalculadores(
       ...(doctor ? { doctor } : {}),
       ...(paciente ? { paciente } : {}),
       ...(lente ? { lente } : {}),
-      ojo,
+      ojos,
       ...(tipoDeLente ? { tipoDeLente } : {}),
       aparatos,
       calculadoras,

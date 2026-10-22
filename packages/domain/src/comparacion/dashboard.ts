@@ -19,7 +19,7 @@
  * `ojosContados`.
  */
 
-import { ojosDelCaso } from '../modelo/caso.js'
+import { ojosDeImportado, ojosDelCaso } from '../modelo/caso.js'
 import type { Caso } from '../modelo/caso.js'
 import { claveLente } from '../modelo/lente.js'
 
@@ -78,7 +78,7 @@ export function etiquetaLente(lente: Caso['lente']): string {
  * pidió calcular no cuenta.
  */
 export function ojosContados(caso: Caso): number {
-  if (caso.importado) return 1
+  if (caso.importado) return ojosDeImportado(caso.importado).length
   const calculados = new Set(
     Object.values(caso.resultados)
       .filter((r) => r.estado === 'SUCCESS' || r.estado === 'PARTIAL')

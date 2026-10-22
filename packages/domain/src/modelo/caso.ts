@@ -58,10 +58,18 @@ export interface DatosImportados {
   readonly huella: string
   /** Identificador del caso en la otra app, si el nombre del fichero lo traía. */
   readonly idExterno?: string
+  /** El ojo del PDF; si trae los dos, el primero (ver `ojos`). */
   readonly ojo: Lateralidad
+  /** Solo si el PDF trae LOS DOS ojos (OD-OI): los dos, en orden. Ver `ojosDeImportado`. */
+  readonly ojos?: readonly Lateralidad[]
   /** Aparatos y calculadoras que el PDF enseña. */
   readonly aparatos: readonly string[]
   readonly calculadoras: readonly Calculadora[]
+}
+
+/** Los ojos de un caso importado: uno o los dos. */
+export function ojosDeImportado(i: DatosImportados): readonly Lateralidad[] {
+  return i.ojos ?? [i.ojo]
 }
 
 export interface Caso {

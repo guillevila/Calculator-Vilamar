@@ -4,7 +4,7 @@
  *
  * Mira una carpeta, y por cada PDF nuevo: lee su cabecera (doctor, paciente, lente,
  * ojo, fecha, calculadoras), guarda una COPIA en la carpeta del doctor
- * (`<doctor>/Importados/<paciente>/<ojo>/`) y crea un caso «importado» ya
+ * (`<doctor>/Calculados/<paciente>/<ojo>/`, o `Ambos ojos` si el PDF trae los dos) y crea un caso «importado» ya
  * terminado, para que cuente en el análisis y en las estadísticas.
  *
  * Reglas:
@@ -27,6 +27,7 @@ import {
   doctorComoYaExiste,
   leerResumenCalculadores,
   lenteDelCatalogo,
+  ojosDeImportado,
 } from '@vilamar/domain'
 
 import type { ResultadoImportacion } from '../compartido/ipc.js'
@@ -46,7 +47,8 @@ export interface EntornoImportacion {
   readonly carpetaDeCopia: (datos: {
     doctor: string | undefined
     paciente: string | undefined
-    ojo: 'OD' | 'OS'
+    /** Los ojos del PDF: uno, o los dos. */
+    ojos: readonly ('OD' | 'OS')[]
     codigo: string
   }) => string
   /** El texto de cada página del PDF. */
@@ -80,7 +82,9 @@ export async function importarResumenes(e: EntornoImportacion): Promise<Resultad
   const huellas = new Set(e.casos.flatMap((c) => (c.importado ? [c.importado.huella] : [])))
   const idsYaVistos = new Set(
     e.casos.flatMap((c) =>
-      c.importado?.idExterno ? [`${c.importado.idExterno}|${c.importado.ojo}`] : [],
+      c.importado?.idExterno
+        ? [`${c.importado.idExterno}|${ojosDeImportado(c.importado).join('+')}`]
+        : [],
     ),
   )
   const conocidos = [
@@ -126,7 +130,7 @@ export async function importarResumenes(e: EntornoImportacion): Promise<Resultad
     const d = lectura.datos
 
     // El mismo caso de la otra app con otro contenido (p. ej. recalculado): ya contado.
-    const clave = d.idExterno ? `${d.idExterno}|${d.ojo}` : undefined
+    const clave = d.idExterno ? `${d.idExterno}|${d.ojos.join('+')}` : undefined
     if (clave && idsYaVistos.has(clave)) {
       repetidos += 1
       continue
@@ -134,7 +138,7 @@ export async function importarResumenes(e: EntornoImportacion): Promise<Resultad
 
     const doctor = d.doctor ? doctorComoYaExiste(d.doctor, conocidos) : undefined
     const codigo = siguienteCodigoImportado(e.carpetas, e.ahora)
-    const carpetaCopia = e.carpetaDeCopia({ doctor, paciente: d.paciente, ojo: d.ojo, codigo })
+    const carpetaCopia = e.carpetaDeCopia({ doctor, paciente: d.paciente, ojos: d.ojos, codigo })
     mkdirSync(carpetaCopia, { recursive: true })
     const nombreCopia = nombreLibre(carpetaCopia, nombre)
     copyFileSync(ruta, join(carpetaCopia, nombreCopia))
@@ -153,7 +157,8 @@ export async function importarResumenes(e: EntornoImportacion): Promise<Resultad
         rutaPdf: join(carpetaCopia, nombreCopia),
         huella,
         ...(d.idExterno ? { idExterno: d.idExterno } : {}),
-        ojo: d.ojo,
+        ojo: d.ojos[0] ?? 'OD',
+        ...(d.ojos.length > 1 ? { ojos: d.ojos } : {}),
         aparatos: d.aparatos,
         calculadoras: d.calculadoras,
       },

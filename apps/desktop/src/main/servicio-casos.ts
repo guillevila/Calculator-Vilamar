@@ -402,13 +402,16 @@ export class ServicioCasos {
       ahora: this.dep.ahora(),
       casos: this.casosGuardados(),
       doctoresConocidos: leerDoctores(this.dep.carpetas).map((d) => d.nombre),
-      carpetaDeCopia: ({ doctor, paciente, ojo, codigo }) =>
+      // Dentro de «Calculados», junto a los PDF hechos aquí (instrucciones del dueño,
+      // 22/10/2026): <doctor>/Calculados/<paciente>/<ojo>, y «Ambos ojos» si el PDF
+      // trae los dos en el mismo fichero.
+      carpetaDeCopia: ({ doctor, paciente, ojos, codigo }) =>
         join(
           this.dep.carpetas.informes,
           nombreDeCarpeta(doctor, NOMBRE_CARPETA_SIN_DOCTOR),
-          'Importados',
+          'Calculados',
           nombreDeCarpeta(paciente, codigo),
-          nombreLateralidad(ojo),
+          ojos.length > 1 ? 'Ambos ojos' : nombreLateralidad(ojos[0] ?? 'OD'),
         ),
       leerTexto: async (datos) => (await crearLectorPdf().leer(datos)).map((p) => p.texto),
     })
