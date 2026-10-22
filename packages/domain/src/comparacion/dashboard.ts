@@ -78,6 +78,7 @@ export function etiquetaLente(lente: Caso['lente']): string {
  * pidió calcular no cuenta.
  */
 export function ojosContados(caso: Caso): number {
+  if (caso.importado) return 1
   const calculados = new Set(
     Object.values(caso.resultados)
       .filter((r) => r.estado === 'SUCCESS' || r.estado === 'PARTIAL')

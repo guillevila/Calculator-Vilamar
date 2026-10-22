@@ -88,6 +88,20 @@ export function siguienteCodigo(carpetas: Carpetas, ahora: Date): string {
   return `${prefijo}${String(maximo + 1).padStart(4, '0')}`
 }
 
+/**
+ * El código de un caso IMPORTADO de otra app: IM-2026-0001 (22/10/2026). Va aparte
+ * del CV- para que se vea de un vistazo que no se hizo aquí y no se mezcle con su cuenta.
+ */
+export function siguienteCodigoImportado(carpetas: Carpetas, ahora: Date): string {
+  const prefijo = `IM-${ahora.getFullYear()}-`
+  const maximo = Math.max(
+    0,
+    ...numerosDeCasos(carpetas.casos, prefijo),
+    ...numerosDeCasos(join(carpetas.raiz, 'casos-borrados'), prefijo),
+  )
+  return `${prefijo}${String(maximo + 1).padStart(4, '0')}`
+}
+
 /** Recorre una carpeta (y sus subcarpetas, p. ej. los días de `casos-borrados/`)
  *  y saca el número de cada `CV-<año>-NNNN.json` que encuentra. */
 function numerosDeCasos(dir: string, prefijo: string): number[] {
@@ -289,6 +303,26 @@ export function leerCarpetaEntrada(carpetas: Carpetas): string | null {
   } catch {
     return null
   }
+}
+
+/** La carpeta donde se buscan los PDF de «Resumen Calculadores» (22/10/2026). */
+export function leerCarpetaResumenes(carpetas: Carpetas): string | null {
+  try {
+    const datos = JSON.parse(
+      readFileSync(join(carpetas.raiz, 'carpeta-resumenes.json'), 'utf8'),
+    ) as { ruta?: string }
+    return datos.ruta ?? null
+  } catch {
+    return null
+  }
+}
+
+export function guardarCarpetaResumenes(carpetas: Carpetas, ruta: string): void {
+  writeFileSync(
+    join(carpetas.raiz, 'carpeta-resumenes.json'),
+    JSON.stringify({ ruta }, null, 2),
+    'utf8',
+  )
 }
 
 export function guardarCarpetaEntrada(carpetas: Carpetas, ruta: string): void {

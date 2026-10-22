@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.97] — 22/10/2026 (versión visible en pantalla: v1.48)
+
+feat(app): importar los PDF de «Resumen Calculadores»: se guardan en la carpeta del doctor y cuentan en el análisis y las estadísticas (D138)
+
+Petición del dueño: tener en un mismo sitio los cálculos hechos con la app de su compañera. En «Análisis de resultados» hay una tarjeta nueva: se elige la carpeta donde están esos PDF y «Buscar PDF nuevos» (también se busca sola al abrir la pantalla). De cada PDF se lee la cabecera que su app escribe en cada página —fecha, doctor, paciente, lente, ojo y tipo— y las franjas de aparato y calculadora (EVO, Barrett, Kane; estimado o medido). Cada PDF nuevo: (1) se copia a `<doctor>/Importados/<paciente>/<ojo>/` —el original no se toca—, (2) crea un caso «importado» (código `IM-AAAA-NNNN`) ya terminado, con la fecha del PDF, que cuenta como un ojo en el Dashboard y en el Análisis (filtros de fecha, doctor, lente, ojo y calculadora) y sale en el Excel de estudio sin biometría, y (3) en la lista tiene el botón «Abrir PDF». No se importa dos veces: por huella del contenido y por el identificador del caso en la otra app. El doctor se escribe como ya existe en el programa (sin mirar mayúsculas ni tildes). Un PDF que no es de esa app no se importa y se dice por qué. Lo que el PDF no dice no se inventa. Los casos importados no salen en «Casos guardados» (no se pueden abrir como caso).
+
+---
+
 ## [1.15.96] — 21/10/2026 (versión visible en pantalla: v1.47)
 
 fix(app): las barras de «Calcular» llegan al 100 % y ponen «Completado» en cuanto cada calculadora termina (D136)

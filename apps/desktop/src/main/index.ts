@@ -73,7 +73,7 @@ if (app.isPackaged) {
  * este número es lo ÚLTIMO que se hace al cerrar un cambio en la aplicación
  * de escritorio, justo antes de avisar de que está listo para probar.
  */
-const VERSION_VISIBLE = '1.47'
+const VERSION_VISIBLE = '1.48'
 
 function versionDelProducto(): string {
   return VERSION_VISIBLE
@@ -346,6 +346,23 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   ipcMain.handle(CANALES.abrirCaso, (_e, codigo) => s().abrirCaso(codigo))
   ipcMain.handle(CANALES.resumenDashboard, (_e, rango) => s().resumenDashboard(rango))
   ipcMain.handle(CANALES.analizarCasos, (_e, filtro) => s().analizarCasos(filtro))
+  ipcMain.handle(CANALES.obtenerCarpetaResumenes, () => s().obtenerCarpetaResumenes())
+  ipcMain.handle(CANALES.elegirCarpetaResumenes, async () => {
+    if (!ventana) return null
+    const r = await dialog.showOpenDialog(ventana, {
+      title: 'Elige la carpeta donde están los PDF de Resumen Calculadores',
+      properties: ['openDirectory'],
+    })
+    const ruta = r.canceled ? undefined : r.filePaths[0]
+    if (!ruta) return null
+    s().configurarCarpetaResumenes(ruta)
+    return ruta
+  })
+  ipcMain.handle(CANALES.importarResumenes, () => s().importarResumenes())
+  ipcMain.handle(CANALES.abrirPdfImportado, async (_e, codigo: string) => {
+    const fallo = await shell.openPath(s().rutaDePdfImportado(codigo))
+    if (fallo) throw new Error(`No se ha podido abrir el PDF. ${fallo}`)
+  })
   ipcMain.handle(CANALES.exportarEstudioExcel, (_e, filtro) =>
     s().exportarEstudioExcel(filtro, async (nombreSugerido) => {
       if (!ventana) return null

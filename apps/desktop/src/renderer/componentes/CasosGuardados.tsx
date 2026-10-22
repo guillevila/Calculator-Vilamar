@@ -47,7 +47,8 @@ export const CASOS_POR_PAGINA = 20
 export function casosParaRevisar(
   casos: readonly ResumenCasoGuardado[],
 ): readonly ResumenCasoGuardado[] {
-  return casos.filter((c) => c.estado !== 'BORRADOR')
+  // Un caso importado de otra app (PDF) no se abre aquí: su sitio es «Análisis de resultados».
+  return casos.filter((c) => c.estado !== 'BORRADOR' && !c.importado)
 }
 
 export function CasosGuardados({ onAbrir, onVolver }: Props): JSX.Element {
