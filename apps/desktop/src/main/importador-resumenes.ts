@@ -74,7 +74,10 @@ function nombreLibre(carpeta: string, nombre: string): string {
 export async function importarResumenes(e: EntornoImportacion): Promise<ResultadoImportacion> {
   let nombres: string[]
   try {
-    nombres = readdirSync(e.origen).filter((n) => n.toLowerCase().endsWith('.pdf'))
+    // Los PDF que hace este mismo programa («CV-2026-0419_OD_….pdf») se saltan: no son de otra app.
+    nombres = readdirSync(e.origen).filter(
+      (n) => n.toLowerCase().endsWith('.pdf') && !/^(CV|IM)-\d{4}-\d{4}_/.test(n),
+    )
   } catch {
     throw new Error(`No puedo abrir la carpeta «${e.origen}». ¿Sigue existiendo?`)
   }

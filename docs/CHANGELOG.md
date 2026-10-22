@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.100] — 22/10/2026 (versión visible en pantalla: v1.51)
+
+fix(app): importación de PDF — se saltan los PDF de este mismo programa, el doctor se reconoce sin «Dr/Dra» y el texto de la tarjeta dice «Calculados» (D138)
+
+Prueba del dueño con la v1.49: su PDF con los dos ojos («… · OD-OI · Tórica») salía «no se ha podido leer». Era la versión: los dos ojos se admiten desde la v1.50. Comprobado con su fichero real (solo lectura): con el código actual se lee entero (doctor, paciente, lente EnVista Envy, los dos ojos, IOLMaster, EVO y Kane, identificador). Además: (1) los PDF que hace este mismo programa («CV-2026-0419_OD_….pdf»), que estaban en la misma carpeta, se saltan en silencio en vez de salir como «no se han podido leer»; (2) el doctor se reconoce sin contar «Dr»/«Dra»: «Aurelio rocha» se escribe como el «Dr aurelio Rocha» que ya existe, para no crear un doctor repetido; (3) la tarjeta decía que los PDF se copian a «Importados»: ahora dice «Calculados», que es donde van desde la v1.50.
+
+---
+
 ## [1.15.99] — 22/10/2026 (versión visible en pantalla: v1.50)
 
 feat(app): importar PDF de «Resumen Calculadores» con los dos ojos («Ambos ojos»), y guardar todos los importados en «Calculados» (D138)

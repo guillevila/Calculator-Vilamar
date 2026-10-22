@@ -141,6 +141,13 @@ IOLMaster · SimK · Tórica · EnVista Envy · KANE · OD / OI`
     expect(casos()[0]?.nombreCirujano).toBe('hospital perpetuo socorro')
   })
 
+  it('los PDF que hace este mismo programa no se cuentan ni se avisan', async () => {
+    const { origen, ejecutar } = entorno()
+    writeFileSync(join(origen, 'CV-2026-0419_OD_2026-10-21T21-03-16.pdf'), 'propio')
+    const r = await ejecutar()
+    expect(r).toMatchObject({ nuevos: 0, total: 0, noReconocidos: [] })
+  })
+
   it('con una carpeta que no existe, lo dice', async () => {
     const { origen, ejecutar } = entorno()
     rmSync(origen, { recursive: true })

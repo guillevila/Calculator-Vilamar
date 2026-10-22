@@ -212,6 +212,9 @@ export function normalizarNombre(texto: string): string {
  * → «Hospital Perpetuo Socorro»). Si no se parece a ninguno, se deja como viene.
  */
 export function doctorComoYaExiste(nombre: string, conocidos: readonly string[]): string {
-  const buscado = normalizarNombre(nombre)
-  return conocidos.find((c) => normalizarNombre(c) === buscado) ?? nombre.trim()
+  // Sin contar el tratamiento («Dr», «Dra», «Doctor/a»): «Aurelio rocha» = «Dr aurelio Rocha».
+  const sinTratamiento = (t: string): string =>
+    normalizarNombre(t).replace(/^(doctora|doctor|dra|dr)\.?\s+/, '')
+  const buscado = sinTratamiento(nombre)
+  return conocidos.find((c) => sinTratamiento(c) === buscado) ?? nombre.trim()
 }

@@ -338,7 +338,7 @@ export function AnalisisScreen({ onAbrirResultado, onVolver }: Props): JSX.Eleme
         <strong>Importar cálculos de otra app (PDF de Resumen Calculadores)</strong>
         <p className="pie-nota" style={{ margin: '4px 0 8px' }}>
           Elige la carpeta donde guardas esos PDF. Se copian a la carpeta de su doctor
-          («Importados») y cuentan en el análisis y las estadísticas. Los originales no se tocan.
+          («Calculados») y cuentan en el análisis y las estadísticas. Los originales no se tocan.
         </p>
         <div className="fila" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <button

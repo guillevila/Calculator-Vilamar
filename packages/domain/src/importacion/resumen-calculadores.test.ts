@@ -90,6 +90,11 @@ describe('doctorComoYaExiste', () => {
       doctorComoYaExiste('hospital perpetuo socorro', ['Dr Rocha', 'Hospital Perpetuo Socorro']),
     ).toBe('Hospital Perpetuo Socorro')
   })
+  it('no cuenta el tratamiento: «Aurelio rocha» es «Dr aurelio Rocha»', () => {
+    expect(doctorComoYaExiste('Aurelio rocha', ['Dr Hamdy', 'Dr aurelio Rocha'])).toBe(
+      'Dr aurelio Rocha',
+    )
+  })
   it('si no existe, lo deja como viene', () => {
     expect(doctorComoYaExiste('  Dra. Nueva ', ['Dr Rocha'])).toBe('Dra. Nueva')
   })
