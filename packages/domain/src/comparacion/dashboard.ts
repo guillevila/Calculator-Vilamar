@@ -202,7 +202,8 @@ function seleccionarCalculados(
   const excluidos = new Set((opciones.doctoresExcluidos ?? []).map((d) => d.trim().toLowerCase()))
   return casos.filter((c) => {
     if (c.estado !== 'COMPLETADO') return false
-    if ((c.lente?.modelo ?? '').trim() === '') return false
+    // Un caso importado de otra app sin lente cuenta igual (por doctor y ojo; sale como «Sin modelo»).
+    if (!c.importado && (c.lente?.modelo ?? '').trim() === '') return false
     // Se compara contra la misma etiqueta que se enseña y se pulsa en
     // pantalla («Sin doctor» incluida) — no contra `nombreCirujano` en
     // crudo, o excluir «Sin doctor» no coincidía nunca con nada (fallo

@@ -110,35 +110,64 @@ export function leerResumenCalculadores(
     }
   }
 
-  // La cabecera: «fecha · doctor · paciente · lente… · ojo» y, a veces, «· tipo» al final.
-  let cabecera: string[] | undefined
-  let posicionDelOjo = -1
+  // La cabecera: «fecha · doctor · paciente · lente… · ojo [· tipo]». Se exige lo MÍNIMO
+  // —la fecha y el ojo—: si falta la lente, el paciente o hasta el doctor, el PDF se
+  // importa igual y lo que falta queda ausente. Lo importante es poder guardarlo en su
+  // sitio (22/10/2026, petición del dueño).
+  let fecha: string | undefined
+  let ojos: Lateralidad[] | undefined
+  let doctor: string | undefined
+  let paciente: string | undefined
+  let lente: string | undefined
+  let tipoDeLente: string | undefined
   for (const linea of lineas) {
     const partes = linea.split(' · ').map((p) => p.trim())
-    if (partes.length < 5 || !FECHA.test(partes[0] ?? '')) continue
-    const ultimo = partes.length - 1
-    if (ojosDe(partes[ultimo] ?? '')) posicionDelOjo = ultimo
-    else if (ojosDe(partes[ultimo - 1] ?? '')) posicionDelOjo = ultimo - 1
-    else continue
-    cabecera = partes
+    if (partes.length < 3 || !FECHA.test(partes[0] ?? '')) continue
+    // El ojo: el último trozo (después de la fecha) que sea un ojo.
+    let posicionDelOjo = -1
+    for (let k = partes.length - 1; k >= 1; k -= 1) {
+      if (ojosDe(partes[k] ?? '')) {
+        posicionDelOjo = k
+        break
+      }
+    }
+    if (posicionDelOjo < 0) continue
+    fecha = partes[0]
+    ojos = ojosDe(partes[posicionDelOjo] as string)
+    // Entre la fecha y el ojo, por este orden: doctor, paciente y lente (esta puede llevar « · »).
+    const medio = partes.slice(1, posicionDelOjo)
+    doctor = medio[0]
+    paciente = medio[1]
+    lente = medio.length >= 3 ? medio.slice(2).join(' · ') : undefined
+    tipoDeLente = partes[posicionDelOjo + 1]
     break
   }
-  if (!cabecera) {
+
+  // Sin cabecera legible, el nombre del fichero también dice fecha, doctor, paciente,
+  // lente y ojo («2026-10-15_Israel_Catalina_EnVista-Envy_OD_…pdf»). Pierde las tildes
+  // y las mayúsculas, pero es mejor que no guardarlo.
+  if (!fecha || !ojos) {
+    const m = /^(\d{4}-\d{2}-\d{2})_(.+)\.pdf$/i.exec(nombreFichero)
+    const trozos = m ? (m[2] as string).split('_') : []
+    const posicion = trozos.findIndex((t) => ojosDe(t.replace(/-/g, ' ')))
+    if (m && posicion >= 1) {
+      const limpio = (t: string | undefined): string | undefined =>
+        t ? t.replace(/-/g, ' ').trim() || undefined : undefined
+      fecha = m[1]
+      ojos = ojosDe((trozos[posicion] as string).replace(/-/g, ' '))
+      doctor = limpio(trozos[0])
+      paciente = posicion >= 2 ? limpio(trozos[1]) : undefined
+      lente = posicion >= 3 ? limpio(trozos.slice(2, posicion).join(' ')) : undefined
+      tipoDeLente = undefined
+    }
+  }
+  if (!fecha || !ojos) {
     return {
       ok: false,
       motivo:
-        'No encuentro la cabecera del caso («fecha · doctor · paciente · lente · ojo»): no parece un PDF de Resumen Calculadores.',
+        'No encuentro en el PDF ni en el nombre del fichero la fecha y el ojo: no parece un PDF de Resumen Calculadores.',
     }
   }
-
-  const fecha = cabecera[0] as string
-  const ojos = ojosDe(cabecera[posicionDelOjo] as string) as Lateralidad[]
-  const tipoDeLente = cabecera[posicionDelOjo + 1]
-  // Entre la fecha y el ojo: doctor, paciente y lente (esta puede llevar « · » dentro).
-  const medio = cabecera.slice(1, posicionDelOjo)
-  const doctor = medio[0]
-  const paciente = medio[1]
-  const lente = medio.length >= 3 ? medio.slice(2).join(' · ') : undefined
 
   // Las franjas de aparato y calculadora: «aparato · [SimK · Tórica ·] lente · EVO estimado».
   const aparatos: string[] = []

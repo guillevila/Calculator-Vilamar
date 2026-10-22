@@ -133,7 +133,7 @@ IOLMaster · SimK · Tórica · EnVista Envy · KANE · OD / OI`
     const r = await ejecutar()
     expect(r.nuevos).toBe(0)
     expect(r.noReconocidos[0]?.fichero).toBe('biometria.pdf')
-    expect(r.noReconocidos[0]?.motivo).toContain('cabecera')
+    expect(r.noReconocidos[0]?.motivo).toContain('fecha y el ojo')
     expect(casos()).toHaveLength(0)
   })
 
@@ -231,6 +231,20 @@ IOLMaster · SimK · Tórica · EnVista Envy · KANE · OD / OI`
     writeFileSync(join(origen, NOMBRE), 'pdf-uno')
     const r = await ejecutar([], [], () => Promise.reject(new Error('EBUSY: archivo en uso')))
     expect(r.motivoNoQuitado).toContain('EBUSY')
+  })
+
+  it('un PDF sin lente se guarda igual en la carpeta de su doctor, y se avisa de lo que falta', async () => {
+    const { origen, ejecutar, casos } = entorno({
+      sinlente: ['2026-10-15 · Israel · Catalina · OD\nIOLMaster · EnVista Envy · EVO estimado'],
+    })
+    writeFileSync(join(origen, 'x_130214306-7c0a4a.pdf'), 'sinlente')
+    const r = await ejecutar([], ['Dr Israel'])
+    expect(r).toMatchObject({ nuevos: 1 })
+    expect(r.conDatosQueFaltan).toEqual([{ fichero: 'x_130214306-7c0a4a.pdf', faltan: ['lente'] }])
+    const [c] = casos()
+    expect(c?.nombreCirujano).toBe('Dr Israel')
+    expect(c?.lente).toBeUndefined()
+    expect(c?.importado?.rutaPdf).toContain(join('Dr Israel', 'Calculados'))
   })
 
   it('con una carpeta que no existe, lo dice', async () => {

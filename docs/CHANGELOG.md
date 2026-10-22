@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.103] — 22/10/2026 (versión visible en pantalla: v1.54)
+
+feat(app): importar PDF aunque falte un dato — lo importante es guardarlo en su sitio (D138)
+
+Petición del dueño: si falla la lente pero en la cabecera se ve el doctor y el ojo, con eso vale para guardarlo en su carpeta correcta, aunque luego en las estadísticas no salga la lente. Ahora el mínimo que se exige a un PDF de «Resumen Calculadores» es la **fecha y el ojo**: si faltan la lente, el paciente o incluso el doctor, el PDF se importa igual y lo que falta queda ausente (sin doctor va a «Sin doctor»; sin paciente, a una carpeta con el código del caso). Si la cabecera no se puede leer pero el nombre del fichero trae fecha, doctor, paciente, lente y ojo, se saca de ahí (pierde tildes y mayúsculas, pero no se queda sin guardar). Un caso importado sin lente cuenta igualmente en el dashboard por doctor y ojo, como «Sin modelo» en el gráfico de lentes. La tarjeta avisa de qué datos le faltaban a cada PDF guardado («se ha guardado, pero no trae lente»).
+
+---
+
 ## [1.15.102] — 22/10/2026 (versión visible en pantalla: v1.53)
 
 fix(app): importar PDF de «Resumen Calculadores» con la cabecera sin «tipo», franjas de tres trozos e identificador al final del nombre (D138)

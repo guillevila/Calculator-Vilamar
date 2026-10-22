@@ -377,6 +377,11 @@ export function AnalisisScreen({ onAbrirResultado, onVolver }: Props): JSX.Eleme
                 (importacion.noQuitados > 0
                   ? ` ${importacion.noQuitados} no se ha podido quitar (siguen en la carpeta)${importacion.motivoNoQuitado ? `: ${importacion.motivoNoQuitado}. Si el PDF está abierto en otro programa, ciérralo y vuelve a buscar` : ''}.`
                   : '')}
+            {importacion.conDatosQueFaltan.map((n) => (
+              <div key={`falta-${n.fichero}`}>
+                · {n.fichero}: se ha guardado, pero no trae {n.faltan.join(', ')}.
+              </div>
+            ))}
             {importacion.noReconocidos.map((n) => (
               <div key={n.fichero}>
                 · {n.fichero}: {n.motivo}

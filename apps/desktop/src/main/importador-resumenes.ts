@@ -108,6 +108,7 @@ export async function importarResumenes(e: EntornoImportacion): Promise<Resultad
   let quitados = 0
   let noQuitados = 0
   let motivoNoQuitado: string | undefined
+  const conDatosQueFaltan: { fichero: string; faltan: string[] }[] = []
 
   /** Quita el original si la copia está y es idéntica; si no, lo deja donde está. */
   const quitarOriginal = async (ruta: string, copia: string, huella: string): Promise<void> => {
@@ -171,6 +172,12 @@ export async function importarResumenes(e: EntornoImportacion): Promise<Resultad
       continue
     }
     const d = lectura.datos
+    const faltan = [
+      ...(d.doctor ? [] : ['doctor']),
+      ...(d.paciente ? [] : ['paciente']),
+      ...(d.lente ? [] : ['lente']),
+    ]
+    if (faltan.length > 0) conDatosQueFaltan.push({ fichero: nombre, faltan })
 
     // El mismo caso de la otra app con otro contenido (p. ej. recalculado): ya contado.
     const clave = d.idExterno ? `${d.idExterno}|${d.ojos.join('+')}` : undefined
@@ -220,6 +227,7 @@ export async function importarResumenes(e: EntornoImportacion): Promise<Resultad
     total: nombres.length,
     quitados,
     noQuitados,
+    conDatosQueFaltan,
     ...(motivoNoQuitado ? { motivoNoQuitado } : {}),
   }
 }

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { casoNuevo, claveResultado } from '../modelo/caso.js'
 import type { Caso } from '../modelo/caso.js'
 import { analizarCasos } from './analisis.js'
+import { calcularResumenDashboard } from './dashboard.js'
 import { filasDeEstudio } from './estudio.js'
 
 const CUANDO = '2026-09-15T10:00:00.000Z'
@@ -152,6 +153,14 @@ describe('casos importados de otra app (22/10/2026)', () => {
     expect(r.porLente).toEqual([{ etiqueta: 'EnVista', cantidad: 2 }])
     expect(analizarCasos([ambos], { ojo: 'OS' }).totalCasos).toBe(1)
     expect(filasDeEstudio([ambos]).map((f) => f.ojo)).toEqual(['OD', 'OS'])
+  })
+
+  it('uno sin lente cuenta igual en el dashboard (por doctor y ojo), como «Sin modelo»', () => {
+    const { lente: _lente, ...sinLente } = importado('0004')
+    const r = calcularResumenDashboard([sinLente as Caso])
+    expect(r.totalCalculados).toBe(1)
+    expect(r.porDoctor).toEqual([{ etiqueta: 'Dra. López', cantidad: 1 }])
+    expect(r.porModeloLente).toEqual([{ etiqueta: 'Sin modelo', cantidad: 1 }])
   })
 
   it('se pueden buscar por ojo y por calculadora', () => {

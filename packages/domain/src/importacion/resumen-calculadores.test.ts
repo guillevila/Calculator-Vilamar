@@ -75,12 +75,17 @@ describe('leerResumenCalculadores', () => {
   it('un PDF que no es de esa app no se reconoce, y dice por qué', () => {
     const r = leerResumenCalculadores(['Informe de biometría\nAL 24.07 mm'], 'x.pdf')
     expect(r.ok).toBe(false)
-    expect(!r.ok && r.motivo).toContain('cabecera')
+    expect(!r.ok && r.motivo).toContain('fecha y el ojo')
   })
 
-  it('lo que el PDF no dice queda ausente, no inventado', () => {
+  it('lo que el PDF no dice queda ausente, no inventado — pero se importa igual', () => {
     const r = leerResumenCalculadores(['2026-10-01 · OD · Tórica'], 'x.pdf')
-    expect(r.ok).toBe(false)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.datos.ojos).toEqual(['OD'])
+    expect(r.datos.doctor).toBeUndefined()
+    expect(r.datos.paciente).toBeUndefined()
+    expect(r.datos.lente).toBeUndefined()
   })
 })
 
@@ -203,5 +208,50 @@ describe('un PDF sin «tipo» al final de la cabecera', () => {
       '2026-10-21_Israel_Catalina_EnVista-Envy_OD_123303738-eafcba_Torica.pdf',
     )
     expect(r.ok && r.datos.idExterno).toBe('123303738-eafcba')
+  })
+})
+
+describe('si falta un dato, se guarda igual (lo importante es poder guardarlo en su sitio)', () => {
+  it('sin lente: cabecera «fecha · doctor · paciente · ojo»', () => {
+    const r = leerResumenCalculadores(['2026-10-15 · Israel · Catalina · OD'], 'a.pdf')
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.datos).toMatchObject({ doctor: 'Israel', paciente: 'Catalina', ojos: ['OD'] })
+    expect(r.datos.lente).toBeUndefined()
+  })
+
+  it('sin lente y con tipo al final', () => {
+    const r = leerResumenCalculadores(['2026-10-15 · Israel · Catalina · OI · Tórica'], 'a.pdf')
+    expect(r.ok && r.datos.ojos).toEqual(['OS'])
+    expect(r.ok && r.datos.lente).toBeUndefined()
+    expect(r.ok && r.datos.tipoDeLente).toBe('Tórica')
+  })
+
+  it('solo doctor y ojo', () => {
+    const r = leerResumenCalculadores(['2026-10-15 · Israel · OD'], 'a.pdf')
+    expect(r.ok && r.datos.doctor).toBe('Israel')
+    expect(r.ok && r.datos.paciente).toBeUndefined()
+  })
+
+  it('sin cabecera legible, se saca del nombre del fichero', () => {
+    const r = leerResumenCalculadores(
+      ['texto que no es una cabecera'],
+      '2026-10-15_Israel_Catalina_EnVista-Envy_OD_personalizado_130214306-7c0a4a.pdf',
+    )
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.datos).toMatchObject({
+      fecha: '2026-10-15',
+      doctor: 'Israel',
+      paciente: 'Catalina',
+      lente: 'EnVista Envy',
+      ojos: ['OD'],
+      idExterno: '130214306-7c0a4a',
+    })
+  })
+
+  it('sin cabecera ni nombre con fecha y ojo, no se acepta', () => {
+    const r = leerResumenCalculadores(['nada'], 'informe.pdf')
+    expect(r.ok).toBe(false)
   })
 })
