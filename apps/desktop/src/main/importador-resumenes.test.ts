@@ -219,6 +219,20 @@ IOLMaster · SimK · Tórica · EnVista Envy · KANE · OD / OI`
     })
   })
 
+  it('un PDF de 0 bytes se avisa como vacío, no como «sin cabecera»', async () => {
+    const { origen, ejecutar } = entorno()
+    writeFileSync(join(origen, 'vacio.pdf'), '')
+    const r = await ejecutar()
+    expect(r.noReconocidos[0]?.motivo).toContain('vacío')
+  })
+
+  it('si la papelera falla, el motivo llega al resultado', async () => {
+    const { origen, ejecutar } = entorno()
+    writeFileSync(join(origen, NOMBRE), 'pdf-uno')
+    const r = await ejecutar([], [], () => Promise.reject(new Error('EBUSY: archivo en uso')))
+    expect(r.motivoNoQuitado).toContain('EBUSY')
+  })
+
   it('con una carpeta que no existe, lo dice', async () => {
     const { origen, ejecutar } = entorno()
     rmSync(origen, { recursive: true })

@@ -375,7 +375,7 @@ export function AnalisisScreen({ onAbrirResultado, onVolver }: Props): JSX.Eleme
                   ? ` ${importacion.quitados} original${importacion.quitados === 1 ? '' : 'es'} a la papelera.`
                   : '') +
                 (importacion.noQuitados > 0
-                  ? ` ${importacion.noQuitados} no se ha podido quitar (siguen en la carpeta).`
+                  ? ` ${importacion.noQuitados} no se ha podido quitar (siguen en la carpeta)${importacion.motivoNoQuitado ? `: ${importacion.motivoNoQuitado}. Si el PDF está abierto en otro programa, ciérralo y vuelve a buscar` : ''}.`
                   : '')}
             {importacion.noReconocidos.map((n) => (
               <div key={n.fichero}>

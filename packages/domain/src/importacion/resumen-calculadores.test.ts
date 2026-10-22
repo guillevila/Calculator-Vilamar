@@ -159,3 +159,49 @@ describe('un PDF con los dos ojos', () => {
     expect(r.ok).toBe(false)
   })
 })
+
+// Una cabecera SIN tipo al final y franjas de tres trozos (caso inventado de prueba).
+const SIN_TIPO = `2026-10-15 · Israel · Catalina · EnVista Envy · OD
+IOLMaster · EnVista Envy · EVO estimado
+OD · EVO estimado OI · EVO estimado
+IOLMaster · EnVista Envy · KANE estimado
+OD · KANE estimado OI · KANE estimado`
+
+describe('un PDF sin «tipo» al final de la cabecera', () => {
+  it('lee el ojo en la última posición, las franjas de tres trozos y el identificador al final del nombre', () => {
+    const r = leerResumenCalculadores(
+      [SIN_TIPO],
+      '2026-10-15_Israel_Catalina_EnVista-Envy_OD_personalizado_130214306-7c0a4a.pdf',
+    )
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.datos).toEqual({
+      fecha: '2026-10-15',
+      doctor: 'Israel',
+      paciente: 'Catalina',
+      lente: 'EnVista Envy',
+      ojos: ['OD'],
+      aparatos: ['IOLMaster'],
+      calculadoras: ['EVO_TORIC_SIN_CARA_POSTERIOR', 'KANE'],
+      idExterno: '130214306-7c0a4a',
+    })
+  })
+
+  it('el rótulo de un ojo («OD · EVO estimado · …») no cuenta como aparato', () => {
+    const r = leerResumenCalculadores(
+      [
+        '2026-10-15 · Dr · pac · Envy · OD\nOD · Barrett estimado · A 119.150 · pasos de cilindro genéricos\nPentacam · Envy · Barrett estimado',
+      ],
+      'a.pdf',
+    )
+    expect(r.ok && r.datos.aparatos).toEqual(['Pentacam'])
+  })
+
+  it('el identificador también se saca cuando va antes del tipo', () => {
+    const r = leerResumenCalculadores(
+      [SIN_TIPO],
+      '2026-10-21_Israel_Catalina_EnVista-Envy_OD_123303738-eafcba_Torica.pdf',
+    )
+    expect(r.ok && r.datos.idExterno).toBe('123303738-eafcba')
+  })
+})

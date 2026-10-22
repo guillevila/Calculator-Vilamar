@@ -91,6 +91,8 @@ export interface ResultadoImportacion {
   readonly quitados: number
   /** Originales que se quisieron quitar y no se pudo (siguen en la carpeta). */
   readonly noQuitados: number
+  /** Por qué no se pudo quitar el primero (p. ej. el PDF está abierto en otro programa). */
+  readonly motivoNoQuitado?: string
 }
 
 export interface EstadoCalculo {

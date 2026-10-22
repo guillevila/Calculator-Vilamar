@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.102] — 22/10/2026 (versión visible en pantalla: v1.53)
+
+fix(app): importar PDF de «Resumen Calculadores» con la cabecera sin «tipo», franjas de tres trozos e identificador al final del nombre (D138)
+
+Segundo fallo real del dueño con un PDF de otro ejemplo («2026-10-15 · Israel · Catalina · EnVista Envy · OD»): salía «no tiene cabecera». Tres causas, todas por suponer demasiado del formato: (1) la cabecera de ese PDF no trae «· Tórica» al final, y el lector daba por hecho que el ojo iba el penúltimo; ahora el ojo puede ir último (sin tipo) o antes del tipo. (2) Las franjas de aparato son de tres trozos («IOLMaster · EnVista Envy · EVO estimado»), sin «SimK · Tórica», y se exigían cuatro; ahora bastan tres, y un rótulo de ojo («OD · EVO estimado · …») no se toma por un aparato. (3) El identificador del caso se buscaba en una posición fija del nombre del fichero; ahora se busca el trozo con forma «números-letras» («130214306-7c0a4a») esté donde esté, antes o después del tipo. Comprobado con el fichero real del dueño (lectura): sale doctor Israel, paciente Catalina, lente EnVista Envy, ojo OD, IOLMaster, EVO y Kane. Además: un PDF de 0 bytes (el segundo de su captura, copiado vacío) se avisa como «vacío, vuelve a guardarlo desde la otra app» en vez de un error en inglés, y cuando un original no se puede quitar de la carpeta, la tarjeta dice por qué (por ejemplo, que está abierto en otro programa).
+
+---
+
 ## [1.15.101] — 22/10/2026 (versión visible en pantalla: v1.52)
 
 feat(app): al importar un PDF de otra app, el original se manda a la papelera una vez copiado y comprobado (D138)

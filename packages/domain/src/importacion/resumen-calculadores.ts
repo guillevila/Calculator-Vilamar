@@ -74,13 +74,14 @@ function calculadoraDe(nombre: string, variante: string): Calculadora | undefine
 }
 
 /**
- * El identificador del caso en la otra app: el penúltimo trozo del nombre, justo
- * antes del tipo («…_162128960-b05857_Torica.pdf»). Vale aunque haya un trozo extra
- * antes («…_OD-OI_personalizado_085542495-902041_Torica.pdf»).
+ * El identificador del caso en la otra app: el trozo del nombre con forma
+ * «números-letras» («162128960-b05857»), esté donde esté. Unos nombres lo traen
+ * antes del tipo («…_OD_162128960-b05857_Torica.pdf»), otros al final
+ * («…_OD_personalizado_130214306-7c0a4a.pdf»).
  */
 function idDelNombre(nombreFichero: string): string | undefined {
-  const m = /_([^_]+)_[^_]+\.pdf$/i.exec(nombreFichero)
-  return m?.[1]
+  const trozos = nombreFichero.replace(/\.pdf$/i, '').split('_')
+  return trozos.find((t) => /^\d{6,}-[0-9a-f]{4,}$/i.test(t))
 }
 
 /**
@@ -109,45 +110,45 @@ export function leerResumenCalculadores(
     }
   }
 
-  // La cabecera: «fecha · doctor · paciente · lente… · ojo · tipo».
+  // La cabecera: «fecha · doctor · paciente · lente… · ojo» y, a veces, «· tipo» al final.
   let cabecera: string[] | undefined
+  let posicionDelOjo = -1
   for (const linea of lineas) {
     const partes = linea.split(' · ').map((p) => p.trim())
-    if (
-      partes.length >= 5 &&
-      FECHA.test(partes[0] ?? '') &&
-      ojosDe(partes[partes.length - 2] ?? '')
-    ) {
-      cabecera = partes
-      break
-    }
+    if (partes.length < 5 || !FECHA.test(partes[0] ?? '')) continue
+    const ultimo = partes.length - 1
+    if (ojosDe(partes[ultimo] ?? '')) posicionDelOjo = ultimo
+    else if (ojosDe(partes[ultimo - 1] ?? '')) posicionDelOjo = ultimo - 1
+    else continue
+    cabecera = partes
+    break
   }
   if (!cabecera) {
     return {
       ok: false,
       motivo:
-        'No encuentro la cabecera del caso («fecha · doctor · paciente · lente · ojo · tipo»): no parece un PDF de Resumen Calculadores.',
+        'No encuentro la cabecera del caso («fecha · doctor · paciente · lente · ojo»): no parece un PDF de Resumen Calculadores.',
     }
   }
 
   const fecha = cabecera[0] as string
-  const ojos = ojosDe(cabecera[cabecera.length - 2] as string) as Lateralidad[]
-  const tipoDeLente = cabecera[cabecera.length - 1]
+  const ojos = ojosDe(cabecera[posicionDelOjo] as string) as Lateralidad[]
+  const tipoDeLente = cabecera[posicionDelOjo + 1]
   // Entre la fecha y el ojo: doctor, paciente y lente (esta puede llevar « · » dentro).
-  const medio = cabecera.slice(1, -2)
+  const medio = cabecera.slice(1, posicionDelOjo)
   const doctor = medio[0]
   const paciente = medio[1]
   const lente = medio.length >= 3 ? medio.slice(2).join(' · ') : undefined
 
-  // Las franjas de aparato y calculadora: «aparato · SimK · Tórica · lente · EVO estimado».
+  // Las franjas de aparato y calculadora: «aparato · [SimK · Tórica ·] lente · EVO estimado».
   const aparatos: string[] = []
   const calculadoras: Calculadora[] = []
   for (const linea of lineas) {
     const partes = linea.split(' · ').map((p) => p.trim())
-    if (partes.length < 4) continue
+    if (partes.length < 3) continue
     // La calculadora puede no ir al final: «… · KANE · OD / OI».
     let m: RegExpExecArray | null = null
-    for (const parte of partes.slice(3)) {
+    for (const parte of partes.slice(2)) {
       m = /^(EVO|BARRETT|KANE)\s*(estimad[oa]|medid[oa])?$/i.exec(parte)
       if (m) break
     }
@@ -155,7 +156,8 @@ export function leerResumenCalculadores(
     const calculadora = calculadoraDe(m[1] as string, m[2] ?? '')
     if (!calculadora) continue
     const aparato = partes[0] as string
-    if (!aparatos.includes(aparato)) aparatos.push(aparato)
+    // «OD · EVO estimado · …» es el rótulo de un ojo, no un aparato.
+    if (!ojosDe(aparato) && !aparatos.includes(aparato)) aparatos.push(aparato)
     if (!calculadoras.includes(calculadora)) calculadoras.push(calculadora)
   }
 

@@ -107,6 +107,7 @@ export async function importarResumenes(e: EntornoImportacion): Promise<Resultad
   let repetidos = 0
   let quitados = 0
   let noQuitados = 0
+  let motivoNoQuitado: string | undefined
 
   /** Quita el original si la copia está y es idéntica; si no, lo deja donde está. */
   const quitarOriginal = async (ruta: string, copia: string, huella: string): Promise<void> => {
@@ -114,12 +115,14 @@ export async function importarResumenes(e: EntornoImportacion): Promise<Resultad
     try {
       if (!existsSync(copia) || huellaDe(new Uint8Array(readFileSync(copia))) !== huella) {
         noQuitados += 1
+        motivoNoQuitado ??= 'la copia en la carpeta del doctor no coincide con el original'
         return
       }
       await e.mandarAPapelera(ruta)
       quitados += 1
-    } catch {
+    } catch (error) {
       noQuitados += 1
+      motivoNoQuitado ??= error instanceof Error ? error.message : String(error)
     }
   }
   const noReconocidos: { fichero: string; motivo: string }[] = []
@@ -133,6 +136,14 @@ export async function importarResumenes(e: EntornoImportacion): Promise<Resultad
       noReconocidos.push({
         fichero: nombre,
         motivo: `No se ha podido abrir. ${error instanceof Error ? error.message : String(error)}`,
+      })
+      continue
+    }
+    if (datos.length === 0) {
+      noReconocidos.push({
+        fichero: nombre,
+        motivo:
+          'El PDF está vacío (0 bytes): no tiene nada que leer. Vuelve a guardarlo desde la otra app.',
       })
       continue
     }
@@ -202,5 +213,13 @@ export async function importarResumenes(e: EntornoImportacion): Promise<Resultad
     await quitarOriginal(ruta, join(carpetaCopia, nombreCopia), huella)
   }
 
-  return { nuevos, repetidos, noReconocidos, total: nombres.length, quitados, noQuitados }
+  return {
+    nuevos,
+    repetidos,
+    noReconocidos,
+    total: nombres.length,
+    quitados,
+    noQuitados,
+    ...(motivoNoQuitado ? { motivoNoQuitado } : {}),
+  }
 }
