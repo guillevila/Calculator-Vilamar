@@ -56,10 +56,18 @@ html[data-aspecto='familia'] body {
 html[data-aspecto='familia'] .tarjeta > h2,
 html[data-aspecto='familia'] .soltar h2,
 html[data-aspecto='familia'] .cabecera-resultados h2,
-html[data-aspecto='familia'] .cabecera-bio h2,
-html[data-aspecto='familia'] .seccion-titulo h3,
-html[data-aspecto='familia'] .opciones-devueltas h3 {
+html[data-aspecto='familia'] .seccion-titulo h3 {
   color: var(--texto);
+  font-weight: 800;
+}
+/* Los títulos que van sobre un fondo propio mantienen su color: blanco sobre el azul
+   oscuro de la cabecera del formulario, y el color de cada calculadora en sus tablas. */
+html[data-aspecto='familia'] .cabecera-bio h2 {
+  color: #fff;
+  font-weight: 800;
+}
+html[data-aspecto='familia'] .opciones-devueltas h3 {
+  color: var(--c, var(--azul));
   font-weight: 800;
 }
 
@@ -70,6 +78,12 @@ html[data-aspecto='familia'] header.barra {
   padding: 0 28px;
   background: #fff;
   border-bottom: 1px solid var(--linea);
+}
+/* La barra no se parte en dos líneas: la letra Inter es algo más ancha que la de siempre. */
+html[data-aspecto='familia'] header.barra .fila {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  gap: 8px;
 }
 html[data-aspecto='familia'] header.barra h1 {
   font-size: 18px;
@@ -110,6 +124,8 @@ html[data-aspecto='familia'] button.claro:hover:not(:disabled) {
 
 /* Los botones de la barra: suaves, como su «Cerrar sesión»; «Nuevo cálculo», el principal. */
 html[data-aspecto='familia'] button.boton-cabecera {
+  padding: 8px 12px;
+  font-size: 13.5px;
   background: var(--f-turquesa-suave);
   color: var(--f-turquesa-fuerte);
   box-shadow: none;

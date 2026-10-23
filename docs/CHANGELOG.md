@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.105] — 23/10/2026 (versión visible en pantalla: v1.56)
+
+fix(app): aspecto nuevo — el título blanco de la cabecera del formulario volvía a verse oscuro sobre fondo azul oscuro, y la barra superior se partía en dos líneas (D139)
+
+Fallo real del dueño con la v1.55: en el aspecto nuevo no se leía «Formulario de biometría ocular» en la cabecera azul oscura. Causa: la regla que pone los títulos en azul marino también alcanzaba a esa cabecera (y a los títulos de color de cada calculadora en «Opciones devueltas»), que tienen su propio color. Ahora esos dos mantienen el suyo: blanco sobre el azul oscuro, y el color de la calculadora. Además la barra superior, con la letra Inter —algo más ancha— y el botón nuevo, se partía en dos líneas en una ventana ancha: ahora no se parte y los botones son algo más pequeños. Comprobado con captura de la app real a 1850 px de ancho.
+
+---
+
 ## [1.15.104] — 23/10/2026 (versión visible en pantalla: v1.55)
 
 feat(app): «aspecto nuevo» de la misma familia que Resumen Calculadores, como opción con interruptor; el PDF pasa a titularse «Gestión Integral de Calculadores» (D139)
