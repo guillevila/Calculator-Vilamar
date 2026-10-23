@@ -4,6 +4,38 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.107] — 23/10/2026 (versión visible en pantalla: v1.58)
+
+feat(app): el aspecto nuevo pasa a ser el de partida (D139)
+
+Petición del dueño tras probarlo: el aspecto nuevo es ahora el que se ve al abrir la aplicación. El botón «Aspecto» de la barra superior se queda para volver al de siempre («Aspecto: actual») y otra vez al nuevo; la elección se recuerda en ese ordenador. Quien ya había elegido el de siempre lo conserva. Para recuperar la versión anterior entera: etiqueta de Git `v1.54-aspecto-actual`.
+
+---
+
+## [1.15.106] — 23/10/2026 (versión visible en pantalla: v1.57)
+
+fix(app): aspecto nuevo — recuadros de los campos (doctor, paciente…) con el borde más marcado (D139)
+
+Petición del dueño: con el aspecto nuevo los recuadros de nombre del doctor y del paciente casi no se veían (el borde de la otra web es muy claro). Ahora todos los campos de texto, desplegables y áreas llevan un borde gris azulado marcado (1,5 px, #9FB3C4), un fondo apenas teñido y una sombra interior suave; al seleccionarlos siguen con el borde turquesa y el halo. Comprobado con captura de la app real.
+
+---
+
+## [1.15.105] — 23/10/2026 (versión visible en pantalla: v1.56)
+
+fix(app): aspecto nuevo — el título blanco de la cabecera del formulario volvía a verse oscuro sobre fondo azul oscuro, y la barra superior se partía en dos líneas (D139)
+
+Fallo real del dueño con la v1.55: en el aspecto nuevo no se leía «Formulario de biometría ocular» en la cabecera azul oscura. Causa: la regla que pone los títulos en azul marino también alcanzaba a esa cabecera (y a los títulos de color de cada calculadora en «Opciones devueltas»), que tienen su propio color. Ahora esos dos mantienen el suyo: blanco sobre el azul oscuro, y el color de la calculadora. Además la barra superior, con la letra Inter —algo más ancha— y el botón nuevo, se partía en dos líneas en una ventana ancha: ahora no se parte y los botones son algo más pequeños. Comprobado con captura de la app real a 1850 px de ancho.
+
+---
+
+## [1.15.104] — 23/10/2026 (versión visible en pantalla: v1.55)
+
+feat(app): «aspecto nuevo» de la misma familia que Resumen Calculadores, como opción con interruptor; el PDF pasa a titularse «Gestión Integral de Calculadores» (D139)
+
+Petición del dueño, con el visto bueno de la autora de la otra app. (1) Interruptor **«Aspecto: actual / nuevo»** en la barra superior: de partida se ve el de siempre; el nuevo se activa y se desactiva sin instalar nada, y se recuerda en ese ordenador. Es una capa de estilos aparte (`aspecto-familia.css`), solo activa con `data-aspecto="familia"`: paleta turquesa y azul marino de la otra web, letra Inter (incluida dentro del programa, sin internet), esquinas redondeadas, sombras suaves, botones de la barra en suave y «Nuevo cálculo» como principal, campos con halo turquesa, pasos en cuatro cajas iguales, zona de subir archivos con borde discontinuo. Donde chocan la fidelidad y la legibilidad manda la legibilidad: el texto blanco va solo sobre turquesa oscuro (#007A83), los colores de las calculadoras (EVO, Barrett, Kane) y el aviso rojo de datos que faltan no se tocan, y no se copia ningún nombre, logotipo ni icono de la otra web. (2) El título de los PDF y los textos que nombraban el producto pasan de «Resumen Calculadores IOL» a **«Gestión Integral de Calculadores»**, para no confundirse con la otra app. Para volver atrás: pulsar el interruptor; el estado anterior de todo está en la etiqueta de Git `v1.54-aspecto-actual` y en `Calculator-Vilamar-v1.54-aspecto-actual.zip`.
+
+---
+
 ## [1.15.103] — 22/10/2026 (versión visible en pantalla: v1.54)
 
 feat(app): importar PDF aunque falte un dato — lo importante es guardarlo en su sitio (D138)
