@@ -2611,22 +2611,24 @@ test('cada calculadora enseña su barra de progreso y pone «Completado» al ter
 
 /**
  * «Aspecto» (23/10/2026): el aspecto nuevo es una preferencia aparte; por defecto se
- * ve el de siempre, se cambia con un interruptor y se puede volver atrás.
+ * ve el nuevo, se cambia con un interruptor y se puede volver al de siempre.
  */
 test('el interruptor de aspecto cambia entre el aspecto actual y el nuevo, y se puede volver', async () => {
   await ventana.getByRole('button', { name: 'Nuevo cálculo' }).click()
   const html = ventana.locator('html')
-  await expect(html).not.toHaveAttribute('data-aspecto', 'familia')
-  await expect(ventana.getByTestId('cambiar-aspecto')).toHaveText('Aspecto: actual')
-
-  await ventana.getByTestId('cambiar-aspecto').click()
+  // De partida se ve el aspecto nuevo (23/10/2026).
   await expect(html).toHaveAttribute('data-aspecto', 'familia')
   await expect(ventana.getByTestId('cambiar-aspecto')).toHaveText('Aspecto: nuevo')
-  // Nada de lo que hace la aplicación cambia con el aspecto.
-  await expect(ventana.getByTestId('zona-soltar')).toBeVisible()
   await ventana.screenshot({ path: 'test-results/aspecto-nuevo.png' })
 
+  // Se puede volver al de siempre…
   await ventana.getByTestId('cambiar-aspecto').click()
   await expect(html).not.toHaveAttribute('data-aspecto', 'familia')
   await expect(ventana.getByTestId('cambiar-aspecto')).toHaveText('Aspecto: actual')
+  // Nada de lo que hace la aplicación cambia con el aspecto.
+  await expect(ventana.getByTestId('zona-soltar')).toBeVisible()
+
+  // …y otra vez al nuevo.
+  await ventana.getByTestId('cambiar-aspecto').click()
+  await expect(html).toHaveAttribute('data-aspecto', 'familia')
 })

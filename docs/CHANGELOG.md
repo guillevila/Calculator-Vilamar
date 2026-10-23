@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.107] — 23/10/2026 (versión visible en pantalla: v1.58)
+
+feat(app): el aspecto nuevo pasa a ser el de partida (D139)
+
+Petición del dueño tras probarlo: el aspecto nuevo es ahora el que se ve al abrir la aplicación. El botón «Aspecto» de la barra superior se queda para volver al de siempre («Aspecto: actual») y otra vez al nuevo; la elección se recuerda en ese ordenador. Quien ya había elegido el de siempre lo conserva. Para recuperar la versión anterior entera: etiqueta de Git `v1.54-aspecto-actual`.
+
+---
+
 ## [1.15.106] — 23/10/2026 (versión visible en pantalla: v1.57)
 
 fix(app): aspecto nuevo — recuadros de los campos (doctor, paciente…) con el borde más marcado (D139)
