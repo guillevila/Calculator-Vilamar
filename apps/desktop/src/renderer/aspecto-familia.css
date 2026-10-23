@@ -162,16 +162,20 @@ html[data-aspecto='familia'] button.boton-aspecto {
 html[data-aspecto='familia'] input,
 html[data-aspecto='familia'] select,
 html[data-aspecto='familia'] textarea {
-  border: 1px solid var(--linea);
+  /* Borde marcado y un fondo apenas teñido: los recuadros se ven de un vistazo
+     (petición del dueño, 23/10/2026: con el borde de su web casi no se veían). */
+  border: 1.5px solid #9fb3c4;
   border-radius: 12px;
   padding: 9px 12px;
-  background: #fff;
+  background: #fbfdfe;
+  box-shadow: inset 0 1px 2px rgba(22, 50, 79, 0.06);
 }
 html[data-aspecto='familia'] input:focus,
 html[data-aspecto='familia'] select:focus,
 html[data-aspecto='familia'] textarea:focus {
   outline: none;
   border-color: var(--f-turquesa);
+  background: #fff;
   box-shadow: 0 0 0 3px var(--f-turquesa-suave);
 }
 

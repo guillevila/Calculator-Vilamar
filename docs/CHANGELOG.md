@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.106] — 23/10/2026 (versión visible en pantalla: v1.57)
+
+fix(app): aspecto nuevo — recuadros de los campos (doctor, paciente…) con el borde más marcado (D139)
+
+Petición del dueño: con el aspecto nuevo los recuadros de nombre del doctor y del paciente casi no se veían (el borde de la otra web es muy claro). Ahora todos los campos de texto, desplegables y áreas llevan un borde gris azulado marcado (1,5 px, #9FB3C4), un fondo apenas teñido y una sombra interior suave; al seleccionarlos siguen con el borde turquesa y el halo. Comprobado con captura de la app real.
+
+---
+
 ## [1.15.105] — 23/10/2026 (versión visible en pantalla: v1.56)
 
 fix(app): aspecto nuevo — el título blanco de la cabecera del formulario volvía a verse oscuro sobre fondo azul oscuro, y la barra superior se partía en dos líneas (D139)
