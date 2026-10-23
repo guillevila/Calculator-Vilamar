@@ -18,6 +18,8 @@ import { api, hayApi } from './api.js'
 import type { ArchivoEntrante, EstadoCalculo, ResumenExtraccion } from '../compartido/ipc.js'
 import { BandejaScreen } from './componentes/BandejaScreen.js'
 import { CasosGuardados } from './componentes/CasosGuardados.js'
+import { aplicarAspecto, leerAspecto } from './aspecto.js'
+import type { Aspecto } from './aspecto.js'
 import { AnalisisScreen } from './componentes/AnalisisScreen.js'
 import { CargaDeDocumentos } from './componentes/BarraDeProgreso.js'
 import type { CorridaDeCalculo } from './componentes/PanelCalculo.js'
@@ -90,6 +92,13 @@ export function App(): JSX.Element {
   // selector se enseña hasta que se añade un segundo.
   const [aparatoActivo, setAparatoActivo] = useState<string>(NOMBRE_DISPOSITIVO.IOLMASTER_700)
   const [ocupado, setOcupado] = useState(false)
+  // El aspecto de la ventana: el de siempre o el nuevo (23/10/2026).
+  const [aspecto, setAspecto] = useState<Aspecto>(() => leerAspecto())
+  function cambiarAspecto(): void {
+    const siguiente: Aspecto = aspecto === 'familia' ? 'actual' : 'familia'
+    aplicarAspecto(siguiente)
+    setAspecto(siguiente)
+  }
   // La tanda de cálculo en marcha: desde cuándo y con qué calculadoras. Sirve para no
   // dar por «Completado» un resultado de una tanda ANTERIOR (21/10/2026).
   const [corrida, setCorrida] = useState<CorridaDeCalculo | null>(null)
@@ -589,6 +598,14 @@ export function App(): JSX.Element {
         </div>
         <div className="fila">
           {caso && <span className="caso">Caso {caso.codigo}</span>}
+          <button
+            className="boton-aspecto"
+            onClick={cambiarAspecto}
+            data-testid="cambiar-aspecto"
+            title="Cambia el aspecto de la aplicación (colores y formas). No cambia ninguna función."
+          >
+            {aspecto === 'familia' ? 'Aspecto: nuevo' : 'Aspecto: actual'}
+          </button>
           <button
             className="boton-cabecera boton-cabecera-dashboard"
             onClick={() => setPantallaExtra('DASHBOARD')}

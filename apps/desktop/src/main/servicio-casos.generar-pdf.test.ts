@@ -351,7 +351,7 @@ describe('generarPdf — el interruptor de la estimación completa (D105, 29/09/
     })
 
     const html = imprimirPdf.mock.calls[0]?.[0] as string
-    expect(html).not.toContain('Estimación del Resumen de calculadores')
+    expect(html).not.toContain('Estimación de Gestión Integral de Calculadores')
     expect(html).not.toContain('Comparación orientativa')
     expect(html).toContain('Tabla comparativa detallada')
     // D110 (30/09/2026): el único párrafo de prosa que sigue en el informe.
@@ -368,7 +368,7 @@ describe('generarPdf — el interruptor de la estimación completa (D105, 29/09/
     await servicio.generarPdf(OPCIONES_COMPLETAS)
 
     const html = imprimirPdf.mock.calls[0]?.[0] as string
-    expect(html).toContain('Estimación del Resumen de calculadores')
+    expect(html).toContain('Estimación de Gestión Integral de Calculadores')
     expect(html).toContain('Comparación orientativa')
     expect(html).toContain('Tabla comparativa detallada')
   })
@@ -423,7 +423,7 @@ describe('generarPdf — el interruptor de la tabla comparativa detallada (D118,
     const html = imprimirPdf.mock.calls[0]?.[0] as string
     expect(html).not.toContain('Tabla comparativa detallada')
     // Las otras dos hojas no dependen de esta casilla: siguen saliendo.
-    expect(html).toContain('Estimación del Resumen de calculadores')
+    expect(html).toContain('Estimación de Gestión Integral de Calculadores')
     expect(html).toContain('Comparación orientativa')
   })
 
@@ -455,7 +455,7 @@ describe('generarPdf — el interruptor de la tabla comparativa detallada (D118,
 
     const html = imprimirPdf.mock.calls[0]?.[0] as string
     expect(html).not.toContain('Tabla comparativa detallada')
-    expect(html).not.toContain('Estimación del Resumen de calculadores')
+    expect(html).not.toContain('Estimación de Gestión Integral de Calculadores')
     expect(html).not.toContain('Comparación orientativa')
     expect(html).not.toContain('No vinculante')
   })

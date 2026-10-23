@@ -163,7 +163,7 @@ describe('escapado', () => {
 describe('el informe dice lo que hay', () => {
   it('lleva el título del documento, la versión, la fecha y el código del caso', () => {
     const h = html()
-    expect(h).toContain('Resumen Calculadores IOL')
+    expect(h).toContain('Gestión Integral de Calculadores')
     expect(h).toContain('0.1.0')
     expect(h).toContain('CV-2026-0042')
     expect(h).toContain('10/08/2026')
@@ -172,7 +172,7 @@ describe('el informe dice lo que hay', () => {
   // Petición expresa del dueño del proyecto (15/09/2026): el informe no
   // puede llevar ningún nombre que lo relacione con «Calculator Vilamar»
   // —es el título interno del programa, no el del documento que recibe el
-  // cirujano—; el título visible es «Resumen Calculadores IOL».
+  // cirujano—; el título visible es «Gestión Integral de Calculadores».
   it('no lleva ninguna mención a Vilamar en ningún sitio', () => {
     expect(html()).not.toContain('Vilamar')
   })
@@ -318,7 +318,7 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
       },
     ])
     expect(h).toContain('<img src="data:image/png;base64,QUFB"')
-    expect(h).toContain('Estimación del Resumen de calculadores')
+    expect(h).toContain('Estimación de Gestión Integral de Calculadores')
     expect(h).toContain('no vinculante')
     expect(h).toContain('21.50 D')
     expect(h).toContain('Cilindro 1.00 D')
@@ -645,13 +645,13 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
     it('con el interruptor apagado, no hay estimación debajo de la captura ni cuadro de tarjetas', () => {
       const h = htmlConInterruptor(DOS_ESTIMACIONES, { incluirEstimacionCompleta: false })
       expect(h).toContain('<img src="data:image/png;base64,QUFB"')
-      expect(h).not.toContain('Estimación del Resumen de calculadores')
+      expect(h).not.toContain('Estimación de Gestión Integral de Calculadores')
       expect(h).not.toContain('Comparación orientativa')
     })
 
     it('con el interruptor encendido, se comporta exactamente como antes de D105: las dos cosas aparecen', () => {
       const h = htmlConInterruptor(DOS_ESTIMACIONES, { incluirEstimacionCompleta: true })
-      expect(h).toContain('Estimación del Resumen de calculadores')
+      expect(h).toContain('Estimación de Gestión Integral de Calculadores')
       expect(h).toContain('Comparación orientativa')
     })
 
@@ -678,7 +678,7 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
           resultados: DOS_ESTIMACIONES.map((r) => ({ ...r, aparato: APARATO_PRINCIPAL })),
         }),
       )
-      expect(h).toContain('Estimación del Resumen de calculadores')
+      expect(h).toContain('Estimación de Gestión Integral de Calculadores')
       expect(h).toContain('Comparación orientativa')
     })
 
@@ -691,7 +691,7 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
         expect(h).not.toContain('Tabla comparativa detallada')
         // Las otras dos hojas —captura y cuadro de tarjetas— no dependen de
         // este interruptor: siguen saliendo igual.
-        expect(h).toContain('Estimación del Resumen de calculadores')
+        expect(h).toContain('Estimación de Gestión Integral de Calculadores')
         expect(h).toContain('Comparación orientativa')
       })
 
@@ -730,7 +730,7 @@ describe('el informe simplificado (generarHtmlInforme)', () => {
           incluirTablaComparativaDetallada: false,
         })
         expect(h).not.toContain('Tabla comparativa detallada')
-        expect(h).not.toContain('Estimación del Resumen de calculadores')
+        expect(h).not.toContain('Estimación de Gestión Integral de Calculadores')
         expect(h).not.toContain('Comparación orientativa')
         expect(h).not.toContain('No vinculante')
         // La captura, sin interpretar, se sigue viendo — es lo único que no
