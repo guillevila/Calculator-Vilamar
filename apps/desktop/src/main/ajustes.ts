@@ -56,6 +56,20 @@ export function analizarEnv(texto: string): Readonly<Record<string, string>> {
 }
 
 /**
+ * ¿Es esta la instalación del administrador? (25/10/2026, departamento de
+ * Administración.) Solo si el `.env` de ESTE ordenador —o el sistema— pone
+ * `VILAMAR_ADMINISTRADOR=1`. El `.env` no va en la copia que se reparte, así que
+ * las copias no lo ven. Es una compuerta de interfaz, NO seguridad: quien tenga
+ * el código puede ponerse esa variable. Por eso la pantalla no guarda nada que
+ * pueda dañar a nadie: solo condiciones de cobro y cifras de uso locales.
+ */
+export function esInstalacionAdministradora(
+  entorno: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  return entorno['VILAMAR_ADMINISTRADOR'] === '1'
+}
+
+/**
  * Carga el primer `.env` que encuentre en `process.env`.
  *
  * **No pisa lo que ya venga del sistema.** Si alguien arranca la aplicación con

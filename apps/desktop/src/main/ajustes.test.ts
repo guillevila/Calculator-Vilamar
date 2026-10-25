@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { analizarEnv, cargarEnv, rutasDeEnv } from './ajustes.js'
+import { analizarEnv, cargarEnv, esInstalacionAdministradora, rutasDeEnv } from './ajustes.js'
 
 describe('analizar un .env', () => {
   it('lee pares normales', () => {
@@ -76,5 +76,14 @@ describe('cargar el .env', () => {
   it('sin fichero, devuelve null y no rompe nada', () => {
     const carpeta = mkdtempSync(join(tmpdir(), 'vilamar-env-vacia-'))
     expect(cargarEnv(carpeta)).toBeNull()
+  })
+})
+
+describe('esInstalacionAdministradora', () => {
+  it('solo con VILAMAR_ADMINISTRADOR=1', () => {
+    expect(esInstalacionAdministradora({ VILAMAR_ADMINISTRADOR: '1' })).toBe(true)
+    expect(esInstalacionAdministradora({ VILAMAR_ADMINISTRADOR: '0' })).toBe(false)
+    expect(esInstalacionAdministradora({ VILAMAR_ADMINISTRADOR: 'true' })).toBe(false)
+    expect(esInstalacionAdministradora({})).toBe(false)
   })
 })

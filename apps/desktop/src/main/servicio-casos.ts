@@ -36,6 +36,7 @@ import type {
   FiltroAnalisis,
   ResultadoAnalisis,
   ResumenDashboard,
+  UsoMensual,
   Sexo,
   SituacionCornealEspecial,
 } from '@vilamar/domain'
@@ -91,6 +92,7 @@ import {
   sinMedida,
   sinRepetidas,
   tiene,
+  usoPorMes,
   validarOjo,
 } from '@vilamar/domain'
 import type { DocumentoEntrada, LectorVision, ProveedorExtraccion } from '@vilamar/extraction'
@@ -450,6 +452,11 @@ export class ServicioCasos {
       ...(rango ? { rango } : {}),
       doctoresExcluidos: leerDoctoresExcluidos(this.dep.carpetas),
     })
+  }
+
+  /** El uso de esta instalación, mes a mes (departamento de Administración, 25/10/2026). */
+  usoMensual(): readonly UsoMensual[] {
+    return usoPorMes(this.casosGuardados())
   }
 
   /** Todos los casos guardados, leídos del almacén. */

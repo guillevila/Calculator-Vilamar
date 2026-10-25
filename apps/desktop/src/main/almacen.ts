@@ -22,7 +22,15 @@ import {
 } from 'node:fs'
 import { join } from 'node:path'
 
-import type { Caso, Doctor, EntradaBandeja, Laboratorio } from '@vilamar/domain'
+import { PLAN_DE_PARTIDA } from '@vilamar/domain'
+import type {
+  Caso,
+  Doctor,
+  EntradaBandeja,
+  Laboratorio,
+  MetricaDeCobro,
+  PlanDeCobro,
+} from '@vilamar/domain'
 
 export interface Carpetas {
   readonly raiz: string
@@ -279,6 +287,41 @@ export function leerDoctoresExcluidos(carpetas: Carpetas): readonly string[] {
   } catch {
     return []
   }
+}
+
+const METRICAS: readonly MetricaDeCobro[] = [
+  'INFORMES_LEIDOS',
+  'OJOS_CALCULADOS',
+  'RESULTADOS_DE_CALCULADORA',
+]
+
+/** Un plan solo vale con números positivos y una métrica conocida; si no, se descarta. */
+export function planValido(plan: unknown): plan is PlanDeCobro {
+  if (typeof plan !== 'object' || plan === null) return false
+  const p = plan as Record<string, unknown>
+  const positivo = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0
+  return (
+    METRICAS.includes(p['metrica'] as MetricaDeCobro) &&
+    positivo(p['tamanoTramo']) &&
+    positivo(p['precioPorTramo']) &&
+    positivo(p['avisarDesde'])
+  )
+}
+
+/** Las condiciones de cobro del administrador (solo ESTA instalación); si no hay, las de partida. */
+export function leerPlanDeCobro(carpetas: Carpetas): PlanDeCobro {
+  try {
+    const plan: unknown = JSON.parse(
+      readFileSync(join(carpetas.raiz, 'plan-de-cobro.json'), 'utf8'),
+    )
+    return planValido(plan) ? plan : PLAN_DE_PARTIDA
+  } catch {
+    return PLAN_DE_PARTIDA
+  }
+}
+
+export function guardarPlanDeCobro(carpetas: Carpetas, plan: PlanDeCobro): void {
+  writeFileSync(join(carpetas.raiz, 'plan-de-cobro.json'), JSON.stringify(plan, null, 2), 'utf8')
 }
 
 export function guardarDoctoresExcluidos(carpetas: Carpetas, nombres: readonly string[]): void {
