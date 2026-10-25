@@ -21,6 +21,11 @@ const api: ApiVilamar = {
   esAdministrador: () => ipcRenderer.invoke(CANALES.esAdministrador),
   datosAdministracion: () => ipcRenderer.invoke(CANALES.datosAdministracion),
   guardarPlanDeCobro: (plan) => ipcRenderer.invoke(CANALES.guardarPlanDeCobro, plan),
+  estadoPrimerArranque: () => ipcRenderer.invoke(CANALES.estadoPrimerArranque),
+  guardarClaveApi: (clave) => ipcRenderer.invoke(CANALES.guardarClaveApi, clave),
+  elegirCarpetaInformes: () => ipcRenderer.invoke(CANALES.elegirCarpetaInformes),
+  terminarPrimerArranque: () => ipcRenderer.invoke(CANALES.terminarPrimerArranque),
+  reiniciarAplicacion: () => ipcRenderer.invoke(CANALES.reiniciarAplicacion),
 
   casoNuevo: () => ipcRenderer.invoke(CANALES.casoNuevo),
   casoActual: () => ipcRenderer.invoke(CANALES.casoActual),

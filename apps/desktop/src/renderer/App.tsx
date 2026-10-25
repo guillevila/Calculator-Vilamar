@@ -15,13 +15,19 @@ import type { Calculadora, Caso, EntradaBandeja, Lateralidad, Aviso } from '@vil
 import { aparatosDe, NOMBRE_DISPOSITIVO, ojosDelCaso } from '@vilamar/domain'
 
 import { api, hayApi } from './api.js'
-import type { ArchivoEntrante, EstadoCalculo, ResumenExtraccion } from '../compartido/ipc.js'
+import type {
+  ArchivoEntrante,
+  EstadoCalculo,
+  EstadoPrimerArranque,
+  ResumenExtraccion,
+} from '../compartido/ipc.js'
 import { BandejaScreen } from './componentes/BandejaScreen.js'
 import { CasosGuardados } from './componentes/CasosGuardados.js'
 import { aplicarAspecto, leerAspecto } from './aspecto.js'
 import type { Aspecto } from './aspecto.js'
 import { AdministracionScreen } from './componentes/AdministracionScreen.js'
 import { AnalisisScreen } from './componentes/AnalisisScreen.js'
+import { PrimerArranque } from './componentes/PrimerArranque.js'
 import { CargaDeDocumentos } from './componentes/BarraDeProgreso.js'
 import type { CorridaDeCalculo } from './componentes/PanelCalculo.js'
 import type { ProgresoCarga } from '../compartido/progreso.js'
@@ -120,6 +126,8 @@ export function App(): JSX.Element {
   >(null)
   // Solo la instalación del dueño ve el departamento de Administración (25/10/2026).
   const [esAdministrador, setEsAdministrador] = useState(false)
+  // El asistente de la primera vez (26/10/2026): solo si falta la clave y no se ha visto.
+  const [primerArranque, setPrimerArranque] = useState<EstadoPrimerArranque | null>(null)
 
   const disponible = hayApi()
 
@@ -130,6 +138,10 @@ export function App(): JSX.Element {
       .esAdministrador()
       .then(setEsAdministrador)
       .catch(() => setEsAdministrador(false))
+    void api()
+      .estadoPrimerArranque()
+      .then((e) => setPrimerArranque(e.mostrar ? e : null))
+      .catch(() => setPrimerArranque(null))
     void api()
       .casoActual()
       .then((c) => {
@@ -592,6 +604,15 @@ export function App(): JSX.Element {
             </div>
           </div>
         </main>
+      </div>
+    )
+  }
+
+  // La primera vez, el asistente ocupa la ventana entera (sin barra ni pantallas).
+  if (primerArranque) {
+    return (
+      <div className="app">
+        <PrimerArranque estado={primerArranque} onTerminar={() => setPrimerArranque(null)} />
       </div>
     )
   }

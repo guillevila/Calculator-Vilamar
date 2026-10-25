@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.109] — 26/10/2026 (versión visible en pantalla: v1.60)
+
+feat(app): asistente de primer arranque — clave de Anthropic y carpeta de informes sin tocar ficheros (D142)
+
+Petición del dueño, para quien reciba la aplicación. La primera vez (si no hay clave guardada y no se ha visto antes) sale una pantalla de bienvenida con dos pasos opcionales: pegar su clave de API de Anthropic y elegir la carpeta donde se guardan sus informes. La clave se guarda en el `.env` de ese ordenador (cambia solo la línea `ANTHROPIC_API_KEY`), se comprueba su forma sin llamar a ninguna web y la pantalla nunca la vuelve a mostrar. Los dos cambios se aplican al reiniciar, y la propia pantalla reinicia. «Ahora no» la cierra para siempre. Con `VILAMAR_CARPETA_INFORMES` puesta (pruebas automáticas) no sale.
+
+---
+
 ## [1.15.108] — 25/10/2026 (versión visible en pantalla: v1.59)
 
 feat(app): departamento de Administración, solo en la instalación del dueño (D140)

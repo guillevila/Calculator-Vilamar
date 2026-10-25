@@ -12,7 +12,7 @@
  * que ya venga del sistema.
  */
 
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 /**
@@ -92,4 +92,66 @@ export function cargarEnv(carpetaDatos: string): string | null {
     }
   }
   return null
+}
+
+/**
+ * ¿Parece una clave de API de Anthropic escrita en una sola pieza? (Primer
+ * arranque, 26/10/2026.) Solo se comprueba la forma —sin espacios, comillas ni
+ * saltos de línea, que podrían colar otra línea en el `.env`—, no que funcione:
+ * probarla costaría una llamada y la clave no sale de este ordenador.
+ */
+export function claveConFormaValida(clave: string): boolean {
+  return /^sk-ant-[A-Za-z0-9_-]{20,}$/.test(clave)
+}
+
+/**
+ * Guarda la clave en el `.env` de la carpeta de datos: cambia la línea
+ * `ANTHROPIC_API_KEY=` si ya estaba y, si no, la añade al final; el resto del
+ * fichero no se toca. Devuelve false (sin escribir nada) si la forma no vale.
+ * Nunca devuelve ni registra la clave.
+ */
+export function guardarClaveEnEnv(carpetaDatos: string, clave: string): boolean {
+  const limpia = clave.trim()
+  if (!claveConFormaValida(limpia)) return false
+  const ruta = join(carpetaDatos, '.env')
+  const actual = existsSync(ruta) ? readFileSync(ruta, 'utf8').replace(/\r\n/g, '\n') : ''
+  const lineas = actual === '' ? [] : actual.replace(/\n$/, '').split('\n')
+  const nueva = `ANTHROPIC_API_KEY=${limpia}`
+  const posicion = lineas.findIndex((l) => /^\s*ANTHROPIC_API_KEY\s*=/.test(l))
+  if (posicion >= 0) lineas[posicion] = nueva
+  else lineas.push(nueva)
+  writeFileSync(ruta, `${lineas.join('\n')}\n`, 'utf8')
+  process.env['ANTHROPIC_API_KEY'] = limpia
+  return true
+}
+
+/** Lo que cada persona elige en el primer arranque, guardado en SU ordenador. */
+export interface AjustesDeUsuario {
+  /** Dónde guardar los informes; ausente = el sitio de siempre. */
+  readonly carpetaInformes?: string
+  /** Ya pasó por el asistente (o lo omitió): no se le vuelve a enseñar. */
+  readonly primerArranqueHecho?: boolean
+}
+
+export function leerAjustesDeUsuario(carpetaDatos: string): AjustesDeUsuario {
+  try {
+    const crudo: unknown = JSON.parse(
+      readFileSync(join(carpetaDatos, 'ajustes-usuario.json'), 'utf8'),
+    )
+    if (typeof crudo !== 'object' || crudo === null) return {}
+    const c = crudo as Record<string, unknown>
+    return {
+      ...(typeof c['carpetaInformes'] === 'string' && c['carpetaInformes'] !== ''
+        ? { carpetaInformes: c['carpetaInformes'] }
+        : {}),
+      ...(c['primerArranqueHecho'] === true ? { primerArranqueHecho: true } : {}),
+    }
+  } catch {
+    return {}
+  }
+}
+
+export function guardarAjustesDeUsuario(carpetaDatos: string, cambios: AjustesDeUsuario): void {
+  const nuevos = { ...leerAjustesDeUsuario(carpetaDatos), ...cambios }
+  writeFileSync(join(carpetaDatos, 'ajustes-usuario.json'), JSON.stringify(nuevos, null, 2), 'utf8')
 }

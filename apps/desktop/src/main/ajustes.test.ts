@@ -6,12 +6,21 @@
  * nada. Un «no pasa nada» es peor que un error.
  */
 
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { analizarEnv, cargarEnv, esInstalacionAdministradora, rutasDeEnv } from './ajustes.js'
+import {
+  analizarEnv,
+  cargarEnv,
+  claveConFormaValida,
+  esInstalacionAdministradora,
+  guardarAjustesDeUsuario,
+  guardarClaveEnEnv,
+  leerAjustesDeUsuario,
+  rutasDeEnv,
+} from './ajustes.js'
 
 describe('analizar un .env', () => {
   it('lee pares normales', () => {
@@ -85,5 +94,47 @@ describe('esInstalacionAdministradora', () => {
     expect(esInstalacionAdministradora({ VILAMAR_ADMINISTRADOR: '0' })).toBe(false)
     expect(esInstalacionAdministradora({ VILAMAR_ADMINISTRADOR: 'true' })).toBe(false)
     expect(esInstalacionAdministradora({})).toBe(false)
+  })
+})
+
+describe('primer arranque: clave y ajustes de usuario', () => {
+  const CLAVE = 'sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  const nueva = (): string => mkdtempSync(join(tmpdir(), 'vilamar-arranque-'))
+
+  it('solo acepta claves con la forma de una de Anthropic, sin espacios ni saltos', () => {
+    expect(claveConFormaValida(CLAVE)).toBe(true)
+    expect(claveConFormaValida('hola')).toBe(false)
+    expect(claveConFormaValida(`${CLAVE}\nOTRA=1`)).toBe(false)
+    expect(claveConFormaValida(`${CLAVE} x`)).toBe(false)
+  })
+
+  it('crea el .env; si ya hay otras líneas las respeta y cambia solo la de la clave', () => {
+    const d = nueva()
+    expect(guardarClaveEnEnv(d, CLAVE)).toBe(true)
+    expect(readFileSync(join(d, '.env'), 'utf8')).toBe(`ANTHROPIC_API_KEY=${CLAVE}\n`)
+    writeFileSync(join(d, '.env'), '# nota\nOTRA=1\nANTHROPIC_API_KEY=vieja\nVILAMAR_X=2\n')
+    expect(guardarClaveEnEnv(d, `  ${CLAVE}  `)).toBe(true)
+    expect(readFileSync(join(d, '.env'), 'utf8')).toBe(
+      `# nota\nOTRA=1\nANTHROPIC_API_KEY=${CLAVE}\nVILAMAR_X=2\n`,
+    )
+  })
+
+  it('una clave con mala forma no escribe nada', () => {
+    const d = nueva()
+    expect(guardarClaveEnEnv(d, 'no-es-clave')).toBe(false)
+    expect(() => readFileSync(join(d, '.env'), 'utf8')).toThrow()
+  })
+
+  it('los ajustes de usuario se guardan, se mezclan y un fichero roto da vacío', () => {
+    const d = nueva()
+    expect(leerAjustesDeUsuario(d)).toEqual({})
+    guardarAjustesDeUsuario(d, { carpetaInformes: 'C:/Informes' })
+    guardarAjustesDeUsuario(d, { primerArranqueHecho: true })
+    expect(leerAjustesDeUsuario(d)).toEqual({
+      carpetaInformes: 'C:/Informes',
+      primerArranqueHecho: true,
+    })
+    writeFileSync(join(d, 'ajustes-usuario.json'), '{roto')
+    expect(leerAjustesDeUsuario(d)).toEqual({})
   })
 })
