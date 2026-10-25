@@ -31,7 +31,13 @@ import { crearLectorPdf } from './extraccion/lector-pdf.js'
 import { crearRasterizador } from './extraccion/rasterizador.js'
 import { ProveedorDocumentos } from './extraccion/proveedor.js'
 import { crearLectorVision } from './extraccion/vision-claude.js'
-import { cargarEnv, esInstalacionAdministradora } from './ajustes.js'
+import {
+  cargarEnv,
+  esInstalacionAdministradora,
+  guardarAjustesDeUsuario,
+  guardarClaveEnEnv,
+  leerAjustesDeUsuario,
+} from './ajustes.js'
 import { ServicioBandeja } from './servicio-bandeja.js'
 import { ServicioCasos } from './servicio-casos.js'
 import { ServicioDoctores } from './servicio-doctores.js'
@@ -80,7 +86,7 @@ if (app.isPackaged) {
  * este número es lo ÚLTIMO que se hace al cerrar un cambio en la aplicación
  * de escritorio, justo antes de avisar de que está listo para probar.
  */
-const VERSION_VISIBLE = '1.59'
+const VERSION_VISIBLE = '1.60'
 
 function versionDelProducto(): string {
   return VERSION_VISIBLE
@@ -359,6 +365,41 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
     uso: s().usoMensual(),
   })
   ipcMain.handle(CANALES.esAdministrador, () => esInstalacionAdministradora())
+
+  // Asistente de primer arranque (26/10/2026): clave de API y carpeta de informes,
+  // sin tocar ficheros a mano. La clave solo entra: nunca vuelve a la interfaz.
+  // Con `VILAMAR_CARPETA_INFORMES` puesta (pruebas automáticas) no se enseña.
+  ipcMain.handle(CANALES.estadoPrimerArranque, () => {
+    const hayClave = (process.env['ANTHROPIC_API_KEY'] ?? '') !== ''
+    const ajustes = leerAjustesDeUsuario(carpetas.raiz)
+    const automatico = process.env['VILAMAR_CARPETA_INFORMES'] !== undefined
+    return {
+      mostrar: !automatico && !ajustes.primerArranqueHecho && !hayClave,
+      hayClave,
+      carpetaInformes: carpetas.informes,
+    }
+  })
+  ipcMain.handle(CANALES.guardarClaveApi, (_e, clave: unknown) =>
+    typeof clave === 'string' ? guardarClaveEnEnv(carpetas.raiz, clave) : false,
+  )
+  ipcMain.handle(CANALES.elegirCarpetaInformes, async () => {
+    if (!ventana) return null
+    const r = await dialog.showOpenDialog(ventana, {
+      title: 'Elige la carpeta donde guardar los informes',
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    const ruta = r.canceled ? undefined : r.filePaths[0]
+    if (!ruta) return null
+    guardarAjustesDeUsuario(carpetas.raiz, { carpetaInformes: ruta })
+    return ruta
+  })
+  ipcMain.handle(CANALES.terminarPrimerArranque, () =>
+    guardarAjustesDeUsuario(carpetas.raiz, { primerArranqueHecho: true }),
+  )
+  ipcMain.handle(CANALES.reiniciarAplicacion, () => {
+    app.relaunch()
+    app.exit(0)
+  })
   ipcMain.handle(CANALES.datosAdministracion, () => {
     soloAdministrador()
     return datosAdmin()
@@ -604,9 +645,12 @@ void app.whenReady().then(() => {
   // el Escritorio de verdad de quien las ejecute. `--user-data-dir` no
   // sirve para esto: solo mueve `userData`, y `app.getPath('desktop')` no
   // depende de ese flag.
+  // Si la persona eligió una carpeta en el primer arranque, esa manda sobre el
+  // Escritorio (pero no sobre la variable de las pruebas).
   const carpetas = prepararCarpetas(
     app.getPath('userData'),
     process.env['VILAMAR_CARPETA_INFORMES'] ??
+      leerAjustesDeUsuario(app.getPath('userData')).carpetaInformes ??
       join(app.getPath('desktop'), 'Calculadora Vilamar', 'informes'),
   )
   registrarCanales(carpetas)

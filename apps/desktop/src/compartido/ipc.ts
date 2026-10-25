@@ -110,6 +110,16 @@ export interface EstadoCalculo {
   readonly requiereUsuario: boolean
 }
 
+/** Lo que necesita el asistente de primer arranque (26/10/2026). Nunca lleva la clave. */
+export interface EstadoPrimerArranque {
+  /** ¿Hay que enseñar el asistente ahora? */
+  readonly mostrar: boolean
+  /** ¿Ya hay una clave de API configurada en este ordenador? */
+  readonly hayClave: boolean
+  /** Dónde se guardarán los informes (la elegida, o la de siempre). */
+  readonly carpetaInformes: string
+}
+
 /** Lo que ve el administrador en su departamento (25/10/2026). */
 export interface DatosAdministracion {
   readonly plan: PlanDeCobro
@@ -128,6 +138,15 @@ export interface ApiVilamar {
   /** El departamento de Administración. Falla si esta instalación no es la del administrador. */
   readonly datosAdministracion: () => Promise<DatosAdministracion>
   readonly guardarPlanDeCobro: (plan: PlanDeCobro) => Promise<DatosAdministracion>
+  readonly estadoPrimerArranque: () => Promise<EstadoPrimerArranque>
+  /** Guarda la clave de API en este ordenador. false = no tiene la forma de una clave. */
+  readonly guardarClaveApi: (clave: string) => Promise<boolean>
+  /** Abre el selector de carpetas y recuerda la elegida (vale desde el próximo arranque). */
+  readonly elegirCarpetaInformes: () => Promise<string | null>
+  /** Marca el asistente como visto para que no vuelva a salir. */
+  readonly terminarPrimerArranque: () => Promise<void>
+  /** Cierra y vuelve a abrir la aplicación (para que tome la clave y la carpeta nuevas). */
+  readonly reiniciarAplicacion: () => Promise<void>
 
   readonly casoNuevo: () => Promise<Caso>
   readonly casoActual: () => Promise<Caso | null>
@@ -560,6 +579,11 @@ export const CANALES = {
   esAdministrador: 'vilamar:es-administrador',
   datosAdministracion: 'vilamar:datos-administracion',
   guardarPlanDeCobro: 'vilamar:guardar-plan-de-cobro',
+  estadoPrimerArranque: 'vilamar:estado-primer-arranque',
+  guardarClaveApi: 'vilamar:guardar-clave-api',
+  elegirCarpetaInformes: 'vilamar:elegir-carpeta-informes',
+  terminarPrimerArranque: 'vilamar:terminar-primer-arranque',
+  reiniciarAplicacion: 'vilamar:reiniciar-aplicacion',
   casoNuevo: 'vilamar:caso-nuevo',
   casoActual: 'vilamar:caso-actual',
   listarCasosGuardados: 'vilamar:listar-casos-guardados',
