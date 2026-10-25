@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.108] — 25/10/2026 (versión visible en pantalla: v1.59)
+
+feat(app): departamento de Administración, solo en la instalación del dueño (D140)
+
+Petición del dueño: todo lo del reparto y el cobro a otros oftalmólogos, en un sitio que solo le salga a él y no a las copias. Nuevo botón «Administración» (solo si el `.env` de ese ordenador pone `VILAMAR_ADMINISTRADOR=1`; el `.env` no va en el zip) con: condiciones de cobro editables (de partida, 10 € por cada 100 ojos, aviso a los 80; se guardan en `plan-de-cobro.json`) y el uso de ESTE ordenador mes a mes (informes leídos, ojos calculados, resultados) con el tramo que caería. Es una compuerta de interfaz, no seguridad real. Usuarios, aprobaciones, contador por médico y cobro NO existen: necesitan un servidor, y la pantalla lo dice. Documentado el plan por fases para prestar la app (D141: clave de Anthropic por médico con límite; después, el servidor de Vanessa solo como contador).
+
+---
+
 ## [1.15.107] — 23/10/2026 (versión visible en pantalla: v1.58)
 
 feat(app): el aspecto nuevo pasa a ser el de partida (D139)

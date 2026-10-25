@@ -20,6 +20,7 @@ import { BandejaScreen } from './componentes/BandejaScreen.js'
 import { CasosGuardados } from './componentes/CasosGuardados.js'
 import { aplicarAspecto, leerAspecto } from './aspecto.js'
 import type { Aspecto } from './aspecto.js'
+import { AdministracionScreen } from './componentes/AdministracionScreen.js'
 import { AnalisisScreen } from './componentes/AnalisisScreen.js'
 import { CargaDeDocumentos } from './componentes/BarraDeProgreso.js'
 import type { CorridaDeCalculo } from './componentes/PanelCalculo.js'
@@ -115,14 +116,20 @@ export function App(): JSX.Element {
   // independientes, abrir una sin acordarse de cerrar las demás a mano
   // dejaría dos superpuestas a la vez.
   const [pantallaExtra, setPantallaExtra] = useState<
-    'DOCTORES' | 'LABORATORIOS' | 'BANDEJA' | 'DASHBOARD' | 'ANALISIS' | null
+    'DOCTORES' | 'LABORATORIOS' | 'BANDEJA' | 'DASHBOARD' | 'ANALISIS' | 'ADMINISTRACION' | null
   >(null)
+  // Solo la instalación del dueño ve el departamento de Administración (25/10/2026).
+  const [esAdministrador, setEsAdministrador] = useState(false)
 
   const disponible = hayApi()
 
   useEffect(() => {
     if (!disponible) return
     void api().version().then(setVersion)
+    void api()
+      .esAdministrador()
+      .then(setEsAdministrador)
+      .catch(() => setEsAdministrador(false))
     void api()
       .casoActual()
       .then((c) => {
@@ -646,6 +653,16 @@ export function App(): JSX.Element {
           >
             Laboratorios
           </button>
+          {esAdministrador && (
+            <button
+              className="boton-cabecera boton-cabecera-doctores"
+              onClick={() => setPantallaExtra('ADMINISTRACION')}
+              disabled={ocupado}
+              data-testid="abrir-administracion"
+            >
+              Administración
+            </button>
+          )}
           <button
             className="boton-cabecera boton-cabecera-nuevo"
             onClick={() => void nuevoCalculo()}
@@ -699,6 +716,14 @@ export function App(): JSX.Element {
               onAbrirResultado={abrirCasoDesdeAnalisis}
               onVolver={() => setPantallaExtra(null)}
             />
+          </div>
+        </main>
+      )}
+
+      {pantallaExtra === 'ADMINISTRACION' && esAdministrador && (
+        <main className="contenido">
+          <div className="centrado">
+            <AdministracionScreen onVolver={() => setPantallaExtra(null)} />
           </div>
         </main>
       )}

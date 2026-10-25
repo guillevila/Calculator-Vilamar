@@ -134,3 +134,24 @@ describe('siguienteCodigo — nunca reutiliza un número, aunque se borren casos
     expect(siguienteCodigo(carpetas, new Date('2027-01-05T10:00:00.000Z'))).toBe('CV-2027-0001')
   })
 })
+
+describe('plan de cobro del administrador', () => {
+  it('sin fichero devuelve el de partida; guarda y lee; descarta uno estropeado', async () => {
+    const { PLAN_DE_PARTIDA } = await import('@vilamar/domain')
+    const { guardarPlanDeCobro, leerPlanDeCobro, planValido } = await import('./almacen.js')
+    const raiz = mkdtempSync(join(tmpdir(), 'vilamar-plan-'))
+    const c = prepararCarpetas(raiz)
+    expect(leerPlanDeCobro(c)).toEqual(PLAN_DE_PARTIDA)
+    const plan = {
+      metrica: 'INFORMES_LEIDOS' as const,
+      tamanoTramo: 100,
+      precioPorTramo: 12,
+      avisarDesde: 80,
+    }
+    guardarPlanDeCobro(c, plan)
+    expect(leerPlanDeCobro(c)).toEqual(plan)
+    expect(planValido({ ...plan, tamanoTramo: 0 })).toBe(false)
+    expect(planValido({ ...plan, metrica: 'OTRA' })).toBe(false)
+    expect(planValido(null)).toBe(false)
+  })
+})

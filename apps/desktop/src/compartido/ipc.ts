@@ -15,6 +15,8 @@ import type {
   EstadoCaso,
   Laboratorio,
   Lateralidad,
+  PlanDeCobro,
+  UsoMensual,
   CampoBiometrico,
   PrioridadBandeja,
   FiltroAnalisis,
@@ -108,9 +110,24 @@ export interface EstadoCalculo {
   readonly requiereUsuario: boolean
 }
 
+/** Lo que ve el administrador en su departamento (25/10/2026). */
+export interface DatosAdministracion {
+  readonly plan: PlanDeCobro
+  /** Uso de ESTE ordenador por mes, de más reciente a más antiguo. */
+  readonly uso: readonly UsoMensual[]
+}
+
 /** Lo que la interfaz puede pedirle al proceso principal. */
 export interface ApiVilamar {
   readonly version: () => Promise<string>
+  /**
+   * ¿Es esta la instalación del administrador? Solo una compuerta de interfaz
+   * (25/10/2026): las copias que se reparten no la llevan. No es seguridad real.
+   */
+  readonly esAdministrador: () => Promise<boolean>
+  /** El departamento de Administración. Falla si esta instalación no es la del administrador. */
+  readonly datosAdministracion: () => Promise<DatosAdministracion>
+  readonly guardarPlanDeCobro: (plan: PlanDeCobro) => Promise<DatosAdministracion>
 
   readonly casoNuevo: () => Promise<Caso>
   readonly casoActual: () => Promise<Caso | null>
@@ -540,6 +557,9 @@ export interface ApiVilamar {
 /** Nombres de los canales. En un solo sitio para que no se escriban a mano. */
 export const CANALES = {
   version: 'vilamar:version',
+  esAdministrador: 'vilamar:es-administrador',
+  datosAdministracion: 'vilamar:datos-administracion',
+  guardarPlanDeCobro: 'vilamar:guardar-plan-de-cobro',
   casoNuevo: 'vilamar:caso-nuevo',
   casoActual: 'vilamar:caso-actual',
   listarCasosGuardados: 'vilamar:listar-casos-guardados',

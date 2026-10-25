@@ -18,6 +18,9 @@ import { CANALES } from '../compartido/ipc.js'
 
 const api: ApiVilamar = {
   version: () => ipcRenderer.invoke(CANALES.version),
+  esAdministrador: () => ipcRenderer.invoke(CANALES.esAdministrador),
+  datosAdministracion: () => ipcRenderer.invoke(CANALES.datosAdministracion),
+  guardarPlanDeCobro: (plan) => ipcRenderer.invoke(CANALES.guardarPlanDeCobro, plan),
 
   casoNuevo: () => ipcRenderer.invoke(CANALES.casoNuevo),
   casoActual: () => ipcRenderer.invoke(CANALES.casoActual),

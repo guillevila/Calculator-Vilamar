@@ -16,7 +16,14 @@ import type { Browser } from 'playwright'
 
 import type { ArchivoEntrante, EstadoCalculo } from '../compartido/ipc.js'
 import { CANALES } from '../compartido/ipc.js'
-import { nuevoId, prepararCarpetas } from './almacen.js'
+import type { PlanDeCobro } from '@vilamar/domain'
+import {
+  guardarPlanDeCobro,
+  leerPlanDeCobro,
+  nuevoId,
+  planValido,
+  prepararCarpetas,
+} from './almacen.js'
 import { crearAlmacenCapturas } from './capturas.js'
 import { crearDiagnosticador } from './diagnostico.js'
 import { crearMotorOcr } from './extraccion/ocr.js'
@@ -24,7 +31,7 @@ import { crearLectorPdf } from './extraccion/lector-pdf.js'
 import { crearRasterizador } from './extraccion/rasterizador.js'
 import { ProveedorDocumentos } from './extraccion/proveedor.js'
 import { crearLectorVision } from './extraccion/vision-claude.js'
-import { cargarEnv } from './ajustes.js'
+import { cargarEnv, esInstalacionAdministradora } from './ajustes.js'
 import { ServicioBandeja } from './servicio-bandeja.js'
 import { ServicioCasos } from './servicio-casos.js'
 import { ServicioDoctores } from './servicio-doctores.js'
@@ -73,7 +80,7 @@ if (app.isPackaged) {
  * este número es lo ÚLTIMO que se hace al cerrar un cambio en la aplicación
  * de escritorio, justo antes de avisar de que está listo para probar.
  */
-const VERSION_VISIBLE = '1.58'
+const VERSION_VISIBLE = '1.59'
 
 function versionDelProducto(): string {
   return VERSION_VISIBLE
@@ -341,6 +348,27 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
   }
 
   ipcMain.handle(CANALES.version, () => version)
+
+  // Departamento de Administración (25/10/2026): solo en la instalación del dueño.
+  const soloAdministrador = (): void => {
+    if (!esInstalacionAdministradora())
+      throw new Error('Esta instalación no es la del administrador.')
+  }
+  const datosAdmin = (): { plan: PlanDeCobro; uso: ReturnType<ServicioCasos['usoMensual']> } => ({
+    plan: leerPlanDeCobro(carpetas),
+    uso: s().usoMensual(),
+  })
+  ipcMain.handle(CANALES.esAdministrador, () => esInstalacionAdministradora())
+  ipcMain.handle(CANALES.datosAdministracion, () => {
+    soloAdministrador()
+    return datosAdmin()
+  })
+  ipcMain.handle(CANALES.guardarPlanDeCobro, (_e, plan: unknown) => {
+    soloAdministrador()
+    if (!planValido(plan)) throw new Error('Las condiciones de cobro no son válidas.')
+    guardarPlanDeCobro(carpetas, plan)
+    return datosAdmin()
+  })
   ipcMain.handle(CANALES.casoNuevo, () => s().nuevo())
   ipcMain.handle(CANALES.casoActual, () => s().obtener())
   ipcMain.handle(CANALES.listarCasosGuardados, () => s().listarCasosGuardados())
