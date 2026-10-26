@@ -25,6 +25,8 @@ import {
   prepararCarpetas,
 } from './almacen.js'
 import { crearAlmacenCapturas } from './capturas.js'
+import { consultarConsumoApi } from './consumo-api.js'
+import type { ConsumoApi } from '../compartido/ipc.js'
 import { crearDiagnosticador } from './diagnostico.js'
 import { crearMotorOcr } from './extraccion/ocr.js'
 import { crearLectorPdf } from './extraccion/lector-pdf.js'
@@ -86,7 +88,7 @@ if (app.isPackaged) {
  * este número es lo ÚLTIMO que se hace al cerrar un cambio en la aplicación
  * de escritorio, justo antes de avisar de que está listo para probar.
  */
-const VERSION_VISIBLE = '1.60'
+const VERSION_VISIBLE = '1.61'
 
 function versionDelProducto(): string {
   return VERSION_VISIBLE
@@ -365,6 +367,27 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
     uso: s().usoMensual(),
   })
   ipcMain.handle(CANALES.esAdministrador, () => esInstalacionAdministradora())
+
+  // El consumo real de la API (26/10/2026): se pide a Anthropic con la clave de
+  // administrador del `.env` de este ordenador, como mucho una vez por minuto.
+  let consumoEnMemoria: { readonly cuando: number; readonly datos: ConsumoApi } | null = null
+  ipcMain.handle(CANALES.consumoApi, async (_e, forzar: unknown) => {
+    soloAdministrador()
+    const ahora = Date.now()
+    if (consumoEnMemoria && ahora - consumoEnMemoria.cuando < 60_000 && forzar !== true) {
+      return consumoEnMemoria.datos
+    }
+    const datos = await consultarConsumoApi(
+      process.env['ANTHROPIC_ADMIN_KEY'],
+      async (url, cabeceras) => {
+        const r = await fetch(url, { headers: cabeceras })
+        return { status: r.status, json: () => r.json() as Promise<unknown> }
+      },
+      new Date(ahora),
+    )
+    if (datos.estado === 'OK') consumoEnMemoria = { cuando: ahora, datos }
+    return datos
+  })
 
   // Asistente de primer arranque (26/10/2026): clave de API y carpeta de informes,
   // sin tocar ficheros a mano. La clave solo entra: nunca vuelve a la interfaz.

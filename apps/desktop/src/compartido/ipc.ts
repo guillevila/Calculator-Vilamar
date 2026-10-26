@@ -120,6 +120,37 @@ export interface EstadoPrimerArranque {
   readonly carpetaInformes: string
 }
 
+/** Consumo de una clave de API según Anthropic (tokens; Anthropic no da dólares por clave). */
+export interface ConsumoDeClave {
+  readonly id: string
+  readonly nombre: string
+  readonly espacio?: string
+  readonly estado: string
+  readonly tokens: number
+}
+
+/** Gasto en dólares de un espacio de trabajo en el mes. */
+export interface ConsumoDeEspacio {
+  readonly id: string | null
+  readonly nombre: string
+  readonly costeUsd: number
+}
+
+/** El consumo real de la API este mes (26/10/2026). Nunca lleva ninguna clave. */
+export type ConsumoApi =
+  | { readonly estado: 'SIN_CLAVE' }
+  | { readonly estado: 'ERROR'; readonly mensaje: string }
+  | {
+      readonly estado: 'OK'
+      /** «AAAA-MM». */
+      readonly mes: string
+      readonly actualizadoEn: string
+      readonly porClave: readonly ConsumoDeClave[]
+      readonly porEspacio: readonly ConsumoDeEspacio[]
+      readonly totalUsd: number
+      readonly totalTokens: number
+    }
+
 /** Lo que ve el administrador en su departamento (25/10/2026). */
 export interface DatosAdministracion {
   readonly plan: PlanDeCobro
@@ -138,6 +169,8 @@ export interface ApiVilamar {
   /** El departamento de Administración. Falla si esta instalación no es la del administrador. */
   readonly datosAdministracion: () => Promise<DatosAdministracion>
   readonly guardarPlanDeCobro: (plan: PlanDeCobro) => Promise<DatosAdministracion>
+  /** El gasto real de la API este mes, según Anthropic. Solo en la instalación del administrador. */
+  readonly consumoApi: (forzar?: boolean) => Promise<ConsumoApi>
   readonly estadoPrimerArranque: () => Promise<EstadoPrimerArranque>
   /** Guarda la clave de API en este ordenador. false = no tiene la forma de una clave. */
   readonly guardarClaveApi: (clave: string) => Promise<boolean>
@@ -579,6 +612,7 @@ export const CANALES = {
   esAdministrador: 'vilamar:es-administrador',
   datosAdministracion: 'vilamar:datos-administracion',
   guardarPlanDeCobro: 'vilamar:guardar-plan-de-cobro',
+  consumoApi: 'vilamar:consumo-api',
   estadoPrimerArranque: 'vilamar:estado-primer-arranque',
   guardarClaveApi: 'vilamar:guardar-clave-api',
   elegirCarpetaInformes: 'vilamar:elegir-carpeta-informes',
