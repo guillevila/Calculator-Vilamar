@@ -21,7 +21,7 @@ import {
 } from '@vilamar/domain'
 import type { MetricaDeCobro, PlanDeCobro } from '@vilamar/domain'
 
-import type { DatosAdministracion } from '../../compartido/ipc.js'
+import type { ConsumoApi, DatosAdministracion } from '../../compartido/ipc.js'
 import { api } from '../api.js'
 
 interface Props {
@@ -45,6 +45,19 @@ export function AdministracionScreen({ onVolver }: Props): JSX.Element {
   const [plan, setPlan] = useState<PlanDeCobro>(PLAN_DE_PARTIDA)
   const [error, setError] = useState<string | null>(null)
   const [guardado, setGuardado] = useState(false)
+  const [consumo, setConsumo] = useState<ConsumoApi | null>(null)
+  const [cargandoConsumo, setCargandoConsumo] = useState(false)
+
+  async function cargarConsumo(forzar: boolean): Promise<void> {
+    setCargandoConsumo(true)
+    try {
+      setConsumo(await api().consumoApi(forzar))
+    } catch {
+      setConsumo({ estado: 'ERROR', mensaje: 'No se pudo leer el consumo.' })
+    } finally {
+      setCargandoConsumo(false)
+    }
+  }
 
   useEffect(() => {
     api()
@@ -54,6 +67,7 @@ export function AdministracionScreen({ onVolver }: Props): JSX.Element {
         setPlan(d.plan)
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'No se pudo cargar.'))
+    void cargarConsumo(false)
   }, [])
 
   const cambiar = (cambio: Partial<PlanDeCobro>): void => {
@@ -206,6 +220,84 @@ export function AdministracionScreen({ onVolver }: Props): JSX.Element {
               })}
             </tbody>
           </table>
+        )}
+      </section>
+
+      <section className="tarjeta" style={{ marginTop: 16 }} data-testid="consumo-api">
+        <div className="fila" style={{ justifyContent: 'space-between' }}>
+          <h2 style={{ margin: 0 }}>Consumo de la API (según Anthropic)</h2>
+          <button
+            onClick={() => void cargarConsumo(true)}
+            disabled={cargandoConsumo}
+            data-testid="consumo-actualizar"
+          >
+            {cargandoConsumo ? 'Consultando…' : 'Actualizar'}
+          </button>
+        </div>
+        {consumo === null && <p className="sub">Consultando a Anthropic…</p>}
+        {consumo?.estado === 'SIN_CLAVE' && (
+          <p className="sub" data-testid="consumo-sin-clave">
+            Falta la clave de administrador. Créala en la Consola de Anthropic (Ajustes → Claves de
+            administrador) y añade al .env de este ordenador una línea ANTHROPIC_ADMIN_KEY=la_clave.
+            Después reinicia la aplicación.
+          </p>
+        )}
+        {consumo?.estado === 'ERROR' && (
+          <div className="aviso aviso-error" data-testid="consumo-error">
+            {consumo.mensaje}
+          </div>
+        )}
+        {consumo?.estado === 'OK' && (
+          <>
+            <p className="sub">
+              {nombreDeMes(consumo.mes)}:{' '}
+              <strong>{consumo.totalUsd.toLocaleString('es-ES')} US$</strong> en total (
+              {consumo.totalTokens.toLocaleString('es-ES')} tokens). Anthropic tarda unos minutos en
+              reflejar el gasto, y da el dinero por espacio de trabajo y el consumo por clave; no da
+              el dinero de cada clave por separado.
+            </p>
+            <h3>Gasto por espacio de trabajo</h3>
+            <table className="revision" data-testid="consumo-espacios">
+              <thead>
+                <tr>
+                  <th>Espacio</th>
+                  <th>Gasto del mes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {consumo.porEspacio.map((e) => (
+                  <tr key={e.id ?? 'defecto'}>
+                    <td>{e.nombre}</td>
+                    <td>{e.costeUsd.toLocaleString('es-ES')} US$</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <h3>Consumo por clave (tokens)</h3>
+            <table className="revision" data-testid="consumo-claves">
+              <thead>
+                <tr>
+                  <th>Clave</th>
+                  <th>Espacio</th>
+                  <th>Estado</th>
+                  <th>Tokens</th>
+                </tr>
+              </thead>
+              <tbody>
+                {consumo.porClave.map((c) => (
+                  <tr key={c.id || 'sin-clave'}>
+                    <td>{c.nombre}</td>
+                    <td>{c.espacio ?? '—'}</td>
+                    <td>{c.estado}</td>
+                    <td>{c.tokens.toLocaleString('es-ES')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {consumo.porClave.length === 0 && (
+              <p className="sub">Todavía no hay consumo este mes.</p>
+            )}
+          </>
         )}
       </section>
 

@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.110] — 26/10/2026 (versión visible en pantalla: v1.61)
+
+feat(app): «Consumo de la API» en Administración, con los datos reales de Anthropic (D143)
+
+Petición del dueño: saber cuánto gastan las claves que preste. Nuevo bloque en la pantalla de Administración (solo en su instalación) que consulta la API de administración de Anthropic con `ANTHROPIC_ADMIN_KEY` (en su `.env`, nunca en las copias) y enseña, del mes en curso, el gasto en dólares por espacio de trabajo y los tokens por clave con su nombre. Anthropic no da el dinero de cada clave por separado y la pantalla no lo inventa. Sin clave de administrador, o con una caducada, lo explica en claro. Una consulta a Anthropic como mucho por minuto.
+
+---
+
 ## [1.15.109] — 26/10/2026 (versión visible en pantalla: v1.60)
 
 feat(app): asistente de primer arranque — clave de Anthropic y carpeta de informes sin tocar ficheros (D142)
