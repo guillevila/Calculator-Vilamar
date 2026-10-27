@@ -53,7 +53,8 @@ import type { Frame, Page } from 'playwright'
 import { capturarResultado } from '../captura.js'
 import type { AdaptadorCalculadora, ContextoEjecucion } from '../contrato.js'
 import { ErrorAdaptador, esperarAlUsuario } from '../contrato.js'
-import { leerCilindroConEje, leerNumeroDeTexto } from '../normalizar.js'
+import { leerCilindroConEje } from '../normalizar.js'
+import { construirOpcionesDeBarrett } from './barrett-opciones.js'
 
 const PAGINA_PADRE = 'https://www.ascrs.org/en/tools/barrett-true-k-toric-calculator'
 const HOST_CALCULADORA = 'calc.apacrs.org'
@@ -361,54 +362,8 @@ export class AdaptadorBarrettTrueKToric implements AdaptadorCalculadora {
       )
     }
 
-    const opciones: OpcionLente[] = []
-
-    const filasPotencia = potencias.slice(1)
-    const indiceDestacada = Math.floor(filasPotencia.length / 2)
-
-    filasPotencia.forEach((fila, i) => {
-      const esfera = leerNumeroDeTexto(fila[0])
-      if (esfera === undefined) return
-      opciones.push({
-        esfera,
-        designacion: fila[1]?.trim() || undefined,
-        refraccionPrevista: leerNumeroDeTexto(fila[2]),
-        recomendada: i === indiceDestacada,
-      })
-    })
-
-    const toricasPorDesignacion = new Map<
-      string,
-      {
-        cilindro: number | undefined
-        cilindroResidual: number | undefined
-        ejeResidual: number | undefined
-      }
-    >()
-    for (const fila of toricas.slice(1)) {
-      const designacion = fila[0]?.trim()
-      if (!designacion) continue
-      const residual = leerCilindroConEje(fila[2])
-      toricasPorDesignacion.set(designacion.toLowerCase(), {
-        cilindro: leerNumeroDeTexto(fila[1]),
-        cilindroResidual: residual.magnitud,
-        ejeResidual: residual.eje,
-      })
-    }
-
-    opciones.forEach((opcion, i) => {
-      const toricaDeEsta = opcion.designacion
-        ? toricasPorDesignacion.get(opcion.designacion.toLowerCase())
-        : undefined
-      if (!toricaDeEsta) return
-      opciones[i] = {
-        ...opcion,
-        cilindro: toricaDeEsta.cilindro,
-        cilindroResidual: toricaDeEsta.cilindroResidual,
-        ejeResidual: toricaDeEsta.ejeResidual,
-        eje: toricaDeEsta.ejeResidual,
-      }
-    })
+    // Las opciones salen de las dos tablas de Barrett (ver `barrett-opciones.ts`).
+    const { opciones, indiceDestacada } = construirOpcionesDeBarrett(potencias, toricas)
 
     const recomendada: OpcionLente | undefined = opciones[indiceDestacada]
 

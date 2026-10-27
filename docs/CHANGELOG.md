@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.111] — 27/10/2026 (versión visible en pantalla: v1.62)
+
+fix(integrations): Barrett guarda TODAS las lentes tóricas de su tabla (T3, T4, T5…), no solo las que usa alguna esfera (D144)
+
+Fallo real señalado por el dueño con el caso CV-2026-0437 (OD): en la comparación y bajo la captura, EVO y Kane enseñaban esfera y cilindro y Barrett solo la esfera; y en la captura de Barrett T3 (1.5 D) dejaba 0.41 D @ 43° —el mismo eje que la córnea— y era la que el criterio propio (el mayor cilindro antes de que el eje cambie) debía elegir. Causa: Barrett da una fila por lente tórica en su segunda tabla, pero el conector solo guardaba el cilindro de las designaciones usadas por la tabla de esferas (aquí todas T4), así que T3 y T5 se perdían y el criterio solo veía T4 (2.25 D, residual @ 133°, eje ya cambiado) y lo descartaba. Ahora las lentes tóricas que ninguna esfera usa se guardan también como opciones sin esfera —igual que EVO y Kane—, con una función compartida por Barrett Toric y Barrett True K Toric. Con ella el caso 0437 elige 1.50 D (residual 0.41 @ 43°). Solo afecta a los cálculos nuevos: los ya guardados no traen T3/T5 y hay que volver a calcular Barrett para tenerlos.
+
+---
+
 ## [1.15.110] — 26/10/2026 (versión visible en pantalla: v1.61)
 
 feat(app): «Consumo de la API» en Administración, con los datos reales de Anthropic (D143)
