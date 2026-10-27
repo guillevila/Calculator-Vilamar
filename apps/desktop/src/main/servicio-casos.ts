@@ -400,6 +400,7 @@ export class ServicioCasos {
         estado: c.estado,
         actualizadoEn: c.actualizadoEn,
         ...(c.nombrePaciente ? { nombrePaciente: c.nombrePaciente } : {}),
+        ...(c.nombreCirujano ? { nombreCirujano: c.nombreCirujano } : {}),
         ...(c.importado ? { importado: true } : {}),
       }))
   }

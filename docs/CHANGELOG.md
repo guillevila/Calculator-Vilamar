@@ -4,6 +4,15 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.115] — 28/10/2026 (versión visible en pantalla: v1.66)
+
+feat(app): buscador en «Casos guardados»: por código de caso, paciente o doctor (D148)
+
+- Una caja encima de la tabla; no distingue mayúsculas ni tildes y pide todas las palabras escritas.
+- El resumen de cada caso guardado lleva ahora también el doctor (solo para buscar).
+
+---
+
 ## [1.15.114] — 28/10/2026 (versión visible en pantalla: v1.65)
 
 fix(app): la barra superior vuelve a caber entera, con «Nuevo cálculo» a la vista (D147)
