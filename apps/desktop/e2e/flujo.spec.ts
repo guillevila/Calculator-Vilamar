@@ -76,6 +76,48 @@ test.afterAll(async () => {
   }
 })
 
+/**
+ * Deja completo todo lo que «Confirmar» exige (27/10/2026, petición del dueño: no se
+ * confirma ni se calcula nada si falta un dato necesario): el tipo de lente y, de cada
+ * aparato de cada ojo que ya tenga datos, la biometría completa. Solo rellena lo que
+ * falta —nunca pisa un dato ya puesto— y va por la API, no por la pantalla, para que
+ * valga igual con uno o con varios ojos y aparatos. Las pruebas que no hablan de
+ * datos completos (navegar, guardar, reabrir…) la usan antes de confirmar.
+ */
+async function completarLoNecesario(): Promise<void> {
+  await ventana.evaluate(async () => {
+    const api = window.vilamar
+    if (!api) return
+    const datos: Record<string, number> = {
+      AL: 24.07,
+      K1: 41.22,
+      K1_EJE: 175,
+      K2: 42.52,
+      K2_EJE: 85,
+      ACD: 3.18,
+      SIA: 0.3,
+      EJE_INCISION: 90,
+      CONSTANTE_A: 119,
+      REFRACCION_OBJETIVO: 0,
+    }
+    let caso = await api.casoActual()
+    if (!caso?.lente?.modelo) {
+      const constante = (caso?.ojos?.OD?.[0] ?? caso?.ojos?.OS?.[0])?.medidas?.CONSTANTE_A?.valor
+      await api.elegirLente('Bausch & Lomb', 'B&L LuxSmart', undefined, undefined, constante)
+      caso = await api.casoActual()
+    }
+    for (const ojo of ['OD', 'OS'] as const) {
+      for (const dataset of caso?.ojos?.[ojo] ?? []) {
+        for (const [campo, valor] of Object.entries(datos)) {
+          if ((dataset.medidas as Record<string, unknown>)[campo] === undefined) {
+            await api.editarMedida(ojo, campo as never, valor, dataset.aparato)
+          }
+        }
+      }
+    }
+  })
+}
+
 test('la ventana se abre y enseña el punto de partida', async () => {
   await expect(ventana.locator('h1')).toHaveText('Calculator Vilamar')
   await expect(ventana.getByTestId('zona-soltar')).toBeVisible()
@@ -130,10 +172,15 @@ test('un dato imposible se marca y BLOQUEA, sin corregirse solo', async () => {
   await expect(ventana.getByTestId('campo-AL')).toHaveValue('240.7')
   await ventana.screenshot({ path: 'test-results/02-dato-imposible.png' })
 
-  // Corregido, deja continuar.
+  // Corregido, el dato imposible deja de bloquear. Aquí todavía faltan otros datos
+  // necesarios, así que desde el 27/10/2026 «Confirmar» sigue cerrado: el aviso de
+  // lo que falta lo dice (el paso de continuar con todo completo se prueba en el
+  // flujo completo, más abajo).
   await ventana.getByTestId('campo-AL').fill('24.07')
   await ventana.getByTestId('campo-K1').click()
-  await expect(ventana.getByTestId('confirmar')).toBeEnabled()
+  await expect(ventana.getByTestId('campo-AL')).toHaveValue('24.07')
+  await expect(ventana.getByTestId('aviso-faltan-requeridos')).toBeVisible()
+  await expect(ventana.getByTestId('confirmar')).toBeDisabled()
 })
 
 test('un campo vacío dice quién lo tiene que aportar, no «no encontrado»', async () => {
@@ -185,11 +232,13 @@ test('cada campo dice cuánta falta hace, y avisa antes de confirmar', async () 
   // navegador recorriera las tres webs: 47 segundos para saber que faltaba algo.
   const aviso = ventana.getByTestId('aviso-faltan-requeridos')
   await expect(aviso).toBeVisible()
-  await expect(aviso).toContainText('Barrett')
+  await expect(aviso).toContainText('faltan datos necesarios')
   await ventana.screenshot({ path: 'test-results/10-exigencia.png' })
 
-  // Y no bloquea: calcular con dos de tres es un resultado legítimo.
-  await expect(ventana.getByTestId('confirmar')).toBeEnabled()
+  // Y BLOQUEA (27/10/2026, petición del dueño): si falta un dato necesario en algún
+  // aparato del ojo, no se confirma ni se calcula nada. Antes se dejaba continuar
+  // con «las demás calculan igual».
+  await expect(ventana.getByTestId('confirmar')).toBeDisabled()
 })
 
 test('el flujo completo llega hasta la pantalla de cálculo', async () => {
@@ -215,6 +264,7 @@ test('el flujo completo llega hasta la pantalla de cálculo', async () => {
 
   await ventana.screenshot({ path: 'test-results/03-revision.png', fullPage: true })
 
+  await completarLoNecesario()
   await ventana.getByTestId('confirmar').click()
 
   // Se llega a la pantalla de cálculo con las cinco casillas listadas
@@ -238,6 +288,7 @@ test('«Volver a los datos» deja corregir antes de calcular, sin perder nada', 
 
   // ...y se puede volver a confirmar y llegar de nuevo a la pantalla de
   // cálculo, con el dato corregido y el resto intacto.
+  await completarLoNecesario()
   await ventana.getByTestId('confirmar').click()
   await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
 
@@ -596,6 +647,7 @@ test('reabrir un caso guardado tras haber renombrado su aparato: la pantalla no 
   // leídos (21/10/2026): un caso recién creado y sin confirmar no sale. Se
   // confirma para que cuente como «a medias».
   await ventana.getByTestId('manual-continuar').click()
+  await completarLoNecesario()
   await ventana.getByTestId('confirmar').click()
 
   // Se cierra el caso (como reiniciar la aplicación) y se reabre desde
@@ -714,6 +766,7 @@ test('calcular solo OD y volver después a añadir OS, sin perder nada del caso'
   // Solo hay datos de OD: se confirma y se llega a la pantalla de cálculo
   // sin haber tocado OS para nada.
   await expect(ventana.getByTestId('revision-ojo-OD')).toHaveClass(/activo/)
+  await completarLoNecesario()
   await ventana.getByTestId('confirmar').click()
   await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
 
@@ -735,6 +788,7 @@ test('calcular solo OD y volver después a añadir OS, sin perder nada del caso'
   await ventana.getByTestId('campo-AL').fill('22.60')
   await ventana.getByTestId('campo-AL').press('Enter')
 
+  await completarLoNecesario()
   await ventana.getByTestId('confirmar').click()
   await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
 
@@ -1127,6 +1181,10 @@ test('una discrepancia sin reconocer en OS bloquea «Confirmar» aunque se esté
 
   await ventana.getByTestId('manual-continuar').click()
 
+  // Los datos necesarios se completan ANTES de reconocer la discrepancia: editar un dato
+  // después la deja otra vez sin reconocer.
+  await completarLoNecesario()
+
   // La revisión aterriza en OD por defecto — el mismo escenario del fallo
   // real: se confirma mirando el ojo que NO tiene ningún problema, sin
   // haber visto nunca la alarma de OS.
@@ -1138,6 +1196,7 @@ test('una discrepancia sin reconocer en OS bloquea «Confirmar» aunque se esté
   // Solo al ir a OS y reconocer la discrepancia se puede confirmar.
   await ventana.getByTestId('revision-ojo-OS').click()
   await ventana.getByTestId('reconocer-discrepancia').click()
+  await completarLoNecesario()
   await expect(ventana.getByTestId('confirmar')).toBeEnabled()
 })
 
@@ -1209,8 +1268,10 @@ CCT             533 um</pre>
   // datos» ya está habilitado: es el arreglo de hoy.
   const caso = await ventana.evaluate(() => window.vilamar?.casoActual())
   expect(caso?.ojos?.OS?.[0]?.medidas?.ACD?.confirmadoPorUsuario).toBe(false)
+  await completarLoNecesario()
   await expect(ventana.getByTestId('confirmar')).toBeEnabled()
 
+  await completarLoNecesario()
   await ventana.getByTestId('confirmar').click()
   await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
 
@@ -1235,6 +1296,7 @@ test('un caso guardado se puede volver a abrir, con sus datos intactos', async (
 
   // Un caso sin confirmar todavía es un borrador: «Casos guardados» no lo
   // enseña (21/10/2026). Se confirma para que cuente como «a medias».
+  await completarLoNecesario()
   await ventana.getByTestId('confirmar').click()
 
   const creado = await ventana.evaluate(() => window.vilamar?.casoActual())
@@ -1278,6 +1340,7 @@ test('los pasos ya recorridos de la barra de arriba se pueden volver a pulsar', 
   await ventana.getByTestId('manual-campo-AL').fill('23.80')
   await ventana.getByTestId('manual-campo-AL').press('Tab')
   await ventana.getByTestId('manual-continuar').click()
+  await completarLoNecesario()
   await ventana.getByTestId('confirmar').click()
 
   // En «3. Calcular»: el paso «4. Resultados», que todavía no se ha
@@ -1683,6 +1746,7 @@ test('se puede elegir calcular los dos ojos o solo uno (D66)', async () => {
   await ventana.getByTestId('identificacion-paciente').press('Tab')
 
   await ventana.getByTestId('manual-continuar').click()
+  await completarLoNecesario()
   await ventana.getByTestId('confirmar').click()
   await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
 
@@ -2259,6 +2323,7 @@ test('excluir un aparato (D100): desaparece del resumen antes de calcular, y se 
     .toBe(true)
 
   await ventana.getByTestId('manual-continuar').click()
+  await completarLoNecesario()
   await ventana.getByTestId('confirmar').click()
 
   // Antes de calcular, el resumen de parámetros ya no enseña el aparato
@@ -2272,6 +2337,7 @@ test('excluir un aparato (D100): desaparece del resumen antes de calcular, y se 
   await ventana.getByTestId('volver-a-revisar').click()
   await ventana.getByTestId('alternar-exclusion-OCULUS Pentacam').click()
   await expect(ventana.getByTestId('manual-aparato-OCULUS Pentacam')).not.toContainText('excluido')
+  await completarLoNecesario()
   await ventana.getByTestId('confirmar').click()
   await expect(ventana.getByTestId('resumen-parametros')).toContainText('OCULUS Pentacam')
 })
@@ -2519,6 +2585,7 @@ test('«Análisis de resultados»: se abre, filtra y lleva directamente al caso'
   await ventana.getByTestId('manual-campo-AL').fill('23.40')
   await ventana.getByTestId('manual-campo-AL').press('Tab')
   await ventana.getByTestId('manual-continuar').click()
+  await completarLoNecesario()
   await ventana.getByTestId('confirmar').click()
   const creado = await ventana.evaluate(() => window.vilamar?.casoActual())
   const codigo = creado?.codigo ?? ''
@@ -2568,6 +2635,7 @@ test('cada calculadora enseña su barra de progreso y pone «Completado» al ter
   await ventana.getByTestId('manual-campo-AL').fill('23.60')
   await ventana.getByTestId('manual-campo-AL').press('Tab')
   await ventana.getByTestId('manual-continuar').click()
+  await completarLoNecesario()
   await ventana.getByTestId('confirmar').click()
   await expect(ventana.getByTestId('lanzar-calculo')).toBeVisible()
 

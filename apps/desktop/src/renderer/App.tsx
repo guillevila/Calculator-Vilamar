@@ -19,7 +19,7 @@ import type {
   Lateralidad,
   Aviso,
 } from '@vilamar/domain'
-import { aparatosDe, NOMBRE_DISPOSITIVO, nombreLateralidad, ojosDelCaso } from '@vilamar/domain'
+import { aparatosDe, NOMBRE_DISPOSITIVO, ojosDelCaso } from '@vilamar/domain'
 
 import { api, hayApi } from './api.js'
 import type {
@@ -34,6 +34,7 @@ import { aplicarAspecto, leerAspecto } from './aspecto.js'
 import type { Aspecto } from './aspecto.js'
 import { AdministracionScreen } from './componentes/AdministracionScreen.js'
 import { AnalisisScreen } from './componentes/AnalisisScreen.js'
+import { AvisoFaltan } from './componentes/AvisoFaltan.js'
 import { PrimerArranque } from './componentes/PrimerArranque.js'
 import { CargaDeDocumentos } from './componentes/BarraDeProgreso.js'
 import type { CorridaDeCalculo } from './componentes/PanelCalculo.js'
@@ -837,24 +838,7 @@ export function App(): JSX.Element {
               )}
 
               {faltanAlCalcular && (
-                <div
-                  className="aviso error faltan-para-calcular"
-                  role="alert"
-                  data-testid="faltan-para-calcular"
-                >
-                  <strong>No se puede calcular: faltan datos necesarios.</strong>
-                  <ul>
-                    {faltanAlCalcular.generales.length > 0 && (
-                      <li>Del caso: {faltanAlCalcular.generales.join(', ')}.</li>
-                    )}
-                    {faltanAlCalcular.porAparato.map((a) => (
-                      <li key={`${a.ojo}-${a.aparato}`}>
-                        {nombreLateralidad(a.ojo)}
-                        {a.aparato !== 'Principal' ? `, aparato «${a.aparato}»` : ''}:{' '}
-                        {a.faltan.join(', ')}.
-                      </li>
-                    ))}
-                  </ul>
+                <AvisoFaltan faltan={faltanAlCalcular} testId="faltan-para-calcular">
                   <p style={{ margin: '6px 0' }}>
                     No se ha lanzado ninguna calculadora. Completa estos datos en «Revisar datos» y
                     vuelve a calcular.
@@ -868,7 +852,7 @@ export function App(): JSX.Element {
                   >
                     Ir a revisar los datos
                   </button>
-                </div>
+                </AvisoFaltan>
               )}
 
               {paso === 'INICIO' && (
