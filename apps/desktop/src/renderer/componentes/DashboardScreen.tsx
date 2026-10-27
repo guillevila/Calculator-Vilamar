@@ -38,6 +38,8 @@ import type { ConteoDashboard, ResumenDashboard } from '@vilamar/domain'
 
 import { api } from '../api.js'
 
+import { FILAS_POR_PAGINA, Paginador } from './paginacion.js'
+
 export function GraficoBarras({
   titulo,
   datos,
@@ -56,13 +58,18 @@ export function GraficoBarras({
   readonly onEliminar?: (etiqueta: string) => void
 }): JSX.Element {
   const maximo = Math.max(1, ...datos.map((d) => d.cantidad))
+  const [pagina, setPagina] = useState(0)
+  // Si al excluir o eliminar quedan menos filas, no se queda en una página que ya no existe.
+  const ultima = Math.max(0, Math.ceil(datos.length / FILAS_POR_PAGINA) - 1)
+  const visible = Math.min(pagina, ultima)
+  const visibles = datos.slice(visible * FILAS_POR_PAGINA, (visible + 1) * FILAS_POR_PAGINA)
   return (
     <div className="tarjeta-seccion" data-testid={testId}>
       <h3>{titulo}</h3>
       {datos.length === 0 && <p className="sub">Todavía no hay ningún caso calculado.</p>}
       {datos.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {datos.map((d) => (
+          {visibles.map((d) => (
             <div key={d.etiqueta} className="fila" style={{ gap: 10, alignItems: 'center' }}>
               <span style={{ width: 160, flexShrink: 0, fontSize: 13 }}>{d.etiqueta}</span>
               <div style={{ flex: 1, background: 'var(--gris-claro)', borderRadius: 4 }}>
@@ -106,6 +113,13 @@ export function GraficoBarras({
           ))}
         </div>
       )}
+      <Paginador
+        pagina={visible}
+        total={datos.length}
+        unidad="filas"
+        onCambiar={setPagina}
+        testId={`${testId}-paginacion`}
+      />
     </div>
   )
 }

@@ -20,7 +20,7 @@ import type { Calculadora, FiltroAnalisis, Lateralidad, ResultadoAnalisis } from
 
 import type { ResultadoImportacion } from '../../compartido/ipc.js'
 import { api } from '../api.js'
-import { CASOS_POR_PAGINA } from './CasosGuardados.js'
+import { FILAS_POR_PAGINA } from './paginacion.js'
 import { GraficoBarras } from './DashboardScreen.js'
 
 interface Props {
@@ -208,7 +208,7 @@ export function AnalisisScreen({ onAbrirResultado, onVolver }: Props): JSX.Eleme
   }
 
   const filas = resultado?.filas ?? []
-  const paginas = Math.max(1, Math.ceil(filas.length / CASOS_POR_PAGINA))
+  const paginas = Math.max(1, Math.ceil(filas.length / FILAS_POR_PAGINA))
 
   return (
     <div className="tarjeta" data-testid="pantalla-analisis">
@@ -479,7 +479,7 @@ export function AnalisisScreen({ onAbrirResultado, onVolver }: Props): JSX.Eleme
               </thead>
               <tbody>
                 {filas
-                  .slice(pagina * CASOS_POR_PAGINA, (pagina + 1) * CASOS_POR_PAGINA)
+                  .slice(pagina * FILAS_POR_PAGINA, (pagina + 1) * FILAS_POR_PAGINA)
                   .map((f) => (
                     <tr key={f.codigo}>
                       <td>
@@ -520,7 +520,7 @@ export function AnalisisScreen({ onAbrirResultado, onVolver }: Props): JSX.Eleme
               </tbody>
             </table>
           )}
-          {filas.length > CASOS_POR_PAGINA && (
+          {filas.length > FILAS_POR_PAGINA && (
             <div
               className="fila"
               style={{ marginTop: 12, alignItems: 'center', gap: 12 }}

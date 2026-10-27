@@ -4,6 +4,15 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.116] — 28/10/2026 (versión visible en pantalla: v1.67)
+
+feat(app): Dashboard y «Análisis de resultados» enseñan los listados de 15 en 15 (D149)
+
+- Las 15 primeras filas y botones ◀ ▶ para pasar a las 15 siguientes; en el Dashboard, cada gráfico («Por doctor», «Por modelo de lente») tiene su propia paginación.
+- «Casos guardados» se queda en 20 por página.
+
+---
+
 ## [1.15.115] — 28/10/2026 (versión visible en pantalla: v1.66)
 
 feat(app): buscador en «Casos guardados»: por código de caso, paciente o doctor (D148)
