@@ -79,7 +79,8 @@ import type { Frame, Page } from 'playwright'
 import { capturarResultado } from '../captura.js'
 import type { AdaptadorCalculadora, ContextoEjecucion } from '../contrato.js'
 import { ErrorAdaptador, esperarAlUsuario } from '../contrato.js'
-import { leerCilindroConEje, leerNumeroDeTexto } from '../normalizar.js'
+import { leerCilindroConEje } from '../normalizar.js'
+import { construirOpcionesDeBarrett } from './barrett-opciones.js'
 
 const PAGINA_PADRE = 'https://www.ascrs.org/en/tools/barrett-toric-calculator'
 const HOST_CALCULADORA = 'calc.apacrs.org'
@@ -571,64 +572,8 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
       )
     }
 
-    const opciones: OpcionLente[] = []
-
-    // La fila del medio de la tabla de potencias es la que Barrett destaca.
-    const filasPotencia = potencias.slice(1)
-    const indiceDestacada = Math.floor(filasPotencia.length / 2)
-
-    filasPotencia.forEach((fila, i) => {
-      const esfera = leerNumeroDeTexto(fila[0])
-      if (esfera === undefined) return
-      opciones.push({
-        esfera,
-        designacion: fila[1]?.trim() || undefined,
-        refraccionPrevista: leerNumeroDeTexto(fila[2]),
-        recomendada: i === indiceDestacada,
-      })
-    })
-
-    // La tabla de tóricas da cilindro de lente y astigmatismo residual, por
-    // designación (T3, T4…). Se guarda una por designación —no solo la de la
-    // opción destacada— porque el criterio propio de Calculator Vilamar
-    // (D43) puede acabar eligiendo una esfera distinta a la que Barrett
-    // destaca, y esa otra esfera **tiene su propia designación** en la
-    // misma tabla de potencias: sin este dato, esa esfera se enseñaría sin
-    // cilindro ni eje, aunque Barrett sí los haya dado.
-    const toricasPorDesignacion = new Map<
-      string,
-      {
-        cilindro: number | undefined
-        cilindroResidual: number | undefined
-        ejeResidual: number | undefined
-      }
-    >()
-    for (const fila of toricas.slice(1)) {
-      const designacion = fila[0]?.trim()
-      if (!designacion) continue
-      const residual = leerCilindroConEje(fila[2])
-      toricasPorDesignacion.set(designacion.toLowerCase(), {
-        cilindro: leerNumeroDeTexto(fila[1]),
-        cilindroResidual: residual.magnitud,
-        ejeResidual: residual.eje,
-      })
-    }
-
-    opciones.forEach((opcion, i) => {
-      const toricaDeEsta = opcion.designacion
-        ? toricasPorDesignacion.get(opcion.designacion.toLowerCase())
-        : undefined
-      if (!toricaDeEsta) return
-      opciones[i] = {
-        ...opcion,
-        cilindro: toricaDeEsta.cilindro,
-        cilindroResidual: toricaDeEsta.cilindroResidual,
-        ejeResidual: toricaDeEsta.ejeResidual,
-        // Barrett no publica un «eje de la lente» aparte: usa el del
-        // astigmatismo residual. No se inventa uno.
-        eje: toricaDeEsta.ejeResidual,
-      }
-    })
+    // Las opciones salen de las dos tablas de Barrett (ver `barrett-opciones.ts`).
+    const { opciones, indiceDestacada } = construirOpcionesDeBarrett(potencias, toricas)
 
     const recomendada: OpcionLente | undefined = opciones[indiceDestacada]
 

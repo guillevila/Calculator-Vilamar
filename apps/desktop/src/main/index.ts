@@ -88,7 +88,7 @@ if (app.isPackaged) {
  * este número es lo ÚLTIMO que se hace al cerrar un cambio en la aplicación
  * de escritorio, justo antes de avisar de que está listo para probar.
  */
-const VERSION_VISIBLE = '1.61'
+const VERSION_VISIBLE = '1.65'
 
 function versionDelProducto(): string {
   return VERSION_VISIBLE
@@ -612,7 +612,16 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
     s().elegirLenteSecundaria(eleccion),
   )
   ipcMain.handle(CANALES.intercambiarLentes, () => s().intercambiarLentes())
-  ipcMain.handle(CANALES.calcular, (_e, calculadoras, filtro) => s().calcular(calculadoras, filtro))
+  ipcMain.handle(CANALES.faltanParaCalcular, (_e, calculadoras, filtro) =>
+    s().faltanParaCalcular(calculadoras, filtro),
+  )
+  ipcMain.handle(CANALES.calcular, (_e, calculadoras, filtro) => {
+    // Si falta algo necesario en algún ojo o aparato a calcular, no se calcula nada
+    // (27/10/2026): la interfaz ya lo comprueba antes, y aquí se vuelve a exigir.
+    const faltan = s().faltanParaCalcular(calculadoras, filtro)
+    if (faltan.texto !== '') throw new Error(faltan.texto)
+    return s().calcular(calculadoras, filtro)
+  })
   ipcMain.handle(CANALES.reintentar, (_e, calculadora, ojo) => s().reintentar(calculadora, ojo))
   ipcMain.handle(CANALES.cancelarCalculo, () => s().cancelarCalculo())
   ipcMain.handle(
@@ -649,7 +658,7 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
         return r.canceled || !r.filePath ? null : r.filePath
       }),
   )
-  ipcMain.handle(CANALES.abrirCarpetaInformes, () => shell.openPath(carpetas.informes))
+  ipcMain.handle(CANALES.abrirCarpetaInformes, () => shell.openPath(s().carpetaDeInformesDelCaso()))
 }
 
 instalarRedDeSeguridad()

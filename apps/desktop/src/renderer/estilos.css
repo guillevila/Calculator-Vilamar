@@ -202,6 +202,23 @@ header.barra .caso {
   color: var(--gris);
   font-size: 13px;
 }
+/* La marca va en dos líneas (nombre y versión / caso y aspecto) y los botones de la
+   derecha pueden pasar a una segunda fila si la ventana es estrecha: nunca se cortan
+   (28/10/2026, petición del dueño). */
+header.barra .marca {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: none;
+}
+header.barra .marca-sub {
+  gap: 8px;
+}
+header.barra .acciones {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 6px;
+}
 
 main.contenido {
   flex: 1;
@@ -392,6 +409,15 @@ table.revision tr.bandeja-normal {
 table.revision tr.bandeja-urgente {
   background: var(--rojo-suave);
   animation: pulso-urgente 1.6s ease-in-out infinite;
+}
+/* «No se puede calcular: faltan datos» (27/10/2026, petición del dueño): en rojo y
+   con el mismo pulso que un dato que falta, para que no pase desapercibido. */
+.aviso.error.faltan-para-calcular {
+  animation: pulso-urgente 1.6s ease-in-out infinite;
+}
+.aviso.error.faltan-para-calcular ul {
+  margin: 8px 0 6px;
+  padding-left: 20px;
 }
 @keyframes pulso-urgente {
   0%,

@@ -17,6 +17,7 @@ import type {
   Lateralidad,
   PlanDeCobro,
   UsoMensual,
+  FaltanParaCalcular,
   CampoBiometrico,
   PrioridadBandeja,
   FiltroAnalisis,
@@ -541,6 +542,15 @@ export interface ApiVilamar {
    *   que permite calcular un biómetro mientras otro del mismo ojo sigue a
    *   medias, sin esperar a que los dos estén listos.
    */
+  /**
+   * Lo que falta (si falta algo) para poder calcular lo que se pide, en TODOS los
+   * ojos y aparatos a calcular (27/10/2026). Si no está vacío, `calcular` se niega.
+   */
+  readonly faltanParaCalcular: (
+    calculadoras?: readonly Calculadora[],
+    filtro?: { readonly ojo?: Lateralidad; readonly aparato?: string },
+  ) => Promise<FaltanParaCalcular & { readonly texto: string }>
+
   readonly calcular: (
     calculadoras?: readonly Calculadora[],
     filtro?: { readonly ojo?: Lateralidad; readonly aparato?: string },
@@ -665,6 +675,7 @@ export const CANALES = {
   elegirLenteSecundaria: 'vilamar:elegir-lente-secundaria',
   intercambiarLentes: 'vilamar:intercambiar-lentes',
   calcular: 'vilamar:calcular',
+  faltanParaCalcular: 'vilamar:faltan-para-calcular',
   reintentar: 'vilamar:reintentar',
   cancelarCalculo: 'vilamar:cancelar-calculo',
   generarPdf: 'vilamar:generar-pdf',

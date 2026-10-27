@@ -25,12 +25,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { JSX } from 'react'
 
-import type { Aviso, CampoBiometrico, Caso, Lateralidad, Medida } from '@vilamar/domain'
+import type {
+  Aviso,
+  CampoBiometrico,
+  Caso,
+  FaltanParaCalcular,
+  Lateralidad,
+  Medida,
+} from '@vilamar/domain'
 import {
   aparatosDe,
   exigenciaDe,
-  fichaDe,
-  quienNoPuedeCalcular,
   textoDeExigencia,
   definicionDe,
   formatearConUnidad,
@@ -48,6 +53,7 @@ import {
 import type { ApiVilamar } from '../../compartido/ipc.js'
 import { api } from '../api.js'
 import { CAMPOS_DESTACADOS } from '../camposNucleo.js'
+import { AvisoFaltan } from './AvisoFaltan.js'
 import { BloqueSexo } from './BloqueSexo.js'
 import { faltaIdentificacion, IdentificacionCaso } from './Identificacion.js'
 import {
@@ -213,18 +219,31 @@ export function PanelRevision({
   const advertencias = useMemo(() => avisos.filter((a) => a.nivel === 'WARNING'), [avisos])
 
   /**
-   * Calculadoras que, con lo que hay escrito, no van a poder calcular.
-   *
-   * Se mira del ojo que se está revisando: los dos ojos pueden tener datos
-   * distintos, y avisar del otro sería confundir.
+   * Lo que falta para poder calcular el ojo que se está revisando, con TODOS sus
+   * aparatos (27/10/2026, petición del dueño). Antes solo se avisaba de qué
+   * calculadoras no iban a poder calcular y se dejaba continuar («las demás calculan
+   * igual»); ahora, si falta algo necesario en cualquier aparato del ojo, no se deja
+   * confirmar. `null` hasta que el proceso principal responde.
    */
-  const sinDatos = useMemo(
-    // El sexo entra en la cuenta: lo pide Kane y no es un campo del ojo. Sin
-    // pasarlo, este aviso decía que Kane podía calcular y después salía «falta el
-    // sexo» tras esperar el recorrido entero de las tres webs.
-    () => quienNoPuedeCalcular(ojo.medidas, caso.sexo?.confirmadoPorUsuario === true),
-    [ojo, caso.sexo],
+  const [faltan, setFaltan] = useState<(FaltanParaCalcular & { readonly texto: string }) | null>(
+    null,
   )
+  useEffect(() => {
+    let cancelado = false
+    void api()
+      .faltanParaCalcular(undefined, { ojo: ojoActivo })
+      .then((f) => {
+        if (!cancelado) setFaltan(f)
+      })
+      .catch(() => {
+        if (!cancelado) setFaltan(null)
+      })
+    return () => {
+      cancelado = true
+    }
+    // `caso` cambia con cada edición: es la señal de «vuelve a comprobar».
+  }, [caso, ojoActivo])
+  const faltanDatos = faltan === null || faltan.texto !== ''
 
   /**
    * Datos que nadie ha mirado todavía. Bloquean la confirmación.
@@ -536,44 +555,13 @@ export function PanelRevision({
           sale de aquí.
         </p>
         {/*
-          Se avisa AQUÍ, antes de pulsar. Hasta ahora esto solo se sabía después:
-          el navegador recorría las tres webs y una decía «faltan datos» — 47
-          segundos para enterarse de algo que se podía haber escrito antes.
-
-          No bloquea. Calcular con dos de tres es un resultado legítimo, y quizá
-          el dato que falta no lo tienes. Pero se dice, y se dice qué falta.
+          Se avisa AQUÍ, antes de pulsar, y ahora BLOQUEA: si falta un dato necesario
+          en algún aparato del ojo, no se confirma ni se calcula nada.
         */}
-        {sinDatos.length > 0 && (
-          <div className="aviso atencion" data-testid="aviso-faltan-requeridos">
-            <strong>
-              Con los datos de {nombreLateralidad(ojoActivo)},{' '}
-              {sinDatos.length === 1 ? 'una' : sinDatos.length}{' '}
-              {sinDatos.length === 1 ? 'calculadora' : 'calculadoras'} no{' '}
-              {sinDatos.length === 1 ? 'va' : 'van'} a poder calcular.
-            </strong>
-            <ul style={{ margin: '6px 0 0', paddingLeft: 20 }}>
-              {sinDatos.map((x) => (
-                <li key={x.calculadora}>
-                  <strong>{fichaDe(x.calculadora).nombre}</strong>: falta{' '}
-                  {[
-                    ...x.faltan.map((c) => definicionDe(c).etiqueta),
-                    // Se nombra como lo que es, y se dice qué hacer: si está
-                    // deducido pero sin comprobar, el hueco no es «ponlo» sino
-                    // «míralo».
-                    ...(x.faltaElSexo
-                      ? [
-                          caso.sexo === undefined
-                            ? 'el sexo del paciente'
-                            : 'comprobar el sexo del paciente',
-                        ]
-                      : []),
-                  ].join(', ')}
-                </li>
-              ))}
-            </ul>
-            Puedes escribir esos datos arriba, o continuar: las demás calculan igual y el informe
-            dirá cuál se quedó sin resultado.
-          </div>
+        {faltan !== null && faltan.texto !== '' && (
+          <AvisoFaltan faltan={faltan} testId="aviso-faltan-requeridos">
+            <p style={{ margin: '6px 0' }}>Escríbelos arriba para poder confirmar.</p>
+          </AvisoFaltan>
         )}
         <div className="fila derecha">
           <button
@@ -585,7 +573,8 @@ export function PanelRevision({
               porComprobar.length > 0 ||
               Object.keys(ojo.medidas).length === 0 ||
               hayDiscrepanciaSinReconocerEnElCaso ||
-              faltaIdentificacion(caso)
+              faltaIdentificacion(caso) ||
+              faltanDatos
             }
             data-testid="confirmar"
           >

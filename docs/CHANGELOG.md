@@ -4,6 +4,38 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.114] — 28/10/2026 (versión visible en pantalla: v1.65)
+
+fix(app): la barra superior vuelve a caber entera, con «Nuevo cálculo» a la vista (D147)
+
+Con el botón de Administración la barra no cabía y «Nuevo cálculo» se cortaba. Ahora el nombre con la versión y, debajo, el caso y el botón de aspecto van juntos a la izquierda en dos líneas pequeñas; los botones de la derecha quedan seguidos y algo más estrechos, y si la ventana es muy estrecha pasan a una segunda fila en lugar de cortarse.
+
+---
+
+## [1.15.113] — 27/10/2026 (versión visible en pantalla: v1.64)
+
+feat(app): si falta un dato necesario en algún ojo o aparato a calcular, no se calcula NADA y se dice qué falta (D146)
+
+Petición del dueño: con dos aparatos en un ojo, uno completo y otro sin un dato (la ACD, por ejemplo), el cálculo arrancaba y solo al final salía que de un aparato no había resultado. Ahora, antes de lanzar ninguna calculadora, se comprueba TODO lo que se va a calcular (los ojos elegidos y todos sus aparatos) y, si falta algo, sale un aviso en rojo y con el pulso de siempre —«No se puede calcular: faltan datos necesarios»— que dice qué falta del caso y de cada ojo y aparato, y no se lanza nada. Se exige siempre: nombre del paciente, doctor, tipo de lente y —si entra Kane— el sexo; y de cada aparato: longitud axial, K1 y su eje, K2 y su eje, ACD, SIA y su eje de incisión, y la constante de la lente; más lo que pida la ficha de cada calculadora. Ojo: Kane ya no calcula en modo no tórico cuando le faltan los ejes o el SIA (antes sí): ahora, por esta regla, se bloquea. El sexo por defecto («Hombre», de un caso nuevo) sigue contando como dato. El bloqueo ya está en el paso 2: el botón «Confirmar datos» se queda cerrado mientras falte algo en algún aparato del ojo que se revisa, y el aviso amarillo que decía «puedes continuar: las demás calculan igual» se sustituye por el aviso rojo. Las pruebas de interfaz que confirmaban con datos mínimos completan ahora lo necesario antes de confirmar.
+
+---
+
+## [1.15.112] — 27/10/2026 (versión visible en pantalla: v1.63)
+
+feat(app): «Abrir la carpeta» tras generar el PDF va directo al paciente (D145)
+
+Petición del dueño: el botón abría la carpeta general de informes y había que bajar a mano por doctor, «Calculados», paciente y ojo. Ahora abre `<doctor>/Calculados/<paciente>`, donde se ven a la vez «Ojo derecho (OD)» y «Ojo izquierdo (OS)» y solo queda un clic. Si esa carpeta no existe, abre la general como antes.
+
+---
+
+## [1.15.111] — 27/10/2026 (versión visible en pantalla: v1.62)
+
+fix(integrations): Barrett guarda TODAS las lentes tóricas de su tabla (T3, T4, T5…), no solo las que usa alguna esfera (D144)
+
+Fallo real señalado por el dueño con el caso CV-2026-0437 (OD): en la comparación y bajo la captura, EVO y Kane enseñaban esfera y cilindro y Barrett solo la esfera; y en la captura de Barrett T3 (1.5 D) dejaba 0.41 D @ 43° —el mismo eje que la córnea— y era la que el criterio propio (el mayor cilindro antes de que el eje cambie) debía elegir. Causa: Barrett da una fila por lente tórica en su segunda tabla, pero el conector solo guardaba el cilindro de las designaciones usadas por la tabla de esferas (aquí todas T4), así que T3 y T5 se perdían y el criterio solo veía T4 (2.25 D, residual @ 133°, eje ya cambiado) y lo descartaba. Ahora las lentes tóricas que ninguna esfera usa se guardan también como opciones sin esfera —igual que EVO y Kane—, con una función compartida por Barrett Toric y Barrett True K Toric. Con ella el caso 0437 elige 1.50 D (residual 0.41 @ 43°). Solo afecta a los cálculos nuevos: los ya guardados no traen T3/T5 y hay que volver a calcular Barrett para tenerlos.
+
+---
+
 ## [1.15.110] — 26/10/2026 (versión visible en pantalla: v1.61)
 
 feat(app): «Consumo de la API» en Administración, con los datos reales de Anthropic (D143)

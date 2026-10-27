@@ -11,7 +11,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 
-import type { Calculadora, Caso, EntradaBandeja, Lateralidad, Aviso } from '@vilamar/domain'
+import type {
+  Calculadora,
+  Caso,
+  EntradaBandeja,
+  FaltanParaCalcular,
+  Lateralidad,
+  Aviso,
+} from '@vilamar/domain'
 import { aparatosDe, NOMBRE_DISPOSITIVO, ojosDelCaso } from '@vilamar/domain'
 
 import { api, hayApi } from './api.js'
@@ -27,6 +34,7 @@ import { aplicarAspecto, leerAspecto } from './aspecto.js'
 import type { Aspecto } from './aspecto.js'
 import { AdministracionScreen } from './componentes/AdministracionScreen.js'
 import { AnalisisScreen } from './componentes/AnalisisScreen.js'
+import { AvisoFaltan } from './componentes/AvisoFaltan.js'
 import { PrimerArranque } from './componentes/PrimerArranque.js'
 import { CargaDeDocumentos } from './componentes/BarraDeProgreso.js'
 import type { CorridaDeCalculo } from './componentes/PanelCalculo.js'
@@ -89,6 +97,10 @@ export function App(): JSX.Element {
   const [avisos, setAvisos] = useState<readonly Aviso[]>([])
   const [estados, setEstados] = useState<readonly EstadoCalculo[]>([])
   const [error, setError] = useState<string | null>(null)
+  // Lo que falta para poder calcular (27/10/2026): si no está vacío, no se lanzó nada.
+  const [faltanAlCalcular, setFaltanAlCalcular] = useState<
+    (FaltanParaCalcular & { readonly texto: string }) | null
+  >(null)
   const [ojoActivo, setOjoActivo] = useState<Lateralidad>('OD')
   // Con qué aparato/biómetro se trabaja en el ojo activo (D47, 27/08/2026).
   // Por defecto, «ZEISS IOLMaster 700» (D115, 02/10/2026, petición expresa
@@ -571,6 +583,19 @@ export function App(): JSX.Element {
       filtro?: { readonly ojo?: Lateralidad; readonly aparato?: string },
     ) => {
       setError(null)
+      setFaltanAlCalcular(null)
+      // Antes de lanzar NADA: si falta un dato necesario en algún ojo o aparato a
+      // calcular, no se calcula ninguno y se dice qué falta (27/10/2026).
+      try {
+        const faltan = await api().faltanParaCalcular(calculadoras, filtro)
+        if (faltan.texto !== '') {
+          setFaltanAlCalcular(faltan)
+          return
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+        return
+      }
       setOcupado(true)
       setCorrida({
         desde: Date.now(),
@@ -620,20 +645,26 @@ export function App(): JSX.Element {
   return (
     <div className="app">
       <header className="barra">
-        <div className="fila">
-          <h1>Calculator Vilamar</h1>
-          {version && <span className="caso">v{version}</span>}
+        {/* La marca, en dos líneas pequeñas (28/10/2026): así los botones de la derecha
+            tienen sitio para verse enteros. */}
+        <div className="marca">
+          <div className="fila">
+            <h1>Calculator Vilamar</h1>
+            {version && <span className="caso">v{version}</span>}
+          </div>
+          <div className="fila marca-sub">
+            {caso && <span className="caso">Caso {caso.codigo}</span>}
+            <button
+              className="boton-aspecto"
+              onClick={cambiarAspecto}
+              data-testid="cambiar-aspecto"
+              title="Cambia el aspecto de la aplicación (colores y formas). No cambia ninguna función."
+            >
+              {aspecto === 'familia' ? 'Aspecto: nuevo' : 'Aspecto: actual'}
+            </button>
+          </div>
         </div>
-        <div className="fila">
-          {caso && <span className="caso">Caso {caso.codigo}</span>}
-          <button
-            className="boton-aspecto"
-            onClick={cambiarAspecto}
-            data-testid="cambiar-aspecto"
-            title="Cambia el aspecto de la aplicación (colores y formas). No cambia ninguna función."
-          >
-            {aspecto === 'familia' ? 'Aspecto: nuevo' : 'Aspecto: actual'}
-          </button>
+        <div className="fila acciones">
           <button
             className="boton-cabecera boton-cabecera-dashboard"
             onClick={() => setPantallaExtra('DASHBOARD')}
@@ -810,6 +841,24 @@ export function App(): JSX.Element {
                 <div className="aviso error" role="alert">
                   <strong>No se ha podido continuar.</strong> {error}
                 </div>
+              )}
+
+              {faltanAlCalcular && (
+                <AvisoFaltan faltan={faltanAlCalcular} testId="faltan-para-calcular">
+                  <p style={{ margin: '6px 0' }}>
+                    No se ha lanzado ninguna calculadora. Completa estos datos en «Revisar datos» y
+                    vuelve a calcular.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setFaltanAlCalcular(null)
+                      setPaso('REVISION')
+                    }}
+                    data-testid="faltan-ir-a-revisar"
+                  >
+                    Ir a revisar los datos
+                  </button>
+                </AvisoFaltan>
               )}
 
               {paso === 'INICIO' && (
