@@ -76,6 +76,8 @@ export interface ResumenCasoGuardado {
   readonly actualizadoEn: string
   /** Si el caso lo tiene — nunca sale de este ordenador (D44), y aquí tampoco. */
   readonly nombrePaciente?: string
+  /** Doctor del caso, para poder buscar por él. */
+  readonly nombreCirujano?: string
   /** Viene de un PDF de otra app: no se abre como caso. */
   readonly importado?: boolean
 }

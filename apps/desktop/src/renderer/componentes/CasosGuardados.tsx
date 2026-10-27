@@ -51,9 +51,29 @@ export function casosParaRevisar(
   return casos.filter((c) => c.estado !== 'BORRADOR' && !c.importado)
 }
 
+/** Sin distinguir mayúsculas ni tildes: «jose» encuentra «José». */
+function normalizar(texto: string): string {
+  return texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+}
+
+/** Casos cuyo código, paciente o doctor contienen todo lo que se ha escrito (28/10/2026). */
+export function filtrarCasos(
+  casos: readonly ResumenCasoGuardado[],
+  busqueda: string,
+): readonly ResumenCasoGuardado[] {
+  const palabras = normalizar(busqueda).split(/\s+/).filter(Boolean)
+  if (palabras.length === 0) return casos
+  return casos.filter((c) => {
+    const texto = normalizar(`${c.codigo} ${c.nombrePaciente ?? ''} ${c.nombreCirujano ?? ''}`)
+    return palabras.every((p) => texto.includes(p))
+  })
+}
+
 export function CasosGuardados({ onAbrir, onVolver }: Props): JSX.Element {
   const [todos, setCasos] = useState<readonly ResumenCasoGuardado[] | null>(null)
-  const casos = todos === null ? null : casosParaRevisar(todos)
+  const [busqueda, setBusqueda] = useState('')
+  const revisables = todos === null ? null : casosParaRevisar(todos)
+  const casos = revisables === null ? null : filtrarCasos(revisables, busqueda)
   const [pagina, setPagina] = useState(0)
   const [abriendo, setAbriendo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -86,8 +106,27 @@ export function CasosGuardados({ onAbrir, onVolver }: Props): JSX.Element {
         </div>
       )}
       {casos === null && <p className="sub">Buscando…</p>}
-      {casos !== null && casos.length === 0 && (
+      {revisables !== null && revisables.length > 0 && (
+        <input
+          type="search"
+          value={busqueda}
+          onChange={(e) => {
+            setBusqueda(e.target.value)
+            setPagina(0)
+          }}
+          placeholder="Buscar por código de caso, paciente o doctor…"
+          aria-label="Buscar casos"
+          data-testid="buscar-casos"
+          style={{ width: '100%', marginBottom: 12 }}
+        />
+      )}
+      {revisables !== null && revisables.length === 0 && (
         <p className="sub">Todavía no hay ningún caso calculado ni con documentos leídos.</p>
+      )}
+      {revisables !== null && revisables.length > 0 && casos?.length === 0 && (
+        <p className="sub" data-testid="sin-resultados-casos">
+          Ningún caso coincide con «{busqueda}».
+        </p>
       )}
       {casos !== null && casos.length > 0 && (
         <table className="revision" data-testid="tabla-casos-guardados">
