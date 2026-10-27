@@ -288,7 +288,7 @@ export function explicarBloqueo(resultado: ResultadoPreparacion): string | null 
   return partes.join(' ')
 }
 
-function nombreLegible(campo: CampoBiometrico): string {
+export function nombreLegible(campo: CampoBiometrico): string {
   // Import diferido para no crear un ciclo con campos.ts en el arranque.
   // (campos.ts no importa este fichero, así que basta con la importación normal.)
   return REGISTRO[campo] ?? campo

@@ -393,6 +393,15 @@ table.revision tr.bandeja-urgente {
   background: var(--rojo-suave);
   animation: pulso-urgente 1.6s ease-in-out infinite;
 }
+/* «No se puede calcular: faltan datos» (27/10/2026, petición del dueño): en rojo y
+   con el mismo pulso que un dato que falta, para que no pase desapercibido. */
+.aviso.error.faltan-para-calcular {
+  animation: pulso-urgente 1.6s ease-in-out infinite;
+}
+.aviso.error.faltan-para-calcular ul {
+  margin: 8px 0 6px;
+  padding-left: 20px;
+}
 @keyframes pulso-urgente {
   0%,
   100% {

@@ -108,6 +108,31 @@ function servicioDePrueba(): {
   return { servicio: new ServicioCasos(dep), carpetas: carpetasDePrueba }
 }
 
+describe('carpetaDeInformesDelCaso — «Abrir la carpeta» va directo al paciente (27/10/2026)', () => {
+  it('sin PDF generado todavía, la carpeta general de informes; con PDF, <doctor>/Calculados/<paciente>', async () => {
+    const { servicio, carpetas: c } = servicioDePrueba()
+    expect(servicio.carpetaDeInformesDelCaso()).toBe(c.informes)
+    servicio.nuevo()
+    servicio.establecerIdentificacion({
+      nombrePaciente: 'Paciente De Prueba',
+      nombreCirujano: 'Dra. Prueba',
+    })
+    expect(servicio.carpetaDeInformesDelCaso()).toBe(c.informes)
+
+    servicio.editarMedida('OD', 'AL', 24.0)
+    servicio.editarMedida('OS', 'AL', 24.3)
+    await servicio.calcular(['KANE'], { ojo: 'OD' })
+    await servicio.calcular(['KANE'], { ojo: 'OS' })
+    await servicio.generarPdf(OPCIONES_COMPLETAS)
+
+    const carpeta = servicio.carpetaDeInformesDelCaso()
+    expect(carpeta).toBe(join(c.informes, 'Dra. Prueba', 'Calculados', 'Paciente De Prueba'))
+    // Dentro están las dos carpetas de ojo: es lo que se ve al abrirla.
+    expect(existsSync(join(carpeta, 'Ojo derecho (OD)'))).toBe(true)
+    expect(existsSync(join(carpeta, 'Ojo izquierdo (OS)'))).toBe(true)
+  })
+})
+
 describe('generarPdf — no saca un PDF vacío de un ojo que nunca se calculó', () => {
   it('con datos en los dos ojos pero solo OD calculado, solo sale el PDF de OD', async () => {
     const { servicio } = servicioDePrueba()

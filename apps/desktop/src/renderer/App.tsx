@@ -11,8 +11,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 
-import type { Calculadora, Caso, EntradaBandeja, Lateralidad, Aviso } from '@vilamar/domain'
-import { aparatosDe, NOMBRE_DISPOSITIVO, ojosDelCaso } from '@vilamar/domain'
+import type {
+  Calculadora,
+  Caso,
+  EntradaBandeja,
+  FaltanParaCalcular,
+  Lateralidad,
+  Aviso,
+} from '@vilamar/domain'
+import { aparatosDe, NOMBRE_DISPOSITIVO, nombreLateralidad, ojosDelCaso } from '@vilamar/domain'
 
 import { api, hayApi } from './api.js'
 import type {
@@ -89,6 +96,10 @@ export function App(): JSX.Element {
   const [avisos, setAvisos] = useState<readonly Aviso[]>([])
   const [estados, setEstados] = useState<readonly EstadoCalculo[]>([])
   const [error, setError] = useState<string | null>(null)
+  // Lo que falta para poder calcular (27/10/2026): si no está vacío, no se lanzó nada.
+  const [faltanAlCalcular, setFaltanAlCalcular] = useState<
+    (FaltanParaCalcular & { readonly texto: string }) | null
+  >(null)
   const [ojoActivo, setOjoActivo] = useState<Lateralidad>('OD')
   // Con qué aparato/biómetro se trabaja en el ojo activo (D47, 27/08/2026).
   // Por defecto, «ZEISS IOLMaster 700» (D115, 02/10/2026, petición expresa
@@ -571,6 +582,19 @@ export function App(): JSX.Element {
       filtro?: { readonly ojo?: Lateralidad; readonly aparato?: string },
     ) => {
       setError(null)
+      setFaltanAlCalcular(null)
+      // Antes de lanzar NADA: si falta un dato necesario en algún ojo o aparato a
+      // calcular, no se calcula ninguno y se dice qué falta (27/10/2026).
+      try {
+        const faltan = await api().faltanParaCalcular(calculadoras, filtro)
+        if (faltan.texto !== '') {
+          setFaltanAlCalcular(faltan)
+          return
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+        return
+      }
       setOcupado(true)
       setCorrida({
         desde: Date.now(),
@@ -809,6 +833,41 @@ export function App(): JSX.Element {
               {error && (
                 <div className="aviso error" role="alert">
                   <strong>No se ha podido continuar.</strong> {error}
+                </div>
+              )}
+
+              {faltanAlCalcular && (
+                <div
+                  className="aviso error faltan-para-calcular"
+                  role="alert"
+                  data-testid="faltan-para-calcular"
+                >
+                  <strong>No se puede calcular: faltan datos necesarios.</strong>
+                  <ul>
+                    {faltanAlCalcular.generales.length > 0 && (
+                      <li>Del caso: {faltanAlCalcular.generales.join(', ')}.</li>
+                    )}
+                    {faltanAlCalcular.porAparato.map((a) => (
+                      <li key={`${a.ojo}-${a.aparato}`}>
+                        {nombreLateralidad(a.ojo)}
+                        {a.aparato !== 'Principal' ? `, aparato «${a.aparato}»` : ''}:{' '}
+                        {a.faltan.join(', ')}.
+                      </li>
+                    ))}
+                  </ul>
+                  <p style={{ margin: '6px 0' }}>
+                    No se ha lanzado ninguna calculadora. Completa estos datos en «Revisar datos» y
+                    vuelve a calcular.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setFaltanAlCalcular(null)
+                      setPaso('REVISION')
+                    }}
+                    data-testid="faltan-ir-a-revisar"
+                  >
+                    Ir a revisar los datos
+                  </button>
                 </div>
               )}
 

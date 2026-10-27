@@ -110,6 +110,8 @@ const api: ApiVilamar = {
   elegirLenteSecundaria: (eleccion) => ipcRenderer.invoke(CANALES.elegirLenteSecundaria, eleccion),
   intercambiarLentes: () => ipcRenderer.invoke(CANALES.intercambiarLentes),
 
+  faltanParaCalcular: (calculadoras, filtro) =>
+    ipcRenderer.invoke(CANALES.faltanParaCalcular, calculadoras, filtro),
   calcular: (calculadoras, filtro) => ipcRenderer.invoke(CANALES.calcular, calculadoras, filtro),
   reintentar: (calculadora, ojo) => ipcRenderer.invoke(CANALES.reintentar, calculadora, ojo),
   cancelarCalculo: () => ipcRenderer.invoke(CANALES.cancelarCalculo),

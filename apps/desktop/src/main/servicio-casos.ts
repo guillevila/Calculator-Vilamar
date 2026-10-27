@@ -37,6 +37,7 @@ import type {
   ResultadoAnalisis,
   ResumenDashboard,
   UsoMensual,
+  FaltanParaCalcular,
   Sexo,
   SituacionCornealEspecial,
 } from '@vilamar/domain'
@@ -93,6 +94,8 @@ import {
   sinRepetidas,
   tiene,
   usoPorMes,
+  datosQueFaltanParaCalcular,
+  textoDeFaltantes,
   validarOjo,
 } from '@vilamar/domain'
 import type { DocumentoEntrada, LectorVision, ProveedorExtraccion } from '@vilamar/extraction'
@@ -343,6 +346,25 @@ export class ServicioCasos {
 
   obtener(): Caso | null {
     return this.caso
+  }
+
+  /**
+   * Dónde abrir «Abrir la carpeta» tras generar el PDF (27/10/2026, petición del
+   * dueño: llegar directo al paciente, con «Ojo derecho» y «Ojo izquierdo» a la
+   * vista, sin bajar por informes → doctor → Calculados → paciente a mano):
+   * `<informes>/<doctor>/Calculados/<paciente>`. Si esa carpeta no existe (o no
+   * hay caso abierto), la carpeta general de informes, como antes.
+   */
+  carpetaDeInformesDelCaso(): string {
+    const caso = this.caso
+    if (!caso) return this.dep.carpetas.informes
+    const carpetaPaciente = join(
+      this.dep.carpetas.informes,
+      nombreDeCarpeta(caso.nombreCirujano, NOMBRE_CARPETA_SIN_DOCTOR),
+      'Calculados',
+      nombreDeCarpeta(caso.nombrePaciente, caso.codigo),
+    )
+    return existsSync(carpetaPaciente) ? carpetaPaciente : this.dep.carpetas.informes
   }
 
   nuevo(): Caso {
@@ -1645,15 +1667,7 @@ export class ServicioCasos {
     filtro?: { readonly ojo?: Lateralidad; readonly aparato?: string },
   ): Promise<readonly ResultadoCalculadora[]> {
     const caso = this.exigirCaso()
-    const opciones = {
-      ...(calculadoras !== undefined ? { calculadoras } : {}),
-      ...(filtro?.ojo !== undefined ? { ojos: [filtro.ojo] } : {}),
-      ...(filtro?.aparato !== undefined ? { aparatos: [filtro.aparato] } : {}),
-    }
-    const planificadas = planificarCaso(
-      caso,
-      Object.keys(opciones).length > 0 ? opciones : undefined,
-    )
+    const planificadas = this.casillasPlanificadas(caso, calculadoras, filtro)
 
     // Un ojo con una discrepancia entre sus aparatos sin reconocer no calcula
     // — ni siquiera el aparato que "parece" estar bien, porque la duda es
@@ -1674,6 +1688,38 @@ export class ServicioCasos {
     }
 
     return this.ejecutar(base)
+  }
+
+  /** Las casillas (calculadora, ojo, aparato) que `calcular` intentaría con estos parámetros. */
+  private casillasPlanificadas(
+    caso: Caso,
+    calculadoras?: readonly Calculadora[],
+    filtro?: { readonly ojo?: Lateralidad; readonly aparato?: string },
+  ): readonly TareaCalculo[] {
+    const opciones = {
+      ...(calculadoras !== undefined ? { calculadoras } : {}),
+      ...(filtro?.ojo !== undefined ? { ojos: [filtro.ojo] } : {}),
+      ...(filtro?.aparato !== undefined ? { aparatos: [filtro.aparato] } : {}),
+    }
+    return planificarCaso(caso, Object.keys(opciones).length > 0 ? opciones : undefined)
+  }
+
+  /**
+   * ¿Falta algo necesario en alguno de los ojos y aparatos que se van a calcular?
+   * (27/10/2026, petición del dueño.) Si sí, no se calcula NADA: se dice qué falta y
+   * dónde (ver `datosQueFaltanParaCalcular`). Los ojos con una discrepancia entre
+   * aparatos sin reconocer se dejan fuera, como hace `calcular`: ese aviso ya existe.
+   */
+  faltanParaCalcular(
+    calculadoras?: readonly Calculadora[],
+    filtro?: { readonly ojo?: Lateralidad; readonly aparato?: string },
+  ): FaltanParaCalcular & { readonly texto: string } {
+    const caso = this.exigirCaso()
+    const tareas = this.casillasPlanificadas(caso, calculadoras, filtro).filter(
+      (t) => !this.tieneDiscrepanciaSinReconocer(caso, t.ojo),
+    )
+    const faltan = datosQueFaltanParaCalcular(caso, tareas)
+    return { ...faltan, texto: textoDeFaltantes(faltan) }
   }
 
   /**
