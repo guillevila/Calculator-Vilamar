@@ -4,6 +4,14 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.114] — 28/10/2026 (versión visible en pantalla: v1.65)
+
+fix(app): la barra superior vuelve a caber entera, con «Nuevo cálculo» a la vista (D147)
+
+Con el botón de Administración la barra no cabía y «Nuevo cálculo» se cortaba. Ahora el nombre con la versión y, debajo, el caso y el botón de aspecto van juntos a la izquierda en dos líneas pequeñas; los botones de la derecha quedan seguidos y algo más estrechos, y si la ventana es muy estrecha pasan a una segunda fila en lugar de cortarse.
+
+---
+
 ## [1.15.113] — 27/10/2026 (versión visible en pantalla: v1.64)
 
 feat(app): si falta un dato necesario en algún ojo o aparato a calcular, no se calcula NADA y se dice qué falta (D146)

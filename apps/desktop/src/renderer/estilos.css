@@ -202,6 +202,23 @@ header.barra .caso {
   color: var(--gris);
   font-size: 13px;
 }
+/* La marca va en dos líneas (nombre y versión / caso y aspecto) y los botones de la
+   derecha pueden pasar a una segunda fila si la ventana es estrecha: nunca se cortan
+   (28/10/2026, petición del dueño). */
+header.barra .marca {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: none;
+}
+header.barra .marca-sub {
+  gap: 8px;
+}
+header.barra .acciones {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 6px;
+}
 
 main.contenido {
   flex: 1;

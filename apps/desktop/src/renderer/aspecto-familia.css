@@ -75,15 +75,22 @@ html[data-aspecto='familia'] .opciones-devueltas h3 {
 
 html[data-aspecto='familia'] header.barra {
   min-height: 70px;
-  padding: 0 28px;
+  padding: 6px 24px;
   background: #fff;
   border-bottom: 1px solid var(--linea);
 }
-/* La barra no se parte en dos líneas: la letra Inter es algo más ancha que la de siempre. */
+/* Los textos de la barra no se parten por dentro (la letra Inter es algo más ancha que la
+   de siempre). Los botones de la derecha sí pueden pasar a otra fila si no caben. */
 html[data-aspecto='familia'] header.barra .fila {
-  flex-wrap: nowrap;
   white-space: nowrap;
   gap: 8px;
+}
+html[data-aspecto='familia'] header.barra .marca .fila {
+  flex-wrap: nowrap;
+}
+html[data-aspecto='familia'] header.barra .acciones {
+  flex-wrap: wrap;
+  gap: 6px 8px;
 }
 html[data-aspecto='familia'] header.barra h1 {
   font-size: 18px;
@@ -124,7 +131,7 @@ html[data-aspecto='familia'] button.claro:hover:not(:disabled) {
 
 /* Los botones de la barra: suaves, como su «Cerrar sesión»; «Nuevo cálculo», el principal. */
 html[data-aspecto='familia'] button.boton-cabecera {
-  padding: 8px 12px;
+  padding: 7px 10px;
   font-size: 13.5px;
   background: var(--f-turquesa-suave);
   color: var(--f-turquesa-fuerte);

@@ -645,20 +645,26 @@ export function App(): JSX.Element {
   return (
     <div className="app">
       <header className="barra">
-        <div className="fila">
-          <h1>Calculator Vilamar</h1>
-          {version && <span className="caso">v{version}</span>}
+        {/* La marca, en dos líneas pequeñas (28/10/2026): así los botones de la derecha
+            tienen sitio para verse enteros. */}
+        <div className="marca">
+          <div className="fila">
+            <h1>Calculator Vilamar</h1>
+            {version && <span className="caso">v{version}</span>}
+          </div>
+          <div className="fila marca-sub">
+            {caso && <span className="caso">Caso {caso.codigo}</span>}
+            <button
+              className="boton-aspecto"
+              onClick={cambiarAspecto}
+              data-testid="cambiar-aspecto"
+              title="Cambia el aspecto de la aplicación (colores y formas). No cambia ninguna función."
+            >
+              {aspecto === 'familia' ? 'Aspecto: nuevo' : 'Aspecto: actual'}
+            </button>
+          </div>
         </div>
-        <div className="fila">
-          {caso && <span className="caso">Caso {caso.codigo}</span>}
-          <button
-            className="boton-aspecto"
-            onClick={cambiarAspecto}
-            data-testid="cambiar-aspecto"
-            title="Cambia el aspecto de la aplicación (colores y formas). No cambia ninguna función."
-          >
-            {aspecto === 'familia' ? 'Aspecto: nuevo' : 'Aspecto: actual'}
-          </button>
+        <div className="fila acciones">
           <button
             className="boton-cabecera boton-cabecera-dashboard"
             onClick={() => setPantallaExtra('DASHBOARD')}
