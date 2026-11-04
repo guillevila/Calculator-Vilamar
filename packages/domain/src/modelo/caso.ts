@@ -186,6 +186,11 @@ export interface Caso {
    * desde «Casos guardados» — nunca se pierde con la sesión.
    */
   readonly pedidosLente?: Readonly<Partial<Record<Lateralidad, PedidoLente>>>
+  /**
+   * Las calculadoras que se lanzaron en el ÚLTIMO cálculo (29/10/2026): al añadir una
+   * calculadora a un caso ya calculado, el PDF puede llevar solo ésta o todas.
+   */
+  readonly ultimaTanda?: readonly Calculadora[]
   /** Solo en un caso importado de otra app (ver `DatosImportados`). */
   readonly importado?: DatosImportados
 }

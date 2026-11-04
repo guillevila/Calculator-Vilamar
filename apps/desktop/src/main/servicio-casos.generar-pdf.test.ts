@@ -793,3 +793,64 @@ describe('barra de carga de fotos — avisos de progreso (21/10/2026)', () => {
     ])
   })
 })
+
+describe('generarPdf — solo el último cálculo (29/10/2026)', () => {
+  function servicioEspiado(): {
+    servicio: InstanceType<typeof ServicioCasos>
+    imprimirPdf: ReturnType<typeof vi.fn>
+  } {
+    const imprimirPdf = vi.fn(() => Promise.resolve())
+    const dep: DependenciasServicio = {
+      carpetas: prepararCarpetas(raizTemporal()),
+      proveedor: {
+        nombre: 'test',
+        puedeCon: () => false,
+        extraer: () => Promise.reject(new Error('no usado')),
+      },
+      diagnosticador: { carpeta: '', guardar: () => Promise.resolve('') },
+      capturas: { carpeta: '', guardar: () => Promise.resolve(''), leer: () => null },
+      version: '0.0.0-test',
+      ahora: () => new Date('2026-10-29T10:00:00.000Z'),
+      abrirNavegador: () => Promise.resolve({ close: () => Promise.resolve() } as never),
+      imprimirPdf,
+      emitirProgreso: () => {},
+      emitirCaso: () => {},
+    }
+    return { servicio: new ServicioCasos(dep), imprimirPdf }
+  }
+
+  async function casoConDosTandas(): Promise<ReturnType<typeof servicioEspiado>> {
+    const piezas = servicioEspiado()
+    piezas.servicio.nuevo()
+    piezas.servicio.establecerIdentificacion({ nombrePaciente: 'Paciente De Prueba' })
+    piezas.servicio.editarMedida('OD', 'AL', 24.0)
+    await piezas.servicio.calcular(['KANE'])
+    await piezas.servicio.calcular(['EVO_TORIC'])
+    return piezas
+  }
+
+  it('recuerda las calculadoras del último cálculo', async () => {
+    const { servicio } = await casoConDosTandas()
+    expect(servicio.obtener()?.ultimaTanda).toEqual(['EVO_TORIC'])
+  })
+
+  it('por defecto el PDF lleva las de antes y las nuevas', async () => {
+    const { servicio, imprimirPdf } = await casoConDosTandas()
+    await servicio.generarPdf(OPCIONES_COMPLETAS)
+    const html = imprimirPdf.mock.calls[0]?.[0] as string
+    expect(html).toContain('Kane')
+    expect(html).toContain('EVO')
+  })
+
+  it('con «solo el último cálculo» no lleva las de antes', async () => {
+    const { servicio, imprimirPdf } = await casoConDosTandas()
+    await servicio.generarPdf(OPCIONES_COMPLETAS)
+    await servicio.generarPdf({ ...OPCIONES_COMPLETAS, soloUltimoCalculo: true })
+    const todo = imprimirPdf.mock.calls[0]?.[0] as string
+    const soloUltimo = imprimirPdf.mock.calls[1]?.[0] as string
+    // «Kane» sigue saliendo en el párrafo legal; lo que desaparece son sus hojas.
+    const veces = (html: string): number => html.split('Kane').length - 1
+    expect(soloUltimo).toContain('EVO')
+    expect(veces(soloUltimo)).toBeLessThan(veces(todo))
+  })
+})

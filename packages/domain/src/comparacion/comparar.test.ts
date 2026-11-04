@@ -283,3 +283,33 @@ describe('«no hay dato» y «no elige» son cosas distintas', () => {
     expect(kane?.esfera).toEqual({ estado: 'NO_DISPONIBLE' })
   })
 })
+
+describe('nombres de las columnas (29/10/2026)', () => {
+  const todas: Calculadora[] = [
+    'EVO_TORIC',
+    'EVO_TORIC_SIN_CARA_POSTERIOR',
+    'BARRETT_TORIC',
+    'BARRETT_TORIC_CON_CARA_POSTERIOR',
+  ]
+
+  it('con y sin córnea posterior, EVO y Barrett se llaman medido y estimado', () => {
+    const r = Object.fromEntries(todas.map((c) => [c, resultado(c, 22)]))
+    const nombres = compararOjo('OD', r, todas).celdas.map((c) => c.nombre)
+    expect(nombres).toEqual([
+      'EVO medido',
+      'EVO estimado',
+      'Barrett estimado (cara post. estimada)',
+      'Barrett medido (cara post. medida)',
+    ])
+  })
+
+  it('sin la variante de córnea posterior, conservan su nombre de siempre', () => {
+    const r = {
+      EVO_TORIC: resultado('EVO_TORIC', 22),
+      BARRETT_TORIC: resultado('BARRETT_TORIC', 22),
+    }
+    const nombres = compararOjo('OD', r, todas).celdas.map((c) => c.nombre)
+    expect(nombres[0]).toBe('EVO Toric')
+    expect(nombres[2]).toBe('Barrett Toric')
+  })
+})

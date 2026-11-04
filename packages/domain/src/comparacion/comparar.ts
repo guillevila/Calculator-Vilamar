@@ -407,6 +407,31 @@ function enumerar(nombres: readonly string[]): string {
 }
 
 /**
+ * Cómo se llama cada columna EN LA COMPARACIÓN (petición del dueño, 29/10/2026). Cuando a un
+ * ojo se le pidió con y sin córnea posterior, las dos columnas de EVO y de Barrett se
+ * llaman «medido» y «estimado» (según la córnea posterior que usaron), en vez de «sin
+ * córnea posterior» y el nombre a secas. Si solo hay una de las dos, queda su nombre de
+ * siempre. En el resto de la aplicación `fichaDe(...).nombre` no cambia.
+ */
+export function nombreEnComparativa(
+  calculadora: Calculadora,
+  resultados: Partial<Record<Calculadora, ResultadoCalculadora>>,
+): string {
+  const hay = (c: Calculadora): boolean => resultados[c] !== undefined
+  if (hay('EVO_TORIC_SIN_CARA_POSTERIOR')) {
+    if (calculadora === 'EVO_TORIC') return 'EVO medido'
+    if (calculadora === 'EVO_TORIC_SIN_CARA_POSTERIOR') return 'EVO estimado'
+  }
+  if (hay('BARRETT_TORIC_CON_CARA_POSTERIOR')) {
+    if (calculadora === 'BARRETT_TORIC') return 'Barrett estimado (cara post. estimada)'
+    if (calculadora === 'BARRETT_TORIC_CON_CARA_POSTERIOR') {
+      return 'Barrett medido (cara post. medida)'
+    }
+  }
+  return fichaDe(calculadora).nombre
+}
+
+/**
  * Construye la comparativa de un ojo.
  *
  * `resultados` puede tener huecos: una calculadora que no se ejecutó, o que
@@ -422,7 +447,10 @@ export function compararOjo(
   resultados: Partial<Record<Calculadora, ResultadoCalculadora>>,
   ordenColumnas: readonly Calculadora[] = ['KANE', 'EVO_TORIC', 'BARRETT_TORIC'],
 ): Comparativa {
-  const celdas = ordenColumnas.map((c) => aCelda(c, resultados[c]))
+  const celdas = ordenColumnas.map((c) => ({
+    ...aCelda(c, resultados[c]),
+    nombre: nombreEnComparativa(c, resultados),
+  }))
   const observaciones: Observacion[] = []
   const conDatos = celdas.filter((c) => c.esfera.estado === 'VALOR')
 

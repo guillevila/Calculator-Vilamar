@@ -27,7 +27,8 @@
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 
-import type { Caso, Doctor } from '@vilamar/domain'
+import { aparatosDe, nombreLateralidad, ojoDe, ojosDelCaso, valorDe } from '@vilamar/domain'
+import type { Caso, Doctor, Lateralidad } from '@vilamar/domain'
 
 import { api } from '../api.js'
 
@@ -131,6 +132,93 @@ function SelectorDoctorGuardado({
   )
 }
 
+/**
+ * La SIA (potencia) y el eje de la incisión de UN ojo, junto al nombre del doctor
+ * (petición del dueño, 30/10/2026). Enseña lo que el caso ya tiene grabado; al
+ * cambiarlo se cambia en TODOS los aparatos de ese ojo a la vez, para no tener que
+ * corregirlo en cada uno. Si los aparatos no coinciden entre sí, la casilla sale
+ * vacía con «varios» hasta que se escriba un valor.
+ */
+function SiaDelOjo({
+  caso,
+  lado,
+  onCambio,
+}: {
+  readonly caso: Caso
+  readonly lado: Lateralidad
+  readonly onCambio: () => Promise<void>
+}): JSX.Element {
+  const aparatos = aparatosDe(caso, lado)
+  const comun = (campo: 'SIA' | 'EJE_INCISION'): string => {
+    const valores = new Set(aparatos.map((a) => valorDe(ojoDe(caso, lado, a), campo)))
+    if (valores.size !== 1) return ''
+    const v = [...valores][0]
+    return v === undefined ? '' : String(v)
+  }
+  const hayVarios = (campo: 'SIA' | 'EJE_INCISION'): boolean =>
+    new Set(aparatos.map((a) => valorDe(ojoDe(caso, lado, a), campo))).size > 1
+
+  const [sia, setSia] = useState(comun('SIA'))
+  const [eje, setEje] = useState(comun('EJE_INCISION'))
+  const siaGuardada = comun('SIA')
+  const ejeGuardado = comun('EJE_INCISION')
+  useEffect(() => setSia(siaGuardada), [siaGuardada])
+  useEffect(() => setEje(ejeGuardado), [ejeGuardado])
+
+  async function guardar(campo: 'SIA' | 'EJE_INCISION', texto: string): Promise<void> {
+    const valor = Number(texto.replace(',', '.'))
+    const actual = campo === 'SIA' ? siaGuardada : ejeGuardado
+    // Vacío o ilegible: no se inventa nada, se vuelve a lo que había.
+    if (texto.trim() === '' || !Number.isFinite(valor)) {
+      if (campo === 'SIA') setSia(actual)
+      else setEje(actual)
+      return
+    }
+    if (String(valor) === actual) return
+    for (const aparato of aparatos) {
+      await api().editarMedida(lado, campo, valor, aparato)
+    }
+    await onCambio()
+  }
+
+  const clave = lado.toLowerCase()
+  return (
+    <div>
+      <label>SIA · {nombreLateralidad(lado)}</label>
+      <div className="fila" style={{ gap: 6, flexWrap: 'nowrap' }}>
+        <input
+          value={sia}
+          inputMode="decimal"
+          style={{ width: 78 }}
+          placeholder={hayVarios('SIA') ? 'varios' : 'D'}
+          aria-label={`SIA ${lado}`}
+          title="Potencia de la SIA (D). Al cambiarla se cambia en todos los aparatos de este ojo."
+          data-testid={`identificacion-sia-${clave}`}
+          onChange={(e) => setSia(e.target.value)}
+          onBlur={() => void guardar('SIA', sia)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void guardar('SIA', sia)
+          }}
+        />
+        <input
+          value={eje}
+          inputMode="decimal"
+          style={{ width: 78 }}
+          placeholder={hayVarios('EJE_INCISION') ? 'varios' : '°'}
+          aria-label={`Eje de la incisión ${lado}`}
+          title="Eje de la incisión (°). Al cambiarlo se cambia en todos los aparatos de este ojo."
+          data-testid={`identificacion-eje-incision-${clave}`}
+          onChange={(e) => setEje(e.target.value)}
+          onBlur={() => void guardar('EJE_INCISION', eje)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void guardar('EJE_INCISION', eje)
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
 export function IdentificacionCaso({
   caso,
   onCambio,
@@ -161,6 +249,9 @@ export function IdentificacionCaso({
           testId="identificacion-cirujano"
         />
         <SelectorDoctorGuardado onElegido={onCambio} />
+        {ojosDelCaso(caso).map((lado) => (
+          <SiaDelOjo key={lado} caso={caso} lado={lado} onCambio={onCambio} />
+        ))}
         <CampoIdentificacion
           etiqueta="Nombre del paciente"
           valorInicial={caso.nombrePaciente ?? ''}
