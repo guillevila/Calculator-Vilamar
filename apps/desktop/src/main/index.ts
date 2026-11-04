@@ -88,7 +88,7 @@ if (app.isPackaged) {
  * este número es lo ÚLTIMO que se hace al cerrar un cambio en la aplicación
  * de escritorio, justo antes de avisar de que está listo para probar.
  */
-const VERSION_VISIBLE = '1.67'
+const VERSION_VISIBLE = '1.69'
 
 function versionDelProducto(): string {
   return VERSION_VISIBLE
@@ -632,6 +632,7 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
         incluirEstimacionCompleta: boolean
         incluirTablaComparativaDetallada: boolean
         soloResumen: boolean
+        soloUltimoCalculo?: boolean
       },
     ) => s().generarPdf(opciones),
   )
@@ -646,6 +647,7 @@ function registrarCanales(carpetas: ReturnType<typeof prepararCarpetas>): void {
         ojo: Lateralidad
         incluirEstimacionCompleta: boolean
         incluirTablaComparativaDetallada: boolean
+        soloUltimoCalculo?: boolean
       },
     ) =>
       s().guardarPdfDeOjo(opciones, async (nombreSugerido) => {

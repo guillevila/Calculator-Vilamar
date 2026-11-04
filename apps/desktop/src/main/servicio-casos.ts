@@ -1770,7 +1770,12 @@ export class ServicioCasos {
 
     if (tareas.length === 0) return []
 
-    caso = this.establecer({ ...caso, estado: 'CALCULANDO', actualizadoEn: this.iso() })
+    caso = this.establecer({
+      ...caso,
+      estado: 'CALCULANDO',
+      actualizadoEn: this.iso(),
+      ultimaTanda: [...new Set(tareas.map((t) => t.calculadora))],
+    })
 
     const conVentana = necesitaVentana([...new Set(tareas.map((t) => t.calculadora))])
     let navegador: Browser | null = null
@@ -1877,13 +1882,15 @@ export class ServicioCasos {
       readonly ojo: Lateralidad
       readonly incluirEstimacionCompleta: boolean
       readonly incluirTablaComparativaDetallada: boolean
+      readonly soloUltimoCalculo?: boolean
     },
     elegirDestino: (nombreSugerido: string) => Promise<string | null>,
   ): Promise<{ ruta: string } | null> {
     const caso = this.exigirCaso()
-    const resultadosDelOjo = this.recopilarResultadosParaInforme(caso).filter(
-      (r) => r.ojo === opciones.ojo,
-    )
+    const resultadosDelOjo = this.recopilarResultadosParaInforme(
+      caso,
+      opciones.soloUltimoCalculo === true,
+    ).filter((r) => r.ojo === opciones.ojo)
     if (!ojosDelCaso(caso).includes(opciones.ojo)) {
       throw new Error(`Este caso no tiene datos del ${nombreLateralidad(opciones.ojo)}.`)
     }
@@ -1979,12 +1986,17 @@ export class ServicioCasos {
     readonly incluirEstimacionCompleta: boolean
     readonly incluirTablaComparativaDetallada: boolean
     readonly soloResumen: boolean
+    /** Solo las calculadoras del último cálculo (29/10/2026); por defecto, todas. */
+    readonly soloUltimoCalculo?: boolean
   }): Promise<{
     rutas: readonly { ojo: Lateralidad; ruta: string }[]
     rutasResumen: readonly { ojo: Lateralidad; ruta: string }[]
   }> {
     const caso = this.exigirCaso()
-    const todosLosResultados = this.recopilarResultadosParaInforme(caso)
+    const todosLosResultados = this.recopilarResultadosParaInforme(
+      caso,
+      opciones.soloUltimoCalculo === true,
+    )
     const marca = this.iso().replace(/[:.]/g, '-').slice(0, 19)
     const hayAlgunResultado = todosLosResultados.length > 0
     const ojosConResultados = ojosDelCaso(caso).filter(
@@ -2144,9 +2156,15 @@ export class ServicioCasos {
    * de Barrett y Kane diciendo «no se ha calculado», llenando el PDF de
    * páginas sobre calculadoras que nadie quería usar.
    */
-  private recopilarResultadosParaInforme(caso: Caso): readonly ResultadoInforme[] {
+  private recopilarResultadosParaInforme(
+    caso: Caso,
+    soloUltimoCalculo = false,
+  ): readonly ResultadoInforme[] {
     const resultados: ResultadoInforme[] = []
+    // Sin tanda guardada (un caso calculado antes de existir este dato) no se filtra nada.
+    const tanda = soloUltimoCalculo ? caso.ultimaTanda : undefined
     const anadirCasilla = (c: Calculadora, ojo: Lateralidad, aparato: string): void => {
+      if (tanda !== undefined && !tanda.includes(c)) return
       const r = resultadoDe(caso, c, ojo, aparato)
       if (r === undefined) return
 

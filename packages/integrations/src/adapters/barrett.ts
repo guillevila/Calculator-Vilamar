@@ -405,9 +405,25 @@ export class AdaptadorBarrettToric implements AdaptadorCalculadora {
     const { PK1, PK2, PK1_EJE, PK2_EJE } = entradas.valores
     if (PK1 === undefined || PK2 === undefined) return
 
+    // Hasta tres intentos (29/10/2026): en el caso 0460 el ojo derecho no encontró el
+    // panel y el izquierdo —con exactamente lo mismo— sí. Si la web aún está
+    // recargando tras el primer «Calculate», el clic se pierde; esperar y volver a
+    // marcar lo arregla, y si tras tres intentos sigue sin salir, se avisa como antes.
     try {
-      await calc.click(SEL.medidaPCA)
-      await calc.locator(SEL.flatKPosterior).waitFor({ state: 'visible', timeout: 15_000 })
+      let ultimoError: unknown
+      for (let intento = 1; intento <= 3; intento++) {
+        try {
+          await calc.locator(SEL.medidaPCA).waitFor({ state: 'visible', timeout: 15_000 })
+          await calc.click(SEL.medidaPCA)
+          await calc.locator(SEL.flatKPosterior).waitFor({ state: 'visible', timeout: 15_000 })
+          ultimoError = undefined
+          break
+        } catch (e) {
+          ultimoError = e
+          await pagina.waitForTimeout(2000)
+        }
+      }
+      if (ultimoError !== undefined) throw ultimoError
     } catch (error) {
       throw new ErrorAdaptador(
         'ADAPTER_BROKEN',

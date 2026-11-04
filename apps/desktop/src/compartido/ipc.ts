@@ -600,11 +600,13 @@ export interface ApiVilamar {
     readonly ojo: Lateralidad
     readonly incluirEstimacionCompleta: boolean
     readonly incluirTablaComparativaDetallada: boolean
+    readonly soloUltimoCalculo?: boolean
   }) => Promise<{ readonly ruta: string } | null>
   readonly generarPdf: (opciones: {
     readonly incluirEstimacionCompleta: boolean
     readonly incluirTablaComparativaDetallada: boolean
     readonly soloResumen: boolean
+    readonly soloUltimoCalculo?: boolean
   }) => Promise<{
     readonly rutas: readonly { readonly ojo: Lateralidad; readonly ruta: string }[]
     readonly rutasResumen: readonly { readonly ojo: Lateralidad; readonly ruta: string }[]

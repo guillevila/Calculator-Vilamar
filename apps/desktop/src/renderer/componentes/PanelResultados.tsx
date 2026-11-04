@@ -593,6 +593,7 @@ export function PanelResultados({
   // Apagado por defecto (D120, 06/10/2026): petición expresa del dueño — el
   // PDF normal sale limpio, sin estimación ni tabla, salvo que se marquen.
   const [incluirTablaComparativaDetallada, setIncluirTablaComparativaDetallada] = useState(false)
+  const [soloUltimoCalculo, setSoloUltimoCalculo] = useState(false)
 
   // Las cinco casillas de siempre (D45/D48): Predicted y Measured PCA de EVO
   // y de Barrett, más Kane — la que no se haya pedido para este ojo y
@@ -654,6 +655,14 @@ export function PanelResultados({
   const ojosConResultado = ojos.filter((o) =>
     COLUMNAS_COMPARATIVA.some((c) => resultadoDe(caso, c, o) !== undefined),
   )
+  // (29/10/2026) Si a un caso ya calculado se le añade otra calculadora, el PDF puede llevar
+  // todas o solo las del último cálculo. La casilla solo sale cuando hay algo que elegir.
+  const calculadorasConResultado = new Set(
+    Object.values(caso.resultados ?? {}).map((r) => r.calculadora),
+  )
+  const ultimaTanda = caso.ultimaTanda ?? []
+  const hayCalculosAnteriores =
+    ultimaTanda.length > 0 && [...calculadorasConResultado].some((c) => !ultimaTanda.includes(c))
   async function guardarPdfDe(ojo: Lateralidad): Promise<void> {
     setGuardandoOjo(ojo)
     setError(null)
@@ -662,6 +671,7 @@ export function PanelResultados({
         ojo,
         incluirEstimacionCompleta,
         incluirTablaComparativaDetallada,
+        soloUltimoCalculo: soloUltimoCalculo && hayCalculosAnteriores,
       })
       if (r) setRutaGuardada({ ojo, ruta: r.ruta })
     } catch (e) {
@@ -682,6 +692,7 @@ export function PanelResultados({
         incluirEstimacionCompleta,
         incluirTablaComparativaDetallada,
         soloResumen,
+        soloUltimoCalculo: soloUltimoCalculo && hayCalculosAnteriores,
       })
       if (soloResumen) setRutasResumen(r.rutasResumen)
       else setRutas(r.rutas)
@@ -1059,6 +1070,24 @@ export function PanelResultados({
             </span>
           </span>
         </label>
+        {hayCalculosAnteriores && (
+          <label className="fila" style={{ gap: 8, alignItems: 'center', marginBottom: 12 }}>
+            <input
+              type="checkbox"
+              checked={soloUltimoCalculo}
+              onChange={(e) => setSoloUltimoCalculo(e.target.checked)}
+              data-testid="solo-ultimo-calculo"
+            />
+            <span>
+              Solo lo calculado en el último cálculo (
+              {ultimaTanda.map((c) => fichaDe(c).nombre).join(', ')})
+              <span className="pie-nota" style={{ display: 'block' }}>
+                Sin marcar, el PDF lleva todas las calculadoras que ya tiene este caso: las de antes
+                y las nuevas.
+              </span>
+            </span>
+          </label>
+        )}
         <div className="fila derecha">
           {rutas.length > 0 && (
             <button onClick={() => void api().abrirCarpetaInformes()}>Abrir la carpeta</button>

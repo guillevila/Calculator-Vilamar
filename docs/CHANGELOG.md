@@ -4,6 +4,26 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.118] — 30/10/2026 (versión visible en pantalla: v1.69)
+
+feat(app): la SIA y su eje, junto al nombre del doctor, una vez por ojo y para todos sus aparatos (D151)
+
+- En «Identificación» salen, para cada ojo del caso, la SIA (D) y el eje de la incisión (°) que ya tiene grabados el caso.
+- Al editarlos se cambian en todos los aparatos de ese ojo a la vez; si los aparatos no coinciden, la casilla sale vacía con «varios».
+- Vacío o ilegible no se aplica: no se inventa ningún valor.
+
+---
+
+## [1.15.117] — 29/10/2026 (versión visible en pantalla: v1.68)
+
+fix/feat(app): Barrett con córnea posterior reintenta; columnas «medido»/«estimado»; PDF solo del último cálculo (D150)
+
+- Barrett (con córnea posterior medida): si la web no mostraba a tiempo el panel «Measured PCA» (caso 0460, ojo derecho), ahora lo intenta hasta tres veces antes de dar el fallo. No se ha probado todavía contra la web real.
+- Comparación (pantalla y PDF): cuando hay las dos variantes, las columnas se llaman «EVO medido» / «EVO estimado» y «Barrett medido (cara post. medida)» / «Barrett estimado (cara post. estimada)».
+- PDF: casilla «Solo lo calculado en el último cálculo», que aparece solo cuando se ha añadido una calculadora a un caso ya calculado. Sin marcar, el PDF lleva todas, como antes.
+
+---
+
 ## [1.15.116] — 28/10/2026 (versión visible en pantalla: v1.67)
 
 feat(app): Dashboard y «Análisis de resultados» enseñan los listados de 15 en 15 (D149)
