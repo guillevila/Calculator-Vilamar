@@ -559,7 +559,7 @@ export function AnalisisScreen({ onAbrirResultado, onVolver }: Props): JSX.Eleme
           onClick={() => void crearExcelDeEstudio()}
           disabled={filas.length === 0 || creandoExcel}
           data-testid="analisis-excel-estudio"
-          title="Crea un Excel con los casos de esta búsqueda: paciente, nº de caso, fecha, biometría preoperatoria de cada aparato y la lente de cada calculadora"
+          title="Crea un Excel con el formato del LuxLife Experience Tracker: una fila por paciente y aparato, con la biometría de cada ojo y la lente elegida. Las revisiones quedan en blanco, para rellenarlas a mano"
         >
           {creandoExcel ? 'Creando Excel…' : 'Crear Excel de estudio'}
         </button>

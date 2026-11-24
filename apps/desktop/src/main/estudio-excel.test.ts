@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { inflateRawSync } from 'node:zlib'
 
-import type { FilaEstudio } from '@vilamar/domain'
+import type { FilaTracker, ResultadoTracker } from '@vilamar/domain'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { descripcionDeFiltro, libroDeEstudio } from './estudio-excel.js'
@@ -40,24 +40,28 @@ function leerZip(datos: Uint8Array): Record<string, string> {
   return salida
 }
 
-const FILA: FilaEstudio = {
+const FILA: FilaTracker = {
   nombrePaciente: 'Paciente Sintético',
   codigo: 'CV-2026-0001',
-  fecha: '2026-09-15',
   doctor: 'Dra. Prueba',
-  ojo: 'OD',
   aparato: 'ZEISS IOLMaster 700',
-  longitudAxial: 23.5,
-  k1: 43.25,
-  ejeK1: 10,
-  k2: 44.75,
-  ejeK2: 100,
-  tipoDeLente: 'B&L LuxSmart',
-  lentes: {
-    KANE: { esfera: 22.5, cilindro: 2.5, eje: 91, residualEsferico: -0.1, residualCilindrico: 0.2 },
-    BARRETT_TORIC: { esfera: 22, residualEsferico: 0.1 },
+  sexo: 'Female',
+  od: {
+    kPlana: 43.25,
+    ejeKPlana: 10,
+    kCurva: 44.75,
+    ejeKCurva: 100,
+    longitudAxial: 23.5,
+    acd: 3.1,
+    cct: 540,
+    pkPlana: -6.1,
+    objetivo: -0.25,
   },
+  lenteOd: { nombre: 'B&L LuxSmart', esfera: 22.5, cilindro: 1.5, eje: 91 },
 }
+
+const RESULTADO: ResultadoTracker = { filas: [FILA], casosConAparatosOmitidos: 0 }
+const SIN_FILAS: ResultadoTracker = { filas: [], casosConAparatosOmitidos: 0 }
 
 describe('xlsx', () => {
   it('letraDeColumna', () => {
@@ -90,34 +94,74 @@ describe('xlsx', () => {
   })
 })
 
-describe('libroDeEstudio', () => {
-  it('lleva paciente, preoperatorio y un bloque por calculadora con resultado', () => {
-    const z = leerZip(libroDeEstudio([FILA], ['Doctor: Dra. Prueba'], '2026-10-21T10:00:00.000Z'))
+describe('libroDeEstudio — formato del LuxLife Experience Tracker', () => {
+  const GENERADO = '2026-11-24T10:00:00.000Z'
+
+  it('lleva la identificación, el preoperatorio y la lente elegida, con las cabeceras de la plantilla', () => {
+    const z = leerZip(libroDeEstudio(RESULTADO, ['Doctor: Dra. Prueba'], GENERADO))
     const hoja = z['xl/worksheets/sheet1.xml']!
     expect(hoja).toContain('Paciente Sintético')
-    expect(hoja).toContain('PREOPERATORIO')
-    expect(hoja).toContain('Longitud axial (mm)')
-    expect(hoja).toContain('KANE')
-    expect(hoja).toContain('BARRETT TORIC')
-    expect(hoja).not.toContain('EVO TORIC') // sin resultado: no hay bloque
+    expect(hoja).toContain('CV-2026-0001')
+    expect(hoja).toContain('ZEISS IOLMaster 700')
+    expect(hoja).toContain('Preoperative data')
+    expect(hoja).toContain('Operative data')
+    expect(hoja).toContain('Pre-Op Flat K')
+    expect(hoja).toContain('Pre-Op Posterior Steep K')
+    expect(hoja).toContain('IOL spherical power (D)')
+    expect(hoja).toContain('IOL cylinder power (D)')
+    expect(hoja).toContain('IOL axis (°)')
+    expect(hoja).toContain('Postoperative week 1')
+    expect(hoja).toContain('Postoperative Month 6')
     expect(hoja).toContain('<v>23.5</v>')
+    expect(hoja).toContain('<v>22.5</v>')
     expect(z['xl/worksheets/sheet2.xml']).toContain('Dra. Prueba')
   })
 
+  it('no lleva ninguna calculadora ni lentes estimadas', () => {
+    const hoja = leerZip(libroDeEstudio(RESULTADO, [], GENERADO))['xl/worksheets/sheet1.xml']!
+    for (const nombre of ['Kane', 'KANE', 'EVO', 'Barrett', 'BARRETT', 'estimad']) {
+      expect(hoja).not.toContain(nombre)
+    }
+  })
+
+  it('la diferencia entre K plana y curva es una fórmula, con su resultado ya puesto', () => {
+    const hoja = leerZip(libroDeEstudio(RESULTADO, [], GENERADO))['xl/worksheets/sheet1.xml']!
+    expect(hoja).toMatch(
+      /<f>IF\(OR\([A-Z]+7=&quot;&quot;,[A-Z]+7=&quot;&quot;\),&quot;&quot;,ABS\([A-Z]+7-[A-Z]+7\)\)<\/f><v>1\.5<\/v>/,
+    )
+  })
+
   it('un dato ausente queda vacío, no a cero', () => {
-    const z = leerZip(libroDeEstudio([{ ...FILA, k2: undefined }], [], '2026-10-21T10:00:00.000Z'))
-    expect(z['xl/worksheets/sheet1.xml']).not.toContain('<v>0</v>')
+    const sinK = { filas: [{ ...FILA, od: { longitudAxial: 23.5 } }], casosConAparatosOmitidos: 0 }
+    const hoja = leerZip(libroDeEstudio(sinK, [], GENERADO))['xl/worksheets/sheet1.xml']!
+    expect(hoja).not.toContain('<v>0</v>')
+  })
+
+  it('las listas desplegables de sexo y de «Include» están', () => {
+    const hoja = leerZip(libroDeEstudio(RESULTADO, [], GENERADO))['xl/worksheets/sheet1.xml']!
+    expect(hoja).toContain('<formula1>"Male,Female"</formula1>')
+    expect(hoja).toContain('<formula1>"Yes,No"</formula1>')
+  })
+
+  it('con dos aparatos hay dos filas; si hay aparatos de más, las notas lo dicen', () => {
+    const dos = {
+      filas: [FILA, { ...FILA, aparato: 'OCULUS Pentacam' }],
+      casosConAparatosOmitidos: 1,
+    }
+    const z = leerZip(libroDeEstudio(dos, [], GENERADO))
+    expect(z['xl/worksheets/sheet1.xml']).toContain('OCULUS Pentacam')
+    expect(z['xl/worksheets/sheet2.xml']).toContain('más de dos aparatos')
   })
 
   it('sin filas, el libro se crea igual (solo cabeceras y notas)', () => {
-    expect(() => libroDeEstudio([], [], '2026-10-21T10:00:00.000Z')).not.toThrow()
+    expect(() => libroDeEstudio(SIN_FILAS, [], GENERADO)).not.toThrow()
   })
 
   it('guardado en disco es un zip válido', () => {
     const raiz = mkdtempSync(join(tmpdir(), 'vilamar-xlsx-'))
     carpetas.push(raiz)
     const destino = join(raiz, 'estudio.xlsx')
-    writeFileSync(destino, libroDeEstudio([FILA], [], '2026-10-21T10:00:00.000Z'))
+    writeFileSync(destino, libroDeEstudio(RESULTADO, [], GENERADO))
     expect(readFileSync(destino).subarray(0, 2).toString()).toBe('PK')
   })
 })

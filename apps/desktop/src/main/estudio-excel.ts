@@ -1,26 +1,31 @@
 /**
- * estudio-excel.ts — El Excel de «estudio de casos» (21/10/2026, petición del
- * dueño, con la plantilla «LuxLife Experience Tracker» de ejemplo): una fila por
- * caso, ojo y aparato, con todo dentro del campo PREOPERATORIO.
+ * estudio-excel.ts — El Excel de «estudio» con el formato del «LuxLife Experience Tracker»
+ * (plantilla del dueño, 24/11/2026): una fila por paciente Y aparato, con el ojo derecho y
+ * el izquierdo uno al lado del otro. Si un caso tiene dos aparatos (IOLMaster y Pentacam,
+ * por ejemplo) salen dos filas; un tercero no cabe y no sale.
  *
- *   IDENTIFICACIÓN   paciente · nº de caso · fecha · doctor · ojo · aparato
- *   PREOPERATORIO    biometría del aparato: LA · K1 · eje K1 · K2 · eje K2 · ACD
- *                    tipo de lente
- *                    y, por cada calculadora con resultado: potencia esférica ·
- *                    potencia cilíndrica · eje · residual esférico · residual cilíndrico
+ *   IDENTIFICACIÓN   paciente · código · doctor · aparato · edad · sexo · …
+ *   PREOPERATORIO    por ojo y aparato: K plana y curva con sus ejes · diferencia ·
+ *                    longitud axial · ACD · LT · CCT · WTW · córnea posterior
+ *   OPERATORIO       por ojo: lente elegida (nombre, esfera, cilindro, eje) · objetivo
+ *   REVISIONES       semana 1, mes 1, mes 3 y mes 6: vacías, se rellenan a mano
  *
- * Los colores salen de la plantilla de ejemplo (azul petróleo 00557F y celeste
- * 00CCFF) y de los de cada calculadora en la propia aplicación. Un dato que falta
- * se deja vacío —nunca se rellena con un cero—.
+ * NO lleva las lentes de las calculadoras ni la estimación propia: solo lo medido y lo
+ * elegido. Un dato que falta se deja vacío —nunca se rellena con un cero—.
+ *
+ * Cabeceras y colores, como la plantilla (en inglés, para poder compartirlo). Lo que se
+ * ha añadido a la plantilla: doctor, aparato, y CCT, WTW y córnea posterior por ojo; la
+ * lente elegida lleva además cilindro y eje.
  */
 
 import { fichaDe } from '@vilamar/domain'
 import type {
-  Calculadora,
+  BiometriaTracker,
   FiltroAnalisis,
-  FilaEstudio,
-  LenteDeEstudio,
+  FilaTracker,
+  LenteElegidaTracker,
   OpcionesAnalisis,
+  ResultadoTracker,
 } from '@vilamar/domain'
 
 import { crearXlsx, letraDeColumna } from './xlsx.js'
@@ -29,48 +34,6 @@ import type { Celda, EstiloCelda, Hoja } from './xlsx.js'
 const AZUL_PLANTILLA = '00557F'
 const CELESTE_PLANTILLA = '00CCFF'
 const LINEA = 'C9D3DC'
-const ZEBRA = 'F3F7FA'
-
-/** Nombre y colores de cada calculadora, los mismos que en la aplicación. */
-const CALCULADORAS: Readonly<
-  Record<Calculadora, { nombre: string; fuerte: string; suave: string }>
-> = {
-  EVO_TORIC_SIN_CARA_POSTERIOR: {
-    nombre: 'EVO Toric · estimada',
-    fuerte: '0F766E',
-    suave: 'E6F4F2',
-  },
-  EVO_TORIC: { nombre: 'EVO Toric · córnea posterior medida', fuerte: '0B5F58', suave: 'D3EDEA' },
-  BARRETT_TORIC: { nombre: 'Barrett Toric · estimada', fuerte: '1D4ED8', suave: 'E8EEFC' },
-  BARRETT_TORIC_CON_CARA_POSTERIOR: {
-    nombre: 'Barrett Toric · córnea posterior medida',
-    fuerte: '1B3FA8',
-    suave: 'D6E0FA',
-  },
-  KANE: { nombre: 'Kane', fuerte: '7C3AED', suave: 'F1EAFD' },
-  BARRETT_TRUE_K_TORIC: { nombre: 'Barrett True-K Toric', fuerte: '475569', suave: 'EEF1F5' },
-}
-
-const ORDEN_CALCULADORAS: readonly Calculadora[] = [
-  'EVO_TORIC_SIN_CARA_POSTERIOR',
-  'EVO_TORIC',
-  'BARRETT_TORIC',
-  'BARRETT_TORIC_CON_CARA_POSTERIOR',
-  'KANE',
-  'BARRETT_TRUE_K_TORIC',
-]
-
-const CAMPOS_LENTE: readonly {
-  readonly clave: keyof LenteDeEstudio
-  readonly titulo: string
-  readonly formato: string
-}[] = [
-  { clave: 'esfera', titulo: 'Potencia esférica (D)', formato: '0.00' },
-  { clave: 'cilindro', titulo: 'Potencia cilíndrica (D)', formato: '0.00' },
-  { clave: 'eje', titulo: 'Eje (°)', formato: '0' },
-  { clave: 'residualEsferico', titulo: 'Residual esférico (D)', formato: '0.00' },
-  { clave: 'residualCilindrico', titulo: 'Residual cilíndrico (D)', formato: '0.00' },
-]
 
 /** Las líneas «Qué: valor» que dicen qué búsqueda se exportó, para la hoja de notas. */
 export function descripcionDeFiltro(
@@ -101,253 +64,314 @@ export function descripcionDeFiltro(
   return lineas
 }
 
-function celda(v: Celda['v'], e?: EstiloCelda): Celda {
-  return e ? { v, e } : { v }
+function celda(v: Celda['v'], e?: EstiloCelda, f?: string): Celda {
+  return { v, ...(e ? { e } : {}), ...(f !== undefined ? { f } : {}) }
 }
 
-/** Un texto repetido en un rango combinado: la primera celda lleva el texto, el resto, el mismo estilo. */
-function banda(
-  fila: (Celda | null)[],
-  desde: number,
-  hasta: number,
-  texto: string,
-  estilo: EstiloCelda,
-): void {
-  fila[desde] = celda(texto, estilo)
-  for (let c = desde + 1; c <= hasta; c += 1) fila[c] = celda(null, estilo)
+type Seccion = 'DEMOGRAFIA' | 'PREOP' | 'OPERATIVO' | 'SEM1' | 'MES1' | 'MES3' | 'MES6' | 'FINAL'
+
+/** Los colores de la plantilla: el de la banda y el de las celdas de datos. */
+const SECCIONES: Readonly<Record<Seccion, { nombre: string; fondo: string; datos?: string }>> = {
+  DEMOGRAFIA: { nombre: 'Demographics', fondo: 'BFBFBF' },
+  PREOP: { nombre: 'Preoperative data', fondo: '00CCFF', datos: 'BDD7EE' },
+  OPERATIVO: { nombre: 'Operative data', fondo: 'F4B183', datos: 'BDD7EE' },
+  SEM1: { nombre: 'Postoperative week 1', fondo: '00FF99' },
+  MES1: { nombre: 'Postoperative Month 1', fondo: 'FFD966' },
+  MES3: { nombre: 'Postoperative Month 3', fondo: 'CCCCFF' },
+  MES6: { nombre: 'Postoperative Month 6', fondo: 'C5E0B3' },
+  FINAL: { nombre: '', fondo: 'FFFFFF' },
+}
+
+const CABECERA_FONDO = '1F4E78'
+
+interface Columna {
+  readonly titulo: string
+  readonly seccion: Seccion
+  readonly ancho: number
+  readonly formato?: string
+  /** Qué escribe en cada fila; sin esto, la columna se rellena a mano. */
+  readonly dato?: (f: FilaTracker) => number | string | undefined
+  /** Para localizar la columna al escribir fórmulas. */
+  readonly clave?: string
+}
+
+type Ojo = 'OD' | 'OS'
+
+function columnasDeOjo(ojo: Ojo): readonly Columna[] {
+  const bio = (f: FilaTracker): BiometriaTracker | undefined => (ojo === 'OD' ? f.od : f.os)
+  const lente = (f: FilaTracker): LenteElegidaTracker | undefined =>
+    ojo === 'OD' ? f.lenteOd : f.lenteOs
+  const o = `${ojo} eye`
+  const de = (campo: keyof BiometriaTracker) => (f: FilaTracker) => bio(f)?.[campo]
+  const preop = (
+    titulo: string,
+    ancho: number,
+    formato: string,
+    campo?: keyof BiometriaTracker,
+    clave?: string,
+  ): Columna => ({
+    titulo: `${titulo}\n${o}`,
+    seccion: 'PREOP',
+    ancho,
+    formato,
+    ...(campo ? { dato: de(campo) } : {}),
+    ...(clave ? { clave: `${clave}${ojo}` } : {}),
+  })
+  const operativo = (
+    titulo: string,
+    ancho: number,
+    formato?: string,
+    dato?: Columna['dato'],
+  ): Columna => ({
+    titulo: `${titulo}\n${o}`,
+    seccion: 'OPERATIVO',
+    ancho,
+    ...(formato ? { formato } : {}),
+    ...(dato ? { dato } : {}),
+  })
+  return [
+    preop('Pre-Op Flat K', 10.5, '0.00', 'kPlana', 'kPlana'),
+    preop('Pre-Op Flat K axis', 10.5, '0', 'ejeKPlana'),
+    preop('Pre-Op Steep K', 10.5, '0.00', 'kCurva', 'kCurva'),
+    preop('Pre-Op Steep K axis', 10.5, '0', 'ejeKCurva'),
+    preop('Flat and Steep K Difference', 11.5, '0.00', undefined, 'dif'),
+    preop('Pre-Op ALX', 10.5, '0.00', 'longitudAxial'),
+    preop('Pre-Op ACD', 10.5, '0.00', 'acd'),
+    preop('Pre-op LT', 10.5, '0.00', 'lt'),
+    preop('Pre-Op CCT (µm)', 10.5, '0', 'cct'),
+    preop('Pre-Op WTW (mm)', 10.5, '0.0', 'wtw'),
+    preop('Pre-Op Posterior Flat K', 11.5, '0.00', 'pkPlana'),
+    preop('Pre-Op Posterior Flat K axis', 11.5, '0', 'ejePkPlana'),
+    preop('Pre-Op Posterior Steep K', 11.5, '0.00', 'pkCurva'),
+    preop('Pre-Op Posterior Steep K axis', 11.5, '0', 'ejePkCurva'),
+    operativo('Date of operative visit', 14),
+    operativo('IOL name', 18, undefined, (f) => lente(f)?.nombre),
+    operativo('IOL spherical power (D)', 12, '0.00', (f) => lente(f)?.esfera),
+    operativo('IOL cylinder power (D)', 12, '0.00', (f) => lente(f)?.cilindro),
+    operativo('IOL axis (°)', 10.5, '0', (f) => lente(f)?.eje),
+    operativo('SEQ target', 10.5, '0.00', de('objetivo')),
+  ]
+}
+
+/** Una revisión postoperatoria: las mismas 24 columnas de la plantilla, todas a mano. */
+function columnasDeRevision(seccion: Seccion, visita: string): readonly Columna[] {
+  const cols: Columna[] = []
+  const nueva = (titulo: string, ancho = 12): void => {
+    cols.push({ titulo, seccion, ancho })
+  }
+  nueva(`Date of postop ${visita} visit`, 14)
+  for (const sigla of ['UDVA', 'CDVA', 'UIVA']) {
+    for (const ojo of ['OD eye', 'OS eye', 'Binocular']) {
+      nueva(`${sigla}\n20/denominator\n${ojo}\n\n(please enter denominator only)`, 14)
+    }
+  }
+  for (const ojo of ['OD eye', 'OS eye', 'Binocular']) nueva(`UNVA\n${ojo}`)
+  for (const ojo of ['OD eye', 'OS eye']) {
+    nueva(`Manifest refraction sphere\n${ojo}`)
+    nueva(`Manifest refraction cylinder\n${ojo}`)
+    nueva(
+      `Manifest refraction cylinder axis\n${ojo}\n\n(Please enter numbers from 0 to 180 without a degree º sign)`,
+      14,
+    )
+    nueva(`Manifest refraction spherical equivalent\n${ojo}`)
+  }
+  nueva('Adverse events\n(if yes, please list and mention the eye involved)', 18)
+  nueva('PCO\n(If yes, mention the eye and grade of PCO from 0-4)', 18)
+  nueva(
+    'Glistenings\n(If yes, mention the eye in which it occurred and the grade of glistenings from 1-4)',
+    18,
+  )
+  return cols
+}
+
+function columnasDelTracker(): readonly Columna[] {
+  const ident = (titulo: string, ancho: number, dato?: Columna['dato']): Columna => ({
+    titulo,
+    seccion: 'DEMOGRAFIA',
+    ancho,
+    ...(dato ? { dato } : {}),
+  })
+  return [
+    ident('Patient ID\n(Not to be shared)', 24, (f) => f.nombrePaciente),
+    ident('De-identified patient ID', 15, (f) => f.codigo),
+    ident('Surgeon', 22, (f) => f.doctor),
+    ident('Instrument', 22, (f) => f.aparato),
+    ident('Age (years)', 9),
+    ident('Gender', 9, (f) => f.sexo),
+    ident('Race and ethnicity', 13),
+    ident('Concomitant Systemic disease', 16),
+    ident('Concomitant Ocular disease/Prior ocular surgery (If any)\nOD eye', 18),
+    ident('Concomitant Ocular disease/Prior ocular surgery (If any)\nOS eye', 18),
+    ...columnasDeOjo('OD'),
+    ...columnasDeOjo('OS'),
+    {
+      titulo:
+        'Intra-operative complications\n(If yes, please explain and mention the eye involved is OD/OS/both eyes)',
+      seccion: 'OPERATIVO',
+      ancho: 20,
+    },
+    {
+      titulo:
+        'Additional surgical procedures\n(If yes, please explain and mention if the procedure was done in OD/OS/both eyes)',
+      seccion: 'OPERATIVO',
+      ancho: 20,
+    },
+    ...columnasDeRevision('SEM1', 'Week 1'),
+    ...columnasDeRevision('MES1', 'Month 1'),
+    ...columnasDeRevision('MES3', 'Month 3'),
+    ...columnasDeRevision('MES6', 'Month 6'),
+    {
+      titulo:
+        'Include Y/N\n\nThis provides opportunity to remove outliers that would affect results, i.e. post refractive, corneal/retinal pathology or questionable outcomes noted when reviewing data',
+      seccion: 'FINAL',
+      ancho: 24,
+    },
+  ]
 }
 
 /**
- * El libro de estudio. `descripcionFiltro` son las líneas que dicen qué búsqueda
- * se exportó (fechas, doctor, lente…), para que el Excel se explique solo.
+ * El libro de estudio. `descripcionFiltro` son las líneas que dicen qué búsqueda se
+ * exportó (fechas, doctor, lente…), para que el Excel se explique solo.
  */
 export function libroDeEstudio(
-  filas: readonly FilaEstudio[],
+  resultado: ResultadoTracker,
   descripcionFiltro: readonly string[],
   generadoEn: string,
 ): Uint8Array {
-  // Solo las calculadoras que tienen resultado en alguna fila.
-  const calculadoras = ORDEN_CALCULADORAS.filter((c) =>
-    filas.some((f) => f.lentes[c] !== undefined),
-  )
-
-  const IDENT = ['Paciente', 'Nº de caso', 'Fecha', 'Doctor', 'Ojo', 'Aparato']
-  const BIOMETRIA = [
-    { titulo: 'Longitud axial (mm)', formato: '0.00' },
-    { titulo: 'K1 (D)', formato: '0.00' },
-    { titulo: 'Eje K1 (°)', formato: '0' },
-    { titulo: 'K2 (D)', formato: '0.00' },
-    { titulo: 'Eje K2 (°)', formato: '0' },
-    { titulo: 'ACD (mm)', formato: '0.00' },
-  ]
-  const colIdent = 0
-  const colBio = IDENT.length
-  const colTipo = colBio + BIOMETRIA.length
-  const colCalc = colTipo + 1
-  const total = colCalc + calculadoras.length * CAMPOS_LENTE.length
+  const filas = resultado.filas
+  const columnas = columnasDelTracker()
+  const total = columnas.length
+  const PRIMERA_FILA_DATOS = 7
 
   const base: EstiloCelda = { tamano: 10, alinV: 'center', borde: LINEA }
   const hoja: (Celda | null)[][] = []
   const combinadas: string[] = []
   const nueva = (): (Celda | null)[] => new Array<Celda | null>(total).fill(null)
 
-  // 1 · título
-  const titulo = nueva()
-  titulo[0] = celda('ESTUDIO DE CASOS · Calculator Vilamar', {
-    fondo: AZUL_PLANTILLA,
-    color: 'FFFFFF',
-    negrita: true,
-    tamano: 16,
-    alinV: 'center',
-  })
-  for (let c = 1; c < total; c += 1) titulo[c] = celda(null, { fondo: AZUL_PLANTILLA })
-  hoja.push(titulo)
-  combinadas.push(`A1:${letraDeColumna(total - 1)}1`)
+  // 1–4 · la leyenda de colores, como en la plantilla
+  const leyenda = (fila: (Celda | null)[], col: number, texto: string, fondo: string): void => {
+    fila[col] = celda(texto, { fondo, tamano: 10, negrita: true, alinV: 'center' })
+  }
+  const l1 = nueva()
+  leyenda(l1, 0, 'Demographics', SECCIONES.DEMOGRAFIA.fondo)
+  leyenda(l1, 2, 'Postop week 1', SECCIONES.SEM1.fondo)
+  const l2 = nueva()
+  leyenda(l2, 0, 'Preoperative', SECCIONES.PREOP.fondo)
+  leyenda(l2, 2, 'Postop Month 1', SECCIONES.MES1.fondo)
+  const l3 = nueva()
+  leyenda(l3, 0, 'Operative', SECCIONES.OPERATIVO.fondo)
+  leyenda(l3, 2, 'Postop Month 3', SECCIONES.MES3.fondo)
+  const l4 = nueva()
+  leyenda(l4, 2, 'Postop Month 6', SECCIONES.MES6.fondo)
+  hoja.push(l1, l2, l3, l4)
 
-  // 2 · subtítulo
-  const sub = nueva()
-  const dia = generadoEn.slice(0, 10)
-  const resumen = `${filas.length} fila${filas.length === 1 ? '' : 's'} · una por caso, ojo y aparato · generado el ${dia}`
-  sub[0] = celda(resumen, { color: '33566B', cursiva: true, tamano: 10, alinV: 'center' })
-  hoja.push(sub)
-  combinadas.push(`A2:${letraDeColumna(total - 1)}2`)
-
-  // 3 · aire
-  hoja.push(nueva())
-
-  // 4 · los dos campos grandes
-  const nivel1 = nueva()
-  banda(nivel1, colIdent, colBio - 1, 'IDENTIFICACIÓN', {
-    fondo: AZUL_PLANTILLA,
-    color: 'FFFFFF',
-    negrita: true,
-    tamano: 12,
-    alinH: 'center',
-    alinV: 'center',
-  })
-  banda(nivel1, colBio, total - 1, 'PREOPERATORIO', {
-    fondo: CELESTE_PLANTILLA,
-    color: '00364F',
-    negrita: true,
-    tamano: 12,
-    alinH: 'center',
-    alinV: 'center',
-  })
-  hoja.push(nivel1)
-  combinadas.push(`${letraDeColumna(colIdent)}4:${letraDeColumna(colBio - 1)}4`)
-  combinadas.push(`${letraDeColumna(colBio)}4:${letraDeColumna(total - 1)}4`)
-
-  // 5 · los subcampos
-  const nivel2 = nueva()
-  banda(nivel2, colIdent, colBio - 1, 'DATOS DEL CASO', {
-    fondo: '3D7F9F',
-    color: 'FFFFFF',
-    negrita: true,
-    alinH: 'center',
-    alinV: 'center',
-  })
-  banda(nivel2, colBio, colTipo - 1, 'BIOMETRÍA DEL APARATO', {
-    fondo: '5DB7D6',
-    color: '00364F',
-    negrita: true,
-    alinH: 'center',
-    alinV: 'center',
-  })
-  nivel2[colTipo] = celda('LENTE', {
-    fondo: '8A6BC9',
-    color: 'FFFFFF',
-    negrita: true,
-    alinH: 'center',
-    alinV: 'center',
-  })
-  combinadas.push(`${letraDeColumna(colIdent)}5:${letraDeColumna(colBio - 1)}5`)
-  combinadas.push(`${letraDeColumna(colBio)}5:${letraDeColumna(colTipo - 1)}5`)
-  calculadoras.forEach((c, i) => {
-    const desde = colCalc + i * CAMPOS_LENTE.length
-    const hasta = desde + CAMPOS_LENTE.length - 1
-    banda(nivel2, desde, hasta, CALCULADORAS[c].nombre.toUpperCase(), {
-      fondo: CALCULADORAS[c].fuerte,
-      color: 'FFFFFF',
+  // 5 · las bandas de cada sección (una por tramo seguido de columnas de la misma sección)
+  const bandas = nueva()
+  let c = 0
+  while (c < total) {
+    const seccion = columnas[c]!.seccion
+    let fin = c
+    while (fin + 1 < total && columnas[fin + 1]!.seccion === seccion) fin += 1
+    const estilo: EstiloCelda = {
+      fondo: SECCIONES[seccion].fondo,
+      color: '000000',
       negrita: true,
+      tamano: 11,
       alinH: 'center',
       alinV: 'center',
-    })
-    combinadas.push(`${letraDeColumna(desde)}5:${letraDeColumna(hasta)}5`)
-  })
-  hoja.push(nivel2)
+    }
+    bandas[c] = celda(SECCIONES[seccion].nombre, estilo)
+    for (let k = c + 1; k <= fin; k += 1) bandas[k] = celda(null, estilo)
+    if (fin > c && SECCIONES[seccion].nombre) {
+      combinadas.push(`${letraDeColumna(c)}5:${letraDeColumna(fin)}5`)
+    }
+    c = fin + 1
+  }
+  hoja.push(bandas)
 
   // 6 · cabeceras de columna
   const cabecera = nueva()
-  const estiloCab = (fondo: string, color = 'FFFFFF'): EstiloCelda => ({
-    ...base,
-    fondo,
-    color,
-    negrita: true,
-    alinH: 'center',
-    ajustar: true,
+  columnas.forEach((col, i) => {
+    cabecera[i] = celda(col.titulo, {
+      ...base,
+      fondo: CABECERA_FONDO,
+      color: 'FFFFFF',
+      negrita: true,
+      alinH: 'center',
+      ajustar: true,
+    })
   })
-  IDENT.forEach((t, i) => (cabecera[colIdent + i] = celda(t, estiloCab('3D7F9F'))))
-  BIOMETRIA.forEach(
-    (b, i) => (cabecera[colBio + i] = celda(b.titulo, estiloCab('5DB7D6', '00364F'))),
-  )
-  cabecera[colTipo] = celda('Tipo de lente', estiloCab('8A6BC9'))
-  calculadoras.forEach((c, i) =>
-    CAMPOS_LENTE.forEach((campo, j) => {
-      cabecera[colCalc + i * CAMPOS_LENTE.length + j] = celda(
-        campo.titulo,
-        estiloCab(CALCULADORAS[c].fuerte),
-      )
-    }),
-  )
   hoja.push(cabecera)
 
   // 7… · datos
+  const posicion = new Map<string, number>()
+  columnas.forEach((col, i) => {
+    if (col.clave) posicion.set(col.clave, i)
+  })
   filas.forEach((f, n) => {
-    const fondo = n % 2 === 0 ? 'FFFFFF' : ZEBRA
-    const texto: EstiloCelda = { ...base, fondo }
-    const centrado: EstiloCelda = { ...texto, alinH: 'center' }
-    const numero = (formato: string, fondoCelda = fondo): EstiloCelda => ({
-      ...base,
-      fondo: fondoCelda,
-      formato,
-      alinH: 'center',
-    })
     const fila = nueva()
-    fila[0] = celda(f.nombrePaciente ?? '', { ...texto, negrita: true })
-    fila[1] = celda(f.codigo, centrado)
-    fila[2] = celda(f.fecha, centrado)
-    fila[3] = celda(f.doctor, texto)
-    fila[4] = celda(f.ojo, {
-      ...centrado,
-      negrita: true,
-      color: f.ojo === 'OD' ? '1D4ED8' : '0F766E',
+    const numeroFila = PRIMERA_FILA_DATOS + n
+    columnas.forEach((col, i) => {
+      const fondo = SECCIONES[col.seccion].datos
+      const estilo: EstiloCelda = {
+        ...base,
+        ...(fondo ? { fondo } : {}),
+        ...(col.formato ? { formato: col.formato, alinH: 'center' as const } : {}),
+        ...(i === 0 ? { negrita: true } : {}),
+      }
+      fila[i] = celda(col.dato?.(f) ?? null, estilo)
     })
-    fila[5] = celda(f.aparato, texto)
-    const bio = [f.longitudAxial, f.k1, f.ejeK1, f.k2, f.ejeK2, f.acd]
-    BIOMETRIA.forEach((b, i) => {
-      fila[colBio + i] = celda(bio[i] ?? null, numero(b.formato, n % 2 === 0 ? 'F1FAFD' : 'E3F4FA'))
-    })
-    fila[colTipo] = celda(f.tipoDeLente, { ...centrado, fondo: n % 2 === 0 ? 'F6F1FD' : 'EEE6FA' })
-    calculadoras.forEach((c, i) => {
-      const lente = f.lentes[c]
-      CAMPOS_LENTE.forEach((campo, j) => {
-        const fondoCelda = n % 2 === 0 ? CALCULADORAS[c].suave : mezcla(CALCULADORAS[c].suave)
-        fila[colCalc + i * CAMPOS_LENTE.length + j] = celda(
-          lente?.[campo.clave] ?? null,
-          numero(campo.formato, fondoCelda),
-        )
-      })
-    })
+    // La diferencia entre K plana y curva es una fórmula, como en la plantilla: si se
+    // corrige una K a mano en Excel, la diferencia se actualiza sola.
+    for (const ojo of ['OD', 'OS'] as const) {
+      const pl = posicion.get(`kPlana${ojo}`)!
+      const cu = posicion.get(`kCurva${ojo}`)!
+      const dif = posicion.get(`dif${ojo}`)!
+      const a = `${letraDeColumna(pl)}${numeroFila}`
+      const b = `${letraDeColumna(cu)}${numeroFila}`
+      const bio = ojo === 'OD' ? f.od : f.os
+      const valor =
+        bio?.kPlana !== undefined && bio.kCurva !== undefined
+          ? Math.round(Math.abs(bio.kCurva - bio.kPlana) * 100) / 100
+          : ''
+      fila[dif] = celda(
+        valor,
+        { ...base, fondo: SECCIONES.PREOP.datos ?? 'FFFFFF', formato: '0.00', alinH: 'center' },
+        `IF(OR(${a}="",${b}=""),"",ABS(${b}-${a}))`,
+      )
+    }
     hoja.push(fila)
   })
 
-  const anchos: number[] = [
-    26,
-    15,
-    12,
-    22,
-    7,
-    24,
-    ...BIOMETRIA.map(() => 12.5),
-    18,
-    ...calculadoras.flatMap(() => CAMPOS_LENTE.map(() => 13)),
-  ]
-  const ultimaFila = hoja.length
-
-  const hojaEstudio: Hoja = {
-    nombre: 'Estudio',
+  const ultimaFila = Math.max(hoja.length, PRIMERA_FILA_DATOS)
+  const colGenero = letraDeColumna(columnas.findIndex((x) => x.titulo === 'Gender'))
+  const colInclude = letraDeColumna(total - 1)
+  const hojaTracker: Hoja = {
+    nombre: 'Lux life Experience Tracker',
     filas: hoja,
-    anchos,
-    alturas: { 1: 30, 2: 18, 4: 22, 5: 20, 6: 44 },
+    anchos: columnas.map((x) => x.ancho),
+    alturas: { 1: 18, 2: 18, 3: 18, 4: 18, 5: 20, 6: 112 },
     combinadas,
-    congelar: { filas: 6, columnas: 2 },
+    congelar: { filas: 6, columnas: 4 },
     ...(filas.length > 0 ? { filtro: `A6:${letraDeColumna(total - 1)}${ultimaFila}` } : {}),
+    // Las listas valen también para las filas que se añadan a mano debajo.
+    listas: [
+      { rango: `${colGenero}7:${colGenero}500`, opciones: ['Male', 'Female'] },
+      { rango: `${colInclude}7:${colInclude}500`, opciones: ['Yes', 'No'] },
+    ],
     colorPestana: AZUL_PLANTILLA,
   }
 
   return crearXlsx([
-    hojaEstudio,
-    hojaDeNotas(filas.length, descripcionFiltro, calculadoras, generadoEn),
+    hojaTracker,
+    hojaDeNotas(filas.length, resultado.casosConAparatosOmitidos, descripcionFiltro, generadoEn),
   ])
-}
-
-/** Un tono algo más oscuro, para las filas alternas de cada calculadora. */
-function mezcla(suave: string): string {
-  const canales = [0, 2, 4].map((i) => parseInt(suave.slice(i, i + 2), 16))
-  return canales
-    .map((c) =>
-      Math.max(0, c - 10)
-        .toString(16)
-        .padStart(2, '0'),
-    )
-    .join('')
-    .toUpperCase()
 }
 
 function hojaDeNotas(
   numeroDeFilas: number,
+  casosConAparatosOmitidos: number,
   descripcionFiltro: readonly string[],
-  calculadoras: readonly Calculadora[],
   generadoEn: string,
 ): Hoja {
   const titulo: EstiloCelda = {
@@ -387,52 +411,53 @@ function hojaDeNotas(
     const i = d.indexOf(':')
     par(i > 0 ? d.slice(0, i) : 'Filtro', i > 0 ? d.slice(i + 1).trim() : d)
   }
+  if (casosConAparatosOmitidos > 0) {
+    par(
+      'Aparatos de más',
+      `${casosConAparatosOmitidos} caso${casosConAparatosOmitidos === 1 ? '' : 's'} tenía${casosConAparatosOmitidos === 1 ? '' : 'n'} más de dos aparatos: solo salen los dos primeros.`,
+      32,
+    )
+  }
   filas.push([null, null])
   linea(seccion, 'Cómo leerlo', 20)
   par(
     'Una fila',
-    'Cada fila es un caso, un ojo y un aparato (biómetro): si un ojo tiene dos aparatos, salen dos filas.',
-    32,
-  )
-  par(
-    'Preoperatorio',
-    'Biometría tal como se confirmó en el caso: longitud axial, K1/K2 con sus ejes y ACD de ese aparato. Un dato que el aparato no dio queda VACÍO: nunca se rellena con un cero.',
+    'Cada fila es un paciente y un aparato (biómetro o topógrafo), con el ojo derecho y el izquierdo uno al lado del otro. Si el paciente tiene dos aparatos, salen dos filas con los mismos datos de paciente y lente. Un tercer aparato no se incluye.',
     48,
   )
   par(
-    'Lente',
-    'Es la ESTIMACIÓN PROPIA de Calculator Vilamar (primera esfera con refracción prevista negativa —positiva en la familia Lux— y el cilindro tórico más alto que comparte el eje curvo). No es lo que la calculadora señaló ni una recomendación: es orientativa y no vinculante.',
+    'Preoperatorio',
+    'Biometría y topografía tal como se confirmó en el caso, del aparato de esa fila: K plana y K curva con sus ejes (la plana es la de menor valor; cada valor conserva su eje), longitud axial, ACD, LT, grosor corneal (CCT), blanco a blanco (WTW) y córnea posterior. Un dato que el aparato no dio queda VACÍO: nunca se rellena con un cero.',
     64,
   )
   par(
-    'Eje',
-    'El eje residual que publica la propia calculadora para esa opción, como en el informe en PDF.',
+    'Lente elegida',
+    'La lente que el cirujano ha decidido pedir en la aplicación («Pedir al laboratorio»): nombre, potencia esférica, cilindro y eje. Si no se guardó ninguna, queda vacío. No salen las lentes que dieron las calculadoras ni la estimación propia.',
+    48,
+  )
+  par('SEQ target', 'La refracción objetivo con la que se calculó ese aparato.', 20)
+  par(
+    'A mano',
+    'La fecha de la operación, la edad, la raza, las enfermedades, las complicaciones y todas las revisiones (semana 1, mes 1, mes 3 y mes 6) se rellenan a mano en Excel.',
     32,
   )
   par(
-    'Residuales',
-    'Residual esférico = refracción prevista (D). Residual cilíndrico = cilindro residual (D), según la calculadora.',
-    32,
-  )
-  par(
-    'Calculadoras',
-    calculadoras.length > 0
-      ? calculadoras.map((c) => CALCULADORAS[c].nombre).join(' · ')
-      : 'Ninguna de las filas tiene resultado de calculadora.',
-    32,
+    'Cambios sobre la plantilla',
+    'Se han añadido el doctor y el aparato, el CCT, el WTW y la córnea posterior de cada ojo, y la lente elegida lleva además su cilindro y su eje. Hay listas desplegables en Gender e «Include Y/N». Se ha corregido en las revisiones el título del eje de refracción del ojo izquierdo, que la plantilla llamaba «OD».',
+    64,
   )
   filas.push([null, null])
   linea(seccion, 'Privacidad', 20)
   par(
     'Ojo',
-    'Este fichero lleva el NOMBRE del paciente. Guárdalo y compártelo solo donde corresponda.',
-    32,
+    'Este fichero lleva el NOMBRE del paciente en la primera columna, que la plantilla marca como «no compartir». Antes de enviarlo fuera, borra esa columna: la segunda lleva solo el código del caso.',
+    48,
   )
 
   return {
     nombre: 'Notas',
     filas,
-    anchos: [22, 110],
+    anchos: [26, 110],
     alturas,
     combinadas,
     colorPestana: CELESTE_PLANTILLA,

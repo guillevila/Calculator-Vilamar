@@ -35,6 +35,11 @@ export type ValorCelda = string | number | null
 export interface Celda {
   readonly v: ValorCelda
   readonly e?: EstiloCelda
+  /**
+   * Fórmula de Excel, sin el «=» inicial. `v` es el resultado ya calculado (lo que se ve
+   * al abrir el fichero antes de recalcular); Excel la recalcula al cambiar un dato.
+   */
+  readonly f?: string
 }
 
 export interface Hoja {
@@ -53,6 +58,8 @@ export interface Hoja {
   readonly filtro?: string
   /** Color de la pestaña, «RRGGBB». */
   readonly colorPestana?: string
+  /** Listas desplegables: en esas celdas («A7:A40») solo se puede elegir entre estas opciones. */
+  readonly listas?: readonly { readonly rango: string; readonly opciones: readonly string[] }[]
 }
 
 // ── Utilidades ──────────────────────────────────────────────────────────────
@@ -241,6 +248,13 @@ function xmlHoja(hoja: Hoja, estilos: RegistroDeEstilos): string {
           const ref = `${letraDeColumna(c)}${numero}`
           const s = estilos.indice(celda.e)
           const atributoS = s ? ` s="${s}"` : ''
+          if (celda.f !== undefined) {
+            const formula = `<f>${esc(celda.f)}</f>`
+            if (typeof celda.v === 'number' && Number.isFinite(celda.v)) {
+              return `<c r="${ref}"${atributoS}>${formula}<v>${celda.v}</v></c>`
+            }
+            return `<c r="${ref}"${atributoS} t="str">${formula}<v>${esc(String(celda.v ?? ''))}</v></c>`
+          }
           if (celda.v === null || celda.v === '') return `<c r="${ref}"${atributoS}/>`
           if (typeof celda.v === 'number') {
             return Number.isFinite(celda.v)
@@ -279,6 +293,14 @@ function xmlHoja(hoja: Hoja, estilos: RegistroDeEstilos): string {
       ? `<mergeCells count="${hoja.combinadas.length}">${hoja.combinadas
           .map((m) => `<mergeCell ref="${m}"/>`)
           .join('')}</mergeCells>`
+      : '') +
+    (hoja.listas && hoja.listas.length > 0
+      ? `<dataValidations count="${hoja.listas.length}">${hoja.listas
+          .map(
+            (l) =>
+              `<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" sqref="${l.rango}"><formula1>"${esc(l.opciones.join(','))}"</formula1></dataValidation>`,
+          )
+          .join('')}</dataValidations>`
       : '') +
     '<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>' +
     '<pageSetup orientation="landscape" fitToHeight="0"/>' +

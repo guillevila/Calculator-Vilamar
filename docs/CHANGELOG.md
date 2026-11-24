@@ -4,6 +4,19 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ---
 
+## [1.15.119] — 24/11/2026 (versión visible en pantalla: v1.70)
+
+feat(app): el Excel de estudio pasa al formato del «LuxLife Experience Tracker» (D152)
+
+- Una fila por paciente y aparato, con OD y OS uno al lado del otro; con dos aparatos salen dos filas, y un tercero no se incluye (se avisa en las notas).
+- Preoperatorio por ojo: K plana y curva con sus ejes, diferencia (fórmula de Excel), longitud axial, ACD, LT, CCT, WTW y córnea posterior.
+- Lente elegida por ojo (la de «Pedir al laboratorio»): nombre, potencia esférica, cilindro y eje; y la refracción objetivo.
+- Ya no salen las lentes de las calculadoras ni la estimación propia.
+- Las columnas de revisión (semana 1, mes 1, mes 3 y mes 6) quedan en blanco, para rellenarlas a mano. Listas desplegables en sexo e «Include Y/N».
+- `Tracker LuxLife.xlsx` (con datos de un estudio) se añade a `.gitignore` para que no entre nunca en el repositorio.
+
+---
+
 ## [1.15.118] — 30/10/2026 (versión visible en pantalla: v1.69)
 
 feat(app): la SIA y su eje, junto al nombre del doctor, una vez por ojo y para todos sus aparatos (D151)

@@ -46,7 +46,7 @@ import {
   aparatosDe,
   analizarCasos,
   calcularResumenDashboard,
-  filasDeEstudio,
+  filasDeTracker,
   NOMBRE_ESTADO,
   CARPETA_IMPORTADAS,
   casosCalculadosDeDoctor,
@@ -510,7 +510,8 @@ export class ServicioCasos {
   ): Promise<{ ruta: string; filas: number } | null> {
     const casos = this.casosGuardados()
     const excluidos = leerDoctoresExcluidos(this.dep.carpetas)
-    const filas = filasDeEstudio(casos, filtro, excluidos)
+    const resultado = filasDeTracker(casos, filtro, excluidos)
+    const filas = resultado.filas
     if (filas.length === 0) {
       throw new Error('Con estos filtros no hay ninguna fila que guardar en el Excel.')
     }
@@ -522,7 +523,7 @@ export class ServicioCasos {
       filtro,
       analizarCasos(casos, filtro, excluidos).opciones,
     )
-    writeFileSync(destino, libroDeEstudio(filas, descripcion, this.iso()))
+    writeFileSync(destino, libroDeEstudio(resultado, descripcion, this.iso()))
     return { ruta: destino, filas: filas.length }
   }
 
