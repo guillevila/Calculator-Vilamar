@@ -147,3 +147,6 @@ venv/
 # El HTML del informe generado para comparar con el diseño: se regenera cuando
 # hace falta y no aporta nada al repositorio.
 local/diseno/
+
+# Tracker de estudio con datos de pacientes (de-identificados, pero reales): nunca al repositorio.
+Tracker LuxLife.xlsx
